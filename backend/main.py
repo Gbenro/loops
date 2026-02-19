@@ -5,15 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 
-from .database import get_db, User, Loop, Subtask, Base, engine
-from .security import (
+from database import get_db, User, Loop, Subtask, Base, engine
+from security import (
     create_access_token,
     get_password_hash,
     authenticate_user,
     get_current_user,
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
-from .schemas import (
+from schemas import (
     UserCreate, UserResponse, Token,
     LoopCreate, LoopUpdate, LoopResponse,
     SyncRequest, SyncResponse, SubtaskBase
