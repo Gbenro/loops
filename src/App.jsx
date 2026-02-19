@@ -1,4 +1,7 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { api } from "./api/client";
+import { syncManager } from "./api/syncManager";
+import { AuthModal } from "./components/AuthModal";
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const COLORS = ["#FF6B35","#A78BFA","#60A5FA","#34D399","#F472B6","#FBBF24","#FB7185","#38BDF8"];
@@ -103,15 +106,13 @@ function buildSeed(){
 }
 
 // ─── PERSISTENCE ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = "loops_v5_data";
 function loadLoops(){
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ const parsed=JSON.parse(raw); if(Array.isArray(parsed)&&parsed.length>0)return parsed; }
-  } catch(e){}
-  return buildSeed();
+  return syncManager.loadLocal() || buildSeed();
 }
-function saveLoops(loops){ try { localStorage.setItem(STORAGE_KEY,JSON.stringify(loops)); } catch(e){} }
+function saveLoops(loops){
+  syncManager.saveLocal(loops);
+  syncManager.markPendingChanges(true);
+}
 
 // ─── ROLLOVER ─────────────────────────────────────────────────────────────────
 function computePeriodSummary(loops,period,tier){
@@ -698,8 +699,117 @@ export default function App(){
   const [modal,    setModal]    = useState(null);
   const [endOfPeriod,setEndOfPeriod]=useState(null);
 
+  // Auth and sync state
+  const [isAuthenticated, setIsAuthenticated] = useState(api.isAuthenticated());
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'offline' | 'error'
+  const syncTimeoutRef = useRef(null);
+
   // Persist on change
   useEffect(()=>{ saveLoops(loops); },[loops]);
+
+  // Sync with server when authenticated and loops change
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Clear existing timeout
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+
+    // Debounce sync by 2 seconds
+    syncTimeoutRef.current = setTimeout(async () => {
+      setSyncStatus('syncing');
+      const result = await syncManager.syncWithServer(loops);
+
+      if (result.synced) {
+        setSyncStatus('synced');
+        // Only update if server returned different data
+        if (JSON.stringify(result.loops) !== JSON.stringify(loops)) {
+          setLoops(result.loops);
+        }
+      } else if (result.authError) {
+        setIsAuthenticated(false);
+        setSyncStatus('error');
+      } else if (result.offline) {
+        setSyncStatus('offline');
+      }
+    }, 2000);
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [loops, isAuthenticated]);
+
+  // Initial sync on mount if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setSyncStatus('syncing');
+      syncManager.syncWithServer(loops).then(result => {
+        if (result.synced && result.loops) {
+          setLoops(result.loops);
+          setSyncStatus('synced');
+        } else if (result.offline) {
+          setSyncStatus('offline');
+        }
+      });
+    }
+  }, []);
+
+  // Network status listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      if (isAuthenticated && syncManager.hasPendingChanges()) {
+        setSyncStatus('syncing');
+        syncManager.syncWithServer(loops).then(result => {
+          if (result.synced) {
+            setSyncStatus('synced');
+            if (result.loops) setLoops(result.loops);
+          }
+        });
+      }
+    };
+
+    const handleOffline = () => {
+      if (isAuthenticated) {
+        setSyncStatus('offline');
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isAuthenticated, loops]);
+
+  // Auth handlers
+  const handleAuth = async (mode, email, password) => {
+    if (mode === 'signup') {
+      await api.signup(email, password);
+    }
+    await api.login(email, password);
+    setIsAuthenticated(true);
+
+    // Migrate local data to server
+    setSyncStatus('syncing');
+    const result = await syncManager.migrateLocalToServer();
+    if (result.loops && result.loops.length > 0) {
+      setLoops(result.loops);
+    }
+    setShowAuthModal(false);
+    setSyncStatus('synced');
+  };
+
+  const handleLogout = () => {
+    api.logout();
+    setIsAuthenticated(false);
+    setSyncStatus('idle');
+  };
 
   const handleViewChange=v=>{
     setView(v);
@@ -813,6 +923,66 @@ export default function App(){
         input{-webkit-appearance:none}
       `}</style>
 
+      {/* Sync status indicator */}
+      <div style={{
+        position: 'absolute',
+        top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+        right: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        zIndex: 50,
+      }}>
+        {isAuthenticated ? (
+          <>
+            <div style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: syncStatus === 'synced' ? '#34D399'
+                : syncStatus === 'syncing' ? '#FBBF24'
+                : syncStatus === 'offline' ? '#FC8181'
+                : 'rgba(255,255,255,0.2)',
+              animation: syncStatus === 'syncing' ? 'breathe 1s ease-in-out infinite' : 'none',
+              boxShadow: syncStatus === 'synced' ? '0 0 6px #34D39966' : 'none',
+            }} title={syncStatus} />
+            <button
+              onClick={handleLogout}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.25)',
+                fontSize: 9,
+                fontFamily: 'monospace',
+                cursor: 'pointer',
+                letterSpacing: '0.05em',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              logout
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            style={{
+              background: 'rgba(167,139,250,0.12)',
+              border: '1px solid rgba(167,139,250,0.25)',
+              borderRadius: 7,
+              padding: '5px 12px',
+              color: '#A78BFA',
+              fontSize: 9,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            sync
+          </button>
+        )}
+      </div>
+
       {/* Mobile: slide between list and detail */}
       <div style={{position:"relative",width:"100%",height:"100%"}}>
         {/* LIST PANEL */}
@@ -871,6 +1041,12 @@ export default function App(){
       {endOfPeriod&&(
         <EndOfPeriodModal summary={endOfPeriod.summary} periodLabel={endOfPeriod.periodLabel}
           tier={endOfPeriod.tier} onClose={confirmEnd}/>
+      )}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={handleAuth}
+        />
       )}
     </div>
   );
