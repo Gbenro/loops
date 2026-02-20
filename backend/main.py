@@ -18,9 +18,31 @@ from schemas import (
     LoopCreate, LoopUpdate, LoopResponse,
     SyncRequest, SyncResponse, SubtaskBase
 )
+from sqlalchemy import text, inspect
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+def run_migrations():
+    """Ensure database schema is up to date."""
+    inspector = inspect(engine)
+
+    with engine.connect() as conn:
+        # Check if loops table exists
+        if 'loops' in inspector.get_table_names():
+            # Check if it has the new columns
+            columns = [col['name'] for col in inspector.get_columns('loops')]
+            if 'client_id' not in columns:
+                # Old schema - need to recreate tables
+                print("Detected old schema, recreating tables...")
+                # Drop old tables (subtasks first due to FK)
+                conn.execute(text("DROP TABLE IF EXISTS subtasks CASCADE"))
+                conn.execute(text("DROP TABLE IF EXISTS loops CASCADE"))
+                conn.commit()
+
+    # Create/update tables
+    Base.metadata.create_all(bind=engine)
+    print("Database schema is up to date")
+
+# Run migrations on startup
+run_migrations()
 
 app = FastAPI()
 
