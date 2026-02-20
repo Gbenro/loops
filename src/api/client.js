@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Production API URL - hardcoded for Railway deployment
+const API_URL = import.meta.env.VITE_API_URL || 'https://loops-production-ed41.up.railway.app';
 
 // Debug logging
 console.log('[API Client] VITE_API_URL from env:', import.meta.env.VITE_API_URL);
