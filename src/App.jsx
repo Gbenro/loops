@@ -820,6 +820,26 @@ export default function App(){
     setSyncStatus('idle');
   };
 
+  const handleManualSync = async () => {
+    if (!isAuthenticated || syncStatus === 'syncing') return;
+
+    setSyncStatus('syncing');
+    try {
+      const result = await syncManager.syncWithServer(loops);
+      if (result.synced && result.loops) {
+        setLoops(result.loops);
+        setSyncStatus('synced');
+      } else if (result.offline) {
+        setSyncStatus('offline');
+      } else {
+        setSyncStatus('error');
+      }
+    } catch (error) {
+      console.error('Manual sync failed:', error);
+      setSyncStatus('error');
+    }
+  };
+
   const handleViewChange=v=>{
     setView(v);
     setShowDetail(false);
@@ -926,6 +946,7 @@ export default function App(){
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
         *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
         @keyframes breathe{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         body{margin:0;overscroll-behavior:none;background:#0c0c0f}
         ::-webkit-scrollbar{width:3px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
@@ -944,6 +965,30 @@ export default function App(){
       }}>
         {isAuthenticated ? (
           <>
+            <button
+              onClick={handleManualSync}
+              disabled={syncStatus === 'syncing'}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.4)',
+                fontSize: 12,
+                cursor: syncStatus === 'syncing' ? 'default' : 'pointer',
+                padding: '4px 6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                WebkitTapHighlightColor: 'transparent',
+                opacity: syncStatus === 'syncing' ? 0.5 : 1,
+              }}
+              title="Sync now"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{
+                animation: syncStatus === 'syncing' ? 'spin 1s linear infinite' : 'none',
+              }}>
+                <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m0 0a9 9 0 0 1 9-9m-9 9a9 9 0 0 0 9 9"/>
+              </svg>
+            </button>
             <div style={{
               width: 7,
               height: 7,
