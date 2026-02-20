@@ -241,7 +241,7 @@ def sync_loops(
             existing.tier = client_loop.tier
             existing.type = client_loop.type
             existing.recurrence = client_loop.recurrence
-            existing.status = client_loop.status
+            existing.status = client_loop.status or "active"
             existing.title = client_loop.title
             existing.color = client_loop.color
             existing.period = client_loop.period
@@ -251,9 +251,10 @@ def sync_loops(
 
             # Replace subtasks
             db.query(Subtask).filter(Subtask.loop_id == existing.id).delete()
+            subtasks_list = client_loop.subtasks or []
             existing.subtasks = [
                 Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
-                for i, s in enumerate(client_loop.subtasks)
+                for i, s in enumerate(subtasks_list)
             ]
         else:
             # Create new loop
@@ -262,7 +263,7 @@ def sync_loops(
                 tier=client_loop.tier,
                 type=client_loop.type,
                 recurrence=client_loop.recurrence,
-                status=client_loop.status,
+                status=client_loop.status or "active",
                 title=client_loop.title,
                 color=client_loop.color,
                 period=client_loop.period,
@@ -272,9 +273,10 @@ def sync_loops(
                 created_at=server_time,
                 updated_at=server_time
             )
+            subtasks_list = client_loop.subtasks or []
             db_loop.subtasks = [
                 Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
-                for i, s in enumerate(client_loop.subtasks)
+                for i, s in enumerate(subtasks_list)
             ]
             db.add(db_loop)
 

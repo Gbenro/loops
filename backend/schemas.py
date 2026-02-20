@@ -46,13 +46,13 @@ class LoopBase(BaseModel):
     tier: str  # "daily" | "weekly" | "monthly"
     type: str  # "open" | "windowed"
     recurrence: Optional[str] = None
-    status: str = "active"
+    status: Optional[str] = "active"
     title: str
     color: str
     period: str
     linkedTo: Optional[str] = None
     rolledFrom: Optional[str] = None
-    subtasks: List[SubtaskBase] = []
+    subtasks: Optional[List[SubtaskBase]] = []
 
 
 class LoopCreate(LoopBase):

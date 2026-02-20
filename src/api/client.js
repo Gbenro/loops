@@ -113,10 +113,46 @@ class ApiClient {
   }
 
   async syncLoops(loops, lastSyncTimestamp = null) {
-    return this.request('/sync', {
-      method: 'POST',
-      body: JSON.stringify({ loops, lastSyncTimestamp }),
-    });
+    console.log('[API Client] Sync attempt to:', `${this.baseUrl}/sync`);
+    console.log('[API Client] Syncing loops count:', loops?.length);
+
+    // Ensure loops have required fields and proper format
+    const sanitizedLoops = (loops || []).map(loop => ({
+      id: loop.id,
+      tier: loop.tier,
+      type: loop.type,
+      recurrence: loop.recurrence || null,
+      status: loop.status || 'active',
+      title: loop.title,
+      color: loop.color,
+      period: loop.period,
+      linkedTo: loop.linkedTo || null,
+      rolledFrom: loop.rolledFrom || null,
+      subtasks: (loop.subtasks || []).map(s => ({
+        id: s.id,
+        text: s.text,
+        done: s.done || false
+      }))
+    }));
+
+    const body = {
+      loops: sanitizedLoops,
+      lastSyncTimestamp: lastSyncTimestamp ? lastSyncTimestamp.toISOString() : null
+    };
+
+    console.log('[API Client] Request body:', JSON.stringify(body, null, 2));
+
+    try {
+      const result = await this.request('/sync', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      console.log('[API Client] Sync success');
+      return result;
+    } catch (error) {
+      console.error('[API Client] Sync error:', error);
+      throw error;
+    }
   }
 
   async createLoop(loop) {
