@@ -726,7 +726,7 @@ export default function App(){
       clearTimeout(syncTimeoutRef.current);
     }
 
-    // Debounce sync by 2 seconds
+    // Debounce sync by 500ms (quick sync after changes)
     syncTimeoutRef.current = setTimeout(async () => {
       setSyncStatus('syncing');
       const result = await syncManager.syncWithServer(loops);
@@ -743,7 +743,7 @@ export default function App(){
       } else if (result.offline) {
         setSyncStatus('offline');
       }
-    }, 2000);
+    }, 500);
 
     return () => {
       if (syncTimeoutRef.current) {
@@ -814,10 +814,28 @@ export default function App(){
     setSyncStatus('synced');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Cancel any pending debounced sync
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+
+    // Sync immediately before logout to save any pending changes
+    if (isAuthenticated) {
+      console.log('[Logout] Syncing before logout, loops count:', loops.length);
+      setSyncStatus('syncing');
+      try {
+        const result = await syncManager.syncWithServer(loops);
+        console.log('[Logout] Sync result:', result.synced ? 'success' : 'failed');
+      } catch (e) {
+        console.error('[Logout] Sync before logout failed:', e);
+      }
+    }
+
     api.logout();
     setIsAuthenticated(false);
     setSyncStatus('idle');
+    console.log('[Logout] Complete');
   };
 
   const handleManualSync = async () => {
