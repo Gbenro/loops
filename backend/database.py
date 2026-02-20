@@ -25,11 +25,16 @@ class User(Base):
     
     loops = relationship("Loop", back_populates="owner")
 
+from sqlalchemy import UniqueConstraint
+
 class Loop(Base):
     __tablename__ = "loops"
+    __table_args__ = (
+        UniqueConstraint('client_id', 'owner_id', name='uix_client_owner'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(String, unique=True, index=True)  # Frontend's string UID
+    client_id = Column(String, index=True)  # Frontend's string UID (unique per user)
     tier = Column(String, nullable=False)  # "daily" | "weekly" | "monthly"
     type = Column(String, nullable=False)  # "open" | "windowed"
     recurrence = Column(String, nullable=True)  # null | "daily" | "weekly" | "monthly"

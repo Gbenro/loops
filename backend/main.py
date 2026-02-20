@@ -27,12 +27,28 @@ def run_migrations():
     with engine.connect() as conn:
         # Check if loops table exists
         if 'loops' in inspector.get_table_names():
-            # Check if it has the new columns
+            # Check for old unique constraint on client_id alone
+            # We need composite unique (client_id, owner_id) instead
+            indexes = inspector.get_indexes('loops')
+            constraints = inspector.get_unique_constraints('loops')
+
+            needs_recreate = False
+
+            # Check if old unique constraint exists
+            for constraint in constraints:
+                if constraint.get('column_names') == ['client_id']:
+                    print("Found old unique constraint on client_id alone, need to recreate...")
+                    needs_recreate = True
+                    break
+
+            # Also check if client_id column is missing (old schema)
             columns = [col['name'] for col in inspector.get_columns('loops')]
             if 'client_id' not in columns:
-                # Old schema - need to recreate tables
-                print("Detected old schema, recreating tables...")
-                # Drop old tables (subtasks first due to FK)
+                print("Detected old schema without client_id...")
+                needs_recreate = True
+
+            if needs_recreate:
+                print("Recreating tables with correct schema...")
                 conn.execute(text("DROP TABLE IF EXISTS subtasks CASCADE"))
                 conn.execute(text("DROP TABLE IF EXISTS loops CASCADE"))
                 conn.commit()
