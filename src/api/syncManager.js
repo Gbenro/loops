@@ -84,26 +84,38 @@ export const syncManager = {
   // Migration: first-time sync after login
   async migrateLocalToServer() {
     const localLoops = this.loadLocal();
-    if (!localLoops || localLoops.length === 0) {
-      // No local data, fetch from server
+
+    // First, check what's on the server
+    let serverLoops = [];
+    try {
+      serverLoops = await api.getLoops();
+    } catch (e) {
+      console.error('Failed to fetch server loops:', e);
+    }
+
+    // If server has data, use it (don't overwrite with local demo data)
+    if (serverLoops && serverLoops.length > 0) {
+      console.log('[Sync] Server has data, using server loops');
+      this.saveLocal(serverLoops);
+      this.saveLastSync(new Date());
+      return { migrated: 0, loops: serverLoops };
+    }
+
+    // Server is empty - push local data if we have any
+    if (localLoops && localLoops.length > 0) {
+      console.log('[Sync] Server empty, migrating local loops');
       try {
-        const serverLoops = await api.getLoops();
-        this.saveLocal(serverLoops);
-        this.saveLastSync(new Date());
-        return { migrated: 0, loops: serverLoops };
-      } catch (e) {
-        return { migrated: 0, loops: [] };
+        const response = await api.syncLoops(localLoops, null);
+        this.saveLastSync(new Date(response.serverTimestamp));
+        this.saveLocal(response.loops);
+        return { migrated: localLoops.length, loops: response.loops };
+      } catch (error) {
+        console.error('Migration failed:', error);
+        throw error;
       }
     }
 
-    try {
-      const response = await api.syncLoops(localLoops, null);
-      this.saveLastSync(new Date(response.serverTimestamp));
-      this.saveLocal(response.loops);
-      return { migrated: localLoops.length, loops: response.loops };
-    } catch (error) {
-      console.error('Migration failed:', error);
-      throw error;
-    }
+    // Both empty
+    return { migrated: 0, loops: [] };
   },
 };
