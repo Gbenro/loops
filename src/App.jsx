@@ -485,7 +485,7 @@ function DetailPanel({loop,all,onToggle,onAddStep,onOpenLink,onBack}){
       {/* Mobile back header */}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px 0",
         borderBottom:"1px solid rgba(255,255,255,0.06)",paddingBottom:14,marginBottom:20}}>
-        <button onClick={onBack} style={{background:"none",border:"1px solid rgba(255,255,255,0.1)",
+        <button className="back-button-desktop" onClick={onBack} style={{background:"none",border:"1px solid rgba(255,255,255,0.1)",
           borderRadius:9,padding:"6px 12px",color:"rgba(255,255,255,0.5)",cursor:"pointer",
           fontFamily:"monospace",fontSize:11,WebkitTapHighlightColor:"transparent"}}>‹ back</button>
         <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",fontFamily:"monospace",letterSpacing:"0.1em"}}>
@@ -921,6 +921,29 @@ export default function App(){
         ::-webkit-scrollbar{width:3px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
         input{-webkit-appearance:none}
+
+        /* Desktop responsive layout */
+        @media (min-width: 768px) {
+          .layout-container {
+            display: flex !important;
+            flex-direction: row !important;
+          }
+          .list-panel {
+            position: relative !important;
+            width: 380px !important;
+            min-width: 380px !important;
+            transform: none !important;
+            border-right: 1px solid rgba(255,255,255,0.06);
+          }
+          .detail-panel {
+            position: relative !important;
+            flex: 1 !important;
+            transform: none !important;
+          }
+          .back-button-desktop {
+            display: none !important;
+          }
+        }
       `}</style>
 
       {/* Sync status indicator */}
@@ -983,15 +1006,17 @@ export default function App(){
         )}
       </div>
 
-      {/* Mobile: slide between list and detail */}
-      <div style={{position:"relative",width:"100%",height:"100%"}}>
+      {/* Responsive layout: mobile slide / desktop side-by-side */}
+      <div className="layout-container" style={{position:"relative",width:"100%",height:"100%"}}>
         {/* LIST PANEL */}
-        <div style={{
+        <div className="list-panel" style={{
           position:"absolute",inset:0,
           transform:showDetail?"translateX(-100%)":"translateX(0)",
           transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
           willChange:"transform",
           paddingTop:"env(safe-area-inset-top,0)",
+          height:"100%",
+          overflowY:"auto",
         }}>
           <SidebarList
             loops={sidebarLoops} all={loops} selectedId={syncedSelected?.id}
@@ -1003,13 +1028,14 @@ export default function App(){
         </div>
 
         {/* DETAIL PANEL */}
-        <div style={{
+        <div className="detail-panel" style={{
           position:"absolute",inset:0,
           transform:showDetail?"translateX(0)":"translateX(100%)",
           transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
           willChange:"transform",
           overflowY:"auto",
           paddingTop:"env(safe-area-inset-top,0)",
+          height:"100%",
         }}>
           {syncedSelected?(
             <DetailPanel
