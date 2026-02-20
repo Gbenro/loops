@@ -473,7 +473,7 @@ function LinkModal({loop,all,onClose,onLink}){
 }
 
 // ─── DETAIL PANEL ─────────────────────────────────────────────────────────────
-function DetailPanel({loop,all,onToggle,onAddStep,onOpenLink,onBack}){
+function DetailPanel({loop,all,onToggle,onAddStep,onOpenLink,onBack,isDesktop}){
   const [newStep,setNewStep]=useState("");
   const pct=cascadePct(loop,all),expired=loop.status==="expired";
   const parent=loop.linkedTo?all.find(l=>l.id===loop.linkedTo):null;
@@ -485,9 +485,9 @@ function DetailPanel({loop,all,onToggle,onAddStep,onOpenLink,onBack}){
       {/* Mobile back header */}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px 0",
         borderBottom:"1px solid rgba(255,255,255,0.06)",paddingBottom:14,marginBottom:20}}>
-        <button className="back-button-desktop" onClick={onBack} style={{background:"none",border:"1px solid rgba(255,255,255,0.1)",
+        {!isDesktop && <button onClick={onBack} style={{background:"none",border:"1px solid rgba(255,255,255,0.1)",
           borderRadius:9,padding:"6px 12px",color:"rgba(255,255,255,0.5)",cursor:"pointer",
-          fontFamily:"monospace",fontSize:11,WebkitTapHighlightColor:"transparent"}}>‹ back</button>
+          fontFamily:"monospace",fontSize:11,WebkitTapHighlightColor:"transparent"}}>‹ back</button>}
         <span style={{fontSize:10,color:"rgba(255,255,255,0.2)",fontFamily:"monospace",letterSpacing:"0.1em"}}>
           {loop.tier.toUpperCase()}
         </span>
@@ -705,6 +705,15 @@ export default function App(){
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'offline' | 'error'
   const syncTimeoutRef = useRef(null);
 
+  // Desktop detection for responsive layout
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Persist on change
   useEffect(()=>{ saveLoops(loops); },[loops]);
 
@@ -921,29 +930,6 @@ export default function App(){
         ::-webkit-scrollbar{width:3px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
         input{-webkit-appearance:none}
-
-        /* Desktop responsive layout */
-        @media (min-width: 768px) {
-          .layout-container {
-            display: flex !important;
-            flex-direction: row !important;
-          }
-          .list-panel {
-            position: relative !important;
-            width: 380px !important;
-            min-width: 380px !important;
-            transform: none !important;
-            border-right: 1px solid rgba(255,255,255,0.06);
-          }
-          .detail-panel {
-            position: relative !important;
-            flex: 1 !important;
-            transform: none !important;
-          }
-          .back-button-desktop {
-            display: none !important;
-          }
-        }
       `}</style>
 
       {/* Sync status indicator */}
@@ -1007,16 +993,26 @@ export default function App(){
       </div>
 
       {/* Responsive layout: mobile slide / desktop side-by-side */}
-      <div className="layout-container" style={{position:"relative",width:"100%",height:"100%"}}>
+      <div style={{
+        position:"relative",
+        width:"100%",
+        height:"100%",
+        display: isDesktop ? "flex" : "block",
+        flexDirection: "row",
+      }}>
         {/* LIST PANEL */}
-        <div className="list-panel" style={{
-          position:"absolute",inset:0,
-          transform:showDetail?"translateX(-100%)":"translateX(0)",
-          transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
-          willChange:"transform",
+        <div style={{
+          position: isDesktop ? "relative" : "absolute",
+          inset: isDesktop ? undefined : 0,
+          width: isDesktop ? "380px" : undefined,
+          minWidth: isDesktop ? "380px" : undefined,
+          transform: isDesktop ? "none" : (showDetail ? "translateX(-100%)" : "translateX(0)"),
+          transition: isDesktop ? "none" : "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+          willChange: isDesktop ? undefined : "transform",
           paddingTop:"env(safe-area-inset-top,0)",
           height:"100%",
           overflowY:"auto",
+          borderRight: isDesktop ? "1px solid rgba(255,255,255,0.06)" : "none",
         }}>
           <SidebarList
             loops={sidebarLoops} all={loops} selectedId={syncedSelected?.id}
@@ -1028,11 +1024,13 @@ export default function App(){
         </div>
 
         {/* DETAIL PANEL */}
-        <div className="detail-panel" style={{
-          position:"absolute",inset:0,
-          transform:showDetail?"translateX(0)":"translateX(100%)",
-          transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
-          willChange:"transform",
+        <div style={{
+          position: isDesktop ? "relative" : "absolute",
+          inset: isDesktop ? undefined : 0,
+          flex: isDesktop ? 1 : undefined,
+          transform: isDesktop ? "none" : (showDetail ? "translateX(0)" : "translateX(100%)"),
+          transition: isDesktop ? "none" : "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+          willChange: isDesktop ? undefined : "transform",
           overflowY:"auto",
           paddingTop:"env(safe-area-inset-top,0)",
           height:"100%",
@@ -1043,6 +1041,7 @@ export default function App(){
               onToggle={toggleStep} onAddStep={addStep}
               onOpenLink={loop=>setModal({type:"link",loop})}
               onBack={handleBack}
+              isDesktop={isDesktop}
             />
           ):(
             <div style={{height:"100%",display:"flex",flexDirection:"column",
