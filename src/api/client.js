@@ -1,8 +1,13 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Debug logging
+console.log('[API Client] VITE_API_URL from env:', import.meta.env.VITE_API_URL);
+console.log('[API Client] Using API_URL:', API_URL);
+
 class ApiClient {
   constructor() {
     this.baseUrl = API_URL;
+    console.log('[API Client] Initialized with baseUrl:', this.baseUrl);
   }
 
   getToken() {
@@ -51,30 +56,46 @@ class ApiClient {
 
   // Auth methods
   async signup(email, password) {
-    return this.request('/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+    console.log('[API Client] Signup attempt to:', `${this.baseUrl}/signup`);
+    try {
+      const result = await this.request('/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      console.log('[API Client] Signup success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API Client] Signup error:', error);
+      throw error;
+    }
   }
 
   async login(email, password) {
+    console.log('[API Client] Login attempt to:', `${this.baseUrl}/token`);
     const formData = new FormData();
     formData.append('username', email);
     formData.append('password', password);
 
-    const response = await fetch(`${this.baseUrl}/token`, {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}/token`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || 'Invalid credentials');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error('[API Client] Login failed:', error);
+        throw new Error(error.detail || 'Invalid credentials');
+      }
+
+      const data = await response.json();
+      console.log('[API Client] Login success');
+      this.setToken(data.access_token);
+      return data;
+    } catch (error) {
+      console.error('[API Client] Login error:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    this.setToken(data.access_token);
-    return data;
   }
 
   logout() {
