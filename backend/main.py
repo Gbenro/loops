@@ -239,83 +239,91 @@ def sync_loops(
     Bulk sync endpoint for offline-first pattern.
     Accepts all client loops, returns merged server state.
     """
-    server_time = datetime.utcnow()
-    conflicts = []
+    try:
+        server_time = datetime.utcnow()
+        conflicts = []
 
-    # Get existing loop client_ids for this user
-    existing_loops = {
-        l.client_id: l
-        for l in db.query(Loop).filter(Loop.owner_id == current_user.id).all()
-    }
+        # Get existing loop client_ids for this user
+        existing_loops = {
+            l.client_id: l
+            for l in db.query(Loop).filter(Loop.owner_id == current_user.id).all()
+        }
 
-    client_ids_seen = set()
+        client_ids_seen = set()
 
-    for client_loop in sync_req.loops:
-        client_ids_seen.add(client_loop.id)
-        existing = existing_loops.get(client_loop.id)
+        for client_loop in sync_req.loops:
+            client_ids_seen.add(client_loop.id)
+            existing = existing_loops.get(client_loop.id)
 
-        if existing:
-            # Check for conflicts
-            if sync_req.lastSyncTimestamp and existing.updated_at > sync_req.lastSyncTimestamp:
-                conflicts.append({
-                    "client_id": client_loop.id,
-                    "reason": "server_modified"
-                })
-            # Update existing loop
-            existing.tier = client_loop.tier
-            existing.type = client_loop.type
-            existing.recurrence = client_loop.recurrence
-            existing.status = client_loop.status or "active"
-            existing.title = client_loop.title
-            existing.color = client_loop.color
-            existing.period = client_loop.period
-            existing.linked_to = client_loop.linkedTo
-            existing.rolled_from = client_loop.rolledFrom
-            existing.updated_at = server_time
+            if existing:
+                # Check for conflicts
+                if sync_req.lastSyncTimestamp and existing.updated_at > sync_req.lastSyncTimestamp:
+                    conflicts.append({
+                        "client_id": client_loop.id,
+                        "reason": "server_modified"
+                    })
+                # Update existing loop
+                existing.tier = client_loop.tier
+                existing.type = client_loop.type
+                existing.recurrence = client_loop.recurrence
+                existing.status = client_loop.status or "active"
+                existing.title = client_loop.title
+                existing.color = client_loop.color
+                existing.period = client_loop.period
+                existing.linked_to = client_loop.linkedTo
+                existing.rolled_from = client_loop.rolledFrom
+                existing.updated_at = server_time
 
-            # Replace subtasks
-            db.query(Subtask).filter(Subtask.loop_id == existing.id).delete()
-            subtasks_list = client_loop.subtasks or []
-            existing.subtasks = [
-                Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
-                for i, s in enumerate(subtasks_list)
-            ]
-        else:
-            # Create new loop
-            db_loop = Loop(
-                client_id=client_loop.id,
-                tier=client_loop.tier,
-                type=client_loop.type,
-                recurrence=client_loop.recurrence,
-                status=client_loop.status or "active",
-                title=client_loop.title,
-                color=client_loop.color,
-                period=client_loop.period,
-                linked_to=client_loop.linkedTo,
-                rolled_from=client_loop.rolledFrom,
-                owner_id=current_user.id,
-                created_at=server_time,
-                updated_at=server_time
-            )
-            subtasks_list = client_loop.subtasks or []
-            db_loop.subtasks = [
-                Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
-                for i, s in enumerate(subtasks_list)
-            ]
-            db.add(db_loop)
+                # Replace subtasks
+                db.query(Subtask).filter(Subtask.loop_id == existing.id).delete()
+                subtasks_list = client_loop.subtasks or []
+                existing.subtasks = [
+                    Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
+                    for i, s in enumerate(subtasks_list)
+                ]
+            else:
+                # Create new loop
+                db_loop = Loop(
+                    client_id=client_loop.id,
+                    tier=client_loop.tier,
+                    type=client_loop.type,
+                    recurrence=client_loop.recurrence,
+                    status=client_loop.status or "active",
+                    title=client_loop.title,
+                    color=client_loop.color,
+                    period=client_loop.period,
+                    linked_to=client_loop.linkedTo,
+                    rolled_from=client_loop.rolledFrom,
+                    owner_id=current_user.id,
+                    created_at=server_time,
+                    updated_at=server_time
+                )
+                subtasks_list = client_loop.subtasks or []
+                db_loop.subtasks = [
+                    Subtask(client_id=s.id, text=s.text, done=s.done, order=i)
+                    for i, s in enumerate(subtasks_list)
+                ]
+                db.add(db_loop)
 
-    # Delete loops not in client's list (they were deleted client-side)
-    for client_id, existing in existing_loops.items():
-        if client_id not in client_ids_seen:
-            db.delete(existing)
+        # Delete loops not in client's list (they were deleted client-side)
+        for client_id, existing in existing_loops.items():
+            if client_id not in client_ids_seen:
+                db.delete(existing)
 
-    db.commit()
+        db.commit()
 
-    # Return all user's loops
-    all_loops = db.query(Loop).filter(Loop.owner_id == current_user.id).all()
+        # Return all user's loops
+        all_loops = db.query(Loop).filter(Loop.owner_id == current_user.id).all()
 
-    return SyncResponse(
-        loops=[loop_to_response(l) for l in all_loops],
-        serverTimestamp=server_time,
-        conflicts=conflicts
-    )
+        return SyncResponse(
+            loops=[loop_to_response(l) for l in all_loops],
+            serverTimestamp=server_time,
+            conflicts=conflicts
+        )
+    except Exception as e:
+        db.rollback()
+        print(f"Sync error for user {current_user.email}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Sync failed: {str(e)}"
+        )
