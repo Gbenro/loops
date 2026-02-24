@@ -3,12 +3,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
-import { storage } from '../lib/storage.js';
+import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 
-export function Echoes() {
-  const [echoes, setEchoes] = useState(() => storage.getEchoes());
+export function Echoes({ userId }) {
+  const [echoes, setEchoes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [isWriting, setIsWriting] = useState(false);
   const [currentText, setCurrentText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
@@ -16,16 +17,20 @@ export function Echoes() {
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Save echoes when changed
+  // Fetch echoes on mount and when userId changes
   useEffect(() => {
-    storage.saveEchoes(echoes);
-  }, [echoes]);
+    setLoading(true);
+    getEchoes(userId).then(data => {
+      setEchoes(data);
+      setLoading(false);
+    });
+  }, [userId]);
 
-  const saveEcho = () => {
+  const saveEcho = async () => {
     if (!currentText.trim()) return;
 
     const newEcho = {
-      id: storage.generateId('e'),
+      id: generateId('e'),
       text: currentText.trim(),
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
@@ -39,12 +44,30 @@ export function Echoes() {
     setEchoes(prev => [newEcho, ...prev]);
     setCurrentText('');
     setIsWriting(false);
+    await saveEchoToDb(newEcho, userId);
   };
 
-  const deleteEcho = (id) => {
+  const deleteEcho = async (id) => {
     setEchoes(prev => prev.filter(e => e.id !== id));
     setExpandedId(null);
+    await deleteEchoFromDb(id, userId);
   };
+
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#040810',
+        color: 'rgba(245, 230, 200, 0.4)',
+        fontSize: 18,
+      }}>
+        ✧
+      </div>
+    );
+  }
 
   return (
     <div style={{

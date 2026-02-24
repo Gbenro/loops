@@ -1,93 +1,218 @@
-// Cosmic Loops - localStorage Persistence
-// Simple offline-first storage (no backend sync)
+// Cosmic Loops - Storage with Supabase sync
+import { supabase } from './supabase.js';
 
-const KEYS = {
-  LOOPS: 'cosmic_loops_v1',
-  ECHOES: 'cosmic_echoes_v1',
-  SETTINGS: 'cosmic_settings_v1',
-};
+const LOOPS_KEY = 'cosmic_loops_v1';
+const ECHOES_KEY = 'cosmic_echoes_v1';
 
+// Generate unique IDs
+export function generateId(prefix = 'l') {
+  return `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
+}
+
+// Local storage helpers
+function getLocal(key, fallback = []) {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setLocal(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn('localStorage save failed:', e);
+  }
+}
+
+// ============ LOOPS ============
+
+export async function getLoops(userId) {
+  if (!userId) return getLocal(LOOPS_KEY);
+
+  try {
+    const { data, error } = await supabase
+      .from('loops')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const loops = data.map(row => ({
+      id: row.id,
+      title: row.title,
+      period: row.period,
+      steps: row.steps || [],
+      currentIndex: row.current_index || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    setLocal(LOOPS_KEY, loops);
+    return loops;
+  } catch (e) {
+    console.warn('Failed to fetch loops from server:', e);
+    return getLocal(LOOPS_KEY);
+  }
+}
+
+export async function saveLoop(loop, userId) {
+  const loops = getLocal(LOOPS_KEY);
+  const idx = loops.findIndex(l => l.id === loop.id);
+  if (idx >= 0) {
+    loops[idx] = loop;
+  } else {
+    loops.unshift(loop);
+  }
+  setLocal(LOOPS_KEY, loops);
+
+  if (!userId) return loop;
+
+  try {
+    const { error } = await supabase
+      .from('loops')
+      .upsert({
+        id: loop.id,
+        user_id: userId,
+        title: loop.title,
+        period: loop.period,
+        steps: loop.steps,
+        current_index: loop.currentIndex || 0,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) throw error;
+  } catch (e) {
+    console.warn('Failed to save loop to server:', e);
+  }
+
+  return loop;
+}
+
+export async function deleteLoop(loopId, userId) {
+  const loops = getLocal(LOOPS_KEY).filter(l => l.id !== loopId);
+  setLocal(LOOPS_KEY, loops);
+
+  if (!userId) return;
+
+  try {
+    await supabase.from('loops').delete().eq('id', loopId);
+  } catch (e) {
+    console.warn('Failed to delete loop from server:', e);
+  }
+}
+
+// ============ ECHOES ============
+
+export async function getEchoes(userId) {
+  if (!userId) return getLocal(ECHOES_KEY);
+
+  try {
+    const { data, error } = await supabase
+      .from('echoes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const echoes = data.map(row => ({
+      id: row.id,
+      text: row.text,
+      phase: row.phase,
+      phaseName: row.phase_name,
+      lunarMonth: row.lunar_month,
+      dayOfCycle: row.day_of_cycle,
+      zodiac: row.zodiac,
+      illumination: row.illumination,
+      createdAt: row.created_at,
+    }));
+
+    setLocal(ECHOES_KEY, echoes);
+    return echoes;
+  } catch (e) {
+    console.warn('Failed to fetch echoes from server:', e);
+    return getLocal(ECHOES_KEY);
+  }
+}
+
+export async function saveEcho(echo, userId) {
+  const echoes = getLocal(ECHOES_KEY);
+  echoes.unshift(echo);
+  setLocal(ECHOES_KEY, echoes);
+
+  if (!userId) return echo;
+
+  try {
+    const { error } = await supabase
+      .from('echoes')
+      .insert({
+        id: echo.id,
+        user_id: userId,
+        text: echo.text,
+        phase: echo.phase,
+        phase_name: echo.phaseName,
+        lunar_month: echo.lunarMonth,
+        day_of_cycle: echo.dayOfCycle,
+        zodiac: echo.zodiac,
+        illumination: echo.illumination,
+        created_at: echo.createdAt,
+      });
+
+    if (error) throw error;
+  } catch (e) {
+    console.warn('Failed to save echo to server:', e);
+  }
+
+  return echo;
+}
+
+export async function deleteEcho(echoId, userId) {
+  const echoes = getLocal(ECHOES_KEY).filter(e => e.id !== echoId);
+  setLocal(ECHOES_KEY, echoes);
+
+  if (!userId) return;
+
+  try {
+    await supabase.from('echoes').delete().eq('id', echoId);
+  } catch (e) {
+    console.warn('Failed to delete echo from server:', e);
+  }
+}
+
+// ============ MIGRATION ============
+
+export async function migrateLocalToServer(userId) {
+  if (!userId) return;
+
+  const localLoops = getLocal(LOOPS_KEY);
+  for (const loop of localLoops) {
+    await saveLoop(loop, userId);
+  }
+
+  const localEchoes = getLocal(ECHOES_KEY);
+  for (const echo of localEchoes) {
+    // Check if echo already exists
+    const { data } = await supabase
+      .from('echoes')
+      .select('id')
+      .eq('id', echo.id)
+      .single();
+
+    if (!data) {
+      await saveEcho(echo, userId);
+    }
+  }
+}
+
+// Legacy exports for compatibility
 export const storage = {
-  // ─── Loops ───────────────────────────────────────────────────────────────
-
-  getLoops() {
-    try {
-      const raw = localStorage.getItem(KEYS.LOOPS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to load loops:', e);
-    }
-    return [];
-  },
-
-  saveLoops(loops) {
-    try {
-      localStorage.setItem(KEYS.LOOPS, JSON.stringify(loops));
-    } catch (e) {
-      console.error('Failed to save loops:', e);
-    }
-  },
-
-  // ─── Echoes (Journal) ────────────────────────────────────────────────────
-
-  getEchoes() {
-    try {
-      const raw = localStorage.getItem(KEYS.ECHOES);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to load echoes:', e);
-    }
-    return [];
-  },
-
-  saveEchoes(echoes) {
-    try {
-      localStorage.setItem(KEYS.ECHOES, JSON.stringify(echoes));
-    } catch (e) {
-      console.error('Failed to save echoes:', e);
-    }
-  },
-
-  // ─── Settings ────────────────────────────────────────────────────────────
-
-  getSettings() {
-    try {
-      const raw = localStorage.getItem(KEYS.SETTINGS);
-      if (raw) {
-        return JSON.parse(raw);
-      }
-    } catch (e) {
-      console.error('Failed to load settings:', e);
-    }
-    return {
-      location: { lat: 41.9, lng: -87.7, name: 'Chicago' }, // Default
-    };
-  },
-
-  saveSettings(settings) {
-    try {
-      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-    } catch (e) {
-      console.error('Failed to save settings:', e);
-    }
-  },
-
-  // ─── Utilities ───────────────────────────────────────────────────────────
-
-  clearAll() {
-    localStorage.removeItem(KEYS.LOOPS);
-    localStorage.removeItem(KEYS.ECHOES);
-    localStorage.removeItem(KEYS.SETTINGS);
-  },
-
-  // Generate unique ID
-  generateId(prefix = 'l') {
-    return `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
-  },
+  generateId,
+  getLoops: () => getLocal(LOOPS_KEY),
+  saveLoops: (loops) => setLocal(LOOPS_KEY, loops),
+  getEchoes: () => getLocal(ECHOES_KEY),
+  saveEchoes: (echoes) => setLocal(ECHOES_KEY, echoes),
 };

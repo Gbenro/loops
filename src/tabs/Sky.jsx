@@ -11,7 +11,7 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky() {
+export function Sky({ user, onSignIn, onSignOut }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Calculate all cosmic data
@@ -51,13 +51,34 @@ export function Sky() {
       {/* Time & Location Header */}
       <div style={{
         padding: '16px 20px 8px',
-        textAlign: 'center',
-        fontSize: 10,
-        fontFamily: 'monospace',
-        letterSpacing: '0.12em',
-        color: 'rgba(245, 230, 200, 0.4)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
       }}>
-        {timeStr} · CHICAGO · {dateStr.toUpperCase()}
+        <div style={{
+          fontSize: 10,
+          fontFamily: 'monospace',
+          letterSpacing: '0.12em',
+          color: 'rgba(245, 230, 200, 0.4)',
+        }}>
+          {timeStr} · {dateStr.toUpperCase()}
+        </div>
+        <button
+          onClick={user ? onSignOut : onSignIn}
+          style={{
+            background: 'none',
+            border: '1px solid rgba(245, 230, 200, 0.15)',
+            borderRadius: 6,
+            padding: '6px 10px',
+            fontSize: 9,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: user ? 'rgba(52, 211, 153, 0.7)' : 'rgba(245, 230, 200, 0.4)',
+            cursor: 'pointer',
+          }}
+        >
+          {user ? '● SYNCED' : 'SIGN IN'}
+        </button>
       </div>
 
       {/* Moon Display */}

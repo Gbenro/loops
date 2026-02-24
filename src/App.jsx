@@ -1,10 +1,13 @@
 // Cosmic Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase.js';
+import { migrateLocalToServer } from './lib/storage.js';
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
+import { AuthModal } from './components/AuthModal.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -14,6 +17,51 @@ const TABS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('sky');
+  const [user, setUser] = useState(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Check auth state on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAuthSuccess = async (newUser) => {
+    setUser(newUser);
+    setShowAuth(false);
+    // Migrate any local data to server
+    await migrateLocalToServer(newUser.id);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        height: '100dvh',
+        background: '#040810',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#f5e6c8',
+        fontSize: 24,
+      }}>
+        ☽
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -88,15 +136,29 @@ export default function App() {
         }
       `}</style>
 
+      {/* Auth Modal */}
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={handleAuthSuccess}
+        />
+      )}
+
       {/* Tab Content */}
       <div style={{
         flex: 1,
         overflow: 'hidden',
         position: 'relative',
       }}>
-        {activeTab === 'sky' && <Sky />}
-        {activeTab === 'loops' && <Loops />}
-        {activeTab === 'echoes' && <Echoes />}
+        {activeTab === 'sky' && (
+          <Sky
+            user={user}
+            onSignIn={() => setShowAuth(true)}
+            onSignOut={handleSignOut}
+          />
+        )}
+        {activeTab === 'loops' && <Loops userId={user?.id} />}
+        {activeTab === 'echoes' && <Echoes userId={user?.id} />}
       </div>
 
       {/* Bottom Navigation */}

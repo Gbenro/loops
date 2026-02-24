@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Ring } from '../components/Ring.jsx';
-import { storage } from '../lib/storage.js';
+import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 
@@ -13,8 +13,9 @@ const COLORS = [
   '#F472B6', '#FBBF24', '#FB7185', '#38BDF8'
 ];
 
-export function Loops() {
-  const [loops, setLoops] = useState(() => storage.getLoops());
+export function Loops({ userId }) {
+  const [loops, setLoops] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -22,10 +23,14 @@ export function Loops() {
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Save loops when changed
+  // Fetch loops on mount and when userId changes
   useEffect(() => {
-    storage.saveLoops(loops);
-  }, [loops]);
+    setLoading(true);
+    getLoops(userId).then(data => {
+      setLoops(data);
+      setLoading(false);
+    });
+  }, [userId]);
 
   // Calculate loop completion percentage
   const getLoopPct = useCallback((loop) => {
@@ -35,12 +40,13 @@ export function Loops() {
   }, []);
 
   // Create new loop
-  const createLoop = (loop) => {
+  const createLoop = async (loop) => {
     const newLoop = {
       ...loop,
-      id: storage.generateId('l'),
+      id: generateId('l'),
       createdAt: new Date().toISOString(),
       phaseOpened: lunarData.phase.key,
+      phaseName: lunarData.phase.name,
       lunarMonthOpened: lunarData.lunarMonth,
       moonAgeOpened: lunarData.age,
       closed: false,
@@ -50,76 +56,91 @@ export function Loops() {
     setShowCreate(false);
     setSelected(newLoop);
     setShowDetail(true);
+    await saveLoop(newLoop, userId);
   };
 
   // Toggle loop closed
-  const toggleLoop = (id) => {
-    setLoops(prev => prev.map(l =>
-      l.id === id ? { ...l, closed: !l.closed } : l
-    ));
+  const toggleLoop = async (id) => {
+    const loop = loops.find(l => l.id === id);
+    if (!loop) return;
+    const updated = { ...loop, closed: !loop.closed };
+    setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    await saveLoop(updated, userId);
   };
 
   // Update loop
-  const updateLoop = (id, updates) => {
-    setLoops(prev => prev.map(l =>
-      l.id === id ? { ...l, ...updates } : l
-    ));
+  const updateLoop = async (id, updates) => {
+    const loop = loops.find(l => l.id === id);
+    if (!loop) return;
+    const updated = { ...loop, ...updates };
+    setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) {
-      setSelected(prev => ({ ...prev, ...updates }));
+      setSelected(updated);
     }
+    await saveLoop(updated, userId);
   };
 
   // Delete loop
-  const deleteLoop = (id) => {
+  const deleteLoop = async (id) => {
     setLoops(prev => prev.filter(l => l.id !== id));
     setSelected(null);
     setShowDetail(false);
+    await deleteLoopFromDb(id, userId);
   };
 
   // Toggle subtask
-  const toggleSubtask = (loopId, subtaskId) => {
-    setLoops(prev => prev.map(l => {
-      if (l.id !== loopId) return l;
-      return {
-        ...l,
-        subtasks: l.subtasks.map(s =>
-          s.id === subtaskId ? { ...s, done: !s.done } : s
-        ),
-      };
-    }));
-    // Update selected
+  const toggleSubtask = async (loopId, subtaskId) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop) return;
+    const updated = {
+      ...loop,
+      subtasks: loop.subtasks.map(s =>
+        s.id === subtaskId ? { ...s, done: !s.done } : s
+      ),
+    };
+    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
     if (selected?.id === loopId) {
-      setSelected(prev => ({
-        ...prev,
-        subtasks: prev.subtasks.map(s =>
-          s.id === subtaskId ? { ...s, done: !s.done } : s
-        ),
-      }));
+      setSelected(updated);
     }
+    await saveLoop(updated, userId);
   };
 
   // Add subtask
-  const addSubtask = (loopId, text) => {
+  const addSubtask = async (loopId, text) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop) return;
     const newSubtask = {
-      id: storage.generateId('s'),
+      id: generateId('s'),
       text,
       done: false,
     };
-    setLoops(prev => prev.map(l => {
-      if (l.id !== loopId) return l;
-      return { ...l, subtasks: [...l.subtasks, newSubtask] };
-    }));
+    const updated = { ...loop, subtasks: [...loop.subtasks, newSubtask] };
+    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
     if (selected?.id === loopId) {
-      setSelected(prev => ({
-        ...prev,
-        subtasks: [...prev.subtasks, newSubtask],
-      }));
+      setSelected(updated);
     }
+    await saveLoop(updated, userId);
   };
 
   // Filter active loops
   const activeLoops = loops.filter(l => !l.closed);
   const closedLoops = loops.filter(l => l.closed);
+
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#040810',
+        color: 'rgba(245, 230, 200, 0.4)',
+        fontSize: 18,
+      }}>
+        ◯
+      </div>
+    );
+  }
 
   return (
     <div style={{
