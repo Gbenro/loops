@@ -30,7 +30,8 @@ function setLocal(key, data) {
 // ============ LOOPS ============
 
 export async function getLoops(userId) {
-  if (!userId) return getLocal(LOOPS_KEY);
+  const localLoops = getLocal(LOOPS_KEY);
+  if (!userId) return localLoops;
 
   try {
     const { data, error } = await supabase
@@ -39,9 +40,12 @@ export async function getLoops(userId) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase loops fetch error:', error);
+      throw error;
+    }
 
-    const loops = data.map(row => ({
+    const serverLoops = data.map(row => ({
       id: row.id,
       title: row.title,
       type: row.type || 'open',
@@ -57,11 +61,22 @@ export async function getLoops(userId) {
       updatedAt: row.updated_at,
     }));
 
-    setLocal(LOOPS_KEY, loops);
-    return loops;
+    // Merge: keep local loops not on server (failed to sync)
+    const serverIds = new Set(serverLoops.map(l => l.id));
+    const unsyncedLocal = localLoops.filter(l => !serverIds.has(l.id));
+    const merged = [...serverLoops, ...unsyncedLocal];
+
+    setLocal(LOOPS_KEY, merged);
+
+    // Try to sync unsynced local loops to server
+    for (const loop of unsyncedLocal) {
+      saveLoop(loop, userId);
+    }
+
+    return merged;
   } catch (e) {
     console.warn('Failed to fetch loops from server:', e);
-    return getLocal(LOOPS_KEY);
+    return localLoops;
   }
 }
 
@@ -78,7 +93,7 @@ export async function saveLoop(loop, userId) {
   if (!userId) return loop;
 
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('loops')
       .upsert({
         id: loop.id,
@@ -93,13 +108,17 @@ export async function saveLoop(loop, userId) {
         phase_name: loop.phaseName,
         lunar_month_opened: loop.lunarMonthOpened,
         moon_age_opened: loop.moonAgeOpened,
-        created_at: loop.createdAt,
         updated_at: new Date().toISOString(),
-      });
+      })
+      .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase loops upsert error:', error);
+      throw error;
+    }
+    console.log('Loop saved to Supabase:', data);
   } catch (e) {
-    console.warn('Failed to save loop to server:', e);
+    console.error('Failed to save loop to server:', e);
   }
 
   return loop;
