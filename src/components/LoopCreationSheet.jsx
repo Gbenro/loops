@@ -116,15 +116,15 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
           <>
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 22,
+              fontSize: 'var(--font-2xl)',
               color: '#f5e6c8',
               textAlign: 'center',
-              marginBottom: 8,
+              marginBottom: 10,
             }}>
               What kind of loop?
             </div>
             <div style={{
-              fontSize: 11,
+              fontSize: 'var(--font-sm)',
               fontFamily: 'monospace',
               color: 'rgba(245, 230, 200, 0.4)',
               textAlign: 'center',
@@ -138,11 +138,11 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               onClick={() => setLoopType('open')}
               style={{
                 width: '100%',
-                padding: '20px',
+                padding: '22px',
                 borderRadius: 14,
                 background: 'rgba(148, 163, 184, 0.06)',
                 border: '1px solid rgba(148, 163, 184, 0.15)',
-                marginBottom: 12,
+                marginBottom: 14,
                 cursor: 'pointer',
                 textAlign: 'left',
               }}
@@ -150,23 +150,23 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                marginBottom: 8,
+                gap: 14,
+                marginBottom: 10,
               }}>
-                <span style={{ fontSize: 20 }}>◯</span>
+                <span style={{ fontSize: 24 }}>◯</span>
                 <span style={{
                   fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: 18,
+                  fontSize: 'var(--font-xl)',
                   color: '#f5e6c8',
                 }}>
                   Open Loop
                 </span>
               </div>
               <div style={{
-                fontSize: 12,
+                fontSize: 'var(--font-md)',
                 color: 'rgba(245, 230, 200, 0.5)',
-                lineHeight: 1.5,
-                paddingLeft: 32,
+                lineHeight: 1.6,
+                paddingLeft: 38,
               }}>
                 No time window. A task or intention that stays open until you close it.
                 Good for transitioning from regular task management.
@@ -178,11 +178,11 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               onClick={() => setLoopType('phase')}
               style={{
                 width: '100%',
-                padding: '20px',
+                padding: '22px',
                 borderRadius: 14,
                 background: 'rgba(167, 139, 250, 0.06)',
                 border: '1px solid rgba(167, 139, 250, 0.15)',
-                marginBottom: 12,
+                marginBottom: 14,
                 cursor: 'pointer',
                 textAlign: 'left',
               }}
@@ -190,22 +190,22 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                marginBottom: 8,
+                gap: 14,
+                marginBottom: 10,
               }}>
-                <span style={{ fontSize: 20 }}>{phaseEmoji}</span>
+                <span style={{ fontSize: 24 }}>{phaseEmoji}</span>
                 <span style={{
                   fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: 18,
+                  fontSize: 'var(--font-xl)',
                   color: '#f5e6c8',
                 }}>
                   Phase Loop
                 </span>
                 <span style={{
-                  fontSize: 9,
+                  fontSize: 'var(--font-xs)',
                   fontFamily: 'monospace',
-                  padding: '3px 8px',
-                  borderRadius: 4,
+                  padding: '4px 10px',
+                  borderRadius: 5,
                   background: 'rgba(167, 139, 250, 0.15)',
                   color: '#A78BFA',
                 }}>
@@ -213,10 +213,10 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 </span>
               </div>
               <div style={{
-                fontSize: 12,
+                fontSize: 'var(--font-md)',
                 color: 'rgba(245, 230, 200, 0.5)',
-                lineHeight: 1.5,
-                paddingLeft: 32,
+                lineHeight: 1.6,
+                paddingLeft: 38,
               }}>
                 Tied to {lunarData.phase.name}. You'll be nudged to close or release
                 this loop when the phase shifts.
@@ -228,14 +228,14 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               onClick={onClose}
               style={{
                 width: '100%',
-                padding: '14px',
+                padding: '16px',
                 borderRadius: 12,
                 border: '1px solid rgba(245, 230, 200, 0.1)',
                 background: 'transparent',
                 color: 'rgba(245, 230, 200, 0.4)',
-                fontSize: 13,
+                fontSize: 'var(--font-md)',
                 cursor: 'pointer',
-                marginTop: 8,
+                marginTop: 10,
               }}
             >
               Cancel

@@ -53,13 +53,13 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
 
       {/* Time & Location Header */}
       <div style={{
-        padding: '16px 20px 8px',
+        padding: '18px 24px 10px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
       }}>
         <div style={{
-          fontSize: 10,
+          fontSize: 'var(--font-xs)',
           fontFamily: 'monospace',
           letterSpacing: '0.12em',
           color: 'rgba(245, 230, 200, 0.4)',
@@ -71,9 +71,9 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           style={{
             background: 'none',
             border: '1px solid rgba(245, 230, 200, 0.15)',
-            borderRadius: 6,
-            padding: '6px 10px',
-            fontSize: 9,
+            borderRadius: 8,
+            padding: '8px 14px',
+            fontSize: 'var(--font-xs)',
             fontFamily: 'monospace',
             letterSpacing: '0.08em',
             color: user ? 'rgba(52, 211, 153, 0.7)' : 'rgba(245, 230, 200, 0.4)',
@@ -110,10 +110,10 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           {/* Tap hint */}
           <div style={{
             position: 'absolute',
-            bottom: -28,
+            bottom: -32,
             left: '50%',
             transform: 'translateX(-50%)',
-            fontSize: 8,
+            fontSize: 'var(--font-xs)',
             fontFamily: 'monospace',
             letterSpacing: '0.15em',
             color: 'rgba(245, 230, 200, 0.25)',
@@ -127,62 +127,62 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
 
       {/* Phase Info */}
       <div style={{
-        padding: '0 20px 20px',
+        padding: '0 24px 24px',
         textAlign: 'center',
       }}>
         {/* Phase Name */}
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 28,
+          fontSize: 'var(--font-3xl)',
           fontWeight: 600,
           color: '#f5e6c8',
-          marginBottom: 8,
+          marginBottom: 10,
         }}>
           {phaseContent.title}
         </div>
 
         {/* Stats Line */}
         <div style={{
-          fontSize: 10,
+          fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
           color: 'rgba(245, 230, 200, 0.5)',
-          marginBottom: 8,
+          marginBottom: 10,
         }}>
           {lunarData.illumination}% · {lunarData.lunarMonth.toUpperCase()} MOON · MOON IN {lunarData.zodiac.sign.toUpperCase()}
         </div>
 
         {/* Day Line */}
         <div style={{
-          fontSize: 10,
+          fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.08em',
           color: 'rgba(245, 230, 200, 0.35)',
-          marginBottom: 20,
+          marginBottom: 24,
         }}>
           DAY {lunarData.dayOfCycle} OF CYCLE · {lunarData.daysToFull}D TO FULL
         </div>
 
         {/* Cosmic Energy Card */}
         <div style={{
-          padding: '16px 20px',
-          borderRadius: 12,
+          padding: '18px 22px',
+          borderRadius: 14,
           background: lunarData.phase.isThreshold
             ? 'rgba(245, 230, 200, 0.05)'
             : 'rgba(201, 168, 76, 0.04)',
           border: `1px solid ${lunarData.phase.isThreshold
             ? 'rgba(245, 230, 200, 0.1)'
             : 'rgba(201, 168, 76, 0.12)'}`,
-          marginBottom: 20,
+          marginBottom: 24,
         }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            marginBottom: 8,
+            gap: 10,
+            marginBottom: 10,
           }}>
             <span style={{
-              fontSize: 11,
+              fontSize: 'var(--font-sm)',
               fontFamily: 'monospace',
               letterSpacing: '0.12em',
               color: 'rgba(245, 230, 200, 0.5)',
@@ -190,11 +190,11 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
               {phaseContent.energy.toUpperCase()}
             </span>
             <span style={{
-              fontSize: 8,
+              fontSize: 'var(--font-xs)',
               fontFamily: 'monospace',
               letterSpacing: '0.1em',
-              padding: '2px 6px',
-              borderRadius: 3,
+              padding: '3px 8px',
+              borderRadius: 4,
               background: lunarData.phase.isThreshold
                 ? 'rgba(245, 230, 200, 0.08)'
                 : 'rgba(201, 168, 76, 0.1)',
@@ -208,21 +208,21 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           {/* Phase type opening */}
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 13,
+            fontSize: 'var(--font-md)',
             color: lunarData.phase.isThreshold
               ? 'rgba(245, 230, 200, 0.6)'
               : 'rgba(201, 168, 76, 0.65)',
-            marginBottom: 8,
-            lineHeight: 1.4,
+            marginBottom: 10,
+            lineHeight: 1.5,
           }}>
             {phaseContent.typeOpening}
           </div>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 15,
+            fontSize: 'var(--font-lg)',
             fontStyle: 'italic',
             color: 'rgba(245, 230, 200, 0.85)',
-            lineHeight: 1.5,
+            lineHeight: 1.6,
           }}>
             "{phaseContent.guidance}"
           </div>
@@ -232,8 +232,8 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
-          padding: '8px 0',
-          marginBottom: 12,
+          padding: '10px 0',
+          marginBottom: 16,
         }}>
           {allPhases.map((p) => {
             const isActive = p.key === lunarData.phase.key;
@@ -245,11 +245,11 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
                   flexDirection: 'column',
                   alignItems: 'center',
                   opacity: isActive ? 1 : 0.3,
-                  transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                  transform: isActive ? 'scale(1.2)' : 'scale(1)',
                   transition: 'all 0.2s',
                 }}
               >
-                <span style={{ fontSize: 16 }}>{p.emoji}</span>
+                <span style={{ fontSize: 20 }}>{p.emoji}</span>
               </div>
             );
           })}
@@ -291,25 +291,25 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           <div
             onClick={() => setSheetOpen(true)}
             style={{
-              padding: '12px 16px',
-              borderRadius: 10,
+              padding: '14px 18px',
+              borderRadius: 12,
               background: 'rgba(167, 139, 250, 0.08)',
               border: '1px solid rgba(167, 139, 250, 0.2)',
-              marginBottom: 16,
+              marginBottom: 18,
               cursor: 'pointer',
             }}
           >
             <div style={{
-              fontSize: 9,
+              fontSize: 'var(--font-xs)',
               fontFamily: 'monospace',
               letterSpacing: '0.1em',
               color: '#A78BFA',
-              marginBottom: 4,
+              marginBottom: 6,
             }}>
               {resonanceSummary.intensity === 'active' ? 'ACTIVE TRANSIT' : 'TRANSIT'}
             </div>
             <div style={{
-              fontSize: 13,
+              fontSize: 'var(--font-md)',
               color: 'rgba(245, 230, 200, 0.85)',
             }}>
               {resonanceSummary.message}
@@ -322,16 +322,16 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           onClick={() => setSheetOpen(true)}
           style={{
             width: '100%',
-            padding: '14px 20px',
-            borderRadius: 12,
+            padding: '16px 24px',
+            borderRadius: 14,
             background: 'rgba(245, 230, 200, 0.06)',
             border: '1px solid rgba(245, 230, 200, 0.12)',
             color: 'rgba(245, 230, 200, 0.7)',
-            fontSize: 12,
+            fontSize: 'var(--font-sm)',
             fontFamily: 'monospace',
             letterSpacing: '0.1em',
             cursor: 'pointer',
-            marginBottom: 16,
+            marginBottom: 18,
           }}
         >
           GO DEEPER ↓
@@ -340,10 +340,10 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
         {/* Waning Notice */}
         {lunarData.phase.isWaning && (
           <div style={{
-            fontSize: 12,
+            fontSize: 'var(--font-md)',
             fontStyle: 'italic',
             color: 'rgba(252, 129, 129, 0.65)',
-            lineHeight: 1.5,
+            lineHeight: 1.6,
           }}>
             The moon is waning. A time for releasing, not starting.
           </div>

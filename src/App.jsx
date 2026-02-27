@@ -65,22 +65,61 @@ export default function App() {
 
   return (
     <div style={{
-      height: '100dvh',
+      minHeight: '100dvh',
       background: '#040810',
-      color: '#f5e6c8',
-      fontFamily: "'DM Sans', sans-serif",
       display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
+      justifyContent: 'center',
     }}>
+      {/* App Container - max width for desktop */}
+      <div style={{
+        width: '100%',
+        maxWidth: 520,
+        height: '100dvh',
+        background: '#040810',
+        color: '#f5e6c8',
+        fontFamily: "'DM Sans', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: 'inset 0 0 100px rgba(0,0,0,0.3)',
+      }}>
       {/* Global Styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap');
+
+        :root {
+          /* Base font sizes - larger for accessibility */
+          --font-xs: 11px;
+          --font-sm: 13px;
+          --font-md: 15px;
+          --font-lg: 18px;
+          --font-xl: 22px;
+          --font-2xl: 28px;
+          --font-3xl: 32px;
+        }
+
+        /* Larger fonts on desktop for better readability */
+        @media (min-width: 768px) {
+          :root {
+            --font-xs: 12px;
+            --font-sm: 14px;
+            --font-md: 16px;
+            --font-lg: 20px;
+            --font-xl: 26px;
+            --font-2xl: 32px;
+            --font-3xl: 38px;
+          }
+        }
 
         * {
           box-sizing: border-box;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+        }
+
+        html, body, #root {
+          height: 100%;
         }
 
         body {
@@ -115,8 +154,13 @@ export default function App() {
           50% { opacity: 1; }
         }
 
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+
         ::-webkit-scrollbar {
-          width: 3px;
+          width: 4px;
         }
 
         ::-webkit-scrollbar-track {
@@ -124,7 +168,7 @@ export default function App() {
         }
 
         ::-webkit-scrollbar-thumb {
-          background: rgba(245, 230, 200, 0.1);
+          background: rgba(245, 230, 200, 0.15);
           border-radius: 2px;
         }
 
@@ -177,7 +221,7 @@ export default function App() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1,
-                padding: '14px 0 10px',
+                padding: '16px 0 12px',
                 background: 'none',
                 border: 'none',
                 color: isActive ? '#f5e6c8' : 'rgba(245, 230, 200, 0.26)',
@@ -185,21 +229,21 @@ export default function App() {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 4,
+                gap: 6,
                 transition: 'all 0.2s ease',
                 transform: isActive ? 'scale(1.05)' : 'scale(1)',
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
               <span style={{
-                fontSize: 22,
+                fontSize: 26,
                 filter: isActive ? 'none' : 'grayscale(100%)',
                 transition: 'filter 0.2s',
               }}>
                 {tab.icon}
               </span>
               <span style={{
-                fontSize: 9,
+                fontSize: 'var(--font-xs)',
                 fontFamily: 'monospace',
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
@@ -210,6 +254,7 @@ export default function App() {
           );
         })}
       </nav>
+      </div>
     </div>
   );
 }
