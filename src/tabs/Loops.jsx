@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Ring } from '../components/Ring.jsx';
 import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
-import { PhaseLoopSheet } from '../components/PhaseLoopSheet.jsx';
+import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
 import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
@@ -13,7 +13,7 @@ export function Loops({ userId }) {
   const [loops, setLoops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRitual, setShowRitual] = useState(false);
-  const [showPhaseSheet, setShowPhaseSheet] = useState(false);
+  const [showLoopSheet, setShowLoopSheet] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
@@ -182,29 +182,16 @@ export function Loops({ userId }) {
     await saveLoop(updated, userId);
   };
 
-  // Filter loops
-  const phaseLoops = loops.filter(l => l.type === 'phase');
-  const activePhaseLoops = phaseLoops.filter(l => l.status === 'active');
-  const closedLoops = phaseLoops.filter(l => l.status === 'closed' || l.status === 'released');
+  // Filter loops by type
+  const phaseLoops = loops.filter(l => l.type === 'phase' && l.status === 'active');
+  const openLoops = loops.filter(l => l.type === 'open' && l.status === 'active');
+  const closedLoops = loops.filter(l =>
+    (l.type === 'phase' || l.type === 'open') &&
+    (l.status === 'closed' || l.status === 'released')
+  );
 
-  // Button visibility and text
-  const getAddButtonState = () => {
-    if (isNewMoon && !cycleLoop) return { show: false };
-    if (isFullMoon) return { show: false };
-    if (isWaningCrescent) return { show: false };
-    if (lunarData.phase.key === 'waning-gibbous') {
-      return { show: true, dimmed: true, label: '〰 one last sharing loop' };
-    }
-    if (lunarData.phase.key === 'last-quarter') {
-      return { show: true, dimmed: true, label: '〰 release what\'s unfinished' };
-    }
-    if (isWaning) {
-      return { show: true, dimmed: true, label: '〰 rest, the cycle is releasing...' };
-    }
-    return { show: true, dimmed: false, label: '+ open a phase loop' };
-  };
-
-  const addButton = getAddButtonState();
+  // Button is always shown now (open loops have no restrictions)
+  const addButtonLabel = '+ open a loop';
 
   if (loading) {
     return (
@@ -241,12 +228,12 @@ export function Loops({ userId }) {
         />
       )}
 
-      {/* Phase Loop Sheet */}
-      {showPhaseSheet && (
-        <PhaseLoopSheet
+      {/* Loop Creation Sheet */}
+      {showLoopSheet && (
+        <LoopCreationSheet
           lunarData={lunarData}
           cycleLoopId={cycleLoop?.id}
-          onClose={() => setShowPhaseSheet(false)}
+          onClose={() => setShowLoopSheet(false)}
           onCreate={createPhaseLoop}
         />
       )}
@@ -379,19 +366,64 @@ export function Loops({ userId }) {
           </div>
         )}
 
-        {/* Active Phase Loops */}
-        {activePhaseLoops.length > 0 && (
+        {/* Phase Loops (Windowed) */}
+        {phaseLoops.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 12,
+            }}>
+              <span style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'rgba(167, 139, 250, 0.6)',
+              }}>
+                PHASE LOOPS
+              </span>
+              <span style={{
+                fontSize: 8,
+                fontFamily: 'monospace',
+                padding: '2px 6px',
+                borderRadius: 3,
+                background: 'rgba(167, 139, 250, 0.1)',
+                color: 'rgba(167, 139, 250, 0.7)',
+              }}>
+                {lunarData.phaseRemaining?.toFixed(1)}D WINDOW
+              </span>
+            </div>
+            {phaseLoops.map(loop => (
+              <LoopCard
+                key={loop.id}
+                loop={loop}
+                pct={getLoopPct(loop)}
+                isWindowed
+                lunarData={lunarData}
+                onSelect={() => {
+                  setSelected(loop);
+                  setShowDetail(true);
+                }}
+                onClose={() => closeLoop(loop.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Open Loops (No Window) */}
+        {openLoops.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
               letterSpacing: '0.1em',
-              color: 'rgba(245, 230, 200, 0.35)',
+              color: 'rgba(148, 163, 184, 0.6)',
               marginBottom: 12,
             }}>
-              PHASE LOOPS
+              OPEN LOOPS
             </div>
-            {activePhaseLoops.map(loop => (
+            {openLoops.map(loop => (
               <LoopCard
                 key={loop.id}
                 loop={loop}
@@ -436,15 +468,18 @@ export function Loops({ userId }) {
         )}
 
         {/* Empty state */}
-        {loops.length === 0 && !isNewMoon && (
+        {!cycleLoop && phaseLoops.length === 0 && openLoops.length === 0 && !isNewMoon && (
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
             color: 'rgba(245, 230, 200, 0.3)',
           }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>◯</div>
-            <div style={{ fontSize: 14, fontStyle: 'italic' }}>
-              No loops yet. What do you want to build?
+            <div style={{ fontSize: 14, fontStyle: 'italic', marginBottom: 8 }}>
+              No loops yet.
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.25)' }}>
+              Open loops for regular tasks, or phase loops to align with the moon.
             </div>
           </div>
         )}
@@ -473,47 +508,26 @@ export function Loops({ userId }) {
       </div>
 
       {/* Add Loop Button */}
-      {addButton.show && (
-        <div style={{
-          padding: '16px 20px 20px',
-          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-        }}>
-          <button
-            onClick={() => setShowPhaseSheet(true)}
-            style={{
-              width: '100%',
-              padding: '14px 20px',
-              borderRadius: 12,
-              background: addButton.dimmed
-                ? 'transparent'
-                : 'rgba(245, 230, 200, 0.06)',
-              border: addButton.dimmed
-                ? '1px dashed rgba(245, 230, 200, 0.1)'
-                : '1px solid rgba(245, 230, 200, 0.12)',
-              color: addButton.dimmed
-                ? 'rgba(245, 230, 200, 0.3)'
-                : 'rgba(245, 230, 200, 0.7)',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            {addButton.label}
-          </button>
-          {/* Threshold nudge - subtle guidance during threshold phases */}
-          {lunarData.phase.isThreshold && !addButton.dimmed && (
-            <div style={{
-              marginTop: 8,
-              fontSize: 10,
-              fontFamily: "'Cormorant Garamond', serif",
-              fontStyle: 'italic',
-              color: 'rgba(245, 230, 200, 0.35)',
-              textAlign: 'center',
-            }}>
-              Threshold phase — consider deciding, not starting
-            </div>
-          )}
-        </div>
-      )}
+      <div style={{
+        padding: '16px 20px 20px',
+        borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+      }}>
+        <button
+          onClick={() => setShowLoopSheet(true)}
+          style={{
+            width: '100%',
+            padding: '14px 20px',
+            borderRadius: 12,
+            background: 'rgba(245, 230, 200, 0.06)',
+            border: '1px solid rgba(245, 230, 200, 0.12)',
+            color: 'rgba(245, 230, 200, 0.7)',
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          {addButtonLabel}
+        </button>
+      </div>
 
       {/* Detail Panel */}
       {showDetail && selected && (
@@ -589,7 +603,21 @@ function CycleLoopCard({ loop, lunarData, onSelect }) {
 
 // ─── Loop Card ───────────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, released, onSelect, onClose, onReopen }) {
+function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect, onClose, onReopen }) {
+  const isOpen = loop.type === 'open';
+  const isPhase = loop.type === 'phase';
+
+  // Calculate window remaining for phase loops
+  let windowText = null;
+  if (isPhase && !closed && lunarData) {
+    const remaining = lunarData.phaseRemaining;
+    if (remaining < 1) {
+      windowText = `${Math.round(remaining * 24)}h left`;
+    } else {
+      windowText = `${remaining.toFixed(1)}d left`;
+    }
+  }
+
   return (
     <div
       style={{
@@ -597,8 +625,12 @@ function LoopCard({ loop, pct, closed, released, onSelect, onClose, onReopen }) 
         alignItems: 'center',
         gap: 14,
         padding: '14px 16px',
-        background: 'rgba(245, 230, 200, 0.025)',
-        border: '1px solid rgba(245, 230, 200, 0.06)',
+        background: isOpen
+          ? 'rgba(148, 163, 184, 0.03)'
+          : 'rgba(245, 230, 200, 0.025)',
+        border: `1px solid ${isOpen
+          ? 'rgba(148, 163, 184, 0.08)'
+          : 'rgba(245, 230, 200, 0.06)'}`,
         borderRadius: 12,
         marginBottom: 10,
         opacity: closed ? 0.5 : 1,
@@ -627,6 +659,7 @@ function LoopCard({ loop, pct, closed, released, onSelect, onClose, onReopen }) 
         <div style={{
           display: 'flex',
           gap: 8,
+          alignItems: 'center',
           fontSize: 9,
           fontFamily: 'monospace',
           color: 'rgba(245, 230, 200, 0.4)',
@@ -636,11 +669,24 @@ function LoopCard({ loop, pct, closed, released, onSelect, onClose, onReopen }) 
             borderRadius: 4,
             background: released
               ? 'rgba(252, 129, 129, 0.1)'
-              : 'rgba(245, 230, 200, 0.06)',
-            color: released ? 'rgba(252, 129, 129, 0.6)' : undefined,
+              : isOpen
+                ? 'rgba(148, 163, 184, 0.1)'
+                : 'rgba(167, 139, 250, 0.1)',
+            color: released
+              ? 'rgba(252, 129, 129, 0.6)'
+              : isOpen
+                ? 'rgba(148, 163, 184, 0.7)'
+                : 'rgba(167, 139, 250, 0.7)',
           }}>
-            {released ? 'RELEASED' : loop.phaseName?.toUpperCase()}
+            {released ? 'RELEASED' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
+          {windowText && (
+            <span style={{
+              color: 'rgba(167, 139, 250, 0.5)',
+            }}>
+              {windowText}
+            </span>
+          )}
         </div>
       </div>
 
@@ -774,9 +820,9 @@ function DetailPanel({
                 fontFamily: 'monospace',
                 color: 'rgba(245, 230, 200, 0.4)',
               }}>
-                <span>{isCycle ? '◐ CYCLE' : '◯ PHASE'}</span>
+                <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
                 <span>·</span>
-                <span>{loop.phaseName || 'unknown'}</span>
+                <span>{loop.type === 'open' ? 'NO WINDOW' : (loop.phaseName || 'unknown')}</span>
               </div>
             </div>
           </div>
