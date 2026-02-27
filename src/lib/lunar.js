@@ -4,16 +4,16 @@
 const SYNODIC = 29.53058867; // Average synodic month in days
 const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
 
-// Phase name constants
+// Phase name constants with next phase info
 const PHASES = [
-  { name: 'New Moon', key: 'new', start: 0, end: 1.85 },
-  { name: 'Waxing Crescent', key: 'waxing-crescent', start: 1.85, end: 7.38 },
-  { name: 'First Quarter', key: 'first-quarter', start: 7.38, end: 9.22 },
-  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: 14.77 },
-  { name: 'Full Moon', key: 'full', start: 14.77, end: 16.61 },
-  { name: 'Waning Gibbous', key: 'waning-gibbous', start: 16.61, end: 22.15 },
-  { name: 'Last Quarter', key: 'last-quarter', start: 22.15, end: 23.99 },
-  { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53 },
+  { name: 'New Moon', key: 'new', start: 0, end: 1.85, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
+  { name: 'Waxing Crescent', key: 'waxing-crescent', start: 1.85, end: 7.38, next: 'First Quarter', nextKey: 'first-quarter' },
+  { name: 'First Quarter', key: 'first-quarter', start: 7.38, end: 9.22, next: 'Waxing Gibbous', nextKey: 'waxing-gibbous' },
+  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: 14.77, next: 'Full Moon', nextKey: 'full' },
+  { name: 'Full Moon', key: 'full', start: 14.77, end: 16.61, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
+  { name: 'Waning Gibbous', key: 'waning-gibbous', start: 16.61, end: 22.15, next: 'Last Quarter', nextKey: 'last-quarter' },
+  { name: 'Last Quarter', key: 'last-quarter', start: 22.15, end: 23.99, next: 'Waning Crescent', nextKey: 'waning-crescent' },
+  { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53, next: 'New Moon', nextKey: 'new' },
 ];
 
 // Phase energy content
@@ -136,6 +136,21 @@ export function getLunarData(date = new Date()) {
   const daysToFull = getDaysUntilFull(date);
   const daysToNew = getDaysUntilNew(date);
 
+  // Find current phase bounds for timing calculations
+  const currentPhase = PHASES.find(p => age >= p.start && age < p.end) || PHASES[0];
+  const phaseDuration = currentPhase.end - currentPhase.start;
+  const phaseProgress = (age - currentPhase.start) / phaseDuration;
+  const phaseRemaining = currentPhase.end - age;
+  const remainingHours = Math.round(phaseRemaining * 24 * 10) / 10;
+  const isApproaching = remainingHours < 24;
+  const isImminent = remainingHours < 6;
+
+  // Next phase info
+  const nextPhase = currentPhase.next;
+  const nextKey = currentPhase.nextKey;
+  const nextSymbol = getPhaseEmoji(nextKey);
+  const nextEnergy = PHASE_ENERGY[nextKey];
+
   return {
     age,                           // Days into cycle (0-29.53)
     dayOfCycle: Math.floor(age) + 1, // Day 1-30
@@ -145,6 +160,15 @@ export function getLunarData(date = new Date()) {
     zodiac,                        // { sign, degree }
     daysToFull,
     daysToNew,
+    // Phase timing
+    phaseProgress,                 // 0-1, position within current phase
+    phaseRemaining,                // Days remaining in current phase
+    remainingHours,                // Hours remaining (rounded)
+    isApproaching,                 // true if < 24h remaining
+    isImminent,                    // true if < 6h remaining
+    nextPhase,                     // Name of next phase
+    nextSymbol,                    // Emoji of next phase
+    nextEnergy,                    // Energy word of next phase
   };
 }
 

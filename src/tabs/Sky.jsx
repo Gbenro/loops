@@ -5,14 +5,17 @@ import { useState, useMemo } from 'react';
 import { MoonFace } from '../components/MoonFace.jsx';
 import { StarField } from '../components/StarField.jsx';
 import { DeepCosmicSheet } from '../components/DeepCosmicSheet.jsx';
+import { PhaseTideBar } from '../components/PhaseTideBar.jsx';
+import { PhaseTransitionCard } from '../components/PhaseTransitionCard.jsx';
 import { getLunarData, getPhaseEmoji, getAllPhases } from '../lib/lunar.js';
 import { getSolarData } from '../lib/solar.js';
 import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, onSignIn, onSignOut }) {
+export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [transitionDismissed, setTransitionDismissed] = useState(false);
 
   // Calculate all cosmic data
   const now = new Date();
@@ -215,6 +218,11 @@ export function Sky({ user, onSignIn, onSignOut }) {
           })}
         </div>
 
+        {/* Phase Tide Bar */}
+        <div style={{ margin: '0 -20px 16px' }}>
+          <PhaseTideBar lunarData={lunarData} />
+        </div>
+
         {/* Progress bar */}
         <div style={{
           height: 3,
@@ -231,6 +239,15 @@ export function Sky({ user, onSignIn, onSignOut }) {
             transition: 'width 0.5s ease',
           }} />
         </div>
+
+        {/* Phase Transition Card (< 24h before shift) */}
+        {lunarData.isApproaching && !transitionDismissed && (
+          <PhaseTransitionCard
+            lunarData={lunarData}
+            onDismiss={() => setTransitionDismissed(true)}
+            onOpenEchoes={onSwitchToEchoes}
+          />
+        )}
 
         {/* Personal Transit Card (if resonances active) */}
         {resonanceSummary.hasResonance && (
