@@ -47,17 +47,26 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
       flexDirection: 'column',
       background: '#040810',
       position: 'relative',
-      overflow: 'hidden',
     }}>
       <StarField count={50} />
 
-      {/* Time & Location Header */}
+      {/* Scrollable Content */}
       <div style={{
-        padding: '18px 24px 10px',
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: 'column',
+        WebkitOverflowScrolling: 'touch',
       }}>
+        {/* Time & Location Header */}
+        <div style={{
+          padding: '18px 24px 10px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0,
+        }}>
         <div style={{
           fontSize: 'var(--font-xs)',
           fontFamily: 'monospace',
@@ -84,15 +93,16 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
         </button>
       </div>
 
-      {/* Moon Display */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '0 20px',
-      }}>
+        {/* Moon Display */}
+        <div style={{
+          minHeight: 280,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          flexShrink: 0,
+        }}>
         {/* Tappable Moon */}
         <div
           onClick={() => setSheetOpen(true)}
@@ -348,6 +358,10 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
             The moon is waning. A time for releasing, not starting.
           </div>
         )}
+
+        {/* Bottom padding for scroll */}
+        <div style={{ height: 20, flexShrink: 0 }} />
+      </div>
       </div>
 
       {/* Deep Sheet */}
