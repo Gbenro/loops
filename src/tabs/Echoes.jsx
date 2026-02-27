@@ -19,6 +19,23 @@ const VOICE_PROMPTS = {
   'waning-crescent': 'What needs to rest?',
 };
 
+// Phase type lookup - Threshold (pivotal) vs Flow (sustained)
+const PHASE_TYPES = {
+  'new': 'threshold',
+  'waxing-crescent': 'flow',
+  'first-quarter': 'threshold',
+  'waxing-gibbous': 'flow',
+  'full': 'threshold',
+  'waning-gibbous': 'flow',
+  'last-quarter': 'threshold',
+  'waning-crescent': 'flow',
+};
+
+// Get phase type from phase key (for echoes that don't have it stored)
+function getPhaseType(phaseKey) {
+  return PHASE_TYPES[phaseKey] || 'flow';
+}
+
 export function Echoes({ userId }) {
   const [echoes, setEchoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -506,6 +523,10 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
       ? 0.5
       : 0.5 + (100 - echo.illumination) / 100 * 0.5;
 
+  // Derive phase type from stored value or phase key
+  const phaseType = echo.phaseType || getPhaseType(echo.phase);
+  const isThreshold = phaseType === 'threshold';
+
   return (
     <div style={{
       background: 'rgba(245, 230, 200, 0.025)',
@@ -532,7 +553,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
           alignItems: 'center',
           gap: 6,
         }}>
-          <span>{(echo.phaseName || 'MOON').toUpperCase()} · {echo.phaseType === 'threshold' ? 'THR' : 'FLW'} · {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}</span>
+          <span>{(echo.phaseName || 'MOON').toUpperCase()} · {isThreshold ? 'THR' : 'FLW'} · {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}</span>
           {echo.source === 'voice' && (
             <span style={{
               padding: '1px 4px',
