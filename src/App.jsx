@@ -12,7 +12,7 @@ import { AuthModal } from './components/AuthModal.jsx';
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
   { id: 'loops', label: 'Loops', icon: '◯' },
-  { id: 'echoes', label: 'Echoes', icon: '✧' },
+  { id: 'echoes', label: 'Echoes', icon: '〜' },
 ];
 
 export default function App() {

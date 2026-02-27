@@ -162,6 +162,7 @@ export async function getEchoes(userId) {
     const echoes = data.map(row => ({
       id: row.id,
       text: row.text,
+      source: row.source || 'text',
       phase: row.phase,
       phaseName: row.phase_name,
       lunarMonth: row.lunar_month,
@@ -193,6 +194,7 @@ export async function saveEcho(echo, userId) {
         id: echo.id,
         user_id: userId,
         text: echo.text,
+        source: echo.source || 'text',
         phase: echo.phase,
         phase_name: echo.phaseName,
         lunar_month: echo.lunarMonth,
