@@ -95,8 +95,11 @@ export function MoonFace({ size = 180, phase = 0, illumination = 50 }) {
 }
 
 // Calculate SVG path for the illuminated portion
+// Uses a different approach: draw the lit area by tracing the outer edge and terminator
 function calculateMoonPath(cx, cy, r, phase) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
+
+  console.log('MoonFace phase:', phase, 'expected illumination:', Math.round((1 - Math.cos(phase * 2 * Math.PI)) / 2 * 100) + '%');
 
   // Handle edge cases
   if (phase < 0.01 || phase > 0.99) {
@@ -110,39 +113,58 @@ function calculateMoonPath(cx, cy, r, phase) {
 
   const isWaning = phase > 0.5;
 
-  // k determines terminator position: 1 at new, 0 at quarter, -1 at full
-  const k = Math.cos(phase * 2 * Math.PI);
+  // For the terminator curve, we need to know how much it bulges
+  // At first/last quarter (phase 0.25 or 0.75), terminator is straight (bulge = 0)
+  // At crescent, it bulges toward the lit side
+  // At gibbous, it bulges toward the shadow side
 
-  // The terminator is an ellipse with rx = |k| * r, ry = r
-  const terminatorRx = Math.abs(k) * r;
+  // Map phase to a value from -1 to 1 representing terminator bulge
+  // phase 0: bulge = 1 (curves right, toward lit side = tiny crescent)
+  // phase 0.25: bulge = 0 (straight line = half moon)
+  // phase 0.5: bulge = -1 (curves left, toward shadow = full moon)
+  const bulge = Math.cos(phase * 2 * Math.PI);
+  const absB = Math.abs(bulge);
 
-  // Determine if crescent (thin sliver) or gibbous (mostly lit)
-  // Waxing: crescent when k > 0 (phase < 0.25), gibbous when k < 0 (phase > 0.25)
-  // Waning: gibbous when k < 0 (phase < 0.75), crescent when k > 0 (phase > 0.75)
+  console.log('bulge:', bulge, 'absB:', absB, 'isWaning:', isWaning);
+
+  // Generate points along the terminator using parametric ellipse
+  // The terminator goes from top (cy - r) to bottom (cy + r)
+  // Its x-offset from center is controlled by bulge
+  const points = [];
+  const steps = 32;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps; // 0 to 1
+    const angle = Math.PI * t; // 0 to π (top to bottom)
+    const y = cy - r * Math.cos(angle); // cy-r to cy+r
+    const x = cx + bulge * r * Math.sin(angle); // bulges based on phase
+    points.push({ x, y });
+  }
+
+  // Build the path
+  // For waxing: trace right semicircle (top to bottom), then terminator (bottom to top)
+  // For waning: trace left semicircle (top to bottom), then terminator (bottom to top)
+
+  let path = `M ${cx} ${cy - r}`; // Start at top
 
   if (isWaning) {
-    // Light on LEFT side
-    const isGibbous = k < 0; // phase 0.5 to 0.75
-
-    // For gibbous: terminator sweeps through RIGHT (into shadow)
-    // For crescent: terminator sweeps through LEFT (same side as light)
-    const terminatorSweep = isGibbous ? 1 : 0;
-
-    return `M ${cx} ${cy - r}
-            A ${r} ${r} 0 0 0 ${cx} ${cy + r}
-            A ${terminatorRx} ${r} 0 0 ${terminatorSweep} ${cx} ${cy - r}`;
+    // Left semicircle
+    path += ` A ${r} ${r} 0 0 0 ${cx} ${cy + r}`;
   } else {
-    // Light on RIGHT side
-    const isGibbous = k < 0; // phase 0.25 to 0.5
-
-    // For gibbous: terminator sweeps through LEFT (into shadow)
-    // For crescent: terminator sweeps through RIGHT (same side as light)
-    const terminatorSweep = isGibbous ? 0 : 1;
-
-    return `M ${cx} ${cy - r}
-            A ${r} ${r} 0 0 1 ${cx} ${cy + r}
-            A ${terminatorRx} ${r} 0 0 ${terminatorSweep} ${cx} ${cy - r}`;
+    // Right semicircle
+    path += ` A ${r} ${r} 0 0 1 ${cx} ${cy + r}`;
   }
+
+  // Trace terminator from bottom to top (reverse order)
+  for (let i = steps - 1; i >= 0; i--) {
+    path += ` L ${points[i].x} ${points[i].y}`;
+  }
+
+  path += ' Z'; // Close path
+
+  console.log('Generated path for phase', phase);
+
+  return path;
 }
 
 // Small moon for inline display
