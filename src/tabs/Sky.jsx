@@ -53,10 +53,9 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
       {/* Scrollable Content */}
       <div style={{
         flex: 1,
+        minHeight: 0,
         overflowY: 'auto',
         overflowX: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
         WebkitOverflowScrolling: 'touch',
       }}>
         {/* Time & Location Header */}

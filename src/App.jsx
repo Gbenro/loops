@@ -191,7 +191,8 @@ export default function App() {
       {/* Tab Content */}
       <div style={{
         flex: 1,
-        overflow: 'hidden',
+        minHeight: 0,
+        overflow: 'auto',
         position: 'relative',
       }}>
         {activeTab === 'sky' && (
@@ -208,6 +209,7 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <nav style={{
+        flexShrink: 0,
         display: 'flex',
         borderTop: '1px solid rgba(245, 230, 200, 0.06)',
         background: '#040810',
