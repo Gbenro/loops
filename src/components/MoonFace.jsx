@@ -99,44 +99,49 @@ function calculateMoonPath(cx, cy, r, phase) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
 
   // Handle edge cases
-  if (phase < 0.02 || phase > 0.98) {
-    // New moon - no visible light
-    return null;
+  if (phase < 0.01 || phase > 0.99) {
+    return null; // New moon - no visible light
   }
 
-  if (phase > 0.48 && phase < 0.52) {
+  if (phase > 0.49 && phase < 0.51) {
     // Full moon - complete circle
     return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r}`;
   }
 
   const isWaning = phase > 0.5;
 
-  // Convert phase to illumination angle (0 to π for waxing, π to 2π for waning)
-  // At new moon: angle = 0, at full: angle = π
-  const angle = phase * 2 * Math.PI;
+  // k determines terminator position: 1 at new, 0 at quarter, -1 at full
+  const k = Math.cos(phase * 2 * Math.PI);
 
-  // The terminator's x-offset from center
-  // cos gives us how far the terminator bulges (-r to +r)
-  const terminatorX = r * Math.cos(angle);
+  // The terminator is an ellipse with rx = |k| * r, ry = r
+  const terminatorRx = Math.abs(k) * r;
+
+  // Determine if crescent (thin sliver) or gibbous (mostly lit)
+  // Waxing: crescent when k > 0 (phase < 0.25), gibbous when k < 0 (phase > 0.25)
+  // Waning: gibbous when k < 0 (phase < 0.75), crescent when k > 0 (phase > 0.75)
 
   if (isWaning) {
-    // Waning: light on LEFT side, shadow creeping in from right
-    // Draw left semicircle, then terminator arc back
-    const sweepOuter = 0; // CCW for left semicircle
-    const sweepTerminator = terminatorX > 0 ? 0 : 1;
+    // Light on LEFT side
+    const isGibbous = k < 0; // phase 0.5 to 0.75
+
+    // For gibbous: terminator sweeps through RIGHT (into shadow)
+    // For crescent: terminator sweeps through LEFT (same side as light)
+    const terminatorSweep = isGibbous ? 1 : 0;
 
     return `M ${cx} ${cy - r}
-            A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy + r}
-            A ${Math.abs(terminatorX)} ${r} 0 0 ${sweepTerminator} ${cx} ${cy - r}`;
+            A ${r} ${r} 0 0 0 ${cx} ${cy + r}
+            A ${terminatorRx} ${r} 0 0 ${terminatorSweep} ${cx} ${cy - r}`;
   } else {
-    // Waxing: light on RIGHT side, growing from right
-    // Draw right semicircle, then terminator arc back
-    const sweepOuter = 1; // CW for right semicircle
-    const sweepTerminator = terminatorX > 0 ? 1 : 0;
+    // Light on RIGHT side
+    const isGibbous = k < 0; // phase 0.25 to 0.5
+
+    // For gibbous: terminator sweeps through LEFT (into shadow)
+    // For crescent: terminator sweeps through RIGHT (same side as light)
+    const terminatorSweep = isGibbous ? 0 : 1;
 
     return `M ${cx} ${cy - r}
-            A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy + r}
-            A ${Math.abs(terminatorX)} ${r} 0 0 ${sweepTerminator} ${cx} ${cy - r}`;
+            A ${r} ${r} 0 0 1 ${cx} ${cy + r}
+            A ${terminatorRx} ${r} 0 0 ${terminatorSweep} ${cx} ${cy - r}`;
   }
 }
 
