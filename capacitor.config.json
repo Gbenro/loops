@@ -1,0 +1,25 @@
+{
+  "appId": "com.cosmicloops.app",
+  "appName": "Cosmic Loops",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#040810",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#040810"
+    }
+  },
+  "android": {
+    "backgroundColor": "#040810"
+  },
+  "ios": {
+    "backgroundColor": "#040810"
+  }
+}
