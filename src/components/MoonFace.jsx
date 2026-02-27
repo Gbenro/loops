@@ -96,6 +96,8 @@ export function MoonFace({ size = 180, phase = 0, illumination = 50 }) {
 
 // Calculate SVG path for the illuminated portion
 function calculateMoonPath(cx, cy, r, phase) {
+  // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
+
   // Handle edge cases
   if (phase < 0.02 || phase > 0.98) {
     // New moon - no visible light
@@ -108,42 +110,33 @@ function calculateMoonPath(cx, cy, r, phase) {
   }
 
   const isWaning = phase > 0.5;
-  const normalizedPhase = isWaning ? (phase - 0.5) * 2 : phase * 2;
 
-  // The terminator bulge factor (how much the shadow curves)
-  // At 0% = straight line, at 50% (quarter) = maximum curve
-  const bulge = Math.cos(normalizedPhase * Math.PI);
-  const bulgeRadius = Math.abs(bulge) * r;
+  // Convert phase to illumination angle (0 to π for waxing, π to 2π for waning)
+  // At new moon: angle = 0, at full: angle = π
+  const angle = phase * 2 * Math.PI;
 
-  // Determine the direction of the bulge
-  const bulgeDir = bulge >= 0 ? 1 : 0;
+  // The terminator's x-offset from center
+  // cos gives us how far the terminator bulges (-r to +r)
+  const terminatorX = r * Math.cos(angle);
 
   if (isWaning) {
-    // Waning: light on LEFT side
-    if (phase < 0.75) {
-      // Waning gibbous: mostly lit, shadow on right
-      return `M ${cx} ${cy - r}
-              A ${r} ${r} 0 0 0 ${cx} ${cy + r}
-              A ${bulgeRadius} ${r} 0 0 ${bulgeDir} ${cx} ${cy - r}`;
-    } else {
-      // Waning crescent: small sliver on left
-      return `M ${cx} ${cy - r}
-              A ${r} ${r} 0 0 0 ${cx} ${cy + r}
-              A ${bulgeRadius} ${r} 0 0 ${1 - bulgeDir} ${cx} ${cy - r}`;
-    }
+    // Waning: light on LEFT side, shadow creeping in from right
+    // Draw left semicircle, then terminator arc back
+    const sweepOuter = 0; // CCW for left semicircle
+    const sweepTerminator = terminatorX > 0 ? 0 : 1;
+
+    return `M ${cx} ${cy - r}
+            A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy + r}
+            A ${Math.abs(terminatorX)} ${r} 0 0 ${sweepTerminator} ${cx} ${cy - r}`;
   } else {
-    // Waxing: light on RIGHT side
-    if (phase < 0.25) {
-      // Waxing crescent: small sliver on right
-      return `M ${cx} ${cy - r}
-              A ${r} ${r} 0 0 1 ${cx} ${cy + r}
-              A ${bulgeRadius} ${r} 0 0 ${1 - bulgeDir} ${cx} ${cy - r}`;
-    } else {
-      // Waxing gibbous: mostly lit, shadow on left
-      return `M ${cx} ${cy - r}
-              A ${r} ${r} 0 0 1 ${cx} ${cy + r}
-              A ${bulgeRadius} ${r} 0 0 ${bulgeDir} ${cx} ${cy - r}`;
-    }
+    // Waxing: light on RIGHT side, growing from right
+    // Draw right semicircle, then terminator arc back
+    const sweepOuter = 1; // CW for right semicircle
+    const sweepTerminator = terminatorX > 0 ? 1 : 0;
+
+    return `M ${cx} ${cy - r}
+            A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy + r}
+            A ${Math.abs(terminatorX)} ${r} 0 0 ${sweepTerminator} ${cx} ${cy - r}`;
   }
 }
 
