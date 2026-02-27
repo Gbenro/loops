@@ -1,10 +1,16 @@
 // Cosmic Loops - Phase Tide Bar
 // Shows position within current phase as a tide gauge
+// Distinguishes between Threshold (pivotal) and Flow (sustained) phases
 
 import { useMemo } from 'react';
 
+// Design tokens
+const THRESHOLD_COLOR = '#F5E6C8'; // brighter cream — pivotal
+const FLOW_COLOR = '#C9A84C';      // warm amber — sustained
+
 export function PhaseTideBar({ lunarData }) {
   const {
+    phase,
     phaseProgress = 0,
     phaseRemaining = 0,
     isApproaching = false,
@@ -13,6 +19,11 @@ export function PhaseTideBar({ lunarData }) {
     nextSymbol,
   } = lunarData;
 
+  const isThreshold = phase?.isThreshold || false;
+  const isFlow = phase?.isFlow || false;
+  const phaseDuration = phase?.phaseDuration || 3.69;
+  const dayInPhase = phase?.dayInPhase || 0;
+
   // Status text based on progress
   const status = useMemo(() => {
     if (phaseProgress < 0.20) return 'OPENING';
@@ -20,6 +31,9 @@ export function PhaseTideBar({ lunarData }) {
     if (phaseProgress < 0.88) return 'COMPLETING';
     return 'CLOSING';
   }, [phaseProgress]);
+
+  // Phase type label
+  const phaseTypeLabel = isThreshold ? 'Threshold' : 'In Flow';
 
   // Remaining time formatted
   const remainingText = useMemo(() => {
@@ -34,46 +48,61 @@ export function PhaseTideBar({ lunarData }) {
     return `${phaseRemaining.toFixed(1)}d remaining`;
   }, [phaseRemaining]);
 
-  // Color based on approach state
+  // Day in phase text
+  const dayText = `Day ${(dayInPhase + 1).toFixed(1)} of ${phaseDuration}`;
+
+  // Color based on phase type and approach state
+  const baseColor = isThreshold ? THRESHOLD_COLOR : FLOW_COLOR;
+
   const barColor = useMemo(() => {
     if (isImminent) return 'rgba(252, 180, 80, 0.9)';
     if (isApproaching) return 'rgba(252, 200, 120, 0.7)';
-    return 'rgba(245, 230, 200, 0.4)';
-  }, [isApproaching, isImminent]);
+    return isThreshold
+      ? 'rgba(245, 230, 200, 0.6)'  // brighter for threshold
+      : 'rgba(201, 168, 76, 0.5)';   // amber for flow
+  }, [isApproaching, isImminent, isThreshold]);
 
   const dotColor = useMemo(() => {
     if (isImminent) return '#FCB450';
     if (isApproaching) return '#FCC878';
-    return 'rgba(245, 230, 200, 0.6)';
-  }, [isApproaching, isImminent]);
+    return baseColor;
+  }, [isApproaching, isImminent, baseColor]);
+
+  // Sub-label based on phase type
+  const subLabel = isThreshold
+    ? 'A turning point. Brief and potent.'
+    : 'Time to move with what is already moving.';
 
   return (
     <div style={{
       padding: '14px 20px',
-      background: 'rgba(245, 230, 200, 0.02)',
+      background: isThreshold
+        ? 'rgba(245, 230, 200, 0.04)'
+        : 'rgba(201, 168, 76, 0.03)',
       borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
     }}>
-      {/* Status and remaining */}
+      {/* Phase type and day */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 6,
       }}>
         <span style={{
           fontSize: 9,
           fontFamily: 'monospace',
           letterSpacing: '0.12em',
-          color: isImminent
-            ? 'rgba(252, 180, 80, 0.9)'
-            : 'rgba(245, 230, 200, 0.4)',
+          color: isThreshold
+            ? 'rgba(245, 230, 200, 0.7)'
+            : 'rgba(201, 168, 76, 0.8)',
           padding: '3px 8px',
-          background: isImminent
-            ? 'rgba(252, 180, 80, 0.1)'
-            : 'rgba(245, 230, 200, 0.04)',
+          background: isThreshold
+            ? 'rgba(245, 230, 200, 0.08)'
+            : 'rgba(201, 168, 76, 0.1)',
           borderRadius: 4,
+          fontWeight: isThreshold ? 600 : 400,
         }}>
-          {status}
+          {phaseTypeLabel.toUpperCase()} · {dayText}
         </span>
         <span style={{
           fontSize: 9,
@@ -85,6 +114,17 @@ export function PhaseTideBar({ lunarData }) {
         }}>
           {remainingText}
         </span>
+      </div>
+
+      {/* Sub-label */}
+      <div style={{
+        fontSize: 10,
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: 'italic',
+        color: 'rgba(245, 230, 200, 0.4)',
+        marginBottom: 10,
+      }}>
+        {subLabel}
       </div>
 
       {/* Tide track */}
@@ -119,7 +159,7 @@ export function PhaseTideBar({ lunarData }) {
           height: '100%',
           background: `linear-gradient(to right, rgba(245, 230, 200, 0.15), ${barColor})`,
           borderRadius: 2,
-          transition: 'width 0.5s ease',
+          transition: isThreshold ? 'width 0.3s ease' : 'width 0.5s ease',
         }} />
 
         {/* Travelling dot */}
@@ -128,17 +168,19 @@ export function PhaseTideBar({ lunarData }) {
           left: `${phaseProgress * 100}%`,
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 8,
-          height: 8,
+          width: isThreshold ? 10 : 8,
+          height: isThreshold ? 10 : 8,
           borderRadius: '50%',
           background: dotColor,
           boxShadow: isImminent
             ? `0 0 12px ${dotColor}, 0 0 4px ${dotColor}`
             : isApproaching
               ? `0 0 8px ${dotColor}`
-              : `0 0 4px rgba(245, 230, 200, 0.3)`,
+              : isThreshold
+                ? `0 0 8px rgba(245, 230, 200, 0.4)`
+                : `0 0 4px rgba(245, 230, 200, 0.3)`,
           animation: isImminent ? 'pulse 1.5s ease-in-out infinite' : 'none',
-          transition: 'left 0.5s ease',
+          transition: isThreshold ? 'left 0.3s ease' : 'left 0.5s ease',
         }} />
       </div>
 
@@ -154,7 +196,7 @@ export function PhaseTideBar({ lunarData }) {
           letterSpacing: '0.1em',
           color: 'rgba(245, 230, 200, 0.25)',
         }}>
-          OPENED
+          {status}
         </span>
         <span style={{
           fontSize: 8,

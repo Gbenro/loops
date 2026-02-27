@@ -499,6 +499,19 @@ export function Loops({ userId }) {
           >
             {addButton.label}
           </button>
+          {/* Threshold nudge - subtle guidance during threshold phases */}
+          {lunarData.phase.isThreshold && !addButton.dimmed && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 10,
+              fontFamily: "'Cormorant Garamond', serif",
+              fontStyle: 'italic',
+              color: 'rgba(245, 230, 200, 0.35)',
+              textAlign: 'center',
+            }}>
+              Threshold phase — consider deciding, not starting
+            </div>
+          )}
         </div>
       )}
 

@@ -167,18 +167,55 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
         <div style={{
           padding: '16px 20px',
           borderRadius: 12,
-          background: 'rgba(245, 230, 200, 0.04)',
-          border: '1px solid rgba(245, 230, 200, 0.08)',
+          background: lunarData.phase.isThreshold
+            ? 'rgba(245, 230, 200, 0.05)'
+            : 'rgba(201, 168, 76, 0.04)',
+          border: `1px solid ${lunarData.phase.isThreshold
+            ? 'rgba(245, 230, 200, 0.1)'
+            : 'rgba(201, 168, 76, 0.12)'}`,
           marginBottom: 20,
         }}>
           <div style={{
-            fontSize: 11,
-            fontFamily: 'monospace',
-            letterSpacing: '0.12em',
-            color: 'rgba(245, 230, 200, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
             marginBottom: 8,
           }}>
-            {phaseContent.energy.toUpperCase()}
+            <span style={{
+              fontSize: 11,
+              fontFamily: 'monospace',
+              letterSpacing: '0.12em',
+              color: 'rgba(245, 230, 200, 0.5)',
+            }}>
+              {phaseContent.energy.toUpperCase()}
+            </span>
+            <span style={{
+              fontSize: 8,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              padding: '2px 6px',
+              borderRadius: 3,
+              background: lunarData.phase.isThreshold
+                ? 'rgba(245, 230, 200, 0.08)'
+                : 'rgba(201, 168, 76, 0.1)',
+              color: lunarData.phase.isThreshold
+                ? 'rgba(245, 230, 200, 0.5)'
+                : 'rgba(201, 168, 76, 0.7)',
+            }}>
+              {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
+            </span>
+          </div>
+          {/* Phase type opening */}
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 13,
+            color: lunarData.phase.isThreshold
+              ? 'rgba(245, 230, 200, 0.6)'
+              : 'rgba(201, 168, 76, 0.65)',
+            marginBottom: 8,
+            lineHeight: 1.4,
+          }}>
+            {phaseContent.typeOpening}
           </div>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",

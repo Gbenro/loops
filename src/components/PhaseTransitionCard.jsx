@@ -1,5 +1,6 @@
 // Cosmic Loops - Phase Transition Card
 // Appears when next phase is within 24 hours
+// Communicates whether arriving phase is Threshold or Flow
 
 import { useState } from 'react';
 
@@ -14,6 +15,13 @@ const TRANSITION_INVITATIONS = {
   'New Moon': 'A new cycle is close. Let the remaining hours be empty. Something is forming in the dark.',
 };
 
+// Phase type context for the arriving phase
+const THRESHOLD_INTRO = (phaseName) =>
+  `A turning point approaches. ${phaseName} is brief — arrive ready to decide.`;
+
+const FLOW_INTRO = (phaseName, duration) =>
+  `A flow phase opens. ${phaseName} gives you ${duration}+ days. No rush. Settle in.`;
+
 export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
   const {
     isApproaching,
@@ -22,11 +30,20 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
     nextSymbol,
     nextEnergy,
     remainingHours,
+    nextPhaseType,
+    nextPhaseDuration,
   } = lunarData;
 
   if (!isApproaching) return null;
 
   const invitation = TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
+  const isNextThreshold = nextPhaseType === 'threshold';
+  const isNextFlow = nextPhaseType === 'flow';
+
+  // Phase type intro
+  const typeIntro = isNextThreshold
+    ? THRESHOLD_INTRO(nextPhase)
+    : FLOW_INTRO(nextPhase, Math.floor(nextPhaseDuration));
 
   // Time remaining text
   const timeText = remainingHours < 1
@@ -40,10 +57,14 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
       borderRadius: 14,
       background: isImminent
         ? 'rgba(252, 180, 80, 0.08)'
-        : 'rgba(245, 230, 200, 0.03)',
+        : isNextThreshold
+          ? 'rgba(245, 230, 200, 0.05)'
+          : 'rgba(201, 168, 76, 0.04)',
       border: `1px solid ${isImminent
         ? 'rgba(252, 180, 80, 0.2)'
-        : 'rgba(245, 230, 200, 0.08)'}`,
+        : isNextThreshold
+          ? 'rgba(245, 230, 200, 0.12)'
+          : 'rgba(201, 168, 76, 0.15)'}`,
       position: 'relative',
       animation: 'breatheIn 0.4s ease-out',
     }}>
@@ -66,17 +87,38 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
         ×
       </button>
 
-      {/* Status label */}
+      {/* Status label with phase type */}
       <div style={{
-        fontSize: 9,
-        fontFamily: 'monospace',
-        letterSpacing: '0.12em',
-        color: isImminent
-          ? 'rgba(252, 180, 80, 0.9)'
-          : 'rgba(245, 230, 200, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
         marginBottom: 12,
       }}>
-        {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
+        <span style={{
+          fontSize: 9,
+          fontFamily: 'monospace',
+          letterSpacing: '0.12em',
+          color: isImminent
+            ? 'rgba(252, 180, 80, 0.9)'
+            : 'rgba(245, 230, 200, 0.4)',
+        }}>
+          {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
+        </span>
+        <span style={{
+          fontSize: 8,
+          fontFamily: 'monospace',
+          letterSpacing: '0.1em',
+          padding: '2px 6px',
+          borderRadius: 3,
+          background: isNextThreshold
+            ? 'rgba(245, 230, 200, 0.1)'
+            : 'rgba(201, 168, 76, 0.12)',
+          color: isNextThreshold
+            ? 'rgba(245, 230, 200, 0.6)'
+            : 'rgba(201, 168, 76, 0.8)',
+        }}>
+          {isNextThreshold ? 'THRESHOLD' : 'FLOW'}
+        </span>
       </div>
 
       {/* Next phase info */}
@@ -84,13 +126,15 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        marginBottom: 12,
+        marginBottom: 10,
       }}>
         <span style={{
           fontSize: 28,
           filter: isImminent
             ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
-            : 'none',
+            : isNextThreshold
+              ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
+              : 'none',
         }}>
           {nextSymbol}
         </span>
@@ -108,12 +152,25 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
             letterSpacing: '0.1em',
             color: 'rgba(245, 230, 200, 0.4)',
           }}>
-            {nextEnergy?.toUpperCase()}
+            {nextEnergy?.toUpperCase()} · {nextPhaseDuration} DAYS
           </div>
         </div>
       </div>
 
-      {/* Invitation text */}
+      {/* Phase type intro */}
+      <div style={{
+        fontSize: 12,
+        fontFamily: "'Cormorant Garamond', serif",
+        color: isNextThreshold
+          ? 'rgba(245, 230, 200, 0.65)'
+          : 'rgba(201, 168, 76, 0.7)',
+        marginBottom: 10,
+        lineHeight: 1.5,
+      }}>
+        {typeIntro}
+      </div>
+
+      {/* Phase-specific invitation */}
       <div style={{
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 14,

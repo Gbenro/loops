@@ -4,6 +4,23 @@
 const SYNODIC = 29.53058867; // Average synodic month in days
 const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
 
+// Phase Type Classification - Threshold (pivotal) vs Flow (sustained)
+const PHASE_TYPE = {
+  'new': 'threshold',
+  'waxing-crescent': 'flow',
+  'first-quarter': 'threshold',
+  'waxing-gibbous': 'flow',
+  'full': 'threshold',
+  'waning-gibbous': 'flow',
+  'last-quarter': 'threshold',
+  'waning-crescent': 'flow',
+};
+
+const PHASE_DURATION = {
+  threshold: 1.85, // days - brief, pivotal
+  flow: 5.55,      // days - sustained, unfolding
+};
+
 // Phase name constants with next phase info
 const PHASES = [
   { name: 'New Moon', key: 'new', start: 0, end: 1.85, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
@@ -62,6 +79,9 @@ export function getIllumination(date = new Date()) {
 export function getPhaseInfo(age) {
   for (const phase of PHASES) {
     if (age >= phase.start && age < phase.end) {
+      const phaseType = PHASE_TYPE[phase.key];
+      const phaseDuration = PHASE_DURATION[phaseType];
+      const dayInPhase = age - phase.start;
       return {
         name: phase.name,
         key: phase.key,
@@ -69,6 +89,12 @@ export function getPhaseInfo(age) {
         isWaning: phase.key.includes('waning') || phase.key === 'last-quarter',
         isNew: phase.key === 'new',
         isFull: phase.key === 'full',
+        // Phase rhythm
+        phaseType,              // 'threshold' | 'flow'
+        phaseDuration,          // 1.85 | 5.55 days
+        dayInPhase,             // days into current phase
+        isThreshold: phaseType === 'threshold',
+        isFlow: phaseType === 'flow',
       };
     }
   }
@@ -80,6 +106,11 @@ export function getPhaseInfo(age) {
     isWaning: false,
     isNew: true,
     isFull: false,
+    phaseType: 'threshold',
+    phaseDuration: 1.85,
+    dayInPhase: 0,
+    isThreshold: true,
+    isFlow: false,
   };
 }
 
@@ -150,6 +181,8 @@ export function getLunarData(date = new Date()) {
   const nextKey = currentPhase.nextKey;
   const nextSymbol = getPhaseEmoji(nextKey);
   const nextEnergy = PHASE_ENERGY[nextKey];
+  const nextPhaseType = PHASE_TYPE[nextKey];
+  const nextPhaseDuration = PHASE_DURATION[nextPhaseType];
 
   return {
     age,                           // Days into cycle (0-29.53)
@@ -169,6 +202,8 @@ export function getLunarData(date = new Date()) {
     nextPhase,                     // Name of next phase
     nextSymbol,                    // Emoji of next phase
     nextEnergy,                    // Energy word of next phase
+    nextPhaseType,                 // 'threshold' | 'flow'
+    nextPhaseDuration,             // 1.85 | 5.55 days
   };
 }
 

@@ -137,6 +137,7 @@ export function Echoes({ userId }) {
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
       phaseName: lunarData.phase.name,
+      phaseType: lunarData.phase.phaseType, // 'threshold' | 'flow'
       lunarMonth: lunarData.lunarMonth,
       dayOfCycle: lunarData.dayOfCycle,
       zodiac: lunarData.zodiac.sign,
@@ -311,7 +312,7 @@ export function Echoes({ userId }) {
               </div>
             )}
 
-            {/* Cosmic stamp */}
+            {/* Cosmic stamp with phase type */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -323,8 +324,26 @@ export function Echoes({ userId }) {
                 fontSize: 10,
                 fontFamily: 'monospace',
                 color: 'rgba(245, 230, 200, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}>
-                {getPhaseEmoji(lunarData.phase.key)} {lunarData.phase.name} · {lunarData.zodiac.sign}
+                <span>{getPhaseEmoji(lunarData.phase.key)} {lunarData.phase.name}</span>
+                <span style={{
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  background: lunarData.phase.isThreshold
+                    ? 'rgba(245, 230, 200, 0.08)'
+                    : 'rgba(201, 168, 76, 0.1)',
+                  color: lunarData.phase.isThreshold
+                    ? 'rgba(245, 230, 200, 0.5)'
+                    : 'rgba(201, 168, 76, 0.7)',
+                  fontSize: 7,
+                  letterSpacing: '0.05em',
+                }}>
+                  {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
+                </span>
+                <span>· {lunarData.zodiac.sign} · Day {lunarData.dayOfCycle}</span>
               </div>
 
               {/* Voice orb */}
@@ -513,7 +532,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
           alignItems: 'center',
           gap: 6,
         }}>
-          <span>{(echo.phaseName || 'MOON').toUpperCase()} · {echo.lunarMonth?.toUpperCase() || ''} · DAY {echo.dayOfCycle || '?'}</span>
+          <span>{(echo.phaseName || 'MOON').toUpperCase()} · {echo.phaseType === 'threshold' ? 'THR' : 'FLW'} · {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}</span>
           {echo.source === 'voice' && (
             <span style={{
               padding: '1px 4px',
