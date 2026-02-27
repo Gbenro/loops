@@ -99,8 +99,6 @@ export function MoonFace({ size = 180, phase = 0, illumination = 50 }) {
 function calculateMoonPath(cx, cy, r, phase) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
 
-  console.log('MoonFace phase:', phase, 'expected illumination:', Math.round((1 - Math.cos(phase * 2 * Math.PI)) / 2 * 100) + '%');
-
   // Handle edge cases
   if (phase < 0.01 || phase > 0.99) {
     return null; // New moon - no visible light
@@ -123,9 +121,6 @@ function calculateMoonPath(cx, cy, r, phase) {
   // phase 0.25: bulge = 0 (straight line = half moon)
   // phase 0.5: bulge = -1 (curves left, toward shadow = full moon)
   const bulge = Math.cos(phase * 2 * Math.PI);
-  const absB = Math.abs(bulge);
-
-  console.log('bulge:', bulge, 'absB:', absB, 'isWaning:', isWaning);
 
   // Generate points along the terminator using parametric ellipse
   // The terminator goes from top (cy - r) to bottom (cy + r)
@@ -161,8 +156,6 @@ function calculateMoonPath(cx, cy, r, phase) {
   }
 
   path += ' Z'; // Close path
-
-  console.log('Generated path for phase', phase);
 
   return path;
 }
