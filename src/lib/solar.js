@@ -1,6 +1,18 @@
 // Cosmic Loops - Solar/Season Calculations
 // Equinox, solstice, and season tracking
 
+// The 8 solar thresholds (Celtic cross-quarter days + astronomical)
+const SOLAR_THRESHOLDS = [
+  { name: 'Winter Solstice', day: 355 },  // Dec 21
+  { name: 'Imbolc',          day: 33  },  // Feb 2
+  { name: 'Spring Equinox',  day: 80  },  // Mar 21
+  { name: 'Beltane',         day: 121 },  // May 1
+  { name: 'Summer Solstice', day: 172 },  // Jun 21
+  { name: 'Lughnasadh',      day: 213 },  // Aug 1
+  { name: 'Autumn Equinox',  day: 266 },  // Sep 23
+  { name: 'Samhain',         day: 305 },  // Nov 1
+];
+
 // Season definitions with day-of-year boundaries (Northern Hemisphere)
 const SEASONS = [
   { name: 'Winter', start: 355, end: 80, next: 'Spring Equinox', nextDay: 80 },
@@ -149,15 +161,78 @@ export function getSunSign(date = new Date()) {
   return 'Capricorn'; // Default fallback
 }
 
+// Get threshold position info
+function getThresholdPosition(date = new Date()) {
+  const dayOfYear = getDayOfYear(date);
+  const year = date.getFullYear();
+  const isLeap = isLeapYear(year);
+  const daysInYear = isLeap ? 366 : 365;
+
+  // Sort thresholds by day for processing
+  // Handle Winter Solstice wrapping: treat it as either day 355 or day -10 (355 - 365)
+  let lastThreshold = null;
+  let nextThreshold = null;
+  let daysFromLast = Infinity;
+  let daysToNext = Infinity;
+
+  for (let i = 0; i < SOLAR_THRESHOLDS.length; i++) {
+    const threshold = SOLAR_THRESHOLDS[i];
+    let thresholdDay = threshold.day;
+
+    // Calculate days since this threshold
+    let daysSince;
+    if (thresholdDay <= dayOfYear) {
+      daysSince = dayOfYear - thresholdDay;
+    } else {
+      // Threshold is later in year, so days since is from last year
+      daysSince = (daysInYear - thresholdDay) + dayOfYear;
+    }
+
+    if (daysSince < daysFromLast && daysSince >= 0) {
+      daysFromLast = daysSince;
+      lastThreshold = threshold;
+    }
+
+    // Calculate days until this threshold
+    let daysUntil;
+    if (thresholdDay > dayOfYear) {
+      daysUntil = thresholdDay - dayOfYear;
+    } else {
+      // Threshold is earlier in year, so days until is to next year
+      daysUntil = (daysInYear - dayOfYear) + thresholdDay;
+    }
+
+    if (daysUntil < daysToNext && daysUntil > 0) {
+      daysToNext = daysUntil;
+      nextThreshold = threshold;
+    }
+  }
+
+  return {
+    daysFromLastThreshold: daysFromLast,
+    daysToNextThreshold: daysToNext,
+    lastThresholdName: lastThreshold?.name || 'unknown',
+    nextThresholdName: nextThreshold?.name || 'unknown',
+    solarYearPct: dayOfYear / daysInYear,
+  };
+}
+
+// Get all threshold data for display
+export function getSolarThresholds() {
+  return SOLAR_THRESHOLDS;
+}
+
 // Get complete solar data bundle
 export function getSolarData(date = new Date()) {
   const season = getSeasonInfo(date);
   const sunSign = getSunSign(date);
   const dayOfYear = getDayOfYear(date);
+  const thresholdPosition = getThresholdPosition(date);
 
   return {
     season,
     sunSign,
     dayOfYear,
+    ...thresholdPosition,
   };
 }

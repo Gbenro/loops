@@ -8,6 +8,7 @@ import { getZodiacInfo } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { NATAL } from '../data/natal.js';
 import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
+import { getSolarThresholds } from '../lib/solar.js';
 
 const SECTIONS = [
   { id: 'phase', label: 'Phase', icon: '☽' },
@@ -15,6 +16,7 @@ const SECTIONS = [
   { id: 'sign', label: 'Sign', icon: '♈' },
   { id: 'season', label: 'Season', icon: '◯' },
   { id: 'weave', label: 'Weave', icon: '✧' },
+  { id: 'arcs', label: 'Arcs', icon: '⟳' },
   { id: 'you', label: 'Your Sky', icon: '⚝' },
 ];
 
@@ -24,6 +26,8 @@ export function DeepCosmicSheet({
   lunarData,
   solarData,
   resonances = [],
+  deepSheetPhase,
+  phrasesLoading,
 }) {
   const [activeSection, setActiveSection] = useState('phase');
 
@@ -136,7 +140,12 @@ export function DeepCosmicSheet({
           padding: '0 20px 40px',
         }}>
           {activeSection === 'phase' && (
-            <PhaseSection phase={lunarData.phase} content={phaseContent} />
+            <PhaseSection
+              phase={lunarData.phase}
+              content={phaseContent}
+              deepSheetPhase={deepSheetPhase}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'moon' && (
             <MoonSection lunarData={lunarData} monthInfo={lunarMonthInfo} />
@@ -149,6 +158,9 @@ export function DeepCosmicSheet({
           )}
           {activeSection === 'weave' && (
             <WeaveSection lunarData={lunarData} solarData={solarData} zodiacInfo={zodiacInfo} />
+          )}
+          {activeSection === 'arcs' && (
+            <ArcsSection solarData={solarData} />
           )}
           {activeSection === 'you' && (
             <YourSkySection resonances={resonances} />
@@ -168,7 +180,10 @@ export function DeepCosmicSheet({
 
 // ─── Phase Section ─────────────────────────────────────────────────────────
 
-function PhaseSection({ phase, content }) {
+function PhaseSection({ phase, content, deepSheetPhase, phrasesLoading }) {
+  // Use generated deep text or fallback to static content
+  const deepText = deepSheetPhase || content.deep;
+
   return (
     <div>
       <h2 style={{
@@ -191,14 +206,26 @@ function PhaseSection({ phase, content }) {
         ENERGY: {content.energy.toUpperCase()}
       </div>
 
-      <p style={{
-        fontSize: 15,
-        lineHeight: 1.8,
-        color: 'rgba(245, 230, 200, 0.85)',
-        marginBottom: 24,
-      }}>
-        {content.deep}
-      </p>
+      {phrasesLoading ? (
+        <div style={{
+          height: 60,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+          opacity: 1,
+          transition: 'opacity 0.4s ease',
+        }}>
+          {deepText}
+        </p>
+      )}
 
       {/* Keywords */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
@@ -733,6 +760,202 @@ function YourSkySection({ resonances = [] }) {
         textAlign: 'center',
       }}>
         {NATAL.birth.date} · {NATAL.birth.location} · {NATAL.birth.time}
+      </div>
+    </div>
+  );
+}
+
+// ─── Arcs Section (Larger Cycles) ───────────────────────────────────────────
+
+function ArcsSection({ solarData }) {
+  const thresholds = getSolarThresholds();
+  const dayOfYear = solarData?.dayOfYear || 1;
+  const daysInYear = 365;
+
+  // Find which thresholds are passed
+  const passedThresholds = thresholds.filter(t =>
+    (t.day <= dayOfYear) || (t.name === 'Winter Solstice' && dayOfYear < 33)
+  );
+
+  return (
+    <div>
+      <h2 style={{
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: 28,
+        fontWeight: 600,
+        color: '#f5e6c8',
+        marginBottom: 8,
+      }}>
+        Background Arcs
+      </h2>
+
+      <div style={{
+        fontSize: 11,
+        color: 'rgba(245, 230, 200, 0.5)',
+        fontFamily: 'monospace',
+        marginBottom: 24,
+      }}>
+        THE LARGER CYCLES BEHIND YOUR DAYS
+      </div>
+
+      {/* Solar Year Card */}
+      <div style={{
+        padding: 20,
+        borderRadius: 14,
+        background: 'rgba(251, 191, 36, 0.04)',
+        border: '1px solid rgba(251, 191, 36, 0.12)',
+        marginBottom: 16,
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 14,
+        }}>
+          <span style={{ fontSize: 22 }}>☀</span>
+          <span style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'rgba(251, 191, 36, 0.8)',
+          }}>
+            SOLAR YEAR · 365 DAYS · 8 THRESHOLDS
+          </span>
+        </div>
+
+        <div style={{
+          fontSize: 14,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 14,
+          lineHeight: 1.5,
+        }}>
+          Between {solarData?.lastThresholdName || 'threshold'} and {solarData?.nextThresholdName || 'threshold'} — Day {dayOfYear} of 365
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          height: 3,
+          borderRadius: 2,
+          background: 'rgba(245, 230, 200, 0.1)',
+          overflow: 'hidden',
+          marginBottom: 14,
+        }}>
+          <div style={{
+            width: `${(solarData?.solarYearPct || 0) * 100}%`,
+            height: '100%',
+            background: '#FBBF24',
+            borderRadius: 2,
+          }} />
+        </div>
+
+        {/* Threshold pills */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          {thresholds.map((t, i) => {
+            const isPassed = passedThresholds.includes(t);
+            const isCurrent = t.name === solarData?.lastThresholdName;
+            const isNext = t.name === solarData?.nextThresholdName;
+            return (
+              <span
+                key={t.name}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 4,
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                  background: isCurrent
+                    ? 'rgba(251, 191, 36, 0.15)'
+                    : isPassed
+                      ? 'rgba(245, 230, 200, 0.08)'
+                      : 'transparent',
+                  border: isNext
+                    ? '1px dashed rgba(251, 191, 36, 0.4)'
+                    : '1px solid transparent',
+                  color: isCurrent
+                    ? '#FBBF24'
+                    : isPassed
+                      ? 'rgba(245, 230, 200, 0.5)'
+                      : 'rgba(245, 230, 200, 0.25)',
+                }}
+              >
+                {isPassed && !isCurrent && '✓ '}
+                {isCurrent && '● '}
+                {isNext && '→ '}
+                {t.name}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Solar Cycle Card */}
+      <div style={{
+        padding: 20,
+        borderRadius: 14,
+        background: 'rgba(96, 165, 250, 0.04)',
+        border: '1px solid rgba(96, 165, 250, 0.12)',
+        marginBottom: 16,
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 22 }}>⚡</span>
+          <span style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'rgba(96, 165, 250, 0.8)',
+          }}>
+            SOLAR CYCLE 25 · ~11 YEARS
+          </span>
+        </div>
+
+        <div style={{
+          fontSize: 14,
+          color: 'rgba(245, 230, 200, 0.85)',
+          lineHeight: 1.7,
+        }}>
+          Near maximum. Peak electromagnetic output. The collective nervous system is measurably more activated than usual.
+        </div>
+      </div>
+
+      {/* Precessional Age Card */}
+      <div style={{
+        padding: 20,
+        borderRadius: 14,
+        background: 'rgba(167, 139, 250, 0.04)',
+        border: '1px solid rgba(167, 139, 250, 0.12)',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 22 }}>♒</span>
+          <span style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'rgba(167, 139, 250, 0.8)',
+          }}>
+            PRECESSIONAL AGE · ~2,160 YEARS
+          </span>
+        </div>
+
+        <div style={{
+          fontSize: 14,
+          color: 'rgba(245, 230, 200, 0.85)',
+          lineHeight: 1.7,
+        }}>
+          Pisces → Aquarius transition. Seed moment of an age organised around individual sovereignty and conscious relationship with time.
+        </div>
       </div>
     </div>
   );

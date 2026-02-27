@@ -9,7 +9,7 @@ import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 
-export function Loops({ userId }) {
+export function Loops({ userId, phrases, phrasesLoading }) {
   const [loops, setLoops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRitual, setShowRitual] = useState(false);
@@ -190,8 +190,8 @@ export function Loops({ userId }) {
     (l.status === 'closed' || l.status === 'released')
   );
 
-  // Button is always shown now (open loops have no restrictions)
-  const addButtonLabel = '+ open a loop';
+  // Use generated prompt or fallback
+  const addButtonLabel = phrasesLoading ? '+ open a loop' : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
 
   if (loading) {
     return (
@@ -225,6 +225,8 @@ export function Loops({ userId }) {
             setRitualDismissedUntil(until);
             setShowRitual(false);
           }}
+          newMoonQuestion={phrases.newMoonQuestion}
+          phrasesLoading={phrasesLoading}
         />
       )}
 
@@ -267,14 +269,25 @@ export function Loops({ userId }) {
             {phaseContent.energy.toUpperCase()}
           </span>
         </div>
-        <div style={{
-          fontSize: 13,
-          fontStyle: 'italic',
-          color: 'rgba(245, 230, 200, 0.6)',
-          lineHeight: 1.5,
-        }}>
-          {phaseContent.loopAdvice}
-        </div>
+        {phrasesLoading ? (
+          <div style={{
+            height: 18,
+            background: 'rgba(245, 230, 200, 0.1)',
+            borderRadius: 4,
+            opacity: 0.3,
+          }} />
+        ) : (
+          <div style={{
+            fontSize: 13,
+            fontStyle: 'italic',
+            color: 'rgba(245, 230, 200, 0.6)',
+            lineHeight: 1.5,
+            opacity: 1,
+            transition: 'opacity 0.4s ease',
+          }}>
+            {phrases.phaseBanner}
+          </div>
+        )}
       </div>
 
       {/* Lunar Cycle Progress */}

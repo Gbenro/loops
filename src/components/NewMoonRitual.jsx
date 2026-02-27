@@ -3,9 +3,16 @@
 
 import { useState } from 'react';
 
-export function NewMoonRitual({ lunarData, onSetIntention, onDismiss }) {
+const FALLBACK_QUESTION = 'What wants to be born through me this cycle?';
+
+export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQuestion, phrasesLoading }) {
   const [intention, setIntention] = useState('');
   const [isClosing, setIsClosing] = useState(false);
+
+  // Use generated question if available and not null
+  const question = (newMoonQuestion && newMoonQuestion !== 'null')
+    ? newMoonQuestion
+    : FALLBACK_QUESTION;
 
   const handleSetIntention = () => {
     if (!intention.trim()) return;
@@ -66,18 +73,32 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss }) {
       </div>
 
       {/* The Question */}
-      <div style={{
-        fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 24,
-        fontStyle: 'italic',
-        color: '#f5e6c8',
-        textAlign: 'center',
-        lineHeight: 1.5,
-        marginBottom: 40,
-        maxWidth: 320,
-      }}>
-        What wants to be born through me this cycle?
-      </div>
+      {phrasesLoading ? (
+        <div style={{
+          width: '80%',
+          maxWidth: 280,
+          height: 32,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 40,
+        }} />
+      ) : (
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 24,
+          fontStyle: 'italic',
+          color: '#f5e6c8',
+          textAlign: 'center',
+          lineHeight: 1.5,
+          marginBottom: 40,
+          maxWidth: 320,
+          opacity: 1,
+          transition: 'opacity 0.4s ease',
+        }}>
+          {question}
+        </div>
+      )}
 
       {/* Intention Input */}
       <textarea

@@ -36,7 +36,7 @@ function getPhaseType(phaseKey) {
   return PHASE_TYPES[phaseKey] || 'flow';
 }
 
-export function Echoes({ userId }) {
+export function Echoes({ userId, phrases, phrasesLoading }) {
   const [echoes, setEchoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isWriting, setIsWriting] = useState(false);
@@ -52,7 +52,15 @@ export function Echoes({ userId }) {
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
-  const voicePrompt = VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...';
+
+  // Use generated prompts or fallbacks
+  const voicePrompt = phrasesLoading
+    ? (VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...')
+    : (phrases.echoesVoicePrompt || VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...');
+
+  const writePrompt = phrasesLoading
+    ? "What is alive in you right now? What arrived today? What are you noticing..."
+    : (phrases.echoesWritePrompt || "What is alive in you right now?");
 
   // Check for Speech API support
   useEffect(() => {
@@ -301,7 +309,7 @@ export function Echoes({ userId }) {
                 setSource('text');
               }}
               readOnly={isListening}
-              placeholder={isListening ? '' : "What is alive in you right now? What arrived today? What are you noticing..."}
+              placeholder={isListening ? '' : writePrompt}
               style={{
                 width: '100%',
                 minHeight: 100,

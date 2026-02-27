@@ -22,7 +22,7 @@ const THRESHOLD_INTRO = (phaseName) =>
 const FLOW_INTRO = (phaseName, duration) =>
   `A flow phase opens. ${phaseName} gives you ${duration}+ days. No rush. Settle in.`;
 
-export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
+export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading }) {
   const {
     isApproaching,
     isImminent,
@@ -36,7 +36,8 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes }) {
 
   if (!isApproaching) return null;
 
-  const invitation = TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
+  // Use generated phrase if available, fall back to static
+  const invitation = transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
   const isNextThreshold = nextPhaseType === 'threshold';
   const isNextFlow = nextPhaseType === 'flow';
 

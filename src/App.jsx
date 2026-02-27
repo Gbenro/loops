@@ -1,9 +1,12 @@
 // Cosmic Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from './lib/supabase.js';
 import { migrateLocalToServer } from './lib/storage.js';
+import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
+import { getLunarData } from './lib/lunar.js';
+import { getSolarData } from './lib/solar.js';
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
@@ -20,6 +23,12 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
+  const [phrasesLoading, setPhrasesLoading] = useState(true);
+
+  // Calculate cosmic data once at app level
+  const lunarData = useMemo(() => getLunarData(), []);
+  const solarData = useMemo(() => getSolarData(), []);
 
   // Check auth state on mount
   useEffect(() => {
@@ -34,6 +43,19 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Load generative phrases on mount
+  useEffect(() => {
+    // Check if cache is stale (phase changed)
+    if (isCacheStale(lunarData.phase.name)) {
+      clearPhraseCache();
+    }
+
+    getSessionPhrases(lunarData, solarData).then(p => {
+      setPhrases(p);
+      setPhrasesLoading(false);
+    });
+  }, [lunarData, solarData]);
 
   const handleAuthSuccess = async (newUser) => {
     setUser(newUser);
@@ -201,10 +223,26 @@ export default function App() {
             onSignIn={() => setShowAuth(true)}
             onSignOut={handleSignOut}
             onSwitchToEchoes={() => setActiveTab('echoes')}
+            phrases={phrases}
+            phrasesLoading={phrasesLoading}
+            lunarData={lunarData}
+            solarData={solarData}
           />
         )}
-        {activeTab === 'loops' && <Loops userId={user?.id} />}
-        {activeTab === 'echoes' && <Echoes userId={user?.id} />}
+        {activeTab === 'loops' && (
+          <Loops
+            userId={user?.id}
+            phrases={phrases}
+            phrasesLoading={phrasesLoading}
+          />
+        )}
+        {activeTab === 'echoes' && (
+          <Echoes
+            userId={user?.id}
+            phrases={phrases}
+            phrasesLoading={phrasesLoading}
+          />
+        )}
       </div>
 
       {/* Bottom Navigation */}

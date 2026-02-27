@@ -13,14 +13,12 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
+export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
 
-  // Calculate all cosmic data
+  // Get resonances (natal calculations still done locally)
   const now = new Date();
-  const lunarData = useMemo(() => getLunarData(now), []);
-  const solarData = useMemo(() => getSolarData(now), []);
   const resonances = useMemo(() => getNatalResonance(now), []);
   const resonanceSummary = useMemo(() => getResonanceSummary(now), []);
 
@@ -196,7 +194,7 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
               letterSpacing: '0.12em',
               color: 'rgba(245, 230, 200, 0.5)',
             }}>
-              {phaseContent.energy.toUpperCase()}
+              {phrasesLoading ? phaseContent.energy.toUpperCase() : phrases.energyDescription.toUpperCase()}
             </span>
             <span style={{
               fontSize: 'var(--font-xs)',
@@ -226,16 +224,46 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
           }}>
             {phaseContent.typeOpening}
           </div>
+          {phrasesLoading ? (
+            <div style={{
+              height: 24,
+              background: 'rgba(245, 230, 200, 0.1)',
+              borderRadius: 4,
+              opacity: 0.3,
+              animation: 'breathe 2s ease-in-out infinite',
+            }} />
+          ) : (
+            <div style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 'var(--font-lg)',
+              fontStyle: 'italic',
+              color: 'rgba(245, 230, 200, 0.85)',
+              lineHeight: 1.6,
+              opacity: 1,
+              transition: 'opacity 0.4s ease',
+            }}>
+              "{phrases.phaseGuidance}"
+            </div>
+          )}
+        </div>
+
+        {/* Cosmic Synthesis Line */}
+        {!phrasesLoading && phrases.cosmicSynthesis && (
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 'var(--font-lg)',
             fontStyle: 'italic',
-            color: 'rgba(245, 230, 200, 0.85)',
-            lineHeight: 1.6,
+            fontSize: '13px',
+            color: 'rgba(245, 230, 200, 0.45)',
+            textAlign: 'center',
+            letterSpacing: '0.02em',
+            padding: '0 24px',
+            marginBottom: '16px',
+            opacity: 1,
+            transition: 'opacity 0.4s ease',
           }}>
-            "{phaseContent.guidance}"
+            {phrases.cosmicSynthesis}
           </div>
-        </div>
+        )}
 
         {/* 8-Phase Timeline */}
         <div style={{
@@ -292,6 +320,8 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
             lunarData={lunarData}
             onDismiss={() => setTransitionDismissed(true)}
             onOpenEchoes={onSwitchToEchoes}
+            transitionInvitation={phrases.transitionInvitation}
+            phrasesLoading={phrasesLoading}
           />
         )}
 
@@ -370,6 +400,8 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes }) {
         lunarData={lunarData}
         solarData={solarData}
         resonances={resonances}
+        deepSheetPhase={phrases.deepSheetPhase}
+        phrasesLoading={phrasesLoading}
       />
     </div>
   );
