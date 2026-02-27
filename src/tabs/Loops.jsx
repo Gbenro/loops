@@ -113,6 +113,8 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       ...loop,
       status: 'closed',
       closedAt: new Date().toISOString(),
+      phaseClosed: lunarData.phase.key,
+      phaseNameClosed: lunarData.phase.name,
     };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) setSelected(updated);
@@ -128,6 +130,8 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       status: 'active',
       closedAt: null,
       releasedAt: null,
+      phaseClosed: null,
+      phaseNameClosed: null,
     };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) setSelected(updated);
@@ -142,6 +146,8 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       ...loop,
       status: 'released',
       releasedAt: new Date().toISOString(),
+      phaseClosed: lunarData.phase.key,
+      phaseNameClosed: lunarData.phase.name,
     };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) setSelected(updated);
@@ -673,6 +679,7 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
           display: 'flex',
           gap: 8,
           alignItems: 'center',
+          flexWrap: 'wrap',
           fontSize: 9,
           fontFamily: 'monospace',
           color: 'rgba(245, 230, 200, 0.4)',
@@ -693,6 +700,18 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
           }}>
             {released ? 'RELEASED' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
+          {/* Show phase opened for open loops */}
+          {isOpen && loop.phaseName && (
+            <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>
+              ↑ {loop.phaseName}
+            </span>
+          )}
+          {/* Show phase closed for completed open loops */}
+          {isOpen && closed && loop.phaseNameClosed && (
+            <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>
+              ↓ {loop.phaseNameClosed}
+            </span>
+          )}
           {windowText && (
             <span style={{
               color: 'rgba(167, 139, 250, 0.5)',
@@ -829,13 +848,26 @@ function DetailPanel({
               <div style={{
                 display: 'flex',
                 gap: 8,
+                flexWrap: 'wrap',
                 fontSize: 9,
                 fontFamily: 'monospace',
                 color: 'rgba(245, 230, 200, 0.4)',
               }}>
                 <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
                 <span>·</span>
-                <span>{loop.type === 'open' ? 'NO WINDOW' : (loop.phaseName || 'unknown')}</span>
+                {loop.type === 'open' ? (
+                  <>
+                    <span>↑ {loop.phaseName || 'unknown'}</span>
+                    {loop.phaseNameClosed && (
+                      <>
+                        <span>·</span>
+                        <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <span>{loop.phaseName || 'unknown'}</span>
+                )}
               </div>
             </div>
           </div>
