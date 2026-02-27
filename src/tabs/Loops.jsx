@@ -1,29 +1,51 @@
 // Cosmic Loops - Loops Tab
-// Loop management aligned to lunar phases
+// Cycle loops (29.5 day intentions) and Phase loops (3.5 day actions)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Ring } from '../components/Ring.jsx';
+import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
+import { PhaseLoopSheet } from '../components/PhaseLoopSheet.jsx';
 import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 
-// Color palette
-const COLORS = [
-  '#FF6B35', '#A78BFA', '#60A5FA', '#34D399',
-  '#F472B6', '#FBBF24', '#FB7185', '#38BDF8'
-];
-
 export function Loops({ userId }) {
   const [loops, setLoops] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showRitual, setShowRitual] = useState(false);
+  const [showPhaseSheet, setShowPhaseSheet] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Fetch loops on mount and when userId changes
+  // Check if we're in New Moon phase
+  const isNewMoon = lunarData.phase.key === 'new';
+  const isWaxing = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'].includes(lunarData.phase.key);
+  const isWaning = !isWaxing;
+  const isFullMoon = lunarData.phase.key === 'full';
+  const isWaningCrescent = lunarData.phase.key === 'waning-crescent';
+
+  // Get current cycle loop (if exists)
+  const cycleLoop = useMemo(() =>
+    loops.find(l => l.type === 'cycle' && l.status === 'active'),
+    [loops]
+  );
+
+  // Check if ritual should show
+  useEffect(() => {
+    if (isNewMoon && !cycleLoop && !loading) {
+      // Check if dismissed
+      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
+        return;
+      }
+      setShowRitual(true);
+    }
+  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
+
+  // Fetch loops on mount
   useEffect(() => {
     setLoading(true);
     getLoops(userId).then(data => {
@@ -32,51 +54,97 @@ export function Loops({ userId }) {
     });
   }, [userId]);
 
-  // Calculate loop completion percentage
+  // Calculate loop completion
   const getLoopPct = useCallback((loop) => {
-    if (!loop.subtasks || loop.subtasks.length === 0) return loop.closed ? 100 : 0;
+    if (loop.status === 'closed' || loop.status === 'released') return 100;
+    if (!loop.subtasks || loop.subtasks.length === 0) return 0;
     const done = loop.subtasks.filter(s => s.done).length;
     return Math.round((done / loop.subtasks.length) * 100);
   }, []);
 
-  // Create new loop
-  const createLoop = async (loop) => {
+  // Create cycle loop (from ritual)
+  const createCycleLoop = async (intention) => {
     const newLoop = {
-      ...loop,
-      id: generateId('l'),
-      createdAt: new Date().toISOString(),
+      id: generateId('c'),
+      title: intention,
+      type: 'cycle',
+      status: 'active',
+      color: '#A78BFA',
+      subtasks: [],
+      linkedTo: null,
       phaseOpened: lunarData.phase.key,
       phaseName: lunarData.phase.name,
       lunarMonthOpened: lunarData.lunarMonth,
       moonAgeOpened: lunarData.age,
-      closed: false,
-      subtasks: [],
+      zodiacOpened: lunarData.zodiac.sign,
+      openedAt: new Date().toISOString(),
+      closedAt: null,
+      releasedAt: null,
+      createdAt: new Date().toISOString(),
     };
     setLoops(prev => [newLoop, ...prev]);
-    setShowCreate(false);
+    setShowRitual(false);
+    await saveLoop(newLoop, userId);
+  };
+
+  // Create phase loop
+  const createPhaseLoop = async (loopData) => {
+    const newLoop = {
+      ...loopData,
+      id: generateId('p'),
+      subtasks: [],
+      openedAt: new Date().toISOString(),
+      closedAt: null,
+      releasedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    setLoops(prev => [newLoop, ...prev]);
+    setShowPhaseSheet(false);
     setSelected(newLoop);
     setShowDetail(true);
     await saveLoop(newLoop, userId);
   };
 
-  // Toggle loop closed
-  const toggleLoop = async (id) => {
+  // Close loop
+  const closeLoop = async (id) => {
     const loop = loops.find(l => l.id === id);
     if (!loop) return;
-    const updated = { ...loop, closed: !loop.closed };
+    const updated = {
+      ...loop,
+      status: 'closed',
+      closedAt: new Date().toISOString(),
+    };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    if (selected?.id === id) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
-  // Update loop
-  const updateLoop = async (id, updates) => {
+  // Reopen loop
+  const reopenLoop = async (id) => {
     const loop = loops.find(l => l.id === id);
     if (!loop) return;
-    const updated = { ...loop, ...updates };
+    const updated = {
+      ...loop,
+      status: 'active',
+      closedAt: null,
+      releasedAt: null,
+    };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
-    if (selected?.id === id) {
-      setSelected(updated);
-    }
+    if (selected?.id === id) setSelected(updated);
+    await saveLoop(updated, userId);
+  };
+
+  // Release loop (let go without completing)
+  const releaseLoop = async (id) => {
+    const loop = loops.find(l => l.id === id);
+    if (!loop) return;
+    const updated = {
+      ...loop,
+      status: 'released',
+      releasedAt: new Date().toISOString(),
+    };
+    setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    if (selected?.id === id) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
@@ -99,9 +167,7 @@ export function Loops({ userId }) {
       ),
     };
     setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
-    if (selected?.id === loopId) {
-      setSelected(updated);
-    }
+    if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
@@ -109,22 +175,36 @@ export function Loops({ userId }) {
   const addSubtask = async (loopId, text) => {
     const loop = loops.find(l => l.id === loopId);
     if (!loop) return;
-    const newSubtask = {
-      id: generateId('s'),
-      text,
-      done: false,
-    };
+    const newSubtask = { id: generateId('s'), text, done: false };
     const updated = { ...loop, subtasks: [...loop.subtasks, newSubtask] };
     setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
-    if (selected?.id === loopId) {
-      setSelected(updated);
-    }
+    if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
-  // Filter active loops
-  const activeLoops = loops.filter(l => !l.closed);
-  const closedLoops = loops.filter(l => l.closed);
+  // Filter loops
+  const phaseLoops = loops.filter(l => l.type === 'phase');
+  const activePhaseLoops = phaseLoops.filter(l => l.status === 'active');
+  const closedLoops = phaseLoops.filter(l => l.status === 'closed' || l.status === 'released');
+
+  // Button visibility and text
+  const getAddButtonState = () => {
+    if (isNewMoon && !cycleLoop) return { show: false };
+    if (isFullMoon) return { show: false };
+    if (isWaningCrescent) return { show: false };
+    if (lunarData.phase.key === 'waning-gibbous') {
+      return { show: true, dimmed: true, label: '〰 one last sharing loop' };
+    }
+    if (lunarData.phase.key === 'last-quarter') {
+      return { show: true, dimmed: true, label: '〰 release what\'s unfinished' };
+    }
+    if (isWaning) {
+      return { show: true, dimmed: true, label: '〰 rest, the cycle is releasing...' };
+    }
+    return { show: true, dimmed: false, label: '+ open a phase loop' };
+  };
+
+  const addButton = getAddButtonState();
 
   if (loading) {
     return (
@@ -149,6 +229,28 @@ export function Loops({ userId }) {
       flexDirection: 'column',
       background: '#040810',
     }}>
+      {/* New Moon Ritual */}
+      {showRitual && (
+        <NewMoonRitual
+          lunarData={lunarData}
+          onSetIntention={createCycleLoop}
+          onDismiss={(until) => {
+            setRitualDismissedUntil(until);
+            setShowRitual(false);
+          }}
+        />
+      )}
+
+      {/* Phase Loop Sheet */}
+      {showPhaseSheet && (
+        <PhaseLoopSheet
+          lunarData={lunarData}
+          cycleLoopId={cycleLoop?.id}
+          onClose={() => setShowPhaseSheet(false)}
+          onCreate={createPhaseLoop}
+        />
+      )}
+
       {/* Cosmic Guidance Banner */}
       <div style={{
         padding: '16px 20px',
@@ -231,7 +333,7 @@ export function Loops({ userId }) {
       </div>
 
       {/* Waning Banner */}
-      {lunarData.phase.isWaning && (
+      {isWaning && (
         <div style={{
           padding: '12px 20px',
           background: 'rgba(252, 129, 129, 0.06)',
@@ -243,7 +345,7 @@ export function Loops({ userId }) {
             color: 'rgba(252, 129, 129, 0.65)',
             lineHeight: 1.5,
           }}>
-            Waning phase — the cosmos supports closing, not opening. Let loops complete naturally.
+            Waning phase — the cosmos supports closing, not opening.
           </div>
         </div>
       )}
@@ -254,8 +356,31 @@ export function Loops({ userId }) {
         overflowY: 'auto',
         padding: '16px 20px',
       }}>
-        {/* Active Loops */}
-        {activeLoops.length > 0 && (
+        {/* Cycle Loop (pinned at top) */}
+        {cycleLoop && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{
+              fontSize: 10,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              color: 'rgba(167, 139, 250, 0.6)',
+              marginBottom: 12,
+            }}>
+              CYCLE INTENTION
+            </div>
+            <CycleLoopCard
+              loop={cycleLoop}
+              lunarData={lunarData}
+              onSelect={() => {
+                setSelected(cycleLoop);
+                setShowDetail(true);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Active Phase Loops */}
+        {activePhaseLoops.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
@@ -264,9 +389,9 @@ export function Loops({ userId }) {
               color: 'rgba(245, 230, 200, 0.35)',
               marginBottom: 12,
             }}>
-              ACTIVE LOOPS
+              PHASE LOOPS
             </div>
-            {activeLoops.map(loop => (
+            {activePhaseLoops.map(loop => (
               <LoopCard
                 key={loop.id}
                 loop={loop}
@@ -275,13 +400,13 @@ export function Loops({ userId }) {
                   setSelected(loop);
                   setShowDetail(true);
                 }}
-                onToggle={() => toggleLoop(loop.id)}
+                onClose={() => closeLoop(loop.id)}
               />
             ))}
           </div>
         )}
 
-        {/* Closed Loops */}
+        {/* Closed / Released Loops */}
         {closedLoops.length > 0 && (
           <div>
             <div style={{
@@ -291,7 +416,7 @@ export function Loops({ userId }) {
               color: 'rgba(245, 230, 200, 0.25)',
               marginBottom: 12,
             }}>
-              CLOSED
+              COMPLETED
             </div>
             {closedLoops.map(loop => (
               <LoopCard
@@ -299,18 +424,19 @@ export function Loops({ userId }) {
                 loop={loop}
                 pct={100}
                 closed
+                released={loop.status === 'released'}
                 onSelect={() => {
                   setSelected(loop);
                   setShowDetail(true);
                 }}
-                onToggle={() => toggleLoop(loop.id)}
+                onReopen={() => reopenLoop(loop.id)}
               />
             ))}
           </div>
         )}
 
         {/* Empty state */}
-        {loops.length === 0 && (
+        {loops.length === 0 && !isNewMoon && (
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
@@ -322,47 +448,58 @@ export function Loops({ userId }) {
             </div>
           </div>
         )}
+
+        {/* New Moon prompt */}
+        {isNewMoon && !cycleLoop && !showRitual && (
+          <div
+            onClick={() => setShowRitual(true)}
+            style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              color: 'rgba(245, 230, 200, 0.4)',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🌑</div>
+            <div style={{
+              fontSize: 16,
+              fontFamily: "'Cormorant Garamond', serif",
+              fontStyle: 'italic',
+            }}>
+              Tap to set your cycle intention
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Loop Button */}
-      <div style={{
-        padding: '16px 20px',
-        paddingBottom: '20px',
-        borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-      }}>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{
-            width: '100%',
-            padding: '14px 20px',
-            borderRadius: 12,
-            background: lunarData.phase.isWaning
-              ? 'transparent'
-              : 'rgba(245, 230, 200, 0.06)',
-            border: lunarData.phase.isWaning
-              ? '1px dashed rgba(245, 230, 200, 0.1)'
-              : '1px solid rgba(245, 230, 200, 0.12)',
-            color: lunarData.phase.isWaning
-              ? 'rgba(245, 230, 200, 0.25)'
-              : 'rgba(245, 230, 200, 0.7)',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          {lunarData.phase.isWaning
-            ? '〰 Rest. The cycle is releasing...'
-            : '+ open a new loop'
-          }
-        </button>
-      </div>
-
-      {/* Create Modal */}
-      {showCreate && (
-        <CreateModal
-          onClose={() => setShowCreate(false)}
-          onCreate={createLoop}
-          lunarData={lunarData}
-        />
+      {addButton.show && (
+        <div style={{
+          padding: '16px 20px 20px',
+          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+        }}>
+          <button
+            onClick={() => setShowPhaseSheet(true)}
+            style={{
+              width: '100%',
+              padding: '14px 20px',
+              borderRadius: 12,
+              background: addButton.dimmed
+                ? 'transparent'
+                : 'rgba(245, 230, 200, 0.06)',
+              border: addButton.dimmed
+                ? '1px dashed rgba(245, 230, 200, 0.1)'
+                : '1px solid rgba(245, 230, 200, 0.12)',
+              color: addButton.dimmed
+                ? 'rgba(245, 230, 200, 0.3)'
+                : 'rgba(245, 230, 200, 0.7)',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            {addButton.label}
+          </button>
+        </div>
       )}
 
       {/* Detail Panel */}
@@ -374,7 +511,9 @@ export function Loops({ userId }) {
             setShowDetail(false);
             setSelected(null);
           }}
-          onToggle={() => toggleLoop(selected.id)}
+          onCloseLoop={() => closeLoop(selected.id)}
+          onReopenLoop={() => reopenLoop(selected.id)}
+          onReleaseLoop={() => releaseLoop(selected.id)}
           onDelete={() => deleteLoop(selected.id)}
           onToggleSubtask={(subtaskId) => toggleSubtask(selected.id, subtaskId)}
           onAddSubtask={(text) => addSubtask(selected.id, text)}
@@ -384,9 +523,60 @@ export function Loops({ userId }) {
   );
 }
 
-// ─── Loop Card ─────────────────────────────────────────────────────────────
+// ─── Cycle Loop Card ─────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, onSelect, onToggle }) {
+function CycleLoopCard({ loop, lunarData, onSelect }) {
+  const cycleProgress = (lunarData.age / 29.53) * 100;
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        padding: '20px',
+        background: 'rgba(167, 139, 250, 0.06)',
+        border: '1px solid rgba(167, 139, 250, 0.2)',
+        borderRadius: 16,
+        cursor: 'pointer',
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 16,
+      }}>
+        <Ring
+          pct={cycleProgress}
+          color="#A78BFA"
+          size={48}
+          stroke={3}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 18,
+            color: '#f5e6c8',
+            lineHeight: 1.4,
+            marginBottom: 8,
+          }}>
+            {loop.title}
+          </div>
+          <div style={{
+            fontSize: 9,
+            fontFamily: 'monospace',
+            color: 'rgba(167, 139, 250, 0.6)',
+            letterSpacing: '0.08em',
+          }}>
+            {loop.lunarMonthOpened?.toUpperCase()} MOON · OPENED AT {loop.phaseName?.toUpperCase()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Loop Card ───────────────────────────────────────────────────────────────
+
+function LoopCard({ loop, pct, closed, released, onSelect, onClose, onReopen }) {
   return (
     <div
       style={{
@@ -405,7 +595,7 @@ function LoopCard({ loop, pct, closed, onSelect, onToggle }) {
     >
       <Ring
         pct={pct}
-        color={loop.color || '#A78BFA'}
+        color={released ? 'rgba(245, 230, 200, 0.3)' : (loop.color || '#A78BFA')}
         size={40}
         stroke={3}
       />
@@ -431,26 +621,20 @@ function LoopCard({ loop, pct, closed, onSelect, onToggle }) {
           <span style={{
             padding: '2px 6px',
             borderRadius: 4,
-            background: 'rgba(245, 230, 200, 0.06)',
+            background: released
+              ? 'rgba(252, 129, 129, 0.1)'
+              : 'rgba(245, 230, 200, 0.06)',
+            color: released ? 'rgba(252, 129, 129, 0.6)' : undefined,
           }}>
-            {loop.type === 'windowed' ? '◷' : '∞'} {loop.type?.toUpperCase() || 'OPEN'}
+            {released ? 'RELEASED' : loop.phaseName?.toUpperCase()}
           </span>
-          {loop.recurrence && (
-            <span style={{
-              padding: '2px 6px',
-              borderRadius: 4,
-              background: 'rgba(245, 230, 200, 0.06)',
-            }}>
-              ↻ {loop.recurrence.toUpperCase()}
-            </span>
-          )}
         </div>
       </div>
 
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onToggle();
+          closed ? onReopen?.() : onClose?.();
         }}
         style={{
           width: 28,
@@ -473,204 +657,24 @@ function LoopCard({ loop, pct, closed, onSelect, onToggle }) {
   );
 }
 
-// ─── Create Modal ──────────────────────────────────────────────────────────
+// ─── Detail Panel ────────────────────────────────────────────────────────────
 
-function CreateModal({ onClose, onCreate, lunarData }) {
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState('open');
-  const [recurrence, setRecurrence] = useState(null);
-  const [color, setColor] = useState(COLORS[0]);
-
-  const handleCreate = () => {
-    if (!title.trim()) return;
-    onCreate({
-      title: title.trim(),
-      type,
-      recurrence,
-      color,
-    });
-  };
-
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-    }}>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(4px)',
-        }}
-      />
-
-      {/* Modal */}
-      <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: '#0a0a12',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: '24px 20px 40px',
-      }}>
-        {/* Drag handle */}
-        <div style={{
-          width: 36,
-          height: 4,
-          borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.2)',
-          margin: '0 auto 24px',
-        }} />
-
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 22,
-          color: '#f5e6c8',
-          marginBottom: 24,
-          textAlign: 'center',
-        }}>
-          Open a Loop
-        </div>
-
-        {/* Title input */}
-        <input
-          autoFocus
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="What do you want to build?"
-          style={{
-            width: '100%',
-            padding: '14px 16px',
-            borderRadius: 10,
-            border: '1px solid rgba(245, 230, 200, 0.15)',
-            background: 'rgba(245, 230, 200, 0.04)',
-            color: '#f5e6c8',
-            fontSize: 16,
-            fontFamily: "'Cormorant Garamond', serif",
-            outline: 'none',
-            marginBottom: 20,
-          }}
-        />
-
-        {/* Type selection */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.4)',
-            marginBottom: 10,
-          }}>
-            TYPE
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {['open', 'windowed'].map(t => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: 8,
-                  border: `1px solid ${type === t
-                    ? 'rgba(245, 230, 200, 0.3)'
-                    : 'rgba(245, 230, 200, 0.1)'}`,
-                  background: type === t
-                    ? 'rgba(245, 230, 200, 0.08)'
-                    : 'transparent',
-                  color: type === t
-                    ? '#f5e6c8'
-                    : 'rgba(245, 230, 200, 0.5)',
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  cursor: 'pointer',
-                }}
-              >
-                {t === 'open' ? '∞ OPEN' : '◷ WINDOWED'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Color selection */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.4)',
-            marginBottom: 10,
-          }}>
-            COLOR
-          </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            {COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: c,
-                  border: color === c
-                    ? '3px solid #f5e6c8'
-                    : '3px solid transparent',
-                  cursor: 'pointer',
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: '14px',
-              borderRadius: 10,
-              border: '1px solid rgba(245, 230, 200, 0.15)',
-              background: 'transparent',
-              color: 'rgba(245, 230, 200, 0.5)',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!title.trim()}
-            style={{
-              flex: 1,
-              padding: '14px',
-              borderRadius: 10,
-              border: 'none',
-              background: title.trim() ? color : 'rgba(245, 230, 200, 0.1)',
-              color: title.trim() ? '#040810' : 'rgba(245, 230, 200, 0.3)',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: title.trim() ? 'pointer' : 'default',
-            }}
-          >
-            Open Loop
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Detail Panel ──────────────────────────────────────────────────────────
-
-function DetailPanel({ loop, pct, onClose, onToggle, onDelete, onToggleSubtask, onAddSubtask }) {
+function DetailPanel({
+  loop,
+  pct,
+  onClose,
+  onCloseLoop,
+  onReopenLoop,
+  onReleaseLoop,
+  onDelete,
+  onToggleSubtask,
+  onAddSubtask
+}) {
   const [newSubtask, setNewSubtask] = useState('');
+  const isCycle = loop.type === 'cycle';
+  const isClosed = loop.status === 'closed';
+  const isReleased = loop.status === 'released';
+  const isActive = loop.status === 'active';
 
   const handleAddSubtask = () => {
     if (!newSubtask.trim()) return;
@@ -728,7 +732,7 @@ function DetailPanel({ loop, pct, onClose, onToggle, onDelete, onToggleSubtask, 
           }}>
             <Ring
               pct={pct}
-              color={loop.color || '#A78BFA'}
+              color={isReleased ? 'rgba(245,230,200,0.3)' : (loop.color || '#A78BFA')}
               size={56}
               stroke={4}
             >
@@ -757,9 +761,9 @@ function DetailPanel({ loop, pct, onClose, onToggle, onDelete, onToggleSubtask, 
                 fontFamily: 'monospace',
                 color: 'rgba(245, 230, 200, 0.4)',
               }}>
-                <span>{loop.type === 'windowed' ? '◷' : '∞'} {loop.type?.toUpperCase()}</span>
+                <span>{isCycle ? '◐ CYCLE' : '◯ PHASE'}</span>
                 <span>·</span>
-                <span>Opened in {loop.phaseName || 'unknown phase'}</span>
+                <span>{loop.phaseName || 'unknown'}</span>
               </div>
             </div>
           </div>
@@ -820,47 +824,49 @@ function DetailPanel({ loop, pct, onClose, onToggle, onDelete, onToggleSubtask, 
           ))}
 
           {/* Add subtask */}
-          <div style={{
-            display: 'flex',
-            gap: 10,
-            marginTop: 16,
-          }}>
-            <input
-              value={newSubtask}
-              onChange={e => setNewSubtask(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
-              placeholder="Add a step..."
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid rgba(245, 230, 200, 0.1)',
-                background: 'rgba(245, 230, 200, 0.03)',
-                color: '#f5e6c8',
-                fontSize: 13,
-                outline: 'none',
-              }}
-            />
-            <button
-              onClick={handleAddSubtask}
-              disabled={!newSubtask.trim()}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 8,
-                border: 'none',
-                background: newSubtask.trim()
-                  ? 'rgba(245, 230, 200, 0.1)'
-                  : 'rgba(245, 230, 200, 0.03)',
-                color: newSubtask.trim()
-                  ? '#f5e6c8'
-                  : 'rgba(245, 230, 200, 0.3)',
-                fontSize: 13,
-                cursor: newSubtask.trim() ? 'pointer' : 'default',
-              }}
-            >
-              Add
-            </button>
-          </div>
+          {isActive && (
+            <div style={{
+              display: 'flex',
+              gap: 10,
+              marginTop: 16,
+            }}>
+              <input
+                value={newSubtask}
+                onChange={e => setNewSubtask(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
+                placeholder="Add a step..."
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(245, 230, 200, 0.1)',
+                  background: 'rgba(245, 230, 200, 0.03)',
+                  color: '#f5e6c8',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleAddSubtask}
+                disabled={!newSubtask.trim()}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: newSubtask.trim()
+                    ? 'rgba(245, 230, 200, 0.1)'
+                    : 'rgba(245, 230, 200, 0.03)',
+                  color: newSubtask.trim()
+                    ? '#f5e6c8'
+                    : 'rgba(245, 230, 200, 0.3)',
+                  fontSize: 13,
+                  cursor: newSubtask.trim() ? 'pointer' : 'default',
+                }}
+              >
+                Add
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -868,37 +874,57 @@ function DetailPanel({ loop, pct, onClose, onToggle, onDelete, onToggleSubtask, 
           padding: '16px 20px 24px',
           borderTop: '1px solid rgba(245, 230, 200, 0.08)',
           display: 'flex',
-          gap: 12,
+          gap: 10,
         }}>
+          {!isCycle && (
+            <button
+              onClick={onDelete}
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid rgba(252, 129, 129, 0.3)',
+                background: 'transparent',
+                color: 'rgba(252, 129, 129, 0.7)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              Delete
+            </button>
+          )}
+
+          {isActive && (
+            <button
+              onClick={onReleaseLoop}
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid rgba(245, 230, 200, 0.15)',
+                background: 'transparent',
+                color: 'rgba(245, 230, 200, 0.5)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              Release
+            </button>
+          )}
+
           <button
-            onClick={onDelete}
-            style={{
-              padding: '12px 20px',
-              borderRadius: 10,
-              border: '1px solid rgba(252, 129, 129, 0.3)',
-              background: 'transparent',
-              color: 'rgba(252, 129, 129, 0.7)',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            Delete
-          </button>
-          <button
-            onClick={onToggle}
+            onClick={isActive ? onCloseLoop : onReopenLoop}
             style={{
               flex: 1,
               padding: '12px 20px',
               borderRadius: 10,
               border: 'none',
-              background: loop.closed ? 'rgba(245, 230, 200, 0.1)' : '#34D399',
-              color: loop.closed ? '#f5e6c8' : '#040810',
+              background: isActive ? '#34D399' : 'rgba(245, 230, 200, 0.1)',
+              color: isActive ? '#040810' : '#f5e6c8',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
             }}
           >
-            {loop.closed ? 'Reopen Loop' : 'Close Loop'}
+            {isActive ? 'Close Loop' : (isReleased ? 'Reopen' : 'Reopen Loop')}
           </button>
         </div>
       </div>
