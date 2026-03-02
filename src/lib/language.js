@@ -6,6 +6,7 @@ const CACHE_KEY = 'phrases_v1';
 
 // Supabase edge function URL
 const GENERATE_PHRASES_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/generate-phrases';
+const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 
 export const FALLBACK_PHRASES = {
   phaseGuidance:       "Move with what the phase allows.",
@@ -96,7 +97,10 @@ export async function getSessionPhrases(lunarData, solarData) {
   try {
     const res = await fetch(GENERATE_PHRASES_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
       body: JSON.stringify({ cycleState })
     });
 

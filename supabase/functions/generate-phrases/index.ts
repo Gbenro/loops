@@ -1,11 +1,34 @@
 // Cosmic Loops - Generate Phrases Edge Function
-// Proxies Anthropic API calls with server-side API key
+// Securely proxies Anthropic API calls for generative language
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-const VOICE_SYSTEM_PROMPT = `You are the voice of Cosmic Loops. You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never explain. Never decorate. Never use the words "embrace", "journey", "beautiful", "harness", or "tap into". Name where the person is in the cycles with the precision of someone who has been watching the sky for a long time. Each phrase should feel like something that could be carved into stone or whispered at dawn. Terse is better than elaborate. One sentence is better than two. Return only a valid JSON object with the exact keys provided. No preamble, no explanation, no markdown.`;
+const VOICE_SYSTEM_PROMPT = `You are the voice of Cosmic Loops. You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never twee, never grandiose. Think Mary Oliver meets NASA mission control.
+
+Your role: Generate 10 short phrases that will appear throughout the app. Each phrase should feel fresh yet timeless, specific to the current cosmic moment yet universally resonant.
+
+CRITICAL CONSTRAINTS:
+- Each phrase must be 3-12 words
+- No clichés, no "journey" or "manifest" or "universe has plans"
+- Ground abstractions in sensory detail
+- Vary rhythm and structure across the set
+- Match energy to the moon phase (waxing = building, full = peak/clarity, waning = releasing, new = stillness/seeds)
+
+Return ONLY valid JSON with these exact keys:
+{
+  "phaseGuidance": "The main guidance for this phase - what to focus on",
+  "cosmicSynthesis": "How the moon, zodiac, and season weave together now",
+  "energyDescription": "2-3 word energy label for this moment",
+  "phaseBanner": "A short phrase describing the phase energy",
+  "addLoopPrompt": "What wants to open? / What needs attention?",
+  "newMoonQuestion": "A question for the new moon intention (only used during new moon)",
+  "transitionInvitation": "Invitation as the phase is about to shift",
+  "deepSheetPhase": "A line about being in this phase's arc",
+  "echoesWritePrompt": "Prompt for written reflection",
+  "echoesVoicePrompt": "Prompt for voice reflection"
+}`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,11 +48,19 @@ serve(async (req) => {
 
     const { cycleState } = await req.json();
 
-    if (!cycleState) {
-      throw new Error("cycleState is required");
-    }
+    const userPrompt = `Current cosmic state:
+- Moon Phase: ${cycleState.phase} (${cycleState.phaseStatus})
+- Moon Age: ${cycleState.moonAge} days
+- Illumination: ${cycleState.pct}%
+- Moon in: ${cycleState.zodiac}
+- Phase Type: ${cycleState.phaseType}
+- Hours remaining in phase: ${cycleState.remainingHours}
+- Next phase: ${cycleState.nextPhase} (${cycleState.nextEnergy} energy)
+- Season: ${cycleState.season}
+- Days from last threshold: ${cycleState.daysFromLastThreshold}
+- Days to next threshold: ${cycleState.daysToNextThreshold}
 
-    const userPrompt = buildContext(cycleState);
+Generate the 10 phrases for this moment. Remember: spare, specific, no clichés.`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -47,70 +78,37 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Anthropic API error: ${error}`);
+      const errorText = await response.text();
+      console.error("Anthropic API error:", errorText);
+      throw new Error(`Anthropic API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const text = data.content.find((b: { type: string }) => b.type === "text")?.text || "";
+    const content = data.content[0].text;
+
+    // Extract JSON from response (may be wrapped in markdown code blocks)
+    let jsonStr = content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
 
     // Parse the JSON response
-    const phrases = JSON.parse(text);
+    const phrases = JSON.parse(jsonStr);
+
+    console.log("Generated phrases:", phrases);
 
     return new Response(JSON.stringify({ phrases }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error generating phrases:", error);
+    console.error("Error:", error.message, error.stack);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, stack: error.stack }),
       {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   }
 });
-
-function buildContext(state: {
-  phase: string;
-  moonAge: number;
-  pct: number;
-  zodiac: string;
-  phaseType: string;
-  phaseStatus: string;
-  remainingHours: number;
-  nextPhase: string;
-  nextEnergy: string;
-  season: string;
-  daysFromLastThreshold?: number;
-  daysToNextThreshold?: number;
-}) {
-  return `Generate phrases for these 10 surfaces given the exact cycle state below.
-
-CYCLE STATE:
-- Lunar phase: ${state.phase} (day ${state.moonAge.toFixed(1)} of 29.5, ${state.pct}% illuminated)
-- Moon in: ${state.zodiac}
-- Phase type: ${state.phaseType === 'threshold' ? 'Threshold — a turning point, short and potent' : 'Flow — sustained energy, the work happens here'}
-- Phase position: ${state.phaseStatus} — ${state.remainingHours.toFixed(0)} hours remaining in this phase
-- Next phase: ${state.nextPhase} (${state.nextEnergy})
-- Solar season: ${state.season}
-- Days past last solar threshold: ${state.daysFromLastThreshold ?? 'unknown'}
-- Days to next solar threshold: ${state.daysToNextThreshold ?? 'unknown'}
-- Solar cycle: near maximum (heightened electromagnetic output)
-- Natal: Sun Libra 0.6°, Moon Scorpio 21.1°, Rising Libra 23.5°
-
-SURFACES — return exactly these keys:
-{
-  "phaseGuidance": "1 sentence for the main Sky tab. Names what this phase asks of the person right now.",
-  "cosmicSynthesis": "1 sentence. Reads the lunar phase + solar season + solar cycle together. What are they all saying at once?",
-  "energyDescription": "3–5 words only. The felt quality of this phase. Not the phase name.",
-  "phaseBanner": "1 sentence for the Loops tab banner. What this phase wants from the person's loops.",
-  "addLoopPrompt": "A question, 4–7 words. What wants to open as a loop right now?",
-  "newMoonQuestion": "Only generate if phase is New Moon. Otherwise: null. The ceremonial question for setting the cycle intention.",
-  "echoesWritePrompt": "A question or open invitation, 6–12 words. What to write about right now.",
-  "echoesVoicePrompt": "2–5 words. The voice listening prompt. What to speak into.",
-  "transitionInvitation": "1 sentence. If within 24h of next phase, speak to the incoming energy. Otherwise speak to the current phase closing.",
-  "deepSheetPhase": "2–3 sentences. The deeper texture of this phase — body, emotion, what it asks and what it gives."
-}`;
-}
