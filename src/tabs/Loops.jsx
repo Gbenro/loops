@@ -707,9 +707,9 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
             </span>
           )}
           {/* Show phase closed for completed open loops */}
-          {isOpen && closed && loop.phaseNameClosed && (
+          {isOpen && closed && (
             <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>
-              ↓ {loop.phaseNameClosed}
+              ↓ {loop.phaseNameClosed || '?'}
             </span>
           )}
           {windowText && (
@@ -857,11 +857,11 @@ function DetailPanel({
                 <span>·</span>
                 {loop.type === 'open' ? (
                   <>
-                    <span>↑ {loop.phaseName || 'unknown'}</span>
-                    {loop.phaseNameClosed && (
+                    <span>↑ {loop.phaseName || '?'}</span>
+                    {(isClosed || isReleased) && (
                       <>
                         <span>·</span>
-                        <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed}</span>
+                        <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>
                       </>
                     )}
                   </>
