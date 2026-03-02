@@ -4,9 +4,8 @@
 const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 hours in ms
 const CACHE_KEY = 'phrases_v1';
 
-// Supabase edge function URL
+// Supabase edge function URL (deployed with --no-verify-jwt)
 const GENERATE_PHRASES_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/generate-phrases';
-const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 
 export const FALLBACK_PHRASES = {
   phaseGuidance:       "Move with what the phase allows.",
@@ -77,6 +76,7 @@ function buildCycleState(lunarData, solarData) {
 
 export async function getSessionPhrases(lunarData, solarData) {
   const cycleState = buildCycleState(lunarData, solarData);
+  console.log('[Phrases] Cycle state:', cycleState);
 
   // 1. Check cache
   try {
@@ -85,38 +85,45 @@ export async function getSessionPhrases(lunarData, solarData) {
       const cached = JSON.parse(raw);
       const age = Date.now() - cached.generatedAt;
       const samePhase = cached.phaseWhenGenerated === cycleState.phase;
+      console.log('[Phrases] Cache found, age:', Math.round(age / 1000 / 60), 'min, samePhase:', samePhase);
       if (age < SESSION_TTL && samePhase) {
+        console.log('[Phrases] Using cached phrases');
         return cached.phrases;
       }
     }
   } catch (e) {
-    console.warn('Cache read error:', e);
+    console.warn('[Phrases] Cache read error:', e);
   }
 
   // 2. Generate fresh via edge function
+  console.log('[Phrases] Fetching fresh phrases from:', GENERATE_PHRASES_URL);
   try {
     const res = await fetch(GENERATE_PHRASES_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({ cycleState })
     });
 
+    console.log('[Phrases] Response status:', res.status);
+
     if (!res.ok) {
       const error = await res.text();
-      console.warn('Edge function error:', error);
-      throw new Error('API error');
+      console.error('[Phrases] Edge function error:', res.status, error);
+      throw new Error(`API error: ${res.status}`);
     }
 
     const data = await res.json();
+    console.log('[Phrases] Response data:', data);
 
     if (data.error) {
+      console.error('[Phrases] API returned error:', data.error);
       throw new Error(data.error);
     }
 
     const phrases = data.phrases;
+    console.log('[Phrases] Generated phrases:', phrases);
 
     // 3. Cache it
     localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -127,7 +134,8 @@ export async function getSessionPhrases(lunarData, solarData) {
 
     return phrases;
   } catch (e) {
-    console.warn('Phrase generation failed, using fallbacks:', e);
+    console.error('[Phrases] Phrase generation failed:', e);
+    console.log('[Phrases] Using fallback phrases');
     // 4. Fallback — return hardcoded phrases
     return FALLBACK_PHRASES;
   }
