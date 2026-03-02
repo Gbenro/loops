@@ -23,9 +23,15 @@ Return ONLY valid JSON with these exact keys:
   "energyDescription": "2-3 word energy label for this moment",
   "phaseBanner": "A short phrase describing the phase energy",
   "addLoopPrompt": "What wants to open? / What needs attention?",
-  "newMoonQuestion": "A question for the new moon intention (only used during new moon)",
+  "newMoonQuestion": "A question for the new moon intention",
   "transitionInvitation": "Invitation as the phase is about to shift",
-  "deepSheetPhase": "A line about being in this phase's arc",
+  "deepSheetPhase": "Deeper insight about this phase's meaning",
+  "deepSheetMoon": "Insight about this lunar month's quality",
+  "deepSheetSign": "How the moon in this zodiac sign affects you",
+  "deepSheetSeason": "The seasonal energy right now",
+  "deepSheetWeave": "How all the cycles weave together in this moment",
+  "deepSheetArcs": "The larger patterns at play behind your days",
+  "deepSheetNatal": "How the sky relates to your personal chart",
   "echoesWritePrompt": "Prompt for written reflection",
   "echoesVoicePrompt": "Prompt for voice reflection"
 }`;
@@ -71,7 +77,7 @@ Generate the 10 phrases for this moment. Remember: spare, specific, no clichés.
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 600,
+        max_tokens: 1000,
         system: VOICE_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       }),

@@ -26,7 +26,7 @@ export function DeepCosmicSheet({
   lunarData,
   solarData,
   resonances = [],
-  deepSheetPhase,
+  phrases = {},
   phrasesLoading,
 }) {
   const [activeSection, setActiveSection] = useState('phase');
@@ -143,27 +143,56 @@ export function DeepCosmicSheet({
             <PhaseSection
               phase={lunarData.phase}
               content={phaseContent}
-              deepSheetPhase={deepSheetPhase}
+              generatedText={phrases.deepSheetPhase}
               phrasesLoading={phrasesLoading}
             />
           )}
           {activeSection === 'moon' && (
-            <MoonSection lunarData={lunarData} monthInfo={lunarMonthInfo} />
+            <MoonSection
+              lunarData={lunarData}
+              monthInfo={lunarMonthInfo}
+              generatedText={phrases.deepSheetMoon}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'sign' && (
-            <SignSection zodiac={lunarData.zodiac} info={zodiacInfo} phase={lunarData.phase} />
+            <SignSection
+              zodiac={lunarData.zodiac}
+              info={zodiacInfo}
+              phase={lunarData.phase}
+              generatedText={phrases.deepSheetSign}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'season' && (
-            <SeasonSection solarData={solarData} />
+            <SeasonSection
+              solarData={solarData}
+              generatedText={phrases.deepSheetSeason}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'weave' && (
-            <WeaveSection lunarData={lunarData} solarData={solarData} zodiacInfo={zodiacInfo} />
+            <WeaveSection
+              lunarData={lunarData}
+              solarData={solarData}
+              zodiacInfo={zodiacInfo}
+              generatedText={phrases.deepSheetWeave}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'arcs' && (
-            <ArcsSection solarData={solarData} />
+            <ArcsSection
+              solarData={solarData}
+              generatedText={phrases.deepSheetArcs}
+              phrasesLoading={phrasesLoading}
+            />
           )}
           {activeSection === 'you' && (
-            <YourSkySection resonances={resonances} />
+            <YourSkySection
+              resonances={resonances}
+              generatedText={phrases.deepSheetNatal}
+              phrasesLoading={phrasesLoading}
+            />
           )}
         </div>
       </div>
@@ -180,9 +209,9 @@ export function DeepCosmicSheet({
 
 // ─── Phase Section ─────────────────────────────────────────────────────────
 
-function PhaseSection({ phase, content, deepSheetPhase, phrasesLoading }) {
+function PhaseSection({ phase, content, generatedText, phrasesLoading }) {
   // Use generated deep text or fallback to static content
-  const deepText = deepSheetPhase || content.deep;
+  const deepText = generatedText || content.deep;
 
   return (
     <div>
@@ -274,8 +303,9 @@ function PhaseSection({ phase, content, deepSheetPhase, phrasesLoading }) {
 
 // ─── Moon Section (Lunar Month) ────────────────────────────────────────────
 
-function MoonSection({ lunarData, monthInfo }) {
+function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
   const allPhases = getAllPhases();
+  const displayText = generatedText || monthInfo.meaning;
 
   return (
     <div>
@@ -298,14 +328,24 @@ function MoonSection({ lunarData, monthInfo }) {
         {monthInfo.timing.toUpperCase()} · DAY {lunarData.dayOfCycle} OF 29
       </div>
 
-      <p style={{
-        fontSize: 15,
-        lineHeight: 1.8,
-        color: 'rgba(245, 230, 200, 0.85)',
-        marginBottom: 24,
-      }}>
-        {monthInfo.meaning}
-      </p>
+      {phrasesLoading ? (
+        <div style={{
+          height: 60,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+        }}>
+          {displayText}
+        </p>
+      )}
 
       {/* 8-phase timeline */}
       <div style={{
@@ -375,7 +415,9 @@ function MoonSection({ lunarData, monthInfo }) {
 
 // ─── Sign Section (Zodiac) ─────────────────────────────────────────────────
 
-function SignSection({ zodiac, info, phase }) {
+function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
+  const displayText = generatedText || info.moonIn;
+
   return (
     <div>
       <h2 style={{
@@ -397,14 +439,24 @@ function SignSection({ zodiac, info, phase }) {
         {info.element.toUpperCase()} · {info.quality.toUpperCase()} · {zodiac.degree}°
       </div>
 
-      <p style={{
-        fontSize: 15,
-        lineHeight: 1.8,
-        color: 'rgba(245, 230, 200, 0.85)',
-        marginBottom: 24,
-      }}>
-        {info.moonIn}
-      </p>
+      {phrasesLoading ? (
+        <div style={{
+          height: 60,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+        }}>
+          {displayText}
+        </p>
+      )}
 
       {/* Keywords */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
@@ -452,7 +504,7 @@ function SignSection({ zodiac, info, phase }) {
 
 // ─── Season Section (Solar) ────────────────────────────────────────────────
 
-function SeasonSection({ solarData }) {
+function SeasonSection({ solarData, generatedText, phrasesLoading }) {
   if (!solarData) return null;
 
   return (
@@ -475,6 +527,27 @@ function SeasonSection({ solarData }) {
       }}>
         SUN IN {solarData.sunSign.toUpperCase()}
       </div>
+
+      {/* Generated insight */}
+      {phrasesLoading ? (
+        <div style={{
+          height: 40,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : generatedText && (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+          fontStyle: 'italic',
+        }}>
+          {generatedText}
+        </p>
+      )}
 
       {/* Next solar event */}
       <div style={{
@@ -538,7 +611,13 @@ function SeasonSection({ solarData }) {
 
 // ─── Weave Section (Synthesis) ─────────────────────────────────────────────
 
-function WeaveSection({ lunarData, solarData, zodiacInfo }) {
+function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrasesLoading }) {
+  const fallbackText = `The ${lunarData.phase.name} arrives in ${lunarData.zodiac.sign}, carrying ${zodiacInfo?.element || 'cosmic'} energy into the ${lunarData.lunarMonth} Moon cycle. ${lunarData.phase.isWaning
+    ? 'This is a time for release, reflection, and completion. Let what needs to end, end.'
+    : 'This is a time for building, creating, and moving forward. Energy supports action.'}${solarData ? ` The ${solarData.season.name} season deepens this ${lunarData.phase.energy.toLowerCase()} energy.` : ''}`;
+
+  const displayText = generatedText || fallbackText;
+
   return (
     <div>
       <h2 style={{
@@ -575,17 +654,23 @@ function WeaveSection({ lunarData, solarData, zodiacInfo }) {
         }}>
           THE READING FOR NOW
         </div>
-        <p style={{
-          fontSize: 15,
-          lineHeight: 1.9,
-          color: 'rgba(245, 230, 200, 0.9)',
-          fontFamily: "'Cormorant Garamond', serif",
-        }}>
-          The {lunarData.phase.name} arrives in {lunarData.zodiac.sign}, carrying {zodiacInfo?.element || 'cosmic'} energy into the {lunarData.lunarMonth} Moon cycle. {lunarData.phase.isWaning
-            ? 'This is a time for release, reflection, and completion. Let what needs to end, end.'
-            : 'This is a time for building, creating, and moving forward. Energy supports action.'}
-          {solarData && ` The ${solarData.season.name} season deepens this ${lunarData.phase.energy.toLowerCase()} energy.`}
-        </p>
+        {phrasesLoading ? (
+          <div style={{
+            height: 80,
+            background: 'rgba(245, 230, 200, 0.1)',
+            borderRadius: 4,
+            opacity: 0.3,
+          }} />
+        ) : (
+          <p style={{
+            fontSize: 15,
+            lineHeight: 1.9,
+            color: 'rgba(245, 230, 200, 0.9)',
+            fontFamily: "'Cormorant Garamond', serif",
+          }}>
+            {displayText}
+          </p>
+        )}
       </div>
 
       {/* Larger Horizon */}
@@ -620,7 +705,7 @@ function Pill({ children }) {
 
 // ─── Your Sky Section (Natal) ──────────────────────────────────────────────
 
-function YourSkySection({ resonances = [] }) {
+function YourSkySection({ resonances = [], generatedText, phrasesLoading }) {
   const placements = ['sun', 'moon', 'rising'];
 
   return (
@@ -630,10 +715,31 @@ function YourSkySection({ resonances = [] }) {
         fontSize: 28,
         fontWeight: 600,
         color: '#f5e6c8',
-        marginBottom: 24,
+        marginBottom: 16,
       }}>
         Your Sky
       </h2>
+
+      {/* Generated insight */}
+      {phrasesLoading ? (
+        <div style={{
+          height: 40,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : generatedText && (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+          fontStyle: 'italic',
+        }}>
+          {generatedText}
+        </p>
+      )}
 
       {/* Big Three */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 32 }}>
@@ -767,7 +873,7 @@ function YourSkySection({ resonances = [] }) {
 
 // ─── Arcs Section (Larger Cycles) ───────────────────────────────────────────
 
-function ArcsSection({ solarData }) {
+function ArcsSection({ solarData, generatedText, phrasesLoading }) {
   const thresholds = getSolarThresholds();
   // Use solar day of year (Winter Solstice = Day 1)
   const solarDay = solarData?.solarDayOfYear || 1;
@@ -792,10 +898,31 @@ function ArcsSection({ solarData }) {
         fontSize: 11,
         color: 'rgba(245, 230, 200, 0.5)',
         fontFamily: 'monospace',
-        marginBottom: 24,
+        marginBottom: 16,
       }}>
         THE LARGER CYCLES BEHIND YOUR DAYS
       </div>
+
+      {/* Generated insight */}
+      {phrasesLoading ? (
+        <div style={{
+          height: 40,
+          background: 'rgba(245, 230, 200, 0.1)',
+          borderRadius: 4,
+          opacity: 0.3,
+          marginBottom: 24,
+        }} />
+      ) : generatedText && (
+        <p style={{
+          fontSize: 15,
+          lineHeight: 1.8,
+          color: 'rgba(245, 230, 200, 0.85)',
+          marginBottom: 24,
+          fontStyle: 'italic',
+        }}>
+          {generatedText}
+        </p>
+      )}
 
       {/* Solar Year Card */}
       <div style={{

@@ -18,6 +18,12 @@ export const FALLBACK_PHRASES = {
   echoesVoicePrompt:   "Speak what is present...",
   transitionInvitation:"A shift is coming. Orient before it arrives.",
   deepSheetPhase:      "You are in the arc of this phase.",
+  deepSheetMoon:       "This lunar month carries its own signature.",
+  deepSheetSign:       "The moon's position colors everything.",
+  deepSheetSeason:     "The season shapes the light.",
+  deepSheetWeave:      "All cycles meet in this moment.",
+  deepSheetArcs:       "Larger patterns move beneath your days.",
+  deepSheetNatal:      "The sky speaks to your chart.",
 };
 
 function buildCycleState(lunarData, solarData) {

@@ -400,7 +400,7 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phra
         lunarData={lunarData}
         solarData={solarData}
         resonances={resonances}
-        deepSheetPhase={phrases.deepSheetPhase}
+        phrases={phrases}
         phrasesLoading={phrasesLoading}
       />
     </div>
