@@ -1,16 +1,17 @@
 // Cosmic Loops - Solar/Season Calculations
 // Equinox, solstice, and season tracking
 
-// The 8 solar thresholds (Celtic cross-quarter days + astronomical)
+// The 8 solar thresholds - days relative to Winter Solstice (Day 1)
+// Winter Solstice is the start of the solar year
 const SOLAR_THRESHOLDS = [
-  { name: 'Winter Solstice', day: 355 },  // Dec 21
-  { name: 'Imbolc',          day: 33  },  // Feb 2
-  { name: 'Spring Equinox',  day: 80  },  // Mar 21
-  { name: 'Beltane',         day: 121 },  // May 1
-  { name: 'Summer Solstice', day: 172 },  // Jun 21
-  { name: 'Lughnasadh',      day: 213 },  // Aug 1
-  { name: 'Autumn Equinox',  day: 266 },  // Sep 23
-  { name: 'Samhain',         day: 305 },  // Nov 1
+  { name: 'Winter Solstice', solarDay: 1   },  // Dec 21 - Day 1
+  { name: 'Imbolc',          solarDay: 44  },  // Feb 2  - ~44 days after WS
+  { name: 'Spring Equinox',  solarDay: 91  },  // Mar 21 - ~91 days after WS
+  { name: 'Beltane',         solarDay: 132 },  // May 1  - ~132 days after WS
+  { name: 'Summer Solstice', solarDay: 183 },  // Jun 21 - ~183 days after WS
+  { name: 'Lughnasadh',      solarDay: 224 },  // Aug 1  - ~224 days after WS
+  { name: 'Autumn Equinox',  solarDay: 277 },  // Sep 23 - ~277 days after WS
+  { name: 'Samhain',         solarDay: 316 },  // Nov 1  - ~316 days after WS
 ];
 
 // Season definitions with day-of-year boundaries (Northern Hemisphere)
@@ -41,12 +42,31 @@ const SOLAR_EVENTS = {
   },
 };
 
-// Get day of year (1-365/366)
+// Get day of year (1-365/366) - Gregorian calendar
 export function getDayOfYear(date = new Date()) {
   const start = new Date(date.getFullYear(), 0, 0);
   const diff = date - start;
   const oneDay = 1000 * 60 * 60 * 24;
   return Math.floor(diff / oneDay);
+}
+
+// Get day of solar year (1-365/366) - Winter Solstice = Day 1
+// Winter Solstice is ~Dec 21 (Gregorian day 355)
+const WINTER_SOLSTICE_DAY = 355;
+
+export function getSolarDayOfYear(date = new Date()) {
+  const gregorianDay = getDayOfYear(date);
+  const year = date.getFullYear();
+  const daysInYear = isLeapYear(year) ? 366 : 365;
+
+  if (gregorianDay >= WINTER_SOLSTICE_DAY) {
+    // After Winter Solstice: day 1, 2, 3...
+    return gregorianDay - WINTER_SOLSTICE_DAY + 1;
+  } else {
+    // Before Winter Solstice in Gregorian, but after in solar year
+    const daysInPrevYear = isLeapYear(year - 1) ? 366 : 365;
+    return (daysInPrevYear - WINTER_SOLSTICE_DAY) + gregorianDay + 1;
+  }
 }
 
 // Get current season info
@@ -161,15 +181,11 @@ export function getSunSign(date = new Date()) {
   return 'Capricorn'; // Default fallback
 }
 
-// Get threshold position info
+// Get threshold position info (using solar year where Winter Solstice = Day 1)
 function getThresholdPosition(date = new Date()) {
-  const dayOfYear = getDayOfYear(date);
-  const year = date.getFullYear();
-  const isLeap = isLeapYear(year);
-  const daysInYear = isLeap ? 366 : 365;
+  const solarDay = getSolarDayOfYear(date);
+  const daysInYear = 365; // Simplified for threshold calculations
 
-  // Sort thresholds by day for processing
-  // Handle Winter Solstice wrapping: treat it as either day 355 or day -10 (355 - 365)
   let lastThreshold = null;
   let nextThreshold = null;
   let daysFromLast = Infinity;
@@ -177,15 +193,15 @@ function getThresholdPosition(date = new Date()) {
 
   for (let i = 0; i < SOLAR_THRESHOLDS.length; i++) {
     const threshold = SOLAR_THRESHOLDS[i];
-    let thresholdDay = threshold.day;
+    const thresholdDay = threshold.solarDay;
 
     // Calculate days since this threshold
     let daysSince;
-    if (thresholdDay <= dayOfYear) {
-      daysSince = dayOfYear - thresholdDay;
+    if (thresholdDay <= solarDay) {
+      daysSince = solarDay - thresholdDay;
     } else {
-      // Threshold is later in year, so days since is from last year
-      daysSince = (daysInYear - thresholdDay) + dayOfYear;
+      // Threshold is later in solar year, so days since is from last solar year
+      daysSince = (daysInYear - thresholdDay) + solarDay;
     }
 
     if (daysSince < daysFromLast && daysSince >= 0) {
@@ -195,11 +211,11 @@ function getThresholdPosition(date = new Date()) {
 
     // Calculate days until this threshold
     let daysUntil;
-    if (thresholdDay > dayOfYear) {
-      daysUntil = thresholdDay - dayOfYear;
+    if (thresholdDay > solarDay) {
+      daysUntil = thresholdDay - solarDay;
     } else {
-      // Threshold is earlier in year, so days until is to next year
-      daysUntil = (daysInYear - dayOfYear) + thresholdDay;
+      // Threshold is earlier in solar year, so days until is to next solar year
+      daysUntil = (daysInYear - solarDay) + thresholdDay;
     }
 
     if (daysUntil < daysToNext && daysUntil > 0) {
@@ -213,7 +229,8 @@ function getThresholdPosition(date = new Date()) {
     daysToNextThreshold: daysToNext,
     lastThresholdName: lastThreshold?.name || 'unknown',
     nextThresholdName: nextThreshold?.name || 'unknown',
-    solarYearPct: dayOfYear / daysInYear,
+    solarYearPct: solarDay / daysInYear,
+    solarDayOfYear: solarDay,
   };
 }
 

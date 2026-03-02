@@ -769,13 +769,12 @@ function YourSkySection({ resonances = [] }) {
 
 function ArcsSection({ solarData }) {
   const thresholds = getSolarThresholds();
-  const dayOfYear = solarData?.dayOfYear || 1;
+  // Use solar day of year (Winter Solstice = Day 1)
+  const solarDay = solarData?.solarDayOfYear || 1;
   const daysInYear = 365;
 
-  // Find which thresholds are passed
-  const passedThresholds = thresholds.filter(t =>
-    (t.day <= dayOfYear) || (t.name === 'Winter Solstice' && dayOfYear < 33)
-  );
+  // Find which thresholds are passed (using solarDay)
+  const passedThresholds = thresholds.filter(t => t.solarDay <= solarDay);
 
   return (
     <div>
@@ -829,7 +828,7 @@ function ArcsSection({ solarData }) {
           marginBottom: 14,
           lineHeight: 1.5,
         }}>
-          Between {solarData?.lastThresholdName || 'threshold'} and {solarData?.nextThresholdName || 'threshold'} — Day {dayOfYear} of 365
+          Between {solarData?.lastThresholdName || 'threshold'} and {solarData?.nextThresholdName || 'threshold'} — Day {solarDay} of 365
         </div>
 
         {/* Progress bar */}

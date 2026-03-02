@@ -27,13 +27,17 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
   const [loopType, setLoopType] = useState(null); // null = choosing, 'open' | 'phase'
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(COLORS[0]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const phaseEmoji = getPhaseEmoji(lunarData.phase.key);
   const phasePrompt = PHASE_PROMPTS[lunarData.phase.key] || 'What loop are you opening?';
   const remainingDays = lunarData.phaseRemaining?.toFixed(1) || '~3';
 
   const handleCreate = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || isCreating) return;
+
+    // Prevent double-clicks
+    setIsCreating(true);
 
     if (loopType === 'open') {
       onCreate({
@@ -324,20 +328,20 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!title.trim()}
+                disabled={!title.trim() || isCreating}
                 style={{
                   flex: 1,
                   padding: '14px',
                   borderRadius: 12,
                   border: 'none',
-                  background: title.trim() ? OPEN_LOOP_COLOR : 'rgba(245, 230, 200, 0.08)',
-                  color: title.trim() ? '#040810' : 'rgba(245, 230, 200, 0.3)',
+                  background: (title.trim() && !isCreating) ? OPEN_LOOP_COLOR : 'rgba(245, 230, 200, 0.08)',
+                  color: (title.trim() && !isCreating) ? '#040810' : 'rgba(245, 230, 200, 0.3)',
                   fontSize: 13,
                   fontWeight: 600,
-                  cursor: title.trim() ? 'pointer' : 'default',
+                  cursor: (title.trim() && !isCreating) ? 'pointer' : 'default',
                 }}
               >
-                OPEN LOOP
+                {isCreating ? 'CREATING...' : 'OPEN LOOP'}
               </button>
             </div>
           </>
@@ -451,20 +455,20 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!title.trim()}
+                disabled={!title.trim() || isCreating}
                 style={{
                   flex: 1,
                   padding: '14px',
                   borderRadius: 12,
                   border: 'none',
-                  background: title.trim() ? color : 'rgba(245, 230, 200, 0.08)',
-                  color: title.trim() ? '#040810' : 'rgba(245, 230, 200, 0.3)',
+                  background: (title.trim() && !isCreating) ? color : 'rgba(245, 230, 200, 0.08)',
+                  color: (title.trim() && !isCreating) ? '#040810' : 'rgba(245, 230, 200, 0.3)',
                   fontSize: 13,
                   fontWeight: 600,
-                  cursor: title.trim() ? 'pointer' : 'default',
+                  cursor: (title.trim() && !isCreating) ? 'pointer' : 'default',
                 }}
               >
-                OPEN LOOP
+                {isCreating ? 'CREATING...' : 'OPEN LOOP'}
               </button>
             </div>
           </>

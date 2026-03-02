@@ -89,6 +89,9 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
   // Create phase loop
   const createPhaseLoop = async (loopData) => {
+    // Close the sheet immediately to prevent double-clicks
+    setShowLoopSheet(false);
+
     const newLoop = {
       ...loopData,
       id: generateId('p'),
@@ -99,7 +102,6 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       createdAt: new Date().toISOString(),
     };
     setLoops(prev => [newLoop, ...prev]);
-    setShowPhaseSheet(false);
     setSelected(newLoop);
     setShowDetail(true);
     await saveLoop(newLoop, userId);
@@ -183,6 +185,27 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     if (!loop) return;
     const newSubtask = { id: generateId('s'), text, done: false };
     const updated = { ...loop, subtasks: [...loop.subtasks, newSubtask] };
+    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    if (selected?.id === loopId) setSelected(updated);
+    await saveLoop(updated, userId);
+  };
+
+  // Reorder subtask (move up or down)
+  const reorderSubtask = async (loopId, subtaskId, direction) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop || !loop.subtasks) return;
+
+    const subtasks = [...loop.subtasks];
+    const currentIndex = subtasks.findIndex(s => s.id === subtaskId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= subtasks.length) return;
+
+    // Swap positions
+    [subtasks[currentIndex], subtasks[newIndex]] = [subtasks[newIndex], subtasks[currentIndex]];
+
+    const updated = { ...loop, subtasks };
     setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
@@ -563,6 +586,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
           onDelete={() => deleteLoop(selected.id)}
           onToggleSubtask={(subtaskId) => toggleSubtask(selected.id, subtaskId)}
           onAddSubtask={(text) => addSubtask(selected.id, text)}
+          onReorderSubtask={(subtaskId, direction) => reorderSubtask(selected.id, subtaskId, direction)}
         />
       )}
     </div>
@@ -759,7 +783,8 @@ function DetailPanel({
   onReleaseLoop,
   onDelete,
   onToggleSubtask,
-  onAddSubtask
+  onAddSubtask,
+  onReorderSubtask
 }) {
   const [newSubtask, setNewSubtask] = useState('');
   const isCycle = loop.type === 'cycle';
@@ -889,39 +914,97 @@ function DetailPanel({
             STEPS
           </div>
 
-          {loop.subtasks?.map(subtask => (
+          {loop.subtasks?.map((subtask, index) => (
             <div
               key={subtask.id}
-              onClick={() => onToggleSubtask(subtask.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
                 padding: '12px 0',
                 borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
-                cursor: 'pointer',
               }}
             >
-              <div style={{
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`,
-                background: subtask.done ? '#34D399' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: subtask.done ? '#040810' : 'transparent',
-                fontSize: 12,
-                flexShrink: 0,
-              }}>
+              {/* Reorder buttons */}
+              {isActive && loop.subtasks.length > 1 && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReorderSubtask(subtask.id, 'up');
+                    }}
+                    disabled={index === 0}
+                    style={{
+                      width: 18,
+                      height: 14,
+                      padding: 0,
+                      background: 'none',
+                      border: 'none',
+                      color: index === 0 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)',
+                      cursor: index === 0 ? 'default' : 'pointer',
+                      fontSize: 10,
+                    }}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReorderSubtask(subtask.id, 'down');
+                    }}
+                    disabled={index === loop.subtasks.length - 1}
+                    style={{
+                      width: 18,
+                      height: 14,
+                      padding: 0,
+                      background: 'none',
+                      border: 'none',
+                      color: index === loop.subtasks.length - 1 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)',
+                      cursor: index === loop.subtasks.length - 1 ? 'default' : 'pointer',
+                      fontSize: 10,
+                    }}
+                  >
+                    ▼
+                  </button>
+                </div>
+              )}
+
+              {/* Checkbox */}
+              <div
+                onClick={() => onToggleSubtask(subtask.id)}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`,
+                  background: subtask.done ? '#34D399' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: subtask.done ? '#040810' : 'transparent',
+                  fontSize: 12,
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                }}
+              >
                 {subtask.done && '✓'}
               </div>
-              <span style={{
-                color: subtask.done ? 'rgba(245, 230, 200, 0.4)' : '#f5e6c8',
-                textDecoration: subtask.done ? 'line-through' : 'none',
-                fontSize: 14,
-              }}>
+
+              {/* Text */}
+              <span
+                onClick={() => onToggleSubtask(subtask.id)}
+                style={{
+                  flex: 1,
+                  color: subtask.done ? 'rgba(245, 230, 200, 0.4)' : '#f5e6c8',
+                  textDecoration: subtask.done ? 'line-through' : 'none',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
                 {subtask.text}
               </span>
             </div>
