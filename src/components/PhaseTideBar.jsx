@@ -23,12 +23,11 @@ export function PhaseTideBar({ lunarData }) {
   const isFlow = phase?.isFlow || false;
   const dayInPhase = phase?.dayInPhase || 0;
 
-  // Calculate actual total phase duration from current day + remaining time
-  // Add 1 to both for human-readable display (Day 1 = first day, not Day 0)
-  const currentDay = dayInPhase + 1;
-  const totalDays = dayInPhase + phaseRemaining + 1;
-  // Ensure total is always >= current day
-  const displayTotal = Math.max(totalDays, currentDay + 0.1);
+  // Calculate actual total phase duration from elapsed + remaining time
+  const elapsedDays = dayInPhase;
+  const totalDays = dayInPhase + phaseRemaining;
+  // Ensure total is always >= elapsed
+  const displayTotal = Math.max(totalDays, elapsedDays + 0.1);
 
   // Clamp progress to max 100%
   const clampedProgress = Math.min(phaseProgress, 1);
@@ -57,8 +56,8 @@ export function PhaseTideBar({ lunarData }) {
     return `${phaseRemaining.toFixed(1)}d remaining`;
   }, [phaseRemaining]);
 
-  // Day in phase text - uses actual remaining time so it never overflows
-  const dayText = `Day ${currentDay.toFixed(1)} of ${displayTotal.toFixed(1)}`;
+  // Elapsed time text - pure elapsed/total format
+  const dayText = `${elapsedDays.toFixed(1)}d of ${displayTotal.toFixed(1)}d`;
 
   // Color based on phase type and approach state
   const baseColor = isThreshold ? THRESHOLD_COLOR : FLOW_COLOR;
