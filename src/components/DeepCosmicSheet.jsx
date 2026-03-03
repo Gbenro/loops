@@ -28,6 +28,7 @@ export function DeepCosmicSheet({
   resonances = [],
   phrases = {},
   phrasesLoading,
+  userProfile,
 }) {
   const [activeSection, setActiveSection] = useState('phase');
 
@@ -192,6 +193,7 @@ export function DeepCosmicSheet({
               resonances={resonances}
               generatedText={phrases.deepSheetNatal}
               phrasesLoading={phrasesLoading}
+              userProfile={userProfile}
             />
           )}
         </div>
@@ -705,8 +707,40 @@ function Pill({ children }) {
 
 // ─── Your Sky Section (Natal) ──────────────────────────────────────────────
 
-function YourSkySection({ resonances = [], generatedText, phrasesLoading }) {
-  const placements = ['sun', 'moon', 'rising'];
+const SIGN_SYMBOLS = {
+  'Aries': '♈', 'Taurus': '♉', 'Gemini': '♊', 'Cancer': '♋',
+  'Leo': '♌', 'Virgo': '♍', 'Libra': '♎', 'Scorpio': '♏',
+  'Sagittarius': '♐', 'Capricorn': '♑', 'Aquarius': '♒', 'Pisces': '♓',
+};
+
+const SIGN_DESCRIPTIONS = {
+  'Aries': 'Bold, pioneering energy. You initiate and lead.',
+  'Taurus': 'Grounded, sensual nature. You build and sustain.',
+  'Gemini': 'Curious, communicative spirit. You connect and explore.',
+  'Cancer': 'Nurturing, intuitive depth. You protect and feel.',
+  'Leo': 'Creative, radiant presence. You shine and inspire.',
+  'Virgo': 'Analytical, devoted care. You refine and serve.',
+  'Libra': 'Harmonious, diplomatic grace. You balance and relate.',
+  'Scorpio': 'Intense, transformative power. You probe and regenerate.',
+  'Sagittarius': 'Expansive, philosophical vision. You seek and teach.',
+  'Capricorn': 'Ambitious, structured wisdom. You build and achieve.',
+  'Aquarius': 'Innovative, humanitarian spirit. You envision and liberate.',
+  'Pisces': 'Mystical, compassionate soul. You dissolve and transcend.',
+};
+
+function YourSkySection({ resonances = [], generatedText, phrasesLoading, userProfile }) {
+  // Use user's profile signs or fall back to defaults from NATAL
+  const sunSign = userProfile?.sun_sign || NATAL.sun.sign;
+  const moonSign = userProfile?.moon_sign || NATAL.moon.sign;
+  const risingSign = userProfile?.rising_sign || NATAL.rising.sign;
+
+  const placements = [
+    { key: 'sun', label: 'Sun', sign: sunSign, role: 'Identity', symbol: '☉' },
+    { key: 'moon', label: 'Moon', sign: moonSign, role: 'Inner World', symbol: '☽' },
+    { key: 'rising', label: 'Rising', sign: risingSign, role: 'First Impression', symbol: '↑' },
+  ];
+
+  const hasProfile = userProfile?.sun_sign || userProfile?.moon_sign || userProfile?.rising_sign;
 
   return (
     <div>
@@ -743,52 +777,49 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading }) {
 
       {/* Big Three */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 32 }}>
-        {placements.map(p => {
-          const placement = NATAL[p];
-          return (
-            <div
-              key={p}
-              style={{
-                padding: 16,
-                borderRadius: 12,
-                background: 'rgba(245, 230, 200, 0.04)',
-                border: '1px solid rgba(245, 230, 200, 0.08)',
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 8,
+        {placements.map(p => (
+          <div
+            key={p.key}
+            style={{
+              padding: 16,
+              borderRadius: 12,
+              background: 'rgba(245, 230, 200, 0.04)',
+              border: '1px solid rgba(245, 230, 200, 0.08)',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 8,
+            }}>
+              <span style={{ fontSize: 20 }}>{SIGN_SYMBOLS[p.sign] || p.symbol}</span>
+              <span style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 18,
+                color: '#f5e6c8',
               }}>
-                <span style={{ fontSize: 20 }}>{placement.symbol}</span>
-                <span style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: 18,
-                  color: '#f5e6c8',
-                }}>
-                  {placement.sign} {p.charAt(0).toUpperCase() + p.slice(1)}
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'rgba(245, 230, 200, 0.4)',
-                  fontFamily: 'monospace',
-                  marginLeft: 'auto',
-                }}>
-                  {placement.role.toUpperCase()}
-                </span>
-              </div>
-              <p style={{
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: 'rgba(245, 230, 200, 0.7)',
-                margin: 0,
+                {p.sign} {p.label}
+              </span>
+              <span style={{
+                fontSize: 10,
+                color: 'rgba(245, 230, 200, 0.4)',
+                fontFamily: 'monospace',
+                marginLeft: 'auto',
               }}>
-                {placement.description}
-              </p>
+                {p.role.toUpperCase()}
+              </span>
             </div>
-          );
-        })}
+            <p style={{
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: 'rgba(245, 230, 200, 0.7)',
+              margin: 0,
+            }}>
+              {SIGN_DESCRIPTIONS[p.sign] || 'Your cosmic placement.'}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Active Resonances */}
@@ -855,18 +886,20 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading }) {
         </div>
       )}
 
-      {/* Birth data footer */}
-      <div style={{
-        marginTop: 32,
-        paddingTop: 16,
-        borderTop: '1px solid rgba(245, 230, 200, 0.08)',
-        fontSize: 10,
-        color: 'rgba(245, 230, 200, 0.3)',
-        fontFamily: 'monospace',
-        textAlign: 'center',
-      }}>
-        {NATAL.birth.date} · {NATAL.birth.location} · {NATAL.birth.time}
-      </div>
+      {/* Footer */}
+      {!hasProfile && (
+        <div style={{
+          marginTop: 32,
+          paddingTop: 16,
+          borderTop: '1px solid rgba(245, 230, 200, 0.08)',
+          fontSize: 10,
+          color: 'rgba(245, 230, 200, 0.3)',
+          fontFamily: 'monospace',
+          textAlign: 'center',
+        }}>
+          Set your signs in Settings → Your Sky for personalized transits
+        </div>
+      )}
     </div>
   );
 }

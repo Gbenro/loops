@@ -21,16 +21,23 @@ export function PhaseTideBar({ lunarData }) {
 
   const isThreshold = phase?.isThreshold || false;
   const isFlow = phase?.isFlow || false;
-  const phaseDuration = phase?.phaseDuration || 3.69;
   const dayInPhase = phase?.dayInPhase || 0;
+
+  // Calculate actual phase duration from dayInPhase + remaining
+  // This ensures we never show "Day X of Y" where X > Y
+  const actualPhaseDuration = dayInPhase + phaseRemaining;
+  const displayDuration = Math.max(actualPhaseDuration, dayInPhase + 0.1).toFixed(1);
+
+  // Clamp progress to max 100%
+  const clampedProgress = Math.min(phaseProgress, 1);
 
   // Status text based on progress
   const status = useMemo(() => {
-    if (phaseProgress < 0.20) return 'OPENING';
-    if (phaseProgress < 0.62) return 'IN FLOW';
-    if (phaseProgress < 0.88) return 'COMPLETING';
+    if (clampedProgress < 0.20) return 'OPENING';
+    if (clampedProgress < 0.62) return 'IN FLOW';
+    if (clampedProgress < 0.88) return 'COMPLETING';
     return 'CLOSING';
-  }, [phaseProgress]);
+  }, [clampedProgress]);
 
   // Phase type label
   const phaseTypeLabel = isThreshold ? 'Threshold' : 'In Flow';
@@ -48,8 +55,8 @@ export function PhaseTideBar({ lunarData }) {
     return `${phaseRemaining.toFixed(1)}d remaining`;
   }, [phaseRemaining]);
 
-  // Day in phase text
-  const dayText = `Day ${(dayInPhase + 1).toFixed(1)} of ${phaseDuration}`;
+  // Day in phase text - use actual duration so it never overflows
+  const dayText = `Day ${(dayInPhase + 1).toFixed(1)} of ${displayDuration}`;
 
   // Color based on phase type and approach state
   const baseColor = isThreshold ? THRESHOLD_COLOR : FLOW_COLOR;
@@ -155,7 +162,7 @@ export function PhaseTideBar({ lunarData }) {
           position: 'absolute',
           left: 0,
           top: 0,
-          width: `${phaseProgress * 100}%`,
+          width: `${clampedProgress * 100}%`,
           height: '100%',
           background: `linear-gradient(to right, rgba(245, 230, 200, 0.15), ${barColor})`,
           borderRadius: 2,
@@ -165,7 +172,7 @@ export function PhaseTideBar({ lunarData }) {
         {/* Travelling dot */}
         <div style={{
           position: 'absolute',
-          left: `${phaseProgress * 100}%`,
+          left: `${clampedProgress * 100}%`,
           top: '50%',
           transform: 'translate(-50%, -50%)',
           width: isThreshold ? 10 : 8,

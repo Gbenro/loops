@@ -414,6 +414,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         resonances={resonances}
         phrases={phrases}
         phrasesLoading={phrasesLoading}
+        userProfile={userProfile}
       />
 
       {/* Profile Menu */}
