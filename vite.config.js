@@ -3,6 +3,16 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Transformers.js requires these settings
+  optimizeDeps: {
+    exclude: ['@xenova/transformers'],
+  },
+  build: {
+    target: 'esnext',
+  },
+  worker: {
+    format: 'es',
+  },
   plugins: [
     react(),
     VitePWA({
