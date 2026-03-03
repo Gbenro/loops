@@ -5,6 +5,28 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
+// Rate limiting: 20 transcriptions per minute per IP
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 20;
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -14,6 +36,22 @@ serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  // Rate limiting
+  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0] ||
+                   req.headers.get("cf-connecting-ip") ||
+                   "unknown";
+
+  if (!checkRateLimit(clientIP)) {
+    console.warn("Rate limit exceeded for IP:", clientIP);
+    return new Response(
+      JSON.stringify({ error: "Too many requests. Please wait a minute." }),
+      {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   try {

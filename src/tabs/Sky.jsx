@@ -7,6 +7,7 @@ import { StarField } from '../components/StarField.jsx';
 import { DeepCosmicSheet } from '../components/DeepCosmicSheet.jsx';
 import { PhaseTideBar } from '../components/PhaseTideBar.jsx';
 import { PhaseTransitionCard } from '../components/PhaseTransitionCard.jsx';
+import { ProfileMenu } from '../components/ProfileMenu.jsx';
 import { getLunarData, getPhaseEmoji, getAllPhases } from '../lib/lunar.js';
 import { getSolarData } from '../lib/solar.js';
 import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
@@ -15,6 +16,7 @@ import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
 export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
 
   // Get resonances (natal calculations still done locally)
@@ -73,7 +75,7 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phra
           {timeStr} · {dateStr.toUpperCase()}
         </div>
         <button
-          onClick={user ? onSignOut : onSignIn}
+          onClick={() => user ? setMenuOpen(true) : onSignIn()}
           style={{
             background: 'none',
             border: '1px solid rgba(245, 230, 200, 0.15)',
@@ -84,9 +86,19 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phra
             letterSpacing: '0.08em',
             color: user ? 'rgba(52, 211, 153, 0.7)' : 'rgba(245, 230, 200, 0.4)',
             cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
-          {user ? '● SYNCED' : 'SIGN IN'}
+          {user ? (
+            <>
+              <span>●</span>
+              <span>MENU</span>
+            </>
+          ) : (
+            'SIGN IN'
+          )}
         </button>
       </div>
 
@@ -402,6 +414,14 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phra
         resonances={resonances}
         phrases={phrases}
         phrasesLoading={phrasesLoading}
+      />
+
+      {/* Profile Menu */}
+      <ProfileMenu
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        user={user}
+        onSignOut={onSignOut}
       />
     </div>
   );

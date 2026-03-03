@@ -5,6 +5,28 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
+// Simple rate limiting (resets on cold start, but provides basic protection)
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 10; // 10 requests per minute per IP
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 const VOICE_SYSTEM_PROMPT = `You are the voice of Cosmic Loops. You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never twee, never grandiose. Think Mary Oliver meets NASA mission control.
 
 Your role: Generate 10 short phrases that will appear throughout the app. Each phrase should feel fresh yet timeless, specific to the current cosmic moment yet universally resonant.
@@ -45,6 +67,23 @@ serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  // Get client IP for rate limiting
+  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0] ||
+                   req.headers.get("cf-connecting-ip") ||
+                   "unknown";
+
+  // Check rate limit
+  if (!checkRateLimit(clientIP)) {
+    console.warn("Rate limit exceeded for IP:", clientIP);
+    return new Response(
+      JSON.stringify({ error: "Rate limit exceeded. Please wait a minute." }),
+      {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   try {
