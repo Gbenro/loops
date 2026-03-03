@@ -21,6 +21,7 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('sky');
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
@@ -29,6 +30,29 @@ export default function App() {
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
   const solarData = useMemo(() => getSolarData(), []);
+
+  // Fetch user profile when user changes
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user.id);
+    } else {
+      setUserProfile(null);
+    }
+  }, [user]);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      setUserProfile(data);
+    } catch (e) {
+      // No profile yet
+      setUserProfile(null);
+    }
+  };
 
   // Check auth state on mount
   useEffect(() => {
@@ -220,6 +244,8 @@ export default function App() {
         {activeTab === 'sky' && (
           <Sky
             user={user}
+            userProfile={userProfile}
+            onProfileUpdate={() => fetchProfile(user?.id)}
             onSignIn={() => setShowAuth(true)}
             onSignOut={handleSignOut}
             onSwitchToEchoes={() => setActiveTab('echoes')}

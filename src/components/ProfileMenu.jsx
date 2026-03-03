@@ -4,16 +4,21 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 
-export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
+export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate }) {
   const [activeSection, setActiveSection] = useState('account');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Birth data form
-  const [birthDate, setBirthDate] = useState('');
-  const [birthTime, setBirthTime] = useState('');
-  const [birthLocation, setBirthLocation] = useState('');
+  // Zodiac signs form
+  const [sunSign, setSunSign] = useState('');
+  const [moonSign, setMoonSign] = useState('');
+  const [risingSign, setRisingSign] = useState('');
+
+  const ZODIAC_SIGNS = [
+    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+  ];
 
   // Load profile on open
   useEffect(() => {
@@ -33,9 +38,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
 
       if (data) {
         setProfile(data);
-        setBirthDate(data.birth_date || '');
-        setBirthTime(data.birth_time || '');
-        setBirthLocation(data.birth_location || '');
+        setSunSign(data.sun_sign || '');
+        setMoonSign(data.moon_sign || '');
+        setRisingSign(data.rising_sign || '');
       }
     } catch (e) {
       // Profile doesn't exist yet, that's ok
@@ -51,9 +56,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
     try {
       const profileData = {
         id: user.id,
-        birth_date: birthDate || null,
-        birth_time: birthTime || null,
-        birth_location: birthLocation || null,
+        sun_sign: sunSign || null,
+        moon_sign: moonSign || null,
+        rising_sign: risingSign || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -64,10 +69,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
       if (error) throw error;
 
       setProfile(profileData);
-      alert('Birth data saved!');
+      if (onProfileUpdate) onProfileUpdate();
+      alert('Zodiac signs saved!');
     } catch (e) {
       console.error('Save error:', e);
-      alert('Could not save: ' + e.message);
+      alert('Could not save. Please try again.');
     }
     setSaving(false);
   };
@@ -274,7 +280,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                 marginBottom: 20,
                 lineHeight: 1.6,
               }}>
-                Enter your birth details for personalized natal transits. This data is stored securely and never shared.
+                Enter your big three for personalized transits. Don't know yours? Look up your chart at cafeastrology.com
               </div>
 
               {!user ? (
@@ -284,12 +290,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                   color: 'rgba(245, 230, 200, 0.5)',
                   fontStyle: 'italic',
                 }}>
-                  Sign in to save your birth data
+                  Sign in to save your zodiac signs
                 </div>
               ) : (
                 <>
-                  {/* Birth Date */}
-                  <div style={{ marginBottom: 16 }}>
+                  {/* Big Three Header */}
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.7)',
+                    marginBottom: 12,
+                    letterSpacing: '0.1em',
+                  }}>
+                    YOUR BIG THREE
+                  </div>
+
+                  {/* Sun Sign */}
+                  <div style={{ marginBottom: 12 }}>
                     <label style={{
                       display: 'block',
                       fontSize: 10,
@@ -297,12 +314,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                       color: 'rgba(245, 230, 200, 0.4)',
                       marginBottom: 6,
                     }}>
-                      BIRTH DATE
+                      ☉ SUN SIGN (your core identity)
                     </label>
-                    <input
-                      type="date"
-                      value={birthDate}
-                      onChange={e => setBirthDate(e.target.value)}
+                    <select
+                      value={sunSign}
+                      onChange={e => setSunSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -312,11 +328,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                         color: '#f5e6c8',
                         fontSize: 14,
                       }}
-                    />
+                    >
+                      <option value="">Select...</option>
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={sign} value={sign}>{sign}</option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Birth Time */}
-                  <div style={{ marginBottom: 16 }}>
+                  {/* Moon Sign */}
+                  <div style={{ marginBottom: 12 }}>
                     <label style={{
                       display: 'block',
                       fontSize: 10,
@@ -324,12 +345,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                       color: 'rgba(245, 230, 200, 0.4)',
                       marginBottom: 6,
                     }}>
-                      BIRTH TIME (optional, for rising sign)
+                      ☽ MOON SIGN (your emotional nature)
                     </label>
-                    <input
-                      type="time"
-                      value={birthTime}
-                      onChange={e => setBirthTime(e.target.value)}
+                    <select
+                      value={moonSign}
+                      onChange={e => setMoonSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -339,10 +359,15 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                         color: '#f5e6c8',
                         fontSize: 14,
                       }}
-                    />
+                    >
+                      <option value="">Select...</option>
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={sign} value={sign}>{sign}</option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Birth Location */}
+                  {/* Rising Sign */}
                   <div style={{ marginBottom: 24 }}>
                     <label style={{
                       display: 'block',
@@ -351,13 +376,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                       color: 'rgba(245, 230, 200, 0.4)',
                       marginBottom: 6,
                     }}>
-                      BIRTH CITY
+                      ↑ RISING SIGN (how others see you)
                     </label>
-                    <input
-                      type="text"
-                      value={birthLocation}
-                      onChange={e => setBirthLocation(e.target.value)}
-                      placeholder="e.g., London, UK"
+                    <select
+                      value={risingSign}
+                      onChange={e => setRisingSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -367,7 +390,12 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                         color: '#f5e6c8',
                         fontSize: 14,
                       }}
-                    />
+                    >
+                      <option value="">Select...</option>
+                      {ZODIAC_SIGNS.map(sign => (
+                        <option key={sign} value={sign}>{sign}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <button
@@ -389,7 +417,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut }) {
                       cursor: saving ? 'wait' : 'pointer',
                     }}
                   >
-                    {saving ? 'Saving...' : 'Save Birth Data'}
+                    {saving ? 'Saving...' : 'Save'}
                   </button>
                 </>
               )}

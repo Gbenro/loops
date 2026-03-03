@@ -14,15 +14,15 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData }) {
+export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
 
-  // Get resonances (natal calculations still done locally)
+  // Get resonances using user's profile data if available
   const now = new Date();
-  const resonances = useMemo(() => getNatalResonance(now), []);
-  const resonanceSummary = useMemo(() => getResonanceSummary(now), []);
+  const resonances = useMemo(() => getNatalResonance(now, userProfile), [userProfile]);
+  const resonanceSummary = useMemo(() => getResonanceSummary(now, userProfile), [userProfile]);
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
@@ -422,6 +422,7 @@ export function Sky({ user, onSignIn, onSignOut, onSwitchToEchoes, phrases, phra
         onClose={() => setMenuOpen(false)}
         user={user}
         onSignOut={onSignOut}
+        onProfileUpdate={onProfileUpdate}
       />
     </div>
   );

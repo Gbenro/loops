@@ -6,6 +6,43 @@ import { getLunarData, getMoonAge } from './lunar.js';
 
 const SYNODIC = 29.53058867;
 
+// Zodiac sign to ecliptic longitude (midpoint of each sign)
+const SIGN_LONGITUDES = {
+  'Aries': 15,
+  'Taurus': 45,
+  'Gemini': 75,
+  'Cancer': 105,
+  'Leo': 135,
+  'Virgo': 165,
+  'Libra': 195,
+  'Scorpio': 225,
+  'Sagittarius': 255,
+  'Capricorn': 285,
+  'Aquarius': 315,
+  'Pisces': 345,
+};
+
+// Get natal data from user profile or fall back to default
+function getNatalData(userProfile) {
+  if (userProfile?.sun_sign || userProfile?.moon_sign || userProfile?.rising_sign) {
+    return {
+      sun: {
+        sign: userProfile.sun_sign || NATAL.sun.sign,
+        lon: SIGN_LONGITUDES[userProfile.sun_sign] || NATAL.sun.lon,
+      },
+      moon: {
+        sign: userProfile.moon_sign || NATAL.moon.sign,
+        lon: SIGN_LONGITUDES[userProfile.moon_sign] || NATAL.moon.lon,
+      },
+      rising: {
+        sign: userProfile.rising_sign || NATAL.rising.sign,
+        lon: SIGN_LONGITUDES[userProfile.rising_sign] || NATAL.rising.lon,
+      },
+    };
+  }
+  return NATAL;
+}
+
 // Calculate approximate moon longitude (0-360)
 function getCurrentMoonLongitude(date = new Date()) {
   const age = getMoonAge(date);
@@ -65,30 +102,31 @@ function isSameSign(currentSign, natalSign) {
 }
 
 // Get all current natal resonances
-export function getNatalResonance(date = new Date()) {
+export function getNatalResonance(date = new Date(), userProfile = null) {
+  const natal = getNatalData(userProfile);
   const lunar = getLunarData(date);
   const currentMoonLon = getCurrentMoonLongitude(date);
   const currentSign = lunar.zodiac.sign;
   const resonances = [];
 
   // Check moon to natal moon
-  const moonToMoon = getAspect(currentMoonLon, NATAL.moon.lon);
+  const moonToMoon = getAspect(currentMoonLon, natal.moon.lon);
   if (moonToMoon) {
     resonances.push({
       transit: 'Moon',
       natal: 'Moon',
-      natalSign: NATAL.moon.sign,
+      natalSign: natal.moon.sign,
       ...moonToMoon,
       description: `Moon ${moonToMoon.type} your natal Moon`,
     });
   }
 
   // Check same sign as natal moon
-  if (isSameSign(currentSign, NATAL.moon.sign) && !moonToMoon) {
+  if (isSameSign(currentSign, natal.moon.sign) && !moonToMoon) {
     resonances.push({
       transit: 'Moon',
       natal: 'Moon',
-      natalSign: NATAL.moon.sign,
+      natalSign: natal.moon.sign,
       type: 'same-sign',
       strength: 'MEDIUM',
       meaning: 'Emotional resonance',
@@ -97,23 +135,23 @@ export function getNatalResonance(date = new Date()) {
   }
 
   // Check moon to natal sun
-  const moonToSun = getAspect(currentMoonLon, NATAL.sun.lon);
+  const moonToSun = getAspect(currentMoonLon, natal.sun.lon);
   if (moonToSun) {
     resonances.push({
       transit: 'Moon',
       natal: 'Sun',
-      natalSign: NATAL.sun.sign,
+      natalSign: natal.sun.sign,
       ...moonToSun,
       description: `Moon ${moonToSun.type} your natal Sun`,
     });
   }
 
   // Check same sign as natal sun
-  if (isSameSign(currentSign, NATAL.sun.sign) && !moonToSun) {
+  if (isSameSign(currentSign, natal.sun.sign) && !moonToSun) {
     resonances.push({
       transit: 'Moon',
       natal: 'Sun',
-      natalSign: NATAL.sun.sign,
+      natalSign: natal.sun.sign,
       type: 'same-sign',
       strength: 'MEDIUM',
       meaning: 'Identity activation',
@@ -122,11 +160,11 @@ export function getNatalResonance(date = new Date()) {
   }
 
   // Check Full Moon on natal moon
-  if (lunar.phase.isFull && isSameSign(currentSign, NATAL.moon.sign)) {
+  if (lunar.phase.isFull && isSameSign(currentSign, natal.moon.sign)) {
     resonances.push({
       transit: 'Full Moon',
       natal: 'Moon',
-      natalSign: NATAL.moon.sign,
+      natalSign: natal.moon.sign,
       type: 'full-moon-natal',
       strength: 'HIGH',
       meaning: 'Deep emotional illumination',
@@ -142,8 +180,8 @@ export function getNatalResonance(date = new Date()) {
 }
 
 // Get summary of current resonance state
-export function getResonanceSummary(date = new Date()) {
-  const resonances = getNatalResonance(date);
+export function getResonanceSummary(date = new Date(), userProfile = null) {
+  const resonances = getNatalResonance(date, userProfile);
 
   if (resonances.length === 0) {
     return {
