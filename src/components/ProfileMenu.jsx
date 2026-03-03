@@ -9,6 +9,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Zodiac signs form
   const [sunSign, setSunSign] = useState('');
@@ -29,6 +31,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
 
   const loadProfile = async () => {
     setLoading(true);
+    // Reset form state
+    setSunSign('');
+    setMoonSign('');
+    setRisingSign('');
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -36,15 +43,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
         .eq('id', user.id)
         .single();
 
-      if (data) {
+      if (error) {
+        console.log('Profile load error:', error.message);
+      } else if (data) {
         setProfile(data);
         setSunSign(data.sun_sign || '');
         setMoonSign(data.moon_sign || '');
         setRisingSign(data.rising_sign || '');
       }
     } catch (e) {
-      // Profile doesn't exist yet, that's ok
-      console.log('No profile yet');
+      console.log('No profile yet:', e.message);
     }
     setLoading(false);
   };
@@ -83,6 +91,75 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
       onSignOut();
       onClose();
     }
+  };
+
+  const handleExportData = async () => {
+    if (!user) return;
+    setExporting(true);
+
+    try {
+      // Fetch all user data
+      const [profileRes, loopsRes, echoesRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('loops').select('*').eq('user_id', user.id),
+        supabase.from('echoes').select('*').eq('user_id', user.id),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        email: user.email,
+        profile: profileRes.data || null,
+        loops: loopsRes.data || [],
+        echoes: echoesRes.data || [],
+      };
+
+      // Download as JSON
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cosmic-loops-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export error:', e);
+      alert('Could not export data. Please try again.');
+    }
+    setExporting(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    const confirmed = confirm(
+      'Delete your account? This will permanently remove all your data including loops, echoes, and profile. This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    const doubleConfirm = confirm('Are you absolutely sure? Type OK to proceed.');
+    if (!doubleConfirm) return;
+
+    setDeleting(true);
+    try {
+      // Delete all user data
+      await Promise.all([
+        supabase.from('echoes').delete().eq('user_id', user.id),
+        supabase.from('loops').delete().eq('user_id', user.id),
+        supabase.from('profiles').delete().eq('id', user.id),
+      ]);
+
+      // Sign out
+      await supabase.auth.signOut();
+      onSignOut();
+      onClose();
+      alert('Your account and all data have been deleted.');
+    } catch (e) {
+      console.error('Delete error:', e);
+      alert('Could not delete account. Please try again.');
+    }
+    setDeleting(false);
   };
 
   if (!isOpen) return null;
@@ -243,6 +320,35 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                     </div>
                   </div>
 
+                  {/* Data Management */}
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(245, 230, 200, 0.4)',
+                    marginBottom: 12,
+                    letterSpacing: '0.1em',
+                  }}>
+                    DATA MANAGEMENT
+                  </div>
+
+                  <button
+                    onClick={handleExportData}
+                    disabled={exporting}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(245, 230, 200, 0.15)',
+                      background: 'rgba(245, 230, 200, 0.04)',
+                      color: exporting ? 'rgba(245, 230, 200, 0.4)' : 'rgba(245, 230, 200, 0.7)',
+                      fontSize: 13,
+                      cursor: exporting ? 'wait' : 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {exporting ? 'Exporting...' : 'Export My Data'}
+                  </button>
+
                   <button
                     onClick={handleSignOut}
                     style={{
@@ -254,9 +360,27 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                       color: 'rgba(252, 129, 129, 0.8)',
                       fontSize: 13,
                       cursor: 'pointer',
+                      marginBottom: 10,
                     }}
                   >
                     Sign Out
+                  </button>
+
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleting}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(252, 80, 80, 0.3)',
+                      background: 'rgba(252, 80, 80, 0.08)',
+                      color: deleting ? 'rgba(252, 80, 80, 0.4)' : 'rgba(252, 80, 80, 0.9)',
+                      fontSize: 13,
+                      cursor: deleting ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {deleting ? 'Deleting...' : 'Delete Account'}
                   </button>
                 </>
               ) : (
@@ -291,6 +415,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                   fontStyle: 'italic',
                 }}>
                   Sign in to save your zodiac signs
+                </div>
+              ) : loading ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: 24,
+                  color: 'rgba(245, 230, 200, 0.4)',
+                }}>
+                  Loading...
                 </div>
               ) : (
                 <>
