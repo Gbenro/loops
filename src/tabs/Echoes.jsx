@@ -6,6 +6,7 @@ import { MiniMoon } from '../components/MoonFace.jsx';
 import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 
 // Phase-specific voice prompts
 const VOICE_PROMPTS = {
@@ -44,14 +45,22 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [expandedId, setExpandedId] = useState(null);
   const [source, setSource] = useState('text'); // 'text' | 'voice'
 
-  // Voice state
-  const [isListening, setIsListening] = useState(false);
-  const [interimText, setInterimText] = useState('');
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const recognitionRef = useRef(null);
+  // Voice state (Whisper-based)
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [modelProgress, setModelProgress] = useState(0);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
+
+  // Preload Whisper model in background
+  useEffect(() => {
+    preloadModel();
+  }, []);
 
   // Use generated prompts or fallbacks
   const voicePrompt = phrasesLoading
@@ -62,80 +71,95 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     ? "What is alive in you right now? What arrived today? What are you noticing..."
     : (phrases.echoesWritePrompt || "What is alive in you right now?");
 
-  // Check for Speech API support
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+  // Start recording
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      });
 
-      recognition.onresult = (event) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            final += transcript;
-          } else {
-            interim += transcript;
-          }
-        }
-        if (final) {
-          setCurrentText(prev => prev + final);
-        }
-        setInterimText(interim);
-      };
+      audioChunksRef.current = [];
 
-      recognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error);
-        if (event.error !== 'aborted') {
-          setIsListening(false);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
 
-      recognition.onend = () => {
-        // Only stop if not manually stopping
-        if (isListening && recognitionRef.current) {
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+
+        // Create audio blob
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
+        if (audioBlob.size > 0) {
+          setIsTranscribing(true);
           try {
-            recognitionRef.current.start();
-          } catch (e) {
-            setIsListening(false);
+            const text = await transcribeAudio(audioBlob, setModelProgress);
+            if (text) {
+              setCurrentText(prev => prev + (prev ? ' ' : '') + text);
+            }
+          } catch (error) {
+            console.error('[Voice] Transcription failed:', error);
           }
+          setIsTranscribing(false);
         }
       };
 
-      recognitionRef.current = recognition;
-    }
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000); // Collect data every second
 
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-    };
-  }, []);
-
-  // Toggle voice listening
-  const toggleListening = useCallback(() => {
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      setInterimText('');
-    } else {
+      setIsRecording(true);
       setSource('voice');
       setIsWriting(true);
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (e) {
-        console.warn('Could not start recognition:', e);
+      setRecordingTime(0);
+
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime(t => t + 1);
+      }, 1000);
+
+    } catch (error) {
+      console.error('[Voice] Could not start recording:', error);
+      alert('Could not access microphone. Please check permissions.');
+    }
+  }, []);
+
+  // Stop recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     }
-  }, [isListening]);
+  }, [isRecording]);
+
+  // Toggle recording
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, [isRecording]);
 
   // Fetch echoes on mount
   useEffect(() => {
@@ -149,10 +173,9 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const saveEcho = async () => {
     if (!currentText.trim()) return;
 
-    // Stop listening if active
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+    // Stop recording if active
+    if (isRecording) {
+      stopRecording();
     }
 
     const newEcho = {
@@ -171,9 +194,9 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 
     setEchoes(prev => [newEcho, ...prev]);
     setCurrentText('');
-    setInterimText('');
     setIsWriting(false);
     setSource('text');
+    setRecordingTime(0);
     await saveEchoToDb(newEcho, userId);
   };
 
@@ -184,14 +207,20 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   };
 
   const cancelWriting = () => {
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+    if (isRecording) {
+      stopRecording();
     }
     setIsWriting(false);
     setCurrentText('');
-    setInterimText('');
     setSource('text');
+    setRecordingTime(0);
+  };
+
+  // Format recording time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -245,13 +274,39 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         {isWriting ? (
           <div style={{
             background: 'rgba(245, 230, 200, 0.03)',
-            border: `1px solid ${isListening ? 'rgba(167, 139, 250, 0.3)' : 'rgba(245, 230, 200, 0.1)'}`,
+            border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.3)' : isTranscribing ? 'rgba(167, 139, 250, 0.3)' : 'rgba(245, 230, 200, 0.1)'}`,
             borderRadius: 12,
             padding: 16,
             transition: 'border-color 0.3s',
           }}>
-            {/* Listening indicator */}
-            {isListening && (
+            {/* Recording indicator */}
+            {isRecording && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 12,
+                color: '#FC8181',
+              }}>
+                <div style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#FC8181',
+                  animation: 'pulse 1s ease-in-out infinite',
+                }} />
+                <span style={{
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                }}>
+                  RECORDING {formatTime(recordingTime)} · TAP TO STOP
+                </span>
+              </div>
+            )}
+
+            {/* Transcribing indicator */}
+            {isTranscribing && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -283,18 +338,18 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                   fontFamily: 'monospace',
                   letterSpacing: '0.1em',
                 }}>
-                  LISTENING · TAP ORB TO FINISH
+                  {!isModelLoaded() ? `LOADING WHISPER ${modelProgress}%` : 'TRANSCRIBING...'}
                 </span>
               </div>
             )}
 
-            {/* Voice prompt when listening with no text */}
-            {isListening && !currentText && !interimText && (
+            {/* Voice prompt when recording with no text */}
+            {isRecording && !currentText && (
               <div style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 16,
                 fontStyle: 'italic',
-                color: 'rgba(167, 139, 250, 0.5)',
+                color: 'rgba(252, 129, 129, 0.5)',
                 marginBottom: 12,
               }}>
                 {voicePrompt}
@@ -302,14 +357,14 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             )}
 
             <textarea
-              autoFocus={!isListening}
+              autoFocus={!isRecording}
               value={currentText}
               onChange={e => {
                 setCurrentText(e.target.value);
                 setSource('text');
               }}
-              readOnly={isListening}
-              placeholder={isListening ? '' : writePrompt}
+              readOnly={isRecording || isTranscribing}
+              placeholder={isRecording ? '' : writePrompt}
               style={{
                 width: '100%',
                 minHeight: 100,
@@ -323,19 +378,6 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                 resize: 'none',
               }}
             />
-
-            {/* Interim text (live transcription) */}
-            {interimText && (
-              <div style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 15,
-                fontStyle: 'italic',
-                color: 'rgba(167, 139, 250, 0.5)',
-                lineHeight: 1.7,
-              }}>
-                {interimText}
-              </div>
-            )}
 
             {/* Cosmic stamp with phase type */}
             <div style={{
@@ -372,44 +414,49 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               </div>
 
               {/* Voice orb */}
-              {speechSupported && (
-                <button
-                  onClick={toggleListening}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: isListening
+              <button
+                onClick={toggleRecording}
+                disabled={isTranscribing}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: isRecording
+                    ? 'rgba(252, 129, 129, 0.2)'
+                    : isTranscribing
                       ? 'rgba(167, 139, 250, 0.2)'
                       : 'rgba(245, 230, 200, 0.08)',
-                    color: isListening ? '#A78BFA' : 'rgba(245, 230, 200, 0.5)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 16,
-                    position: 'relative',
-                    animation: isListening ? 'voiceOrb 2s ease-in-out infinite' : 'none',
-                    boxShadow: isListening
-                      ? '0 0 20px rgba(167, 139, 250, 0.3)'
-                      : 'none',
-                    transition: 'all 0.3s',
-                  }}
-                >
-                  {isListening ? '◉' : '◎'}
-                  {/* Ripple effect when listening */}
-                  {isListening && (
-                    <div style={{
-                      position: 'absolute',
-                      inset: -4,
-                      borderRadius: '50%',
-                      border: '2px solid rgba(167, 139, 250, 0.3)',
-                      animation: 'ripple 1.5s ease-out infinite',
-                    }} />
-                  )}
-                </button>
-              )}
+                  color: isRecording
+                    ? '#FC8181'
+                    : isTranscribing
+                      ? '#A78BFA'
+                      : 'rgba(245, 230, 200, 0.5)',
+                  cursor: isTranscribing ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                  position: 'relative',
+                  animation: isRecording ? 'voiceOrb 2s ease-in-out infinite' : 'none',
+                  boxShadow: isRecording
+                    ? '0 0 20px rgba(252, 129, 129, 0.3)'
+                    : 'none',
+                  transition: 'all 0.3s',
+                }}
+              >
+                {isRecording ? '■' : isTranscribing ? '...' : '◎'}
+                {/* Ripple effect when recording */}
+                {isRecording && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: -4,
+                    borderRadius: '50%',
+                    border: '2px solid rgba(252, 129, 129, 0.3)',
+                    animation: 'ripple 1.5s ease-out infinite',
+                  }} />
+                )}
+              </button>
             </div>
 
             {/* Actions */}
@@ -431,23 +478,23 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               </button>
               <button
                 onClick={saveEcho}
-                disabled={!currentText.trim() && !interimText.trim()}
+                disabled={!currentText.trim() || isRecording || isTranscribing}
                 style={{
                   flex: 1,
                   padding: '12px',
                   borderRadius: 8,
-                  background: (currentText.trim() || interimText.trim())
+                  background: (currentText.trim() && !isRecording && !isTranscribing)
                     ? 'rgba(245, 230, 200, 0.1)'
                     : 'rgba(245, 230, 200, 0.03)',
                   border: '1px solid rgba(245, 230, 200, 0.2)',
-                  color: (currentText.trim() || interimText.trim())
+                  color: (currentText.trim() && !isRecording && !isTranscribing)
                     ? '#f5e6c8'
                     : 'rgba(245, 230, 200, 0.3)',
                   fontSize: 12,
-                  cursor: (currentText.trim() || interimText.trim()) ? 'pointer' : 'default',
+                  cursor: (currentText.trim() && !isRecording && !isTranscribing) ? 'pointer' : 'default',
                 }}
               >
-                ECHO ↩
+                {isRecording ? 'STOP FIRST' : isTranscribing ? 'WAIT...' : 'ECHO ↩'}
               </button>
             </div>
           </div>
@@ -512,12 +559,16 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
           50% { transform: scaleY(2.2); }
         }
         @keyframes voiceOrb {
-          0%, 100% { box-shadow: 0 0 15px rgba(167, 139, 250, 0.3); }
-          50% { box-shadow: 0 0 25px rgba(167, 139, 250, 0.5); }
+          0%, 100% { box-shadow: 0 0 15px rgba(252, 129, 129, 0.3); }
+          50% { box-shadow: 0 0 25px rgba(252, 129, 129, 0.5); }
         }
         @keyframes ripple {
           0% { transform: scale(1); opacity: 0.5; }
           100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
         }
       `}</style>
     </div>
