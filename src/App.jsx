@@ -7,6 +7,7 @@ import { migrateLocalToServer, getLoops, getEchoes } from './lib/storage.js';
 import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
+import { startNotificationScheduler, checkPhaseNotifications } from './lib/notifications.js';
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
@@ -96,6 +97,15 @@ export default function App() {
       setPhrasesLoading(false);
     });
   }, [lunarData, solarData]);
+
+  // Start notification scheduler
+  useEffect(() => {
+    // Check notifications on load
+    checkPhaseNotifications(lunarData);
+    // Start periodic checks
+    const cleanup = startNotificationScheduler(() => getLunarData());
+    return cleanup;
+  }, [lunarData]);
 
   const handleAuthSuccess = async (newUser) => {
     setUser(newUser);

@@ -192,8 +192,6 @@ export function getLunarData(date = new Date()) {
   const phaseProgress = (age - currentPhase.start) / phaseDuration;
   const phaseRemaining = currentPhase.end - age;
   const remainingHours = Math.round(phaseRemaining * 24 * 10) / 10;
-  const isApproaching = remainingHours < 24;
-  const isImminent = remainingHours < 6;
 
   // Next phase info
   const nextPhase = currentPhase.next;
@@ -202,6 +200,15 @@ export function getLunarData(date = new Date()) {
   const nextEnergy = PHASE_ENERGY[nextKey];
   const nextPhaseType = PHASE_TYPE[nextKey];
   const nextPhaseDuration = PHASE_DURATION[nextPhaseType];
+
+  // Dynamic approaching thresholds based on what's coming
+  // New cycle (new moon): 24 hours - biggest transition
+  // Threshold phases: 4 hours - brief, need less warning
+  // Flow phases: 8 hours - more time to prepare
+  const isNewCycleApproaching = nextKey === 'new';
+  const approachingThreshold = isNewCycleApproaching ? 24 : (nextPhaseType === 'threshold' ? 4 : 8);
+  const isApproaching = remainingHours < approachingThreshold;
+  const isImminent = remainingHours < (approachingThreshold / 4); // 1/4 of threshold
 
   return {
     age,                           // Days into cycle (0-29.53)
@@ -223,6 +230,9 @@ export function getLunarData(date = new Date()) {
     nextEnergy,                    // Energy word of next phase
     nextPhaseType,                 // 'threshold' | 'flow'
     nextPhaseDuration,             // 1.85 | 5.55 days
+    // Transition timing
+    approachingThreshold,          // Hours before showing transition card
+    isNewCycleApproaching,         // true if next phase is new moon (new cycle)
   };
 }
 

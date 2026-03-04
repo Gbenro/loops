@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
 
 export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate }) {
   const [activeSection, setActiveSection] = useState('account');
@@ -16,6 +17,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
   const [sunSign, setSunSign] = useState('');
   const [moonSign, setMoonSign] = useState('');
   const [risingSign, setRisingSign] = useState('');
+
+  // Notification prefs
+  const [notifPrefs, setNotifPrefs] = useState(getNotificationPrefs());
 
   const ZODIAC_SIGNS = [
     'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
@@ -236,6 +240,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
           {[
             { id: 'account', label: 'Account', icon: '◯' },
             { id: 'birth', label: 'Your Sky', icon: '⚝' },
+            { id: 'notifs', label: 'Alerts', icon: '◉' },
             { id: 'about', label: 'About', icon: '✧' },
           ].map(s => (
             <button
@@ -556,6 +561,144 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
             </div>
           )}
 
+          {/* Notifications Section */}
+          {activeSection === 'notifs' && (
+            <div>
+              <div style={{
+                fontSize: 13,
+                color: 'rgba(245, 230, 200, 0.6)',
+                marginBottom: 20,
+                lineHeight: 1.6,
+              }}>
+                Get notified before phase transitions so you can prepare.
+              </div>
+
+              {/* Enable Notifications */}
+              <div style={{
+                padding: 16,
+                borderRadius: 12,
+                background: notifPrefs.enabled
+                  ? 'rgba(52, 211, 153, 0.08)'
+                  : 'rgba(245, 230, 200, 0.04)',
+                border: `1px solid ${notifPrefs.enabled
+                  ? 'rgba(52, 211, 153, 0.2)'
+                  : 'rgba(245, 230, 200, 0.08)'}`,
+                marginBottom: 16,
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div>
+                    <div style={{
+                      fontSize: 14,
+                      color: '#f5e6c8',
+                      marginBottom: 4,
+                    }}>
+                      Enable Notifications
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: 'rgba(245, 230, 200, 0.4)',
+                    }}>
+                      {canNotify() ? 'Notifications allowed' : 'Permission needed'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!notifPrefs.enabled) {
+                        const granted = await requestPermission();
+                        if (granted) {
+                          const newPrefs = { ...notifPrefs, enabled: true };
+                          setNotifPrefs(newPrefs);
+                          saveNotificationPrefs(newPrefs);
+                        }
+                      } else {
+                        const newPrefs = { ...notifPrefs, enabled: false };
+                        setNotifPrefs(newPrefs);
+                        saveNotificationPrefs(newPrefs);
+                      }
+                    }}
+                    style={{
+                      width: 50,
+                      height: 28,
+                      borderRadius: 14,
+                      border: 'none',
+                      background: notifPrefs.enabled
+                        ? 'rgba(52, 211, 153, 0.4)'
+                        : 'rgba(245, 230, 200, 0.15)',
+                      cursor: 'pointer',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      background: notifPrefs.enabled ? '#34D399' : 'rgba(245, 230, 200, 0.5)',
+                      position: 'absolute',
+                      top: 3,
+                      left: notifPrefs.enabled ? 25 : 3,
+                      transition: 'left 0.2s',
+                    }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Notification Types */}
+              {notifPrefs.enabled && (
+                <>
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(245, 230, 200, 0.4)',
+                    marginBottom: 12,
+                    letterSpacing: '0.1em',
+                  }}>
+                    NOTIFY ME FOR
+                  </div>
+
+                  {/* New Cycle */}
+                  <NotifToggle
+                    label="New Lunar Cycle"
+                    sublabel="24h before new moon"
+                    checked={notifPrefs.newCycle}
+                    onChange={(v) => {
+                      const newPrefs = { ...notifPrefs, newCycle: v };
+                      setNotifPrefs(newPrefs);
+                      saveNotificationPrefs(newPrefs);
+                    }}
+                  />
+
+                  {/* Threshold Phases */}
+                  <NotifToggle
+                    label="Threshold Phases"
+                    sublabel="4h before (New, Quarter, Full)"
+                    checked={notifPrefs.thresholdPhases}
+                    onChange={(v) => {
+                      const newPrefs = { ...notifPrefs, thresholdPhases: v };
+                      setNotifPrefs(newPrefs);
+                      saveNotificationPrefs(newPrefs);
+                    }}
+                  />
+
+                  {/* Flow Phases */}
+                  <NotifToggle
+                    label="Flow Phases"
+                    sublabel="8h before (Crescent, Gibbous)"
+                    checked={notifPrefs.flowPhases}
+                    onChange={(v) => {
+                      const newPrefs = { ...notifPrefs, flowPhases: v };
+                      setNotifPrefs(newPrefs);
+                      saveNotificationPrefs(newPrefs);
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
           {/* About Section */}
           {activeSection === 'about' && (
             <div>
@@ -629,6 +772,60 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
           to { transform: translateY(0); }
         }
       `}</style>
+    </div>
+  );
+}
+
+// Toggle component for notification settings
+function NotifToggle({ label, sublabel, checked, onChange }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '12px 0',
+      borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
+    }}>
+      <div>
+        <div style={{
+          fontSize: 13,
+          color: 'rgba(245, 230, 200, 0.8)',
+        }}>
+          {label}
+        </div>
+        <div style={{
+          fontSize: 10,
+          color: 'rgba(245, 230, 200, 0.35)',
+          marginTop: 2,
+        }}>
+          {sublabel}
+        </div>
+      </div>
+      <button
+        onClick={() => onChange(!checked)}
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          border: 'none',
+          background: checked
+            ? 'rgba(167, 139, 250, 0.4)'
+            : 'rgba(245, 230, 200, 0.1)',
+          cursor: 'pointer',
+          position: 'relative',
+        }}
+      >
+        <div style={{
+          width: 18,
+          height: 18,
+          borderRadius: 9,
+          background: checked ? '#A78BFA' : 'rgba(245, 230, 200, 0.4)',
+          position: 'absolute',
+          top: 3,
+          left: checked ? 23 : 3,
+          transition: 'left 0.2s',
+        }} />
+      </button>
     </div>
   );
 }
