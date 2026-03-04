@@ -114,13 +114,32 @@ export function getPhaseInfo(age) {
   };
 }
 
-// Get lunar month name based on lunation count
+// Lunar month names by calendar month (0-indexed)
+const LUNAR_MONTH_BY_CALENDAR = [
+  'Wolf',       // January
+  'Snow',       // February
+  'Worm',       // March
+  'Pink',       // April
+  'Flower',     // May
+  'Strawberry', // June
+  'Buck',       // July
+  'Sturgeon',   // August
+  'Harvest',    // September
+  "Hunter's",   // October
+  'Beaver',     // November
+  'Cold',       // December
+];
+
+// Get lunar month name based on the month containing the full moon
 export function getLunarMonthName(date = new Date()) {
-  const JD = toJulianDate(date);
-  const lunationsSinceKnown = Math.floor((JD - KNOWN_NEW_MOON) / SYNODIC);
-  // Map to month index (0-12, with Blue moon as 13th)
-  const monthIndex = lunationsSinceKnown % 13;
-  return LUNAR_MONTHS[monthIndex];
+  const age = getMoonAge(date);
+  // Find the date of the full moon in this cycle
+  // Full moon is at age ~14.76 days (half of synodic month)
+  const daysToFull = 14.76 - age;
+  const fullMoonDate = new Date(date.getTime() + daysToFull * 24 * 60 * 60 * 1000);
+  // Use the calendar month of the full moon
+  const month = fullMoonDate.getMonth();
+  return LUNAR_MONTH_BY_CALENDAR[month];
 }
 
 // Get days until a specific phase (0=new, 0.5=full)

@@ -713,19 +713,50 @@ const SIGN_SYMBOLS = {
   'Sagittarius': '♐', 'Capricorn': '♑', 'Aquarius': '♒', 'Pisces': '♓',
 };
 
-const SIGN_DESCRIPTIONS = {
-  'Aries': 'Bold, pioneering energy. You initiate and lead.',
-  'Taurus': 'Grounded, sensual nature. You build and sustain.',
-  'Gemini': 'Curious, communicative spirit. You connect and explore.',
-  'Cancer': 'Nurturing, intuitive depth. You protect and feel.',
-  'Leo': 'Creative, radiant presence. You shine and inspire.',
-  'Virgo': 'Analytical, devoted care. You refine and serve.',
-  'Libra': 'Harmonious, diplomatic grace. You balance and relate.',
-  'Scorpio': 'Intense, transformative power. You probe and regenerate.',
-  'Sagittarius': 'Expansive, philosophical vision. You seek and teach.',
-  'Capricorn': 'Ambitious, structured wisdom. You build and achieve.',
-  'Aquarius': 'Innovative, humanitarian spirit. You envision and liberate.',
-  'Pisces': 'Mystical, compassionate soul. You dissolve and transcend.',
+// Descriptions vary by placement type (sun = identity, moon = emotions, rising = persona)
+const PLACEMENT_DESCRIPTIONS = {
+  sun: {
+    'Aries': 'Your core self is bold and pioneering. You lead by initiating.',
+    'Taurus': 'Your core self is grounded and sensual. You find identity through building.',
+    'Gemini': 'Your core self is curious and adaptable. You exist through connection.',
+    'Cancer': 'Your core self is nurturing and protective. You lead with feeling.',
+    'Leo': 'Your core self is creative and radiant. You shine naturally.',
+    'Virgo': 'Your core self is analytical and devoted. You find purpose in refinement.',
+    'Libra': 'Your core self seeks balance and beauty. You exist through relationship.',
+    'Scorpio': 'Your core self is intense and transformative. You seek depth.',
+    'Sagittarius': 'Your core self is expansive and philosophical. You seek meaning.',
+    'Capricorn': 'Your core self is ambitious and structured. You build to last.',
+    'Aquarius': 'Your core self is innovative and independent. You envision change.',
+    'Pisces': 'Your core self is mystical and compassionate. You dissolve boundaries.',
+  },
+  moon: {
+    'Aries': 'Emotionally, you need action and independence. Feelings come fast.',
+    'Taurus': 'Emotionally, you need security and comfort. Feelings run deep and steady.',
+    'Gemini': 'Emotionally, you need variety and conversation. Feelings shift like wind.',
+    'Cancer': 'Emotionally, you need safety and belonging. Feelings are your native tongue.',
+    'Leo': 'Emotionally, you need recognition and warmth. Your heart is generous.',
+    'Virgo': 'Emotionally, you need order and usefulness. You process through analysis.',
+    'Libra': 'Emotionally, you need harmony and partnership. Discord unsettles you.',
+    'Scorpio': 'Emotionally, you run deep and intense. You feel everything fully.',
+    'Sagittarius': 'Emotionally, you need freedom and adventure. Optimism is your anchor.',
+    'Capricorn': 'Emotionally, you need structure and achievement. Feelings take time.',
+    'Aquarius': 'Emotionally, you need space and ideals. You process from a distance.',
+    'Pisces': 'Emotionally, you absorb everything. Boundaries blur. Compassion flows.',
+  },
+  rising: {
+    'Aries': 'You come across as direct and energetic. People see a leader.',
+    'Taurus': 'You come across as calm and reliable. People sense steadiness.',
+    'Gemini': 'You come across as witty and versatile. People see quick intelligence.',
+    'Cancer': 'You come across as warm and approachable. People sense care.',
+    'Leo': 'You come across as confident and magnetic. People notice you.',
+    'Virgo': 'You come across as thoughtful and precise. People see competence.',
+    'Libra': 'You come across as charming and diplomatic. People see grace.',
+    'Scorpio': 'You come across as intense and perceptive. People sense depth.',
+    'Sagittarius': 'You come across as optimistic and adventurous. People see enthusiasm.',
+    'Capricorn': 'You come across as composed and capable. People see authority.',
+    'Aquarius': 'You come across as unique and detached. People see originality.',
+    'Pisces': 'You come across as gentle and dreamy. People sense something ethereal.',
+  },
 };
 
 function YourSkySection({ resonances = [], generatedText, phrasesLoading, userProfile }) {
@@ -816,7 +847,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
               color: 'rgba(245, 230, 200, 0.7)',
               margin: 0,
             }}>
-              {SIGN_DESCRIPTIONS[p.sign] || 'Your cosmic placement.'}
+              {PLACEMENT_DESCRIPTIONS[p.key]?.[p.sign] || 'Your cosmic placement.'}
             </p>
           </div>
         ))}
