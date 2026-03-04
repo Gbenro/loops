@@ -14,7 +14,7 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData }) {
+export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData, loops = [], echoes = [] }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
@@ -334,6 +334,8 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             onOpenEchoes={onSwitchToEchoes}
             transitionInvitation={phrases.transitionInvitation}
             phrasesLoading={phrasesLoading}
+            loops={loops}
+            echoes={echoes}
           />
         )}
 

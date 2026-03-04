@@ -3,6 +3,8 @@ import { supabase } from './supabase.js';
 
 const LOOPS_KEY = 'cosmic_loops_v1';
 const ECHOES_KEY = 'cosmic_echoes_v1';
+const PHASE_SUMMARIES_KEY = 'cosmic_phase_summaries_v1';
+const CYCLE_SUMMARIES_KEY = 'cosmic_cycle_summaries_v1';
 
 // Generate unique IDs
 export function generateId(prefix = 'l') {
@@ -252,6 +254,128 @@ export async function migrateLocalToServer(userId) {
       await saveEcho(echo, userId);
     }
   }
+}
+
+// ============ PHASE SUMMARIES ============
+
+export function getPhaseSummaries() {
+  return getLocal(PHASE_SUMMARIES_KEY);
+}
+
+export function savePhaseSummary(summary) {
+  const summaries = getLocal(PHASE_SUMMARIES_KEY);
+  // Check if summary for this phase/cycle already exists
+  const existingIdx = summaries.findIndex(s =>
+    s.phaseKey === summary.phaseKey && s.lunarMonth === summary.lunarMonth
+  );
+  if (existingIdx >= 0) {
+    summaries[existingIdx] = summary;
+  } else {
+    summaries.unshift(summary);
+  }
+  // Keep only last 30 phase summaries (roughly 4 cycles)
+  setLocal(PHASE_SUMMARIES_KEY, summaries.slice(0, 30));
+  return summary;
+}
+
+// Generate a phase summary from echoes and loops
+export function generatePhaseSummary(phaseKey, phaseName, lunarMonth, echoes, loops) {
+  // Filter echoes from this phase
+  const phaseEchoes = echoes.filter(e =>
+    e.phase === phaseKey && e.lunarMonth === lunarMonth
+  );
+
+  // Filter loops opened or closed in this phase
+  const loopsOpened = loops.filter(l =>
+    l.phaseOpened === phaseKey && l.lunarMonthOpened === lunarMonth
+  );
+  const loopsClosed = loops.filter(l =>
+    l.phaseClosed === phaseKey && l.status === 'closed'
+  );
+  const loopsReleased = loops.filter(l =>
+    l.phaseClosed === phaseKey && l.status === 'released'
+  );
+
+  return {
+    id: generateId('ps'),
+    phaseKey,
+    phaseName,
+    lunarMonth,
+    createdAt: new Date().toISOString(),
+    echoes: phaseEchoes.map(e => ({
+      id: e.id,
+      text: e.text,
+      source: e.source,
+    })),
+    loopsOpened: loopsOpened.map(l => ({
+      id: l.id,
+      title: l.title,
+      type: l.type,
+    })),
+    loopsClosed: loopsClosed.map(l => ({
+      id: l.id,
+      title: l.title,
+      type: l.type,
+    })),
+    loopsReleased: loopsReleased.map(l => ({
+      id: l.id,
+      title: l.title,
+      type: l.type,
+    })),
+    stats: {
+      echoCount: phaseEchoes.length,
+      loopsOpenedCount: loopsOpened.length,
+      loopsClosedCount: loopsClosed.length,
+      loopsReleasedCount: loopsReleased.length,
+    },
+  };
+}
+
+// ============ CYCLE SUMMARIES ============
+
+export function getCycleSummaries() {
+  return getLocal(CYCLE_SUMMARIES_KEY);
+}
+
+export function saveCycleSummary(summary) {
+  const summaries = getLocal(CYCLE_SUMMARIES_KEY);
+  summaries.unshift(summary);
+  // Keep only last 6 cycle summaries
+  setLocal(CYCLE_SUMMARIES_KEY, summaries.slice(0, 6));
+  return summary;
+}
+
+// Generate a lunar cycle summary from phase summaries
+export function generateCycleSummary(lunarMonth, phaseSummaries) {
+  const cyclePhaseSummaries = phaseSummaries.filter(s => s.lunarMonth === lunarMonth);
+
+  // Aggregate stats
+  const totalEchoes = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.echoCount, 0);
+  const totalLoopsOpened = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsOpenedCount, 0);
+  const totalLoopsClosed = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsClosedCount, 0);
+  const totalLoopsReleased = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsReleasedCount, 0);
+
+  return {
+    id: generateId('cs'),
+    lunarMonth,
+    createdAt: new Date().toISOString(),
+    phaseSummaries: cyclePhaseSummaries,
+    stats: {
+      totalEchoes,
+      totalLoopsOpened,
+      totalLoopsClosed,
+      totalLoopsReleased,
+      phasesWithActivity: cyclePhaseSummaries.filter(s =>
+        s.stats.echoCount > 0 || s.stats.loopsOpenedCount > 0
+      ).length,
+    },
+  };
+}
+
+// Get phase summaries for current lunar month
+export function getCurrentCyclePhaseSummaries(lunarMonth) {
+  const summaries = getLocal(PHASE_SUMMARIES_KEY);
+  return summaries.filter(s => s.lunarMonth === lunarMonth);
 }
 
 // Legacy exports for compatibility

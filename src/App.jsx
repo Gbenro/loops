@@ -1,9 +1,9 @@
 // Cosmic Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
-import { migrateLocalToServer } from './lib/storage.js';
+import { migrateLocalToServer, getLoops, getEchoes } from './lib/storage.js';
 import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
@@ -26,10 +26,26 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
+  const [loops, setLoops] = useState([]);
+  const [echoes, setEchoes] = useState([]);
 
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
   const solarData = useMemo(() => getSolarData(), []);
+
+  // Fetch loops and echoes for phase summaries
+  const refreshLoopsAndEchoes = useCallback(async () => {
+    const [loopsData, echoesData] = await Promise.all([
+      getLoops(user?.id),
+      getEchoes(user?.id),
+    ]);
+    setLoops(loopsData);
+    setEchoes(echoesData);
+  }, [user?.id]);
+
+  useEffect(() => {
+    refreshLoopsAndEchoes();
+  }, [refreshLoopsAndEchoes]);
 
   // Fetch user profile when user changes
   useEffect(() => {
@@ -253,6 +269,8 @@ export default function App() {
             phrasesLoading={phrasesLoading}
             lunarData={lunarData}
             solarData={solarData}
+            loops={loops}
+            echoes={echoes}
           />
         )}
         {activeTab === 'loops' && (

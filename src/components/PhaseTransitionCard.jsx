@@ -2,10 +2,11 @@
 // Appears when next phase is within 24 hours
 // Two parts: Phase Summary (closing) + Transition Preview (opening)
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { generatePhaseSummary, savePhaseSummary } from '../lib/storage.js';
 
-// Phase closing summaries
+// Phase closing summaries (fallback if no activity)
 const PHASE_CLOSING_SUMMARIES = {
   'new': 'The stillness gave space for seeds to form.',
   'waxing-crescent': 'First steps were taken. Momentum began.',
@@ -35,7 +36,7 @@ const THRESHOLD_INTRO = (phaseName) =>
 const FLOW_INTRO = (phaseName, duration) =>
   `A flow phase opens. ${phaseName} gives you ${duration}+ days. No rush. Settle in.`;
 
-export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading }) {
+export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading, echoes = [], loops = [] }) {
   const {
     isApproaching,
     isImminent,
@@ -46,12 +47,27 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     nextPhaseType,
     nextPhaseDuration,
     phase,
+    lunarMonth,
   } = lunarData;
+
+  // Generate and save phase summary when card appears
+  const phaseSummary = useMemo(() => {
+    if (!isApproaching) return null;
+    const summary = generatePhaseSummary(phase.key, phase.name, lunarMonth, echoes, loops);
+    // Save it for the lunar cycle summary
+    savePhaseSummary(summary);
+    return summary;
+  }, [isApproaching, phase.key, phase.name, lunarMonth, echoes, loops]);
 
   if (!isApproaching) return null;
 
   // Current (closing) phase info
   const currentPhaseContent = getPhaseContent(phase.key);
+  const hasActivity = phaseSummary && (
+    phaseSummary.stats.echoCount > 0 ||
+    phaseSummary.stats.loopsOpenedCount > 0 ||
+    phaseSummary.stats.loopsClosedCount > 0
+  );
   const closingSummary = PHASE_CLOSING_SUMMARIES[phase.key] || 'This phase is completing.';
 
   // Use generated phrase if available, fall back to static
@@ -83,7 +99,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          marginBottom: 8,
+          marginBottom: 10,
         }}>
           <span style={{ fontSize: 16 }}>{currentPhaseContent.symbol}</span>
           <span style={{
@@ -95,15 +111,92 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             {phase.name.toUpperCase()} CLOSING
           </span>
         </div>
+
+        {/* Summary text */}
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 13,
           fontStyle: 'italic',
           color: 'rgba(245, 230, 200, 0.6)',
           lineHeight: 1.5,
+          marginBottom: hasActivity ? 12 : 0,
         }}>
           {closingSummary}
         </div>
+
+        {/* Activity stats */}
+        {hasActivity && (
+          <div style={{
+            display: 'flex',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}>
+            {phaseSummary.stats.echoCount > 0 && (
+              <span style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: 'rgba(245, 230, 200, 0.5)',
+                padding: '4px 8px',
+                background: 'rgba(245, 230, 200, 0.05)',
+                borderRadius: 4,
+              }}>
+                {phaseSummary.stats.echoCount} echo{phaseSummary.stats.echoCount !== 1 ? 'es' : ''}
+              </span>
+            )}
+            {phaseSummary.stats.loopsOpenedCount > 0 && (
+              <span style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: 'rgba(167, 139, 250, 0.7)',
+                padding: '4px 8px',
+                background: 'rgba(167, 139, 250, 0.1)',
+                borderRadius: 4,
+              }}>
+                {phaseSummary.stats.loopsOpenedCount} opened
+              </span>
+            )}
+            {phaseSummary.stats.loopsClosedCount > 0 && (
+              <span style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: 'rgba(52, 211, 153, 0.7)',
+                padding: '4px 8px',
+                background: 'rgba(52, 211, 153, 0.1)',
+                borderRadius: 4,
+              }}>
+                {phaseSummary.stats.loopsClosedCount} closed
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Echo snippets */}
+        {phaseSummary?.echoes?.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {phaseSummary.echoes.slice(0, 2).map((echo, i) => (
+              <div key={echo.id} style={{
+                fontSize: 11,
+                color: 'rgba(245, 230, 200, 0.5)',
+                fontStyle: 'italic',
+                marginBottom: 4,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                "{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}"
+              </div>
+            ))}
+            {phaseSummary.echoes.length > 2 && (
+              <div style={{
+                fontSize: 9,
+                color: 'rgba(245, 230, 200, 0.3)',
+                fontFamily: 'monospace',
+              }}>
+                +{phaseSummary.echoes.length - 2} more
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Part 2: Transition Preview */}
