@@ -408,8 +408,8 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         color: 'rgba(245, 230, 200, 0.4)',
         fontFamily: 'monospace',
       }}>
-        <span>{lunarData.daysToFull}D TO FULL</span>
-        <span>{lunarData.daysToNew}D TO NEW</span>
+        <span>{lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}</span>
+        <span>{lunarData.phase.isNew ? 'AT NEW' : lunarData.phase.isWaning ? `${lunarData.daysToFull}D TO FULL` : `${lunarData.daysToNew}D TO NEW`}</span>
       </div>
     </div>
   );
