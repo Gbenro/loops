@@ -353,6 +353,8 @@ function calculateMoonPath(cx, cy, r, phase) {
   // Generate points along the terminator using parametric ellipse
   // The terminator goes from top (cy - r) to bottom (cy + r)
   // Its x-offset from center is controlled by bulge
+  // For waning phases, we flip the bulge direction so the terminator
+  // is on the shadow (right) side, not the lit (left) side
   const points = [];
   const steps = 32;
 
@@ -360,7 +362,10 @@ function calculateMoonPath(cx, cy, r, phase) {
     const t = i / steps; // 0 to 1
     const angle = Math.PI * t; // 0 to π (top to bottom)
     const y = cy - r * Math.cos(angle); // cy-r to cy+r
-    const x = cx + bulge * r * Math.sin(angle); // bulges based on phase
+    // For waning, flip the bulge so terminator is on the right (shadow) side
+    const x = isWaning
+      ? cx - bulge * r * Math.sin(angle)
+      : cx + bulge * r * Math.sin(angle);
     points.push({ x, y });
   }
 
