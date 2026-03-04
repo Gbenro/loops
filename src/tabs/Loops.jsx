@@ -54,6 +54,33 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     });
   }, [userId]);
 
+  // Auto-close phase loops when their phase has ended
+  useEffect(() => {
+    if (loading || loops.length === 0) return;
+
+    const currentPhase = lunarData.phase.key;
+    const phaseLoopsToClose = loops.filter(l =>
+      l.type === 'phase' &&
+      l.status === 'active' &&
+      l.phaseOpened &&
+      l.phaseOpened !== currentPhase
+    );
+
+    // Auto-close each expired phase loop
+    phaseLoopsToClose.forEach(async (loop) => {
+      const updated = {
+        ...loop,
+        status: 'closed',
+        closedAt: new Date().toISOString(),
+        phaseClosed: currentPhase,
+        phaseNameClosed: lunarData.phase.name,
+        autoClosedReason: 'phase_ended',
+      };
+      setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
+      await saveLoop(updated, userId);
+    });
+  }, [loops, lunarData.phase.key, loading, userId]);
+
   // Calculate loop completion
   const getLoopPct = useCallback((loop) => {
     if (loop.status === 'closed' || loop.status === 'released') return 100;

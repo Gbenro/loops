@@ -1,8 +1,21 @@
 // Cosmic Loops - Phase Transition Card
 // Appears when next phase is within 24 hours
-// Communicates whether arriving phase is Threshold or Flow
+// Two parts: Phase Summary (closing) + Transition Preview (opening)
 
 import { useState } from 'react';
+import { getPhaseContent } from '../data/phaseContent.js';
+
+// Phase closing summaries
+const PHASE_CLOSING_SUMMARIES = {
+  'new': 'The stillness gave space for seeds to form.',
+  'waxing-crescent': 'First steps were taken. Momentum began.',
+  'first-quarter': 'Decisions were made. Direction clarified.',
+  'waxing-gibbous': 'Building continued. Refinement happened.',
+  'full': 'Illumination arrived. Something was revealed.',
+  'waning-gibbous': 'Sharing began. Gratitude flowed.',
+  'last-quarter': 'Release happened. Letting go.',
+  'waning-crescent': 'Rest restored. Completion neared.',
+};
 
 const TRANSITION_INVITATIONS = {
   'Waxing Crescent': 'First movement begins. What is the most natural first step toward your intention?',
@@ -32,9 +45,14 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     remainingHours,
     nextPhaseType,
     nextPhaseDuration,
+    phase,
   } = lunarData;
 
   if (!isApproaching) return null;
+
+  // Current (closing) phase info
+  const currentPhaseContent = getPhaseContent(phase.key);
+  const closingSummary = PHASE_CLOSING_SUMMARIES[phase.key] || 'This phase is completing.';
 
   // Use generated phrase if available, fall back to static
   const invitation = transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
@@ -52,6 +70,58 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     : `${remainingHours.toFixed(1)}h`;
 
   return (
+    <div style={{ margin: '0 20px 16px' }}>
+      {/* Part 1: Phase Closing Summary */}
+      <div style={{
+        padding: '14px 16px',
+        borderRadius: '14px 14px 0 0',
+        background: 'rgba(245, 230, 200, 0.03)',
+        border: '1px solid rgba(245, 230, 200, 0.08)',
+        borderBottom: 'none',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8,
+        }}>
+          <span style={{ fontSize: 16 }}>{currentPhaseContent.symbol}</span>
+          <span style={{
+            fontSize: 9,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'rgba(245, 230, 200, 0.5)',
+          }}>
+            {phase.name.toUpperCase()} CLOSING
+          </span>
+        </div>
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 13,
+          fontStyle: 'italic',
+          color: 'rgba(245, 230, 200, 0.6)',
+          lineHeight: 1.5,
+        }}>
+          {closingSummary}
+        </div>
+      </div>
+
+      {/* Part 2: Transition Preview */}
+      <div style={{
+        padding: '16px',
+        borderRadius: '0 0 14px 14px',
+        background: isImminent
+          ? 'rgba(252, 180, 80, 0.08)'
+          : isNextThreshold
+            ? 'rgba(245, 230, 200, 0.05)'
+            : 'rgba(201, 168, 76, 0.04)',
+        border: `1px solid ${isImminent
+          ? 'rgba(252, 180, 80, 0.2)'
+          : isNextThreshold
+            ? 'rgba(245, 230, 200, 0.12)'
+            : 'rgba(201, 168, 76, 0.15)'}`,
+        position: 'relative',
+      }}>
     <div style={{
       margin: '0 20px 16px',
       padding: '16px',
@@ -202,6 +272,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
       >
         〜 OPEN ECHOES — CAPTURE THIS MOMENT
       </button>
+      </div>
     </div>
   );
 }
