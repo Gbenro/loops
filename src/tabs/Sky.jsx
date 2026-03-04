@@ -179,7 +179,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           color: 'rgba(245, 230, 200, 0.35)',
           marginBottom: 24,
         }}>
-          DAY {lunarData.dayOfCycle} OF CYCLE · {lunarData.daysToFull}D TO FULL
+          DAY {lunarData.dayOfCycle} OF 29 · {lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}
         </div>
 
         {/* Cosmic Energy Card */}
