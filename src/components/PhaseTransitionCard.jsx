@@ -2,7 +2,7 @@
 // Appears when next phase is within 24 hours
 // Two parts: Phase Summary (closing) + Transition Preview (opening)
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { generatePhaseSummary, savePhaseSummary } from '../lib/storage.js';
 
@@ -73,7 +73,6 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
   // Use generated phrase if available, fall back to static
   const invitation = transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
   const isNextThreshold = nextPhaseType === 'threshold';
-  const isNextFlow = nextPhaseType === 'flow';
 
   // Phase type intro
   const typeIntro = isNextThreshold
@@ -86,7 +85,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     : `${remainingHours.toFixed(1)}h`;
 
   return (
-    <div style={{ margin: '0 20px 16px' }}>
+    <div style={{ margin: '0 0 16px' }}>
       {/* Part 1: Phase Closing Summary */}
       <div style={{
         padding: '14px 16px',
@@ -112,7 +111,6 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           </span>
         </div>
 
-        {/* Summary text */}
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 13,
@@ -124,7 +122,6 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           {closingSummary}
         </div>
 
-        {/* Activity stats */}
         {hasActivity && (
           <div style={{
             display: 'flex',
@@ -170,10 +167,9 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           </div>
         )}
 
-        {/* Echo snippets */}
         {phaseSummary?.echoes?.length > 0 && (
           <div style={{ marginTop: 12 }}>
-            {phaseSummary.echoes.slice(0, 2).map((echo, i) => (
+            {phaseSummary.echoes.slice(0, 2).map((echo) => (
               <div key={echo.id} style={{
                 fontSize: 11,
                 color: 'rgba(245, 230, 200, 0.5)',
@@ -213,158 +209,136 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           : isNextThreshold
             ? 'rgba(245, 230, 200, 0.12)'
             : 'rgba(201, 168, 76, 0.15)'}`,
+        borderTop: 'none',
         position: 'relative',
       }}>
-    <div style={{
-      margin: '0 20px 16px',
-      padding: '16px',
-      borderRadius: 14,
-      background: isImminent
-        ? 'rgba(252, 180, 80, 0.08)'
-        : isNextThreshold
-          ? 'rgba(245, 230, 200, 0.05)'
-          : 'rgba(201, 168, 76, 0.04)',
-      border: `1px solid ${isImminent
-        ? 'rgba(252, 180, 80, 0.2)'
-        : isNextThreshold
-          ? 'rgba(245, 230, 200, 0.12)'
-          : 'rgba(201, 168, 76, 0.15)'}`,
-      position: 'relative',
-      animation: 'breatheIn 0.4s ease-out',
-    }}>
-      {/* Dismiss button */}
-      <button
-        onClick={onDismiss}
-        style={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
-          background: 'none',
-          border: 'none',
-          color: 'rgba(245, 230, 200, 0.3)',
-          fontSize: 16,
-          cursor: 'pointer',
-          padding: 4,
-          lineHeight: 1,
-        }}
-      >
-        ×
-      </button>
+        <button
+          onClick={onDismiss}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            background: 'none',
+            border: 'none',
+            color: 'rgba(245, 230, 200, 0.3)',
+            fontSize: 16,
+            cursor: 'pointer',
+            padding: 4,
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
 
-      {/* Status label with phase type */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 12,
-      }}>
-        <span style={{
-          fontSize: 9,
-          fontFamily: 'monospace',
-          letterSpacing: '0.12em',
-          color: isImminent
-            ? 'rgba(252, 180, 80, 0.9)'
-            : 'rgba(245, 230, 200, 0.4)',
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
         }}>
-          {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
-        </span>
-        <span style={{
-          fontSize: 8,
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          padding: '2px 6px',
-          borderRadius: 3,
-          background: isNextThreshold
-            ? 'rgba(245, 230, 200, 0.1)'
-            : 'rgba(201, 168, 76, 0.12)',
-          color: isNextThreshold
-            ? 'rgba(245, 230, 200, 0.6)'
-            : 'rgba(201, 168, 76, 0.8)',
-        }}>
-          {isNextThreshold ? 'THRESHOLD' : 'FLOW'}
-        </span>
-      </div>
-
-      {/* Next phase info */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 10,
-      }}>
-        <span style={{
-          fontSize: 28,
-          filter: isImminent
-            ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
-            : isNextThreshold
-              ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
-              : 'none',
-        }}>
-          {nextSymbol}
-        </span>
-        <div>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 18,
-            color: '#f5e6c8',
-          }}>
-            {nextPhase}
-          </div>
-          <div style={{
+          <span style={{
             fontSize: 9,
             fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            color: 'rgba(245, 230, 200, 0.4)',
+            letterSpacing: '0.12em',
+            color: isImminent
+              ? 'rgba(252, 180, 80, 0.9)'
+              : 'rgba(245, 230, 200, 0.4)',
           }}>
-            {nextEnergy?.toUpperCase()} · {nextPhaseDuration} DAYS
+            {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
+          </span>
+          <span style={{
+            fontSize: 8,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            padding: '2px 6px',
+            borderRadius: 3,
+            background: isNextThreshold
+              ? 'rgba(245, 230, 200, 0.1)'
+              : 'rgba(201, 168, 76, 0.12)',
+            color: isNextThreshold
+              ? 'rgba(245, 230, 200, 0.6)'
+              : 'rgba(201, 168, 76, 0.8)',
+          }}>
+            {isNextThreshold ? 'THRESHOLD' : 'FLOW'}
+          </span>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 10,
+        }}>
+          <span style={{
+            fontSize: 28,
+            filter: isImminent
+              ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
+              : isNextThreshold
+                ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
+                : 'none',
+          }}>
+            {nextSymbol}
+          </span>
+          <div>
+            <div style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 18,
+              color: '#f5e6c8',
+            }}>
+              {nextPhase}
+            </div>
+            <div style={{
+              fontSize: 9,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              color: 'rgba(245, 230, 200, 0.4)',
+            }}>
+              {nextEnergy?.toUpperCase()} · {nextPhaseDuration} DAYS
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Phase type intro */}
-      <div style={{
-        fontSize: 12,
-        fontFamily: "'Cormorant Garamond', serif",
-        color: isNextThreshold
-          ? 'rgba(245, 230, 200, 0.65)'
-          : 'rgba(201, 168, 76, 0.7)',
-        marginBottom: 10,
-        lineHeight: 1.5,
-      }}>
-        {typeIntro}
-      </div>
+        <div style={{
+          fontSize: 12,
+          fontFamily: "'Cormorant Garamond', serif",
+          color: isNextThreshold
+            ? 'rgba(245, 230, 200, 0.65)'
+            : 'rgba(201, 168, 76, 0.7)',
+          marginBottom: 10,
+          lineHeight: 1.5,
+        }}>
+          {typeIntro}
+        </div>
 
-      {/* Phase-specific invitation */}
-      <div style={{
-        fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 14,
-        fontStyle: 'italic',
-        color: 'rgba(245, 230, 200, 0.7)',
-        lineHeight: 1.6,
-        marginBottom: 14,
-      }}>
-        {invitation}
-      </div>
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 14,
+          fontStyle: 'italic',
+          color: 'rgba(245, 230, 200, 0.7)',
+          lineHeight: 1.6,
+          marginBottom: 14,
+        }}>
+          {invitation}
+        </div>
 
-      {/* Echoes nudge */}
-      <button
-        onClick={onOpenEchoes}
-        style={{
-          width: '100%',
-          padding: '10px',
-          borderRadius: 8,
-          background: 'rgba(245, 230, 200, 0.04)',
-          border: '1px dashed rgba(245, 230, 200, 0.1)',
-          color: 'rgba(245, 230, 200, 0.4)',
-          fontSize: 10,
-          fontFamily: 'monospace',
-          letterSpacing: '0.08em',
-          cursor: 'pointer',
-          textAlign: 'center',
-        }}
-      >
-        〜 OPEN ECHOES — CAPTURE THIS MOMENT
-      </button>
+        <button
+          onClick={onOpenEchoes}
+          style={{
+            width: '100%',
+            padding: '10px',
+            borderRadius: 8,
+            background: 'rgba(245, 230, 200, 0.04)',
+            border: '1px dashed rgba(245, 230, 200, 0.1)',
+            color: 'rgba(245, 230, 200, 0.4)',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            cursor: 'pointer',
+            textAlign: 'center',
+          }}
+        >
+          〜 OPEN ECHOES — CAPTURE THIS MOMENT
+        </button>
       </div>
     </div>
   );
