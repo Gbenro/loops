@@ -10,6 +10,7 @@ export function Ring({
   speed = '2s',
   dim = false,
   glow = false,
+  variant = 'default',  // 'default' | 'cycle'
   children
 }) {
   const r = (size - stroke) / 2;
@@ -17,6 +18,7 @@ export function Ring({
   const offset = c - (pct / 100) * c;
   const isComplete = pct >= 100;
   const displayColor = isComplete ? '#34D399' : color;
+  const isCycle = variant === 'cycle';
 
   return (
     <div style={{
@@ -30,14 +32,26 @@ export function Ring({
         height={size}
         style={{ transform: 'rotate(-90deg)' }}
       >
+        {/* Outer glow ring for cycle variant */}
+        {isCycle && (
+          <circle
+            cx={size/2}
+            cy={size/2}
+            r={r + stroke}
+            fill="none"
+            stroke="rgba(245, 230, 200, 0.04)"
+            strokeWidth={1}
+          />
+        )}
         {/* Background track */}
         <circle
           cx={size/2}
           cy={size/2}
           r={r}
           fill="none"
-          stroke="rgba(245, 230, 200, 0.08)"
+          stroke={isCycle ? 'rgba(245, 230, 200, 0.12)' : 'rgba(245, 230, 200, 0.08)'}
           strokeWidth={stroke}
+          strokeDasharray={isCycle ? '2 4' : 'none'}  // Dotted for cycle
         />
         {/* Progress arc */}
         <circle
@@ -53,9 +67,20 @@ export function Ring({
           style={{
             transition: 'stroke-dashoffset 0.4s ease, stroke 0.4s ease',
             opacity: dim ? 0.3 : 1,
-            filter: glow ? `drop-shadow(0 0 4px ${displayColor})` : 'none',
+            filter: glow || isCycle ? `drop-shadow(0 0 ${isCycle ? 6 : 4}px ${displayColor})` : 'none',
           }}
         />
+        {/* Inner ring for cycle variant */}
+        {isCycle && (
+          <circle
+            cx={size/2}
+            cy={size/2}
+            r={r - stroke - 2}
+            fill="none"
+            stroke="rgba(245, 230, 200, 0.06)"
+            strokeWidth={1}
+          />
+        )}
       </svg>
 
       {/* Center content */}

@@ -32,7 +32,8 @@ export default function App() {
 
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
-  const solarData = useMemo(() => getSolarData(), []);
+  const hemisphere = userProfile?.hemisphere || 'north';
+  const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
 
   // Fetch loops and echoes for phase summaries
   const refreshLoopsAndEchoes = useCallback(async () => {

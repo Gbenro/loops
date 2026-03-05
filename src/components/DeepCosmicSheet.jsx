@@ -477,7 +477,7 @@ function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
         ))}
       </div>
 
-      {/* Combined reading */}
+      {/* Practical guidance */}
       <div style={{
         padding: 20,
         borderRadius: 12,
@@ -490,14 +490,14 @@ function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
           fontFamily: 'monospace',
           marginBottom: 8,
         }}>
-          {phase.name.toUpperCase()} × {zodiac.sign.toUpperCase()}
+          HOW TO WORK WITH THIS
         </div>
         <div style={{
           fontSize: 14,
           lineHeight: 1.7,
           color: 'rgba(245, 230, 200, 0.8)',
         }}>
-          The {phase.energy.toLowerCase()} energy of the {phase.name} meets the {info.element.toLowerCase()} nature of {zodiac.sign}. {info.moonIn}
+          {info.moonIn}
         </div>
       </div>
     </div>

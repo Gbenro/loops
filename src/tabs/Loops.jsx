@@ -241,10 +241,20 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   // Filter loops by type
   const phaseLoops = loops.filter(l => l.type === 'phase' && l.status === 'active');
   const openLoops = loops.filter(l => l.type === 'open' && l.status === 'active');
-  const closedLoops = loops.filter(l =>
-    (l.type === 'phase' || l.type === 'open') &&
-    (l.status === 'closed' || l.status === 'released')
-  );
+  const closedLoops = loops
+    .filter(l =>
+      (l.type === 'phase' || l.type === 'open') &&
+      (l.status === 'closed' || l.status === 'released')
+    )
+    // Sort by closedAt date (most recent first), then by phase
+    .sort((a, b) => {
+      // Sort by date first (most recent at top)
+      const dateA = new Date(a.closedAt || a.updatedAt || 0).getTime();
+      const dateB = new Date(b.closedAt || b.updatedAt || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      // Then by phase name
+      return (a.phaseClosed || '').localeCompare(b.phaseClosed || '');
+    });
 
   // Use generated prompt or fallback
   const addButtonLabel = phrasesLoading ? '+ open a loop' : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
@@ -630,22 +640,37 @@ function CycleLoopCard({ loop, lunarData, onSelect }) {
       onClick={onSelect}
       style={{
         padding: '20px',
-        background: 'rgba(167, 139, 250, 0.06)',
-        border: '1px solid rgba(167, 139, 250, 0.2)',
+        background: 'rgba(167, 139, 250, 0.04)',
+        border: '1px solid rgba(167, 139, 250, 0.15)',
         borderRadius: 16,
         cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Subtle lunar glow effect */}
+      <div style={{
+        position: 'absolute',
+        top: -20,
+        right: -20,
+        width: 80,
+        height: 80,
+        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
       <div style={{
         display: 'flex',
         alignItems: 'flex-start',
         gap: 16,
+        position: 'relative',
       }}>
         <Ring
           pct={cycleProgress}
           color="#A78BFA"
           size={48}
           stroke={3}
+          variant="cycle"
+          glow
         />
         <div style={{ flex: 1 }}>
           <div style={{
@@ -662,8 +687,19 @@ function CycleLoopCard({ loop, lunarData, onSelect }) {
             fontFamily: 'monospace',
             color: 'rgba(167, 139, 250, 0.6)',
             letterSpacing: '0.08em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
           }}>
-            {loop.lunarMonthOpened?.toUpperCase()} MOON · OPENED AT {loop.phaseName?.toUpperCase()}
+            <span style={{
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: 'rgba(245, 230, 200, 0.06)',
+              color: 'rgba(245, 230, 200, 0.6)',
+            }}>
+              ☽ CYCLE
+            </span>
+            <span>{loop.lunarMonthOpened?.toUpperCase()} MOON</span>
           </div>
         </div>
       </div>
@@ -676,6 +712,8 @@ function CycleLoopCard({ loop, lunarData, onSelect }) {
 function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect, onClose, onReopen }) {
   const isOpen = loop.type === 'open';
   const isPhase = loop.type === 'phase';
+  const isCycle = loop.type === 'cycle';
+  const isAutoReleased = released && loop.autoClosedReason === 'phase_ended';
 
   // Calculate window remaining for phase loops
   let windowText = null;
@@ -710,9 +748,10 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
     >
       <Ring
         pct={pct}
-        color={released ? 'rgba(245, 230, 200, 0.3)' : (loop.color || '#A78BFA')}
+        color={isAutoReleased ? 'rgba(251, 191, 36, 0.5)' : released ? 'rgba(245, 230, 200, 0.3)' : (loop.color || '#A78BFA')}
         size={40}
         stroke={3}
+        variant={isCycle ? 'cycle' : 'default'}
       />
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -738,18 +777,26 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
           <span style={{
             padding: '2px 6px',
             borderRadius: 4,
-            background: released
-              ? 'rgba(252, 129, 129, 0.1)'
-              : isOpen
-                ? 'rgba(148, 163, 184, 0.1)'
-                : 'rgba(167, 139, 250, 0.1)',
-            color: released
-              ? 'rgba(252, 129, 129, 0.6)'
-              : isOpen
-                ? 'rgba(148, 163, 184, 0.7)'
-                : 'rgba(167, 139, 250, 0.7)',
+            background: isAutoReleased
+              ? 'rgba(251, 191, 36, 0.1)'
+              : released
+                ? 'rgba(252, 129, 129, 0.1)'
+                : isCycle
+                  ? 'rgba(245, 230, 200, 0.08)'
+                  : isOpen
+                    ? 'rgba(148, 163, 184, 0.1)'
+                    : 'rgba(167, 139, 250, 0.1)',
+            color: isAutoReleased
+              ? 'rgba(251, 191, 36, 0.7)'
+              : released
+                ? 'rgba(252, 129, 129, 0.6)'
+                : isCycle
+                  ? 'rgba(245, 230, 200, 0.7)'
+                  : isOpen
+                    ? 'rgba(148, 163, 184, 0.7)'
+                    : 'rgba(167, 139, 250, 0.7)',
           }}>
-            {released ? 'RELEASED' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
+            {isAutoReleased ? 'PHASE ENDED' : released ? 'RELEASED' : isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
           {/* Show phase opened for open loops */}
           {isOpen && loop.phaseName && (

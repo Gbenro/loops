@@ -17,6 +17,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
   const [sunSign, setSunSign] = useState('');
   const [moonSign, setMoonSign] = useState('');
   const [risingSign, setRisingSign] = useState('');
+  const [hemisphere, setHemisphere] = useState('north');
 
   // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState(getNotificationPrefs());
@@ -39,6 +40,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
     setSunSign('');
     setMoonSign('');
     setRisingSign('');
+    setHemisphere('north');
 
     try {
       const { data, error } = await supabase
@@ -54,6 +56,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
         setSunSign(data.sun_sign || '');
         setMoonSign(data.moon_sign || '');
         setRisingSign(data.rising_sign || '');
+        setHemisphere(data.hemisphere || 'north');
       }
     } catch (e) {
       console.log('No profile yet:', e.message);
@@ -71,6 +74,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
         sun_sign: sunSign || null,
         moon_sign: moonSign || null,
         rising_sign: risingSign || null,
+        hemisphere: hemisphere || 'north',
         updated_at: new Date().toISOString(),
       };
 
@@ -532,6 +536,45 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                       {ZODIAC_SIGNS.map(sign => (
                         <option key={sign} value={sign}>{sign}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  {/* Hemisphere */}
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.7)',
+                    marginBottom: 12,
+                    marginTop: 24,
+                    letterSpacing: '0.1em',
+                  }}>
+                    YOUR LOCATION
+                  </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'rgba(245, 230, 200, 0.4)',
+                      marginBottom: 6,
+                    }}>
+                      🌍 HEMISPHERE (for accurate seasons)
+                    </label>
+                    <select
+                      value={hemisphere}
+                      onChange={e => setHemisphere(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 12,
+                        borderRadius: 8,
+                        border: '1px solid rgba(245, 230, 200, 0.15)',
+                        background: 'rgba(245, 230, 200, 0.03)',
+                        color: '#f5e6c8',
+                        fontSize: 14,
+                      }}
+                    >
+                      <option value="north">Northern Hemisphere</option>
+                      <option value="south">Southern Hemisphere</option>
                     </select>
                   </div>
 

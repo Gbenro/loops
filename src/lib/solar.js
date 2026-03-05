@@ -15,11 +15,19 @@ const SOLAR_THRESHOLDS = [
 ];
 
 // Season definitions with day-of-year boundaries (Northern Hemisphere)
-const SEASONS = [
+const SEASONS_NORTH = [
   { name: 'Winter', start: 355, end: 80, next: 'Spring Equinox', nextDay: 80 },
   { name: 'Spring', start: 80, end: 172, next: 'Summer Solstice', nextDay: 172 },
   { name: 'Summer', start: 172, end: 266, next: 'Autumn Equinox', nextDay: 266 },
   { name: 'Autumn', start: 266, end: 355, next: 'Winter Solstice', nextDay: 355 },
+];
+
+// Southern Hemisphere - seasons inverted (same dates, opposite seasons)
+const SEASONS_SOUTH = [
+  { name: 'Summer', start: 355, end: 80, next: 'Autumn Equinox', nextDay: 80 },
+  { name: 'Autumn', start: 80, end: 172, next: 'Winter Solstice', nextDay: 172 },
+  { name: 'Winter', start: 172, end: 266, next: 'Spring Equinox', nextDay: 266 },
+  { name: 'Spring', start: 266, end: 355, next: 'Summer Solstice', nextDay: 355 },
 ];
 
 // Solar event descriptions
@@ -70,11 +78,14 @@ export function getSolarDayOfYear(date = new Date()) {
 }
 
 // Get current season info
-export function getSeasonInfo(date = new Date()) {
+// hemisphere: 'north' | 'south' (defaults to 'north')
+export function getSeasonInfo(date = new Date(), hemisphere = 'north') {
   const dayOfYear = getDayOfYear(date);
   const year = date.getFullYear();
+  const SEASONS = hemisphere === 'south' ? SEASONS_SOUTH : SEASONS_NORTH;
 
-  // Handle winter wrapping around year boundary
+  // Handle wrap-around season (Winter for North, Summer for South)
+  const wrapSeason = SEASONS[0]; // First season wraps around year
   if (dayOfYear >= 355 || dayOfYear < 80) {
     const daysInYear = isLeapYear(year) ? 366 : 365;
     let daysToNext;
@@ -84,28 +95,27 @@ export function getSeasonInfo(date = new Date()) {
       daysToNext = 80 - dayOfYear;
     }
 
-    // Calculate progress through winter
-    const winterStart = 355;
-    const winterLength = (daysInYear - 355) + 80;
-    let dayIntoWinter;
+    // Calculate progress through wrap season
+    const seasonLength = (daysInYear - 355) + 80;
+    let dayIntoSeason;
     if (dayOfYear >= 355) {
-      dayIntoWinter = dayOfYear - 355;
+      dayIntoSeason = dayOfYear - 355;
     } else {
-      dayIntoWinter = (daysInYear - 355) + dayOfYear;
+      dayIntoSeason = (daysInYear - 355) + dayOfYear;
     }
-    const progress = dayIntoWinter / winterLength;
+    const progress = dayIntoSeason / seasonLength;
 
     return {
-      name: 'Winter',
-      nextEvent: 'Spring Equinox',
+      name: wrapSeason.name,
+      nextEvent: wrapSeason.next,
       daysToNext,
       progress: Math.round(progress * 100),
-      ...SOLAR_EVENTS['Spring Equinox'],
+      ...SOLAR_EVENTS[wrapSeason.next],
     };
   }
 
   for (const season of SEASONS) {
-    if (season.name === 'Winter') continue; // Handled above
+    if (season === wrapSeason) continue; // Handled above
 
     if (dayOfYear >= season.start && dayOfYear < season.end) {
       const daysToNext = season.nextDay - dayOfYear;
@@ -125,8 +135,8 @@ export function getSeasonInfo(date = new Date()) {
 
   // Fallback
   return {
-    name: 'Winter',
-    nextEvent: 'Spring Equinox',
+    name: wrapSeason.name,
+    nextEvent: wrapSeason.next,
     daysToNext: 80 - dayOfYear,
     progress: 0,
   };
@@ -240,8 +250,9 @@ export function getSolarThresholds() {
 }
 
 // Get complete solar data bundle
-export function getSolarData(date = new Date()) {
-  const season = getSeasonInfo(date);
+// hemisphere: 'north' | 'south' (defaults to 'north')
+export function getSolarData(date = new Date(), hemisphere = 'north') {
+  const season = getSeasonInfo(date, hemisphere);
   const sunSign = getSunSign(date);
   const dayOfYear = getDayOfYear(date);
   const thresholdPosition = getThresholdPosition(date);
@@ -250,6 +261,7 @@ export function getSolarData(date = new Date()) {
     season,
     sunSign,
     dayOfYear,
+    hemisphere,
     ...thresholdPosition,
   };
 }

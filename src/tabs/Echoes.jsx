@@ -7,6 +7,7 @@ import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, ge
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
+import { saveAudio, getAudio, deleteAudio, hasAudio } from '../lib/audioStorage.js';
 
 // Phase-specific voice prompts
 const VOICE_PROMPTS = {
@@ -53,6 +54,10 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const pendingAudioBlobRef = useRef(null);  // Store audio blob until echo is saved
+  const [playingId, setPlayingId] = useState(null);
+  const audioPlayerRef = useRef(null);
+  const [keepAudio, setKeepAudio] = useState(true);  // Option to save audio locally
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -123,6 +128,9 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         console.log('[Voice] Audio blob created:', audioBlob.size, 'bytes');
 
         if (audioBlob.size > 0) {
+          // Save blob for later storage
+          pendingAudioBlobRef.current = audioBlob;
+
           setIsTranscribing(true);
           try {
             const text = await transcribeAudio(audioBlob, setModelProgress);
@@ -223,10 +231,15 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       stopRecording();
     }
 
+    const echoId = generateId('e');
+    const hasVoice = source === 'voice' && pendingAudioBlobRef.current;
+    const willSaveAudio = hasVoice && keepAudio;
+
     const newEcho = {
-      id: generateId('e'),
+      id: echoId,
       text: currentText.trim(),
       source,
+      hasAudio: willSaveAudio,  // Flag to indicate audio is stored locally
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
       phaseName: lunarData.phase.name,
@@ -242,10 +255,20 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     setIsWriting(false);
     setSource('text');
     setRecordingTime(0);
+    setKeepAudio(true);  // Reset for next time
+
+    // Save audio to IndexedDB if user chose to keep it
+    if (willSaveAudio) {
+      await saveAudio(echoId, pendingAudioBlobRef.current);
+    }
+    pendingAudioBlobRef.current = null;
+
     await saveEchoToDb(newEcho, userId);
   };
 
   const deleteEcho = async (id) => {
+    // Also delete stored audio
+    await deleteAudio(id);
     setEchoes(prev => prev.filter(e => e.id !== id));
     setExpandedId(null);
     await deleteEchoFromDb(id, userId);
@@ -259,6 +282,47 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     setCurrentText('');
     setSource('text');
     setRecordingTime(0);
+    pendingAudioBlobRef.current = null;
+  };
+
+  // Play/stop audio for an echo
+  const playAudio = async (echoId) => {
+    // If already playing this echo, stop it
+    if (playingId === echoId && audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+      setPlayingId(null);
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+
+    // Load and play the audio
+    const audioBlob = await getAudio(echoId);
+    if (audioBlob) {
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        setPlayingId(null);
+        audioPlayerRef.current = null;
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        setPlayingId(null);
+        audioPlayerRef.current = null;
+      };
+
+      audioPlayerRef.current = audio;
+      setPlayingId(echoId);
+      audio.play();
+    }
   };
 
   // Format recording time
@@ -504,6 +568,45 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               </button>
             </div>
 
+            {/* Keep audio option - shown after voice recording */}
+            {source === 'voice' && pendingAudioBlobRef.current && !isRecording && !isTranscribing && (
+              <div
+                onClick={() => setKeepAudio(!keepAudio)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  marginBottom: 12,
+                  borderRadius: 8,
+                  background: 'rgba(167, 139, 250, 0.05)',
+                  border: '1px solid rgba(167, 139, 250, 0.15)',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  border: `2px solid ${keepAudio ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.3)'}`,
+                  background: keepAudio ? 'rgba(167, 139, 250, 0.3)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  color: '#f5e6c8',
+                }}>
+                  {keepAudio && '✓'}
+                </div>
+                <span style={{
+                  fontSize: 11,
+                  color: 'rgba(245, 230, 200, 0.7)',
+                }}>
+                  Save to device
+                </span>
+              </div>
+            )}
+
             {/* Actions */}
             <div style={{ display: 'flex', gap: 10 }}>
               <button
@@ -592,6 +695,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               isExpanded={expandedId === echo.id}
               onToggle={() => setExpandedId(expandedId === echo.id ? null : echo.id)}
               onDelete={() => deleteEcho(echo.id)}
+              onPlayAudio={playAudio}
+              isPlaying={playingId === echo.id}
             />
           ))
         )}
@@ -620,7 +725,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   );
 }
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying }) {
   const phaseNum = (echo.phase || 'new').includes('waxing')
     ? echo.illumination / 100 * 0.5
     : echo.phase === 'full'
@@ -630,6 +735,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
   // Derive phase type from stored value or phase key
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
   const isThreshold = phaseType === 'threshold';
+  const canPlay = echo.hasAudio && echo.source === 'voice';
 
   return (
     <div style={{
@@ -722,20 +828,38 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete }) {
               {' · '}
               {echo.zodiac}
             </div>
-            <button
-              onClick={onDelete}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(252, 129, 129, 0.6)',
-                fontSize: 10,
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-                padding: '4px 8px',
-              }}
-            >
-              DELETE
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {canPlay && (
+                <button
+                  onClick={() => onPlayAudio(echo.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                  }}
+                >
+                  {isPlaying ? '■ STOP' : '▶ PLAY'}
+                </button>
+              )}
+              <button
+                onClick={onDelete}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(252, 129, 129, 0.6)',
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+              >
+                DELETE
+              </button>
+            </div>
           </div>
         </div>
       )}
