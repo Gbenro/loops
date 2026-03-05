@@ -244,7 +244,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   const phaseLoops = loops.filter(l => l.type === 'phase' && l.status === 'active');
   const openLoops = loops.filter(l => l.type === 'open' && l.status === 'active');
 
-  // All closed loops sorted by date
+  // All closed phase/open loops (for phase mode)
   const allClosedLoops = loops
     .filter(l =>
       (l.type === 'phase' || l.type === 'open') &&
@@ -252,7 +252,15 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     )
     .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
 
-  // Phase order for proper sequencing (reverse order since we're looking back)
+  // All closed loops INCLUDING cycle intentions (for cycle mode)
+  const allClosedWithCycles = loops
+    .filter(l =>
+      (l.type === 'phase' || l.type === 'open' || l.type === 'cycle') &&
+      (l.status === 'closed' || l.status === 'released')
+    )
+    .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
+
+  // Phase order for proper sequencing
   const PHASE_ORDER = [
     'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
     'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
@@ -281,7 +289,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     return phases;
   }, [allClosedLoops, lunarData.phase.key, lunarData.phase.name]);
 
-  // Get unique cycles (lunar months) from closed loops
+  // Get unique cycles (lunar months) from all closed loops including cycle intentions
   const uniqueCycles = useMemo(() => {
     const seen = new Set();
     const cycles = [];
@@ -289,33 +297,36 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     cycles.push({ name: lunarData.lunarMonth, isCurrent: true });
     seen.add(lunarData.lunarMonth);
 
-    // Add previous cycles from closed loops
-    for (const loop of allClosedLoops) {
-      const cycleName = loop.lunarMonthClosed || loop.lunarMonth;
+    // Add previous cycles from all closed loops (including cycle intentions)
+    for (const loop of allClosedWithCycles) {
+      const cycleName = loop.lunarMonthClosed || loop.lunarMonthOpened || loop.lunarMonth;
       if (cycleName && !seen.has(cycleName)) {
         seen.add(cycleName);
         cycles.push({ name: cycleName, isCurrent: false });
       }
     }
     return cycles;
-  }, [allClosedLoops, lunarData.lunarMonth]);
+  }, [allClosedWithCycles, lunarData.lunarMonth]);
 
   // Filter closed loops based on view mode and navigation
   const closedLoops = useMemo(() => {
     if (closedViewMode === 'phase') {
+      // Phase mode: show phase/open loops for selected phase
       const targetPhase = uniquePhases[closedNavIndex];
       if (!targetPhase) return [];
       return allClosedLoops.filter(l =>
         (l.phaseClosed || l.phase) === targetPhase.key
       );
     } else {
+      // Cycle mode: show ALL loops (including cycle intention) for selected lunar month
       const targetCycle = uniqueCycles[closedNavIndex];
       if (!targetCycle) return [];
-      return allClosedLoops.filter(l =>
-        (l.lunarMonthClosed || l.lunarMonth) === targetCycle.name
-      );
+      return allClosedWithCycles.filter(l => {
+        const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened || l.lunarMonth;
+        return loopCycle === targetCycle.name;
+      });
     }
-  }, [allClosedLoops, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
+  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
 
   // Navigation helpers
   const canNavPrev = closedViewMode === 'phase'
@@ -710,20 +721,78 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
             {/* Loops for selected phase/cycle */}
             {closedLoops.length > 0 ? (
-              closedLoops.map(loop => (
-                <LoopCard
-                  key={loop.id}
-                  loop={loop}
-                  pct={100}
-                  closed
-                  released={loop.status === 'released'}
-                  onSelect={() => {
-                    setSelected(loop);
-                    setShowDetail(true);
-                  }}
-                  onReopen={() => reopenLoop(loop.id)}
-                />
-              ))
+              closedViewMode === 'cycle' ? (
+                <>
+                  {/* Cycle intention at top */}
+                  {closedLoops.filter(l => l.type === 'cycle').map(loop => (
+                    <div key={loop.id} style={{ marginBottom: 16 }}>
+                      <div style={{
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.1em',
+                        color: 'rgba(245, 230, 200, 0.3)',
+                        marginBottom: 8,
+                      }}>
+                        CYCLE INTENTION
+                      </div>
+                      <LoopCard
+                        loop={loop}
+                        pct={100}
+                        closed
+                        released={loop.status === 'released'}
+                        onSelect={() => {
+                          setSelected(loop);
+                          setShowDetail(true);
+                        }}
+                        onReopen={() => reopenLoop(loop.id)}
+                      />
+                    </div>
+                  ))}
+                  {/* Phase loops grouped */}
+                  {closedLoops.filter(l => l.type !== 'cycle').length > 0 && (
+                    <div>
+                      <div style={{
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.1em',
+                        color: 'rgba(245, 230, 200, 0.3)',
+                        marginBottom: 8,
+                      }}>
+                        PHASE LOOPS
+                      </div>
+                      {closedLoops.filter(l => l.type !== 'cycle').map(loop => (
+                        <LoopCard
+                          key={loop.id}
+                          loop={loop}
+                          pct={100}
+                          closed
+                          released={loop.status === 'released'}
+                          onSelect={() => {
+                            setSelected(loop);
+                            setShowDetail(true);
+                          }}
+                          onReopen={() => reopenLoop(loop.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                closedLoops.map(loop => (
+                  <LoopCard
+                    key={loop.id}
+                    loop={loop}
+                    pct={100}
+                    closed
+                    released={loop.status === 'released'}
+                    onSelect={() => {
+                      setSelected(loop);
+                      setShowDetail(true);
+                    }}
+                    onReopen={() => reopenLoop(loop.id)}
+                  />
+                ))
+              )
             ) : (
               <div style={{
                 textAlign: 'center',
