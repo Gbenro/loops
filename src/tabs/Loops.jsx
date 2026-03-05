@@ -17,7 +17,8 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
-  const [closedSortBy, setClosedSortBy] = useState('date'); // 'date' | 'phase' | 'cycle'
+  const [closedViewMode, setClosedViewMode] = useState('phase'); // 'phase' | 'cycle'
+  const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current, 1 = previous, etc.
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -242,29 +243,99 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   // Filter loops by type
   const phaseLoops = loops.filter(l => l.type === 'phase' && l.status === 'active');
   const openLoops = loops.filter(l => l.type === 'open' && l.status === 'active');
-  const closedLoops = loops
+
+  // All closed loops sorted by date
+  const allClosedLoops = loops
     .filter(l =>
       (l.type === 'phase' || l.type === 'open') &&
       (l.status === 'closed' || l.status === 'released')
     )
-    .sort((a, b) => {
-      if (closedSortBy === 'phase') {
-        // Sort by phase name, then by date
-        const phaseCompare = (a.phaseClosed || '').localeCompare(b.phaseClosed || '');
-        if (phaseCompare !== 0) return phaseCompare;
-        return new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime();
-      } else if (closedSortBy === 'cycle') {
-        // Sort by lunar month (cycle), then by date
-        const cycleA = a.lunarMonthClosed || a.lunarMonth || '';
-        const cycleB = b.lunarMonthClosed || b.lunarMonth || '';
-        const cycleCompare = cycleB.localeCompare(cycleA); // Most recent cycle first
-        if (cycleCompare !== 0) return cycleCompare;
-        return new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime();
-      } else {
-        // Default: sort by date (most recent first)
-        return new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime();
+    .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
+
+  // Phase order for proper sequencing (reverse order since we're looking back)
+  const PHASE_ORDER = [
+    'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+    'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
+  ];
+
+  // Get unique phases from closed loops (in chronological order, most recent first)
+  const uniquePhases = useMemo(() => {
+    const seen = new Set();
+    const phases = [];
+    // Add current phase first
+    phases.push({ key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
+    seen.add(lunarData.phase.key);
+
+    // Add previous phases from closed loops
+    for (const loop of allClosedLoops) {
+      const phaseKey = loop.phaseClosed || loop.phase;
+      if (phaseKey && !seen.has(phaseKey)) {
+        seen.add(phaseKey);
+        phases.push({
+          key: phaseKey,
+          name: loop.phaseNameClosed || loop.phaseName || phaseKey,
+          isCurrent: false
+        });
       }
-    });
+    }
+    return phases;
+  }, [allClosedLoops, lunarData.phase.key, lunarData.phase.name]);
+
+  // Get unique cycles (lunar months) from closed loops
+  const uniqueCycles = useMemo(() => {
+    const seen = new Set();
+    const cycles = [];
+    // Add current cycle first
+    cycles.push({ name: lunarData.lunarMonth, isCurrent: true });
+    seen.add(lunarData.lunarMonth);
+
+    // Add previous cycles from closed loops
+    for (const loop of allClosedLoops) {
+      const cycleName = loop.lunarMonthClosed || loop.lunarMonth;
+      if (cycleName && !seen.has(cycleName)) {
+        seen.add(cycleName);
+        cycles.push({ name: cycleName, isCurrent: false });
+      }
+    }
+    return cycles;
+  }, [allClosedLoops, lunarData.lunarMonth]);
+
+  // Filter closed loops based on view mode and navigation
+  const closedLoops = useMemo(() => {
+    if (closedViewMode === 'phase') {
+      const targetPhase = uniquePhases[closedNavIndex];
+      if (!targetPhase) return [];
+      return allClosedLoops.filter(l =>
+        (l.phaseClosed || l.phase) === targetPhase.key
+      );
+    } else {
+      const targetCycle = uniqueCycles[closedNavIndex];
+      if (!targetCycle) return [];
+      return allClosedLoops.filter(l =>
+        (l.lunarMonthClosed || l.lunarMonth) === targetCycle.name
+      );
+    }
+  }, [allClosedLoops, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
+
+  // Navigation helpers
+  const canNavPrev = closedViewMode === 'phase'
+    ? closedNavIndex < uniquePhases.length - 1
+    : closedNavIndex < uniqueCycles.length - 1;
+  const canNavNext = closedNavIndex > 0;
+
+  const currentNavLabel = closedViewMode === 'phase'
+    ? uniquePhases[closedNavIndex]?.name || ''
+    : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
+
+  const isCurrentNav = closedViewMode === 'phase'
+    ? uniquePhases[closedNavIndex]?.isCurrent
+    : uniqueCycles[closedNavIndex]?.isCurrent;
+
+  // Reset nav index when switching view modes
+  const switchViewMode = (mode) => {
+    setClosedViewMode(mode);
+    setClosedNavIndex(0);
+  };
 
   // Use generated prompt or fallback
   const addButtonLabel = phrasesLoading ? '+ open a loop' : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
@@ -528,8 +599,9 @@ export function Loops({ userId, phrases, phrasesLoading }) {
         )}
 
         {/* Closed / Released Loops */}
-        {closedLoops.length > 0 && (
+        {allClosedLoops.length > 0 && (
           <div>
+            {/* Header with view mode toggle */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -548,18 +620,18 @@ export function Loops({ userId, phrases, phrasesLoading }) {
                 display: 'flex',
                 gap: 4,
               }}>
-                {['date', 'phase', 'cycle'].map(sortOption => (
+                {['phase', 'cycle'].map(mode => (
                   <button
-                    key={sortOption}
-                    onClick={() => setClosedSortBy(sortOption)}
+                    key={mode}
+                    onClick={() => switchViewMode(mode)}
                     style={{
                       padding: '4px 8px',
                       borderRadius: 4,
                       border: 'none',
-                      background: closedSortBy === sortOption
+                      background: closedViewMode === mode
                         ? 'rgba(245, 230, 200, 0.1)'
                         : 'transparent',
-                      color: closedSortBy === sortOption
+                      color: closedViewMode === mode
                         ? 'rgba(245, 230, 200, 0.6)'
                         : 'rgba(245, 230, 200, 0.25)',
                       fontSize: 9,
@@ -568,25 +640,101 @@ export function Loops({ userId, phrases, phrasesLoading }) {
                       textTransform: 'uppercase',
                     }}
                   >
-                    {sortOption}
+                    {mode}
                   </button>
                 ))}
               </div>
             </div>
-            {closedLoops.map(loop => (
-              <LoopCard
-                key={loop.id}
-                loop={loop}
-                pct={100}
-                closed
-                released={loop.status === 'released'}
-                onSelect={() => {
-                  setSelected(loop);
-                  setShowDetail(true);
+
+            {/* Navigation controls */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              marginBottom: 16,
+              padding: '10px 0',
+            }}>
+              <button
+                onClick={() => setClosedNavIndex(i => i + 1)}
+                disabled={!canNavPrev}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                  fontSize: 16,
+                  cursor: canNavPrev ? 'pointer' : 'default',
+                  padding: '4px 8px',
                 }}
-                onReopen={() => reopenLoop(loop.id)}
-              />
-            ))}
+              >
+                ‹
+              </button>
+              <div style={{
+                textAlign: 'center',
+                minWidth: 140,
+              }}>
+                <div style={{
+                  fontSize: 13,
+                  color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+                  fontFamily: "'Cormorant Garamond', serif",
+                }}>
+                  {currentNavLabel}
+                </div>
+                {isCurrentNav && (
+                  <div style={{
+                    fontSize: 8,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.5)',
+                    letterSpacing: '0.1em',
+                    marginTop: 2,
+                  }}>
+                    CURRENT
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setClosedNavIndex(i => i - 1)}
+                disabled={!canNavNext}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                  fontSize: 16,
+                  cursor: canNavNext ? 'pointer' : 'default',
+                  padding: '4px 8px',
+                }}
+              >
+                ›
+              </button>
+            </div>
+
+            {/* Loops for selected phase/cycle */}
+            {closedLoops.length > 0 ? (
+              closedLoops.map(loop => (
+                <LoopCard
+                  key={loop.id}
+                  loop={loop}
+                  pct={100}
+                  closed
+                  released={loop.status === 'released'}
+                  onSelect={() => {
+                    setSelected(loop);
+                    setShowDetail(true);
+                  }}
+                  onReopen={() => reopenLoop(loop.id)}
+                />
+              ))
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: '24px',
+                color: 'rgba(245, 230, 200, 0.3)',
+                fontSize: 12,
+                fontStyle: 'italic',
+              }}>
+                No completed loops in this {closedViewMode}
+              </div>
+            )}
           </div>
         )}
 
