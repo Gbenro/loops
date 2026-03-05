@@ -17,6 +17,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
+  const [closedSortBy, setClosedSortBy] = useState('date'); // 'date' | 'phase' | 'cycle'
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -246,14 +247,23 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       (l.type === 'phase' || l.type === 'open') &&
       (l.status === 'closed' || l.status === 'released')
     )
-    // Sort by closedAt date (most recent first), then by phase
     .sort((a, b) => {
-      // Sort by date first (most recent at top)
-      const dateA = new Date(a.closedAt || a.updatedAt || 0).getTime();
-      const dateB = new Date(b.closedAt || b.updatedAt || 0).getTime();
-      if (dateB !== dateA) return dateB - dateA;
-      // Then by phase name
-      return (a.phaseClosed || '').localeCompare(b.phaseClosed || '');
+      if (closedSortBy === 'phase') {
+        // Sort by phase name, then by date
+        const phaseCompare = (a.phaseClosed || '').localeCompare(b.phaseClosed || '');
+        if (phaseCompare !== 0) return phaseCompare;
+        return new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime();
+      } else if (closedSortBy === 'cycle') {
+        // Sort by lunar month (cycle), then by date
+        const cycleA = a.lunarMonthClosed || a.lunarMonth || '';
+        const cycleB = b.lunarMonthClosed || b.lunarMonth || '';
+        const cycleCompare = cycleB.localeCompare(cycleA); // Most recent cycle first
+        if (cycleCompare !== 0) return cycleCompare;
+        return new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime();
+      } else {
+        // Default: sort by date (most recent first)
+        return new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime();
+      }
     });
 
   // Use generated prompt or fallback
@@ -521,13 +531,47 @@ export function Loops({ userId, phrases, phrasesLoading }) {
         {closedLoops.length > 0 && (
           <div>
             <div style={{
-              fontSize: 10,
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              color: 'rgba(245, 230, 200, 0.25)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
               marginBottom: 12,
             }}>
-              COMPLETED
+              <div style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'rgba(245, 230, 200, 0.25)',
+              }}>
+                COMPLETED
+              </div>
+              <div style={{
+                display: 'flex',
+                gap: 4,
+              }}>
+                {['date', 'phase', 'cycle'].map(sortOption => (
+                  <button
+                    key={sortOption}
+                    onClick={() => setClosedSortBy(sortOption)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      border: 'none',
+                      background: closedSortBy === sortOption
+                        ? 'rgba(245, 230, 200, 0.1)'
+                        : 'transparent',
+                      color: closedSortBy === sortOption
+                        ? 'rgba(245, 230, 200, 0.6)'
+                        : 'rgba(245, 230, 200, 0.25)',
+                      fontSize: 9,
+                      fontFamily: 'monospace',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {sortOption}
+                  </button>
+                ))}
+              </div>
             </div>
             {closedLoops.map(loop => (
               <LoopCard
