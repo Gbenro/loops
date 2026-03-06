@@ -217,8 +217,17 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   // Fetch echoes on mount
   useEffect(() => {
     setLoading(true);
-    getEchoes(userId).then(data => {
-      setEchoes(data);
+    getEchoes(userId).then(async data => {
+      // Verify audio existence from IndexedDB (source of truth) since hasAudio
+      // flag may not survive server round-trips
+      const updated = await Promise.all(data.map(async echo => {
+        if (echo.source === 'voice') {
+          const audioExists = await hasAudio(echo.id);
+          return { ...echo, hasAudio: audioExists };
+        }
+        return echo;
+      }));
+      setEchoes(updated);
       setLoading(false);
     });
   }, [userId]);

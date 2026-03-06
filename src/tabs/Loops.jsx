@@ -17,7 +17,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
-  const [closedViewMode, setClosedViewMode] = useState('phase'); // 'phase' | 'cycle'
+  const [closedViewMode, setClosedViewMode] = useState('cycle'); // 'all' | 'phase' | 'cycle'
   const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current, 1 = previous, etc.
 
   const lunarData = useMemo(() => getLunarData(), []);
@@ -310,7 +310,10 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
   // Filter closed loops based on view mode and navigation
   const closedLoops = useMemo(() => {
-    if (closedViewMode === 'phase') {
+    if (closedViewMode === 'all') {
+      // All mode: show all closed loops sorted by date
+      return allClosedWithCycles;
+    } else if (closedViewMode === 'phase') {
       // Phase mode: show phase/open loops for selected phase
       const targetPhase = uniquePhases[closedNavIndex];
       if (!targetPhase) return [];
@@ -329,14 +332,16 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
 
   // Navigation helpers
-  const canNavPrev = closedViewMode === 'phase'
-    ? closedNavIndex < uniquePhases.length - 1
-    : closedNavIndex < uniqueCycles.length - 1;
-  const canNavNext = closedNavIndex > 0;
+  const canNavPrev = closedViewMode === 'all' ? false
+    : closedViewMode === 'phase'
+      ? closedNavIndex < uniquePhases.length - 1
+      : closedNavIndex < uniqueCycles.length - 1;
+  const canNavNext = closedViewMode === 'all' ? false : closedNavIndex > 0;
 
-  const currentNavLabel = closedViewMode === 'phase'
-    ? uniquePhases[closedNavIndex]?.name || ''
-    : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
+  const currentNavLabel = closedViewMode === 'all' ? 'All Time'
+    : closedViewMode === 'phase'
+      ? uniquePhases[closedNavIndex]?.name || ''
+      : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
 
   const isCurrentNav = closedViewMode === 'phase'
     ? uniquePhases[closedNavIndex]?.isCurrent
