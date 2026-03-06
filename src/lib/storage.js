@@ -64,6 +64,9 @@ export async function getLoops(userId) {
       openedAt: row.opened_at,
       closedAt: row.closed_at,
       releasedAt: row.released_at,
+      phaseClosed: row.phase_closed || null,
+      phaseNameClosed: row.phase_name_closed || null,
+      lunarMonthClosed: row.lunar_month_closed || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -120,6 +123,9 @@ export async function saveLoop(loop, userId) {
         opened_at: loop.openedAt,
         closed_at: loop.closedAt,
         released_at: loop.releasedAt,
+        phase_closed: loop.phaseClosed || null,
+        phase_name_closed: loop.phaseNameClosed || null,
+        lunar_month_closed: loop.lunarMonthClosed || null,
         updated_at: new Date().toISOString(),
       })
       .select();

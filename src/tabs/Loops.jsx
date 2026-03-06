@@ -76,6 +76,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
         closedAt: new Date().toISOString(),
         phaseClosed: currentPhase,
         phaseNameClosed: lunarData.phase.name,
+        lunarMonthClosed: lunarData.lunarMonth,
         autoClosedReason: 'phase_ended',
       };
       setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
@@ -146,6 +147,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       closedAt: new Date().toISOString(),
       phaseClosed: lunarData.phase.key,
       phaseNameClosed: lunarData.phase.name,
+      lunarMonthClosed: lunarData.lunarMonth,
     };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) setSelected(updated);
@@ -179,6 +181,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       releasedAt: new Date().toISOString(),
       phaseClosed: lunarData.phase.key,
       phaseNameClosed: lunarData.phase.name,
+      lunarMonthClosed: lunarData.lunarMonth,
     };
     setLoops(prev => prev.map(l => l.id === id ? updated : l));
     if (selected?.id === id) setSelected(updated);
@@ -274,14 +277,14 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     phases.push({ key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
     seen.add(lunarData.phase.key);
 
-    // Add previous phases from closed loops
+    // Add previous phases from closed loops (by the phase they were closed in)
     for (const loop of allClosedLoops) {
-      const phaseKey = loop.phaseClosed || loop.phase;
+      const phaseKey = loop.phaseClosed;
       if (phaseKey && !seen.has(phaseKey)) {
         seen.add(phaseKey);
         phases.push({
           key: phaseKey,
-          name: loop.phaseNameClosed || loop.phaseName || phaseKey,
+          name: loop.phaseNameClosed || phaseKey,
           isCurrent: false
         });
       }
@@ -297,9 +300,9 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     cycles.push({ name: lunarData.lunarMonth, isCurrent: true });
     seen.add(lunarData.lunarMonth);
 
-    // Add previous cycles from all closed loops (including cycle intentions)
+    // Add previous cycles from all closed loops (by the cycle they were closed in)
     for (const loop of allClosedWithCycles) {
-      const cycleName = loop.lunarMonthClosed || loop.lunarMonthOpened || loop.lunarMonth;
+      const cycleName = loop.lunarMonthClosed || loop.lunarMonthOpened;
       if (cycleName && !seen.has(cycleName)) {
         seen.add(cycleName);
         cycles.push({ name: cycleName, isCurrent: false });
@@ -314,18 +317,16 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       // All mode: show all closed loops sorted by date
       return allClosedWithCycles;
     } else if (closedViewMode === 'phase') {
-      // Phase mode: show phase/open loops for selected phase
+      // Phase mode: show loops closed in the selected phase
       const targetPhase = uniquePhases[closedNavIndex];
       if (!targetPhase) return [];
-      return allClosedLoops.filter(l =>
-        (l.phaseClosed || l.phase) === targetPhase.key
-      );
+      return allClosedLoops.filter(l => l.phaseClosed === targetPhase.key);
     } else {
-      // Cycle mode: show ALL loops (including cycle intention) for selected lunar month
+      // Cycle mode: show ALL loops (including cycle intention) closed in selected lunar month
       const targetCycle = uniqueCycles[closedNavIndex];
       if (!targetCycle) return [];
       return allClosedWithCycles.filter(l => {
-        const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened || l.lunarMonth;
+        const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
         return loopCycle === targetCycle.name;
       });
     }
