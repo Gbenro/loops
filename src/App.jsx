@@ -108,8 +108,13 @@ function isInStandaloneMode() {
     window.navigator.standalone === true;
 }
 
+function isMobile() {
+  return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+}
+
 function InstallBanner({ onDismiss, deferredPrompt }) {
   const ios = isIOS();
+  const mobile = isMobile();
 
   const handleInstall = async () => {
     if (deferredPrompt) {
@@ -119,9 +124,21 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
     onDismiss();
   };
 
+  const title = ios ? 'Add to Home Screen' : mobile ? 'Add to your home screen' : 'Install as an app';
+  const body = ios
+    ? 'Tap the share icon in Safari, then "Add to Home Screen" for the full experience.'
+    : mobile
+    ? 'Install Lunar Loops for quick access and a distraction-free experience.'
+    : 'Install Lunar Loops to your desktop for instant, distraction-free access.';
+
   return (
     <div style={{
-      position: 'fixed', bottom: 80, left: 16, right: 16,
+      position: 'fixed',
+      bottom: 80,
+      // Stay within the app's 520px container
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: 'min(calc(100% - 32px), 488px)',
       background: '#0e1420',
       border: '1px solid rgba(167, 139, 250, 0.25)',
       borderRadius: 16, padding: '16px 18px',
@@ -136,15 +153,13 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 16, color: '#f5e6c8', marginBottom: 4,
           }}>
-            Add to your home screen
+            {title}
           </div>
           <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', lineHeight: 1.5, marginBottom: 12 }}>
-            {ios
-              ? "Tap the share button below, then \"Add to Home Screen\" for the best experience."
-              : "Install Lunar Loops for quick access and a full-screen experience."}
+            {body}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {!ios && (
+            {!ios && deferredPrompt && (
               <button
                 onClick={handleInstall}
                 style={{
