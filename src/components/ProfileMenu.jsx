@@ -761,11 +761,21 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                   <button
                     onClick={async () => {
                       if (!notifPrefs.enabled) {
+                        if (!('Notification' in window)) {
+                          alert('Notifications are not supported on this browser.');
+                          return;
+                        }
+                        if (Notification.permission === 'denied') {
+                          alert('Notifications are blocked. Please enable them in your browser or device settings, then try again.');
+                          return;
+                        }
                         const granted = await requestPermission();
                         if (granted) {
                           const newPrefs = { ...notifPrefs, enabled: true };
                           setNotifPrefs(newPrefs);
                           saveNotificationPrefs(newPrefs);
+                        } else {
+                          alert('Notification permission was not granted. Please check your browser settings.');
                         }
                       } else {
                         const newPrefs = { ...notifPrefs, enabled: false };
