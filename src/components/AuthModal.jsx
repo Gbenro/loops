@@ -13,7 +13,7 @@ const PRIVACY_POINTS = [
   {
     icon: '◎',
     title: 'Voice recordings stay on your device',
-    body: 'Audio recordings are stored locally on this device only and are never uploaded.',
+    body: 'Audio recordings are stored on this device only and are never uploaded. If you clear your browser data or switch devices, recordings cannot be recovered.',
   },
   {
     icon: '◈',

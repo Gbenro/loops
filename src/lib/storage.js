@@ -40,6 +40,7 @@ export async function getLoops(userId) {
       .from('loops')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -151,9 +152,12 @@ export async function deleteLoop(loopId, userId) {
   if (!userId) return;
 
   try {
-    await supabase.from('loops').delete().eq('id', loopId);
+    await supabase
+      .from('loops')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', loopId);
   } catch (e) {
-    console.warn('Failed to delete loop from server:', e);
+    console.warn('Failed to soft-delete loop from server:', e);
   }
 }
 
@@ -167,6 +171,7 @@ export async function getEchoes(userId) {
       .from('echoes')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -235,9 +240,12 @@ export async function deleteEcho(echoId, userId) {
   if (!userId) return;
 
   try {
-    await supabase.from('echoes').delete().eq('id', echoId);
+    await supabase
+      .from('echoes')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', echoId);
   } catch (e) {
-    console.warn('Failed to delete echo from server:', e);
+    console.warn('Failed to soft-delete echo from server:', e);
   }
 }
 
