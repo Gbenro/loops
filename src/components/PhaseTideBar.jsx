@@ -41,7 +41,7 @@ export function PhaseTideBar({ lunarData }) {
   }, [clampedProgress]);
 
   // Phase type label
-  const phaseTypeLabel = isThreshold ? 'Threshold' : 'Flowing';
+  const phaseTypeLabel = isThreshold ? 'Threshold' : 'In Flow';
 
   // Remaining time formatted
   const remainingText = useMemo(() => {
