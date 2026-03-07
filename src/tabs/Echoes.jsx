@@ -221,11 +221,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       // Verify audio existence from IndexedDB (source of truth) since hasAudio
       // flag may not survive server round-trips
       const updated = await Promise.all(data.map(async echo => {
-        if (echo.source === 'voice') {
-          const audioExists = await hasAudio(echo.id);
-          return { ...echo, hasAudio: audioExists };
-        }
-        return echo;
+        const audioExists = await hasAudio(echo.id);
+        return { ...echo, hasAudio: audioExists };
       }));
       setEchoes(updated);
       setLoading(false);
@@ -744,7 +741,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
   // Derive phase type from stored value or phase key
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
   const isThreshold = phaseType === 'threshold';
-  const canPlay = echo.hasAudio && echo.source === 'voice';
+  const canPlay = echo.hasAudio;
 
   return (
     <div style={{
