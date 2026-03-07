@@ -1,8 +1,7 @@
 // Cosmic Loops - Audio Transcription via Groq Whisper
 // Fast, accurate speech-to-text via Supabase Edge Function
 
-const TRANSCRIBE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
-const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+import { supabase } from './supabase.js';
 
 // Transcribe audio blob via Groq Whisper API
 export async function transcribeAudio(audioBlob, onProgress) {
@@ -16,33 +15,25 @@ export async function transcribeAudio(audioBlob, onProgress) {
   if (onProgress) onProgress(50); // Show some progress
 
   try {
-    // Create form data with audio file
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
-    console.log('[Whisper] Sending to Groq API...');
+    console.log('[Whisper] Sending to edge function...');
 
-    const response = await fetch(TRANSCRIBE_URL, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
+    const { data, error } = await supabase.functions.invoke('transcribe-audio', {
       body: formData,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('[Whisper] API error:', response.status, errorData);
-      throw new Error(errorData.error || `Transcription failed: ${response.status}`);
+    if (error) {
+      console.error('[Whisper] Edge function error:', error);
+      throw new Error(error.message || 'Transcription failed');
     }
 
-    const result = await response.json();
-    console.log('[Whisper] Transcription complete:', result.text);
+    console.log('[Whisper] Transcription complete:', data?.text);
 
     if (onProgress) onProgress(100);
 
-    return result.text?.trim() || '';
+    return data?.text?.trim() || '';
   } catch (error) {
     console.error('[Whisper] Transcription error:', error);
     throw error;
