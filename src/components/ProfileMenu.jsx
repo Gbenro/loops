@@ -97,7 +97,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
       alert('Zodiac signs saved!');
     } catch (e) {
       console.error('Save error:', e);
-      alert('Could not save: ' + (e?.message || e?.details || JSON.stringify(e)));
+      alert('Could not save. Please try again.');
     }
     setSaving(false);
   };
