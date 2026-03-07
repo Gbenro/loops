@@ -1,4 +1,4 @@
-// Cosmic Loops - Moon Phase Content
+// Luna Loops - Moon Phase Content
 // Deep wisdom, guidance, and keywords for each of the 8 lunar phases
 
 const THRESHOLD_OPENING = 'This is a threshold moment — brief, clear, potent.';

@@ -1,4 +1,4 @@
-// Cosmic Loops - Loops Tab
+// Luna Loops - Loops Tab
 // Cycle loops (29.5 day intentions) and Phase loops (3.5 day actions)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';

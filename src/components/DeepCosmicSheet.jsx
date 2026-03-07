@@ -1,4 +1,4 @@
-// Cosmic Loops - Deep Cosmic Sheet
+// Luna Loops - Deep Cosmic Sheet
 // Bottom modal with 6 sections of cosmic wisdom
 
 import { useState } from 'react';

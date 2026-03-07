@@ -1,4 +1,4 @@
-// Cosmic Loops - Solar/Season Calculations
+// Luna Loops - Solar/Season Calculations
 // Equinox, solstice, and season tracking
 
 // The 8 solar thresholds - days relative to Winter Solstice (Day 1)

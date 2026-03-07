@@ -1,4 +1,4 @@
-// Cosmic Loops - Phase Transition Card
+// Luna Loops - Phase Transition Card
 // Appears when next phase is within 24 hours
 // Two parts: Phase Summary (closing) + Transition Preview (opening)
 

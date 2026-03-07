@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
-        name: 'Cosmic Loops',
+        name: 'Luna Loops',
         short_name: 'Cosmic',
         description: 'Track your growth with lunar wisdom',
         theme_color: '#040810',

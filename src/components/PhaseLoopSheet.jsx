@@ -1,4 +1,4 @@
-// Cosmic Loops - Phase Loop Creation Sheet
+// Luna Loops - Phase Loop Creation Sheet
 // Phase-specific prompts for creating phase loops
 
 import { useState } from 'react';

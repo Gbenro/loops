@@ -1,4 +1,4 @@
-// Cosmic Loops - New Moon Ritual
+// Luna Loops - New Moon Ritual
 // Ceremonial screen for setting cycle intention at New Moon
 
 import { useState } from 'react';

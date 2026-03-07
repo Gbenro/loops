@@ -1,4 +1,4 @@
-// Cosmic Loops - Zodiac Sign Meanings
+// Luna Loops - Zodiac Sign Meanings
 
 export const zodiacMeanings = {
   'Aries': {

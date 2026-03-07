@@ -1,4 +1,4 @@
--- Cosmic Loops - Ensure all profile columns exist
+-- Luna Loops - Ensure all profile columns exist
 -- Run this in the Supabase SQL editor if profile saves are failing
 
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sun_sign text;

@@ -1,4 +1,4 @@
-// Cosmic Loops - Phase Tide Bar
+// Luna Loops - Phase Tide Bar
 // Shows position within current phase as a tide gauge
 // Distinguishes between Threshold (pivotal) and Flow (sustained) phases
 

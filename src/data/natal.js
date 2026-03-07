@@ -1,4 +1,4 @@
-// Cosmic Loops - Natal Chart Data
+// Luna Loops - Natal Chart Data
 // Hardcoded for this user (Sep 23 1990, Lagos Nigeria, 20:00)
 
 export const NATAL = {

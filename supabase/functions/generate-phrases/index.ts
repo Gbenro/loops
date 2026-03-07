@@ -1,4 +1,4 @@
-// Cosmic Loops - Generate Phrases Edge Function
+// Luna Loops - Generate Phrases Edge Function
 // Securely proxies Anthropic API calls for generative language
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -27,7 +27,7 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-const VOICE_SYSTEM_PROMPT = `You are the voice of Cosmic Loops. You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never twee, never grandiose. Think Mary Oliver meets NASA mission control.
+const VOICE_SYSTEM_PROMPT = `You are the voice of Luna Loops. You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never twee, never grandiose. Think Mary Oliver meets NASA mission control.
 
 Your role: Generate 10 short phrases that will appear throughout the app. Each phrase should feel fresh yet timeless, specific to the current cosmic moment yet universally resonant.
 

@@ -1,4 +1,4 @@
-// Cosmic Loops - Audio Transcription via Groq Whisper
+// Luna Loops - Audio Transcription via Groq Whisper
 // Fast, accurate speech-to-text via Supabase Edge Function
 
 const TRANSCRIBE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';

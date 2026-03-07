@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Cosmic Loops</string>
-    <string name="title_activity_main">Cosmic Loops</string>
+    <string name="app_name">Luna Loops</string>
+    <string name="title_activity_main">Luna Loops</string>
     <string name="package_name">com.cosmicloops.app</string>
     <string name="custom_url_scheme">com.cosmicloops.app</string>
 </resources>

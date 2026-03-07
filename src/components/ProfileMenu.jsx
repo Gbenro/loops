@@ -1,4 +1,4 @@
-// Cosmic Loops - Profile Menu
+// Luna Loops - Profile Menu
 // Account settings and birth data input
 
 import { useState, useEffect } from 'react';
@@ -103,7 +103,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
   };
 
   const handleSignOut = async () => {
-    if (confirm('Sign out of Cosmic Loops?')) {
+    if (confirm('Sign out of Luna Loops?')) {
       onSignOut();
       onClose();
     }
@@ -881,7 +881,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                   color: '#f5e6c8',
                   marginBottom: 4,
                 }}>
-                  Cosmic Loops
+                  Luna Loops
                 </div>
                 <div style={{
                   fontSize: 11,

@@ -1,4 +1,4 @@
--- Cosmic Loops - Encryption support
+-- Luna Loops - Encryption support
 -- Run this in the Supabase SQL editor
 
 ALTER TABLE echoes ADD COLUMN IF NOT EXISTS is_encrypted boolean DEFAULT false;

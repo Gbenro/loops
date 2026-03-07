@@ -1,4 +1,4 @@
-// Cosmic Loops - Star Field Background
+// Luna Loops - Star Field Background
 // Animated twinkling stars
 
 import { useMemo } from 'react';

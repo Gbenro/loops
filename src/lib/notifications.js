@@ -1,4 +1,4 @@
-// Cosmic Loops - Notifications
+// Luna Loops - Notifications
 // Web Push Notifications for phase transitions
 
 const NOTIFICATION_KEY = 'cosmic_notifications_v1';

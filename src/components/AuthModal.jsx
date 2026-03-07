@@ -1,4 +1,4 @@
-// Cosmic Loops - Auth Modal
+// Luna Loops - Auth Modal
 import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 

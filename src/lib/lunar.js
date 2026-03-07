@@ -1,4 +1,4 @@
-// Cosmic Loops - Lunar Calculations
+// Luna Loops - Lunar Calculations
 // Pure JS Julian Date mathematics (no external library)
 
 const SYNODIC = 29.53058867; // Average synodic month in days

@@ -1,4 +1,4 @@
-// Cosmic Loops - Main App Shell
+// Luna Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
 import { useState, useEffect, useMemo, useCallback } from 'react';

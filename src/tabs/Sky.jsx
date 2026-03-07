@@ -1,4 +1,4 @@
-// Cosmic Loops - Sky Tab
+// Luna Loops - Sky Tab
 // Main cosmic view with moon, phase info, and deep sheet
 
 import { useState, useMemo } from 'react';

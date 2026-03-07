@@ -1,4 +1,4 @@
-// Cosmic Loops - Ring Component
+// Luna Loops - Ring Component
 // Circular progress indicator with optional pulse animation
 
 export function Ring({

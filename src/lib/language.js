@@ -1,4 +1,4 @@
-// Cosmic Loops - Generative Language Layer
+// Luna Loops - Generative Language Layer
 // Fresh phrases each session via Anthropic API
 
 const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 hours in ms

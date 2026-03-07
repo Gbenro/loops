@@ -1,4 +1,4 @@
-// Cosmic Loops - Natal Resonance Calculations
+// Luna Loops - Natal Resonance Calculations
 // Detect active transits between current sky and natal chart
 
 import { NATAL } from '../data/natal.js';

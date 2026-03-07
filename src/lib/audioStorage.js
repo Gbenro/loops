@@ -1,4 +1,4 @@
-// Cosmic Loops - Audio Storage
+// Luna Loops - Audio Storage
 // IndexedDB storage for voice recordings
 
 const DB_NAME = 'cosmic_audio_db';

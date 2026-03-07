@@ -1,6 +1,6 @@
 {
   "appId": "com.cosmicloops.app",
-  "appName": "Cosmic Loops",
+  "appName": "Luna Loops",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

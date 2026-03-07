@@ -1,4 +1,4 @@
-// Cosmic Loops - Storage with Supabase sync
+// Luna Loops - Storage with Supabase sync
 import { supabase } from './supabase.js';
 
 const LOOPS_KEY = 'cosmic_loops_v1';

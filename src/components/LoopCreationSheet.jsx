@@ -1,4 +1,4 @@
-// Cosmic Loops - Loop Creation Sheet
+// Luna Loops - Loop Creation Sheet
 // Unified sheet for creating Open or Windowed (Phase) loops
 
 import { useState } from 'react';

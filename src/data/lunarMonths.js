@@ -1,4 +1,4 @@
-// Cosmic Loops - Lunar Month Names and Meanings
+// Luna Loops - Lunar Month Names and Meanings
 
 export const lunarMonths = {
   'Wolf': {

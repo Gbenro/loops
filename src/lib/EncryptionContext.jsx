@@ -1,4 +1,4 @@
-// Cosmic Loops - Encryption Context
+// Luna Loops - Encryption Context
 // Holds session key in memory only — never persisted
 
 import { createContext, useContext, useState, useCallback } from 'react';

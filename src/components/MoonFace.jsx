@@ -1,4 +1,4 @@
-// Cosmic Loops - Moon Face SVG
+// Luna Loops - Moon Face SVG
 // Renders actual illuminated portion with realistic 3D surface texture
 
 export function MoonFace({ size = 180, phase = 0, illumination = 50 }) {

@@ -1,4 +1,4 @@
-// Cosmic Loops - Client-side AES-256-GCM encryption
+// Luna Loops - Client-side AES-256-GCM encryption
 // Key never stored; derived from passphrase per session via PBKDF2
 
 const VERIFY_PLAINTEXT = 'lunaloops-verify-v1';

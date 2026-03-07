@@ -1,4 +1,4 @@
-// Cosmic Loops - Echoes Tab
+// Luna Loops - Echoes Tab
 // Journal entries tied to lunar phases with voice input
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
