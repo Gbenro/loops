@@ -3,6 +3,9 @@
 
 import { supabase } from './supabase.js';
 
+const TRANSCRIBE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
+const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+
 // Transcribe audio blob via Groq Whisper API
 export async function transcribeAudio(audioBlob, onProgress) {
   console.log('[Whisper] Starting transcription, blob size:', audioBlob.size, 'type:', audioBlob.type);
@@ -12,34 +15,39 @@ export async function transcribeAudio(audioBlob, onProgress) {
     throw new Error('No audio recorded');
   }
 
-  if (onProgress) onProgress(50); // Show some progress
+  if (onProgress) onProgress(50);
 
   try {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
+    // Use the active session token if available, fall back to anon key
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || SUPABASE_ANON_KEY;
+
     console.log('[Whisper] Sending to edge function...');
 
-    const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+    const response = await fetch(TRANSCRIBE_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
       body: formData,
     });
 
-    if (error) {
-      // Try to extract the actual error message from the function response
-      let message = error.message || 'Transcription failed';
-      try {
-        const ctx = await error.context?.json();
-        if (ctx?.error) message = ctx.error;
-      } catch {}
-      console.error('[Whisper] Edge function error:', message, error);
-      throw new Error(message);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[Whisper] API error:', response.status, errorData);
+      throw new Error(errorData.error || `Transcription failed: ${response.status}`);
     }
 
-    console.log('[Whisper] Transcription complete:', data?.text);
+    const result = await response.json();
+    console.log('[Whisper] Transcription complete:', result.text);
 
     if (onProgress) onProgress(100);
 
-    return data?.text?.trim() || '';
+    return result.text?.trim() || '';
   } catch (error) {
     console.error('[Whisper] Transcription error:', error);
     throw error;
