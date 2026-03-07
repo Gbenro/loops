@@ -665,7 +665,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                   <button
                     disabled={encLoading}
                     onClick={async () => {
-                      if (encPassphrase.length < 8) { setEncError('Passphrase must be at least 8 characters'); return; }
+                      if (encPassphrase.length < 4) { setEncError('Passphrase must be at least 4 characters'); return; }
                       if (encPassphrase !== encConfirm) { setEncError('Passphrases do not match'); return; }
                       setEncLoading(true);
                       try {
