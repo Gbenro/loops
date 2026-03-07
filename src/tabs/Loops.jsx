@@ -210,6 +210,16 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     await deleteLoopFromDb(id, userId);
   };
 
+  // Delete subtask
+  const deleteSubtask = async (loopId, subtaskId) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop) return;
+    const updated = { ...loop, subtasks: loop.subtasks.filter(s => s.id !== subtaskId) };
+    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    if (selected?.id === loopId) setSelected(updated);
+    await saveLoop(updated, userId);
+  };
+
   // Toggle subtask
   const toggleSubtask = async (loopId, subtaskId) => {
     const loop = loops.find(l => l.id === loopId);
@@ -902,6 +912,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
           onReleaseLoop={() => releaseLoop(selected.id)}
           onDelete={() => deleteLoop(selected.id)}
           onToggleSubtask={(subtaskId) => toggleSubtask(selected.id, subtaskId)}
+          onDeleteSubtask={(subtaskId) => deleteSubtask(selected.id, subtaskId)}
           onAddSubtask={(text) => addSubtask(selected.id, text)}
           onReorderSubtask={(subtaskId, direction) => reorderSubtask(selected.id, subtaskId, direction)}
         />
@@ -1137,6 +1148,7 @@ function DetailPanel({
   onReleaseLoop,
   onDelete,
   onToggleSubtask,
+  onDeleteSubtask,
   onAddSubtask,
   onReorderSubtask
 }) {
@@ -1361,6 +1373,21 @@ function DetailPanel({
               >
                 {subtask.text}
               </span>
+              <button
+                onClick={() => onDeleteSubtask(subtask.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(252, 129, 129, 0.4)',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  padding: '4px 6px',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
             </div>
           ))}
 
