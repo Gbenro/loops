@@ -703,6 +703,17 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               onDelete={() => deleteEcho(echo.id)}
               onPlayAudio={playAudio}
               isPlaying={playingId === echo.id}
+              onDownloadAudio={async (echoId) => {
+                const blob = await getAudio(echoId);
+                if (!blob) return;
+                const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `echo-${echoId}.${ext}`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
             />
           ))
         )}
@@ -731,7 +742,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   );
 }
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, onDownloadAudio }) {
   const phaseNum = (echo.phase || 'new').includes('waxing')
     ? echo.illumination / 100 * 0.5
     : echo.phase === 'full'
@@ -836,20 +847,36 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {canPlay && (
-                <button
-                  onClick={() => onPlayAudio(echo.id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                  }}
-                >
-                  {isPlaying ? '■ STOP' : '▶ PLAY'}
-                </button>
+                <>
+                  <button
+                    onClick={() => onPlayAudio(echo.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                    }}
+                  >
+                    {isPlaying ? '■ STOP' : '▶ PLAY'}
+                  </button>
+                  <button
+                    onClick={() => onDownloadAudio(echo.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(167, 139, 250, 0.6)',
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ↓
+                  </button>
+                </>
               )}
               <button
                 onClick={onDelete}
