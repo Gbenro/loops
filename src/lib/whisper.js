@@ -1,8 +1,6 @@
 // Cosmic Loops - Audio Transcription via Groq Whisper
 // Fast, accurate speech-to-text via Supabase Edge Function
 
-import { supabase } from './supabase.js';
-
 const TRANSCRIBE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 
@@ -21,16 +19,13 @@ export async function transcribeAudio(audioBlob, onProgress) {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
-    // Use the active session token if available, fall back to anon key
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || SUPABASE_ANON_KEY;
-
     console.log('[Whisper] Sending to edge function...');
 
+    // JWT verification must be disabled on this function in Supabase dashboard.
+    // apikey header is sufficient for gateway access + our own rate limiting handles abuse.
     const response = await fetch(TRANSCRIBE_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'apikey': SUPABASE_ANON_KEY,
       },
       body: formData,
