@@ -97,12 +97,92 @@ function UnlockModal({ verifyToken, userId }) {
   );
 }
 
+// Detect iOS (no beforeinstallprompt support)
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+}
+
+// Check if already running as installed PWA
+function isInStandaloneMode() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+}
+
+function InstallBanner({ onDismiss, deferredPrompt }) {
+  const ios = isIOS();
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+    }
+    onDismiss();
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 80, left: 16, right: 16,
+      background: '#0e1420',
+      border: '1px solid rgba(167, 139, 250, 0.25)',
+      borderRadius: 16, padding: '16px 18px',
+      zIndex: 500,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      animation: 'fadeIn 0.3s ease-out',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ fontSize: 28, lineHeight: 1 }}>☽</div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 16, color: '#f5e6c8', marginBottom: 4,
+          }}>
+            Add to your home screen
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', lineHeight: 1.5, marginBottom: 12 }}>
+            {ios
+              ? "Tap the share button below, then \"Add to Home Screen\" for the best experience."
+              : "Install Lunar Loops for quick access and a full-screen experience."}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!ios && (
+              <button
+                onClick={handleInstall}
+                style={{
+                  padding: '8px 16px', borderRadius: 8,
+                  background: 'rgba(167, 139, 250, 0.2)',
+                  border: '1px solid rgba(167, 139, 250, 0.35)',
+                  color: '#c4b5fd', fontSize: 12, cursor: 'pointer',
+                }}
+              >
+                Install
+              </button>
+            )}
+            <button
+              onClick={onDismiss}
+              style={{
+                padding: '8px 16px', borderRadius: 8,
+                background: 'transparent',
+                border: '1px solid rgba(245, 230, 200, 0.1)',
+                color: 'rgba(245, 230, 200, 0.4)', fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('sky');
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
@@ -195,6 +275,16 @@ export default function App() {
     });
   }, [lunarData, solarData]);
 
+  // Capture install prompt event before it fires automatically
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
   // Start notification scheduler
   useEffect(() => {
     // Check notifications on load
@@ -219,6 +309,16 @@ export default function App() {
   const handlePrivacyAck = () => {
     if (user) localStorage.setItem(`privacy_ack_${user.id}`, '1');
     setShowPrivacyNotice(false);
+    // Show install prompt after privacy notice if not already installed/dismissed
+    if (!isInStandaloneMode() && !localStorage.getItem('install_dismissed')) {
+      // Small delay so it doesn't overlap with the notice dismissal
+      setTimeout(() => setShowInstallBanner(true), 600);
+    }
+  };
+
+  const handleInstallDismiss = () => {
+    localStorage.setItem('install_dismissed', '1');
+    setShowInstallBanner(false);
   };
 
   const handleSignOut = async () => {
@@ -375,6 +475,14 @@ export default function App() {
       {/* Encryption unlock — shown when user has encryption set up but session key missing */}
       {encryptionStatus === 'locked' && userProfile?.encryption_verify_token && (
         <UnlockModal verifyToken={userProfile.encryption_verify_token} userId={user?.id} />
+      )}
+
+      {/* PWA install banner */}
+      {showInstallBanner && (
+        <InstallBanner
+          onDismiss={handleInstallDismiss}
+          deferredPrompt={deferredInstallPrompt}
+        />
       )}
 
       {/* Tab Content */}
