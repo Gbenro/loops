@@ -11,7 +11,7 @@ import { startNotificationScheduler, checkPhaseNotifications } from './lib/notif
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
-import { AuthModal } from './components/AuthModal.jsx';
+import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -24,6 +24,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
   const [loading, setLoading] = useState(true);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
@@ -79,8 +80,15 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
+      // Show privacy notice for new OAuth sign-ups (Google etc.)
+      if (event === 'SIGNED_IN' && session?.user) {
+        const key = `privacy_ack_${session.user.id}`;
+        if (!localStorage.getItem(key)) {
+          setShowPrivacyNotice(true);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -111,8 +119,18 @@ export default function App() {
   const handleAuthSuccess = async (newUser) => {
     setUser(newUser);
     setShowAuth(false);
+    // Show privacy notice for new email sign-ups
+    const key = `privacy_ack_${newUser.id}`;
+    if (!localStorage.getItem(key)) {
+      setShowPrivacyNotice(true);
+    }
     // Migrate any local data to server
     await migrateLocalToServer(newUser.id);
+  };
+
+  const handlePrivacyAck = () => {
+    if (user) localStorage.setItem(`privacy_ack_${user.id}`, '1');
+    setShowPrivacyNotice(false);
   };
 
   const handleSignOut = async () => {
@@ -259,6 +277,11 @@ export default function App() {
           onClose={() => setShowAuth(false)}
           onSuccess={handleAuthSuccess}
         />
+      )}
+
+      {/* Privacy Notice — shown once to new users (email or OAuth) */}
+      {showPrivacyNotice && (
+        <PrivacyNotice onAck={handlePrivacyAck} />
       )}
 
       {/* Tab Content */}

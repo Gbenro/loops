@@ -11,11 +11,6 @@ const PRIVACY_POINTS = [
     body: 'Echoes and loops are stored privately. Only you can see them — each account is fully isolated.',
   },
   {
-    icon: '〜',
-    title: 'AI reflections are optional',
-    body: 'When you request a reflection, your echoes are sent to an AI to generate it. This only happens when you ask.',
-  },
-  {
     icon: '☽',
     title: 'No tracking, no ads',
     body: 'No analytics, no advertising identifiers, no location data. Nothing is sold or shared.',
@@ -27,6 +22,101 @@ const PRIVACY_POINTS = [
   },
 ];
 
+export function PrivacyNotice({ onAck }) {
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(4, 8, 16, 0.97)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: 20,
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: 340,
+        background: '#0a0f18',
+        border: '1px solid rgba(245, 230, 200, 0.1)',
+        borderRadius: 16,
+        padding: 28,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>☽</div>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 22,
+            color: '#f5e6c8',
+            marginBottom: 6,
+          }}>
+            Before you begin
+          </div>
+          <div style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            color: 'rgba(245, 230, 200, 0.35)',
+            letterSpacing: '0.08em',
+          }}>
+            HOW YOUR DATA IS HANDLED
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
+          {PRIVACY_POINTS.map(point => (
+            <div key={point.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <div style={{
+                fontSize: 16,
+                color: 'rgba(245, 230, 200, 0.35)',
+                marginTop: 1,
+                flexShrink: 0,
+                width: 20,
+                textAlign: 'center',
+              }}>
+                {point.icon}
+              </div>
+              <div>
+                <div style={{
+                  fontSize: 13,
+                  color: 'rgba(245, 230, 200, 0.85)',
+                  fontWeight: 500,
+                  marginBottom: 3,
+                }}>
+                  {point.title}
+                </div>
+                <div style={{
+                  fontSize: 12,
+                  color: 'rgba(245, 230, 200, 0.45)',
+                  lineHeight: 1.6,
+                }}>
+                  {point.body}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onAck}
+          style={{
+            width: '100%',
+            padding: '14px',
+            background: 'rgba(245, 230, 200, 0.08)',
+            border: '1px solid rgba(245, 230, 200, 0.2)',
+            borderRadius: 8,
+            color: '#f5e6c8',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          Understood — enter the app
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AuthModal({ onClose, onSuccess }) {
   const [mode, setMode] = useState('signin'); // signin | signup
   const [email, setEmail] = useState('');
@@ -34,7 +124,6 @@ export function AuthModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(null); // 'google'
   const [error, setError] = useState('');
-  const [pendingUser, setPendingUser] = useState(null); // show privacy notice after signup
 
   const handleOAuth = async (provider) => {
     setOauthLoading(provider);
@@ -59,7 +148,7 @@ export function AuthModal({ onClose, onSuccess }) {
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        if (data.user) setPendingUser(data.user); // show privacy notice first
+        if (data.user) onSuccess?.(data.user);
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -71,102 +160,6 @@ export function AuthModal({ onClose, onSuccess }) {
       setLoading(false);
     }
   };
-
-  // Privacy notice shown after signup
-  if (pendingUser) {
-    return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(4, 8, 16, 0.97)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: 20,
-      }}>
-        <div style={{
-          width: '100%',
-          maxWidth: 340,
-          background: '#0a0f18',
-          border: '1px solid rgba(245, 230, 200, 0.1)',
-          borderRadius: 16,
-          padding: 28,
-        }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>☽</div>
-            <div style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 22,
-              color: '#f5e6c8',
-              marginBottom: 6,
-            }}>
-              Before you begin
-            </div>
-            <div style={{
-              fontSize: 11,
-              fontFamily: 'monospace',
-              color: 'rgba(245, 230, 200, 0.35)',
-              letterSpacing: '0.08em',
-            }}>
-              HOW YOUR DATA IS HANDLED
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
-            {PRIVACY_POINTS.map(point => (
-              <div key={point.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                <div style={{
-                  fontSize: 16,
-                  color: 'rgba(245, 230, 200, 0.35)',
-                  marginTop: 1,
-                  flexShrink: 0,
-                  width: 20,
-                  textAlign: 'center',
-                }}>
-                  {point.icon}
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: 13,
-                    color: 'rgba(245, 230, 200, 0.85)',
-                    fontWeight: 500,
-                    marginBottom: 3,
-                  }}>
-                    {point.title}
-                  </div>
-                  <div style={{
-                    fontSize: 12,
-                    color: 'rgba(245, 230, 200, 0.45)',
-                    lineHeight: 1.6,
-                  }}>
-                    {point.body}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => onSuccess?.(pendingUser)}
-            style={{
-              width: '100%',
-              padding: '14px',
-              background: 'rgba(245, 230, 200, 0.08)',
-              border: '1px solid rgba(245, 230, 200, 0.2)',
-              borderRadius: 8,
-              color: '#f5e6c8',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            Understood — enter the app
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{

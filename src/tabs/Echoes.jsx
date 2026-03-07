@@ -309,6 +309,11 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 
     // Load and play the audio
     const audioBlob = await getAudio(echoId);
+    if (!audioBlob) {
+      setPlayingId('unavailable-' + echoId);
+      setTimeout(() => setPlayingId(null), 2000);
+      return;
+    }
     if (audioBlob) {
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
@@ -703,6 +708,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               onDelete={() => deleteEcho(echo.id)}
               onPlayAudio={playAudio}
               isPlaying={playingId === echo.id}
+              isUnavailable={playingId === 'unavailable-' + echo.id}
               onDownloadAudio={async (echoId) => {
                 const blob = await getAudio(echoId);
                 if (!blob) return;
@@ -742,7 +748,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   );
 }
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, onDownloadAudio }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
 
   const phaseNum = (echo.phase || 'new').includes('waxing')
@@ -754,7 +760,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
   // Derive phase type from stored value or phase key
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
   const isThreshold = phaseType === 'threshold';
-  const canPlay = echo.hasAudio;
+  const canPlay = echo.source === 'voice';
 
   const copyText = () => {
     navigator.clipboard.writeText(echo.text).then(() => {
@@ -862,14 +868,14 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
+                      color: isUnavailable ? 'rgba(252, 129, 129, 0.7)' : isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
                       fontSize: 10,
                       fontFamily: 'monospace',
                       cursor: 'pointer',
                       padding: '4px 8px',
                     }}
                   >
-                    {isPlaying ? '■ STOP' : '▶ PLAY'}
+                    {isUnavailable ? '✕ NOT FOUND' : isPlaying ? '■ STOP' : '▶ PLAY'}
                   </button>
                   <button
                     onClick={() => onDownloadAudio(echo.id)}
