@@ -283,8 +283,6 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
   ];
 
-  const PHASE_ORDER = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous', 'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'];
-
   // Get unique phases from closed loops, sorted in lunar cycle order
   const uniquePhases = useMemo(() => {
     const phaseMap = new Map();
