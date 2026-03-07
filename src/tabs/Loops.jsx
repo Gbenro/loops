@@ -283,27 +283,28 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
   ];
 
-  // Get unique phases from closed loops (in chronological order, most recent first)
-  const uniquePhases = useMemo(() => {
-    const seen = new Set();
-    const phases = [];
-    // Add current phase first
-    phases.push({ key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
-    seen.add(lunarData.phase.key);
+  const PHASE_ORDER = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous', 'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'];
 
-    // Add previous phases from closed loops (by the phase they were closed in)
+  // Get unique phases from closed loops, sorted in lunar cycle order
+  const uniquePhases = useMemo(() => {
+    const phaseMap = new Map();
+    // Current phase
+    phaseMap.set(lunarData.phase.key, { key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
+
+    // Phases from closed loops
     for (const loop of allClosedLoops) {
       const phaseKey = loop.phaseClosed;
-      if (phaseKey && !seen.has(phaseKey)) {
-        seen.add(phaseKey);
-        phases.push({
-          key: phaseKey,
-          name: loop.phaseNameClosed || phaseKey,
-          isCurrent: false
-        });
+      if (phaseKey && !phaseMap.has(phaseKey)) {
+        phaseMap.set(phaseKey, { key: phaseKey, name: loop.phaseNameClosed || phaseKey, isCurrent: false });
       }
     }
-    return phases;
+
+    // Sort by lunar cycle order
+    return Array.from(phaseMap.values()).sort((a, b) => {
+      const ai = PHASE_ORDER.indexOf(a.key);
+      const bi = PHASE_ORDER.indexOf(b.key);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
   }, [allClosedLoops, lunarData.phase.key, lunarData.phase.name]);
 
   // Get unique cycles (lunar months) from all closed loops including cycle intentions
