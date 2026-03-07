@@ -743,6 +743,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 }
 
 function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, onDownloadAudio }) {
+  const [copied, setCopied] = useState(false);
+
   const phaseNum = (echo.phase || 'new').includes('waxing')
     ? echo.illumination / 100 * 0.5
     : echo.phase === 'full'
@@ -753,6 +755,13 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
   const isThreshold = phaseType === 'threshold';
   const canPlay = echo.hasAudio;
+
+  const copyText = () => {
+    navigator.clipboard.writeText(echo.text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div style={{
@@ -878,6 +887,21 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
                   </button>
                 </>
               )}
+              <button
+                onClick={copyText}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: copied ? 'rgba(134, 239, 172, 0.8)' : 'rgba(245, 230, 200, 0.4)',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  lineHeight: 1,
+                  transition: 'color 0.2s',
+                }}
+              >
+                {copied ? '✓' : '⎘'}
+              </button>
               <button
                 onClick={onDelete}
                 style={{
