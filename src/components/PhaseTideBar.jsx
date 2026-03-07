@@ -35,13 +35,13 @@ export function PhaseTideBar({ lunarData }) {
   // Status text based on progress
   const status = useMemo(() => {
     if (clampedProgress < 0.20) return 'OPENING';
-    if (clampedProgress < 0.62) return 'IN FLOW';
+    if (clampedProgress < 0.62) return 'FLOWING';
     if (clampedProgress < 0.88) return 'COMPLETING';
     return 'CLOSING';
   }, [clampedProgress]);
 
   // Phase type label
-  const phaseTypeLabel = isThreshold ? 'Threshold' : 'In Flow';
+  const phaseTypeLabel = isThreshold ? 'Threshold' : 'Flowing';
 
   // Remaining time formatted
   const remainingText = useMemo(() => {
