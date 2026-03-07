@@ -25,8 +25,14 @@ export async function transcribeAudio(audioBlob, onProgress) {
     });
 
     if (error) {
-      console.error('[Whisper] Edge function error:', error);
-      throw new Error(error.message || 'Transcription failed');
+      // Try to extract the actual error message from the function response
+      let message = error.message || 'Transcription failed';
+      try {
+        const ctx = await error.context?.json();
+        if (ctx?.error) message = ctx.error;
+      } catch {}
+      console.error('[Whisper] Edge function error:', message, error);
+      throw new Error(message);
     }
 
     console.log('[Whisper] Transcription complete:', data?.text);
