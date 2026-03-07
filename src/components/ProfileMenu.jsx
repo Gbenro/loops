@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
+import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate }) {
   const [activeSection, setActiveSection] = useState('account');
@@ -21,6 +22,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
 
   // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState(getNotificationPrefs());
+
+  // Encryption
+  const { status: encStatus, setupEncryption, disableEncryption, lock } = useEncryption();
+  const [encPassphrase, setEncPassphrase] = useState('');
+  const [encConfirm, setEncConfirm] = useState('');
+  const [encError, setEncError] = useState('');
+  const [encLoading, setEncLoading] = useState(false);
 
   const ZODIAC_SIGNS = [
     'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
@@ -245,6 +253,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
             { id: 'account', label: 'Account', icon: '◯' },
             { id: 'birth', label: 'Your Sky', icon: '⚝' },
             { id: 'notifs', label: 'Alerts', icon: '◉' },
+            { id: 'privacy', label: 'Privacy', icon: '◎' },
             { id: 'about', label: 'About', icon: '✧' },
           ].map(s => (
             <button
@@ -600,6 +609,107 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate 
                     {saving ? 'Saving...' : 'Save'}
                   </button>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Privacy / Encryption Section */}
+          {activeSection === 'privacy' && (
+            <div>
+              <div style={{ fontSize: 13, color: 'rgba(245, 230, 200, 0.6)', marginBottom: 20, lineHeight: 1.6 }}>
+                End-to-end encryption protects your loops and echoes. Only your passphrase can decrypt them — even we can't read them.
+              </div>
+
+              {/* Status card */}
+              <div style={{
+                padding: 16, borderRadius: 12, marginBottom: 20,
+                background: encStatus === 'unlocked'
+                  ? 'rgba(52, 211, 153, 0.08)'
+                  : encStatus === 'locked'
+                  ? 'rgba(245, 200, 100, 0.08)'
+                  : 'rgba(245, 230, 200, 0.04)',
+                border: `1px solid ${encStatus === 'unlocked'
+                  ? 'rgba(52, 211, 153, 0.2)'
+                  : encStatus === 'locked'
+                  ? 'rgba(245, 200, 100, 0.2)'
+                  : 'rgba(245, 230, 200, 0.08)'}`,
+              }}>
+                <div style={{ fontSize: 12, color: encStatus === 'unlocked' ? 'rgba(52, 211, 153, 0.9)' : encStatus === 'locked' ? 'rgba(245, 200, 100, 0.9)' : 'rgba(245, 230, 200, 0.5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>●</span>
+                  <span>{encStatus === 'unlocked' ? 'Encryption active — content is decrypted this session' : encStatus === 'locked' ? 'Encryption enabled — locked this session' : 'Encryption not enabled'}</span>
+                </div>
+              </div>
+
+              {/* Setup form (disabled state) */}
+              {encStatus === 'disabled' && user && (
+                <div>
+                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You'll need it every time you open the app.</div>
+                  <div style={{ padding: '10px 12px', marginBottom: 12, background: 'rgba(252, 129, 129, 0.08)', border: '1px solid rgba(252, 129, 129, 0.2)', borderRadius: 8, fontSize: 12, color: 'rgba(252, 129, 129, 0.8)', lineHeight: 1.6 }}>
+                    If you forget your passphrase, your encrypted content cannot be recovered — not by you, not by us. There is no reset. Write it down somewhere safe.
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Passphrase"
+                    value={encPassphrase}
+                    onChange={e => { setEncPassphrase(e.target.value); setEncError(''); }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none' }}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm passphrase"
+                    value={encConfirm}
+                    onChange={e => { setEncConfirm(e.target.value); setEncError(''); }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none' }}
+                  />
+                  {encError && <div style={{ padding: '8px 12px', marginBottom: 12, background: 'rgba(252,129,129,0.1)', border: '1px solid rgba(252,129,129,0.3)', borderRadius: 6, color: 'rgba(252,129,129,0.9)', fontSize: 12 }}>{encError}</div>}
+                  <button
+                    disabled={encLoading}
+                    onClick={async () => {
+                      if (encPassphrase.length < 8) { setEncError('Passphrase must be at least 8 characters'); return; }
+                      if (encPassphrase !== encConfirm) { setEncError('Passphrases do not match'); return; }
+                      setEncLoading(true);
+                      try {
+                        await setupEncryption(encPassphrase, user.id);
+                        setEncPassphrase('');
+                        setEncConfirm('');
+                      } catch (e) {
+                        setEncError(e.message);
+                      }
+                      setEncLoading(false);
+                    }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'rgba(245,230,200,0.08)', color: '#f5e6c8', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
+                  >
+                    {encLoading ? 'Setting up...' : 'Enable encryption'}
+                  </button>
+                </div>
+              )}
+
+              {/* Unlocked state */}
+              {encStatus === 'unlocked' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button
+                    onClick={() => { lock(); onClose(); }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)', background: 'rgba(245,230,200,0.04)', color: 'rgba(245,230,200,0.7)', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    Lock session
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Disable encryption? Future content will be stored unencrypted. Existing encrypted content will remain unreadable without re-enabling.')) return;
+                      await disableEncryption(user?.id);
+                    }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(252,129,129,0.2)', background: 'rgba(252,129,129,0.05)', color: 'rgba(252,129,129,0.7)', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    Disable encryption
+                  </button>
+                </div>
+              )}
+
+              {/* Locked state */}
+              {encStatus === 'locked' && (
+                <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)', lineHeight: 1.7 }}>
+                  Your content is encrypted. Re-open the app to be prompted for your passphrase, or close and reopen this menu.
+                </div>
               )}
             </div>
           )}

@@ -8,6 +8,7 @@ import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudio, deleteAudio, hasAudio } from '../lib/audioStorage.js';
+import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
 const VOICE_PROMPTS = {
@@ -39,6 +40,7 @@ function getPhaseType(phaseKey) {
 }
 
 export function Echoes({ userId, phrases, phrasesLoading }) {
+  const { encryptField, decryptField, sessionKey } = useEncryption();
   const [echoes, setEchoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isWriting, setIsWriting] = useState(false);
@@ -214,20 +216,21 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     };
   }, [isRecording]);
 
-  // Fetch echoes on mount
+  // Fetch echoes on mount; decrypt encrypted texts if key is available
   useEffect(() => {
     setLoading(true);
     getEchoes(userId).then(async data => {
-      // Verify audio existence from IndexedDB (source of truth) since hasAudio
-      // flag may not survive server round-trips
       const updated = await Promise.all(data.map(async echo => {
         const audioExists = await hasAudio(echo.id);
-        return { ...echo, hasAudio: audioExists };
+        const text = (echo.isEncrypted && sessionKey)
+          ? await decryptField(echo.text)
+          : echo.text;
+        return { ...echo, text, hasAudio: audioExists };
       }));
       setEchoes(updated);
       setLoading(false);
     });
-  }, [userId]);
+  }, [userId, sessionKey, decryptField]);
 
   const saveEcho = async () => {
     if (!currentText.trim()) return;
@@ -241,11 +244,16 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     const hasVoice = source === 'voice' && pendingAudioBlobRef.current;
     const willSaveAudio = hasVoice && keepAudio;
 
+    const isEncrypted = !!sessionKey;
+    const plainText = currentText.trim();
+    const storedText = isEncrypted ? await encryptField(plainText) : plainText;
+
     const newEcho = {
       id: echoId,
-      text: currentText.trim(),
+      text: plainText, // plaintext in state
       source,
-      hasAudio: willSaveAudio,  // Flag to indicate audio is stored locally
+      hasAudio: willSaveAudio,
+      isEncrypted,
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
       phaseName: lunarData.phase.name,
@@ -269,7 +277,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     }
     pendingAudioBlobRef.current = null;
 
-    await saveEchoToDb(newEcho, userId);
+    await saveEchoToDb({ ...newEcho, text: storedText }, userId);
   };
 
   const deleteEcho = async (id) => {

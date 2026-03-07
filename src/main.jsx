@@ -1,9 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
+import { EncryptionProvider } from './lib/EncryptionContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <EncryptionProvider>
+      <App />
+    </EncryptionProvider>
   </StrictMode>
 )

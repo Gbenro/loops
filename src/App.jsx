@@ -12,12 +12,90 @@ import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
 import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
+import { useEncryption } from './lib/EncryptionContext.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
   { id: 'loops', label: 'Loops', icon: '◯' },
   { id: 'echoes', label: 'Echoes', icon: '〜' },
 ];
+
+function UnlockModal({ verifyToken, userId }) {
+  const { unlock } = useEncryption();
+  const [passphrase, setPassphrase] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    const ok = await unlock(passphrase, userId, verifyToken);
+    if (!ok) setError('Wrong passphrase');
+    setLoading(false);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(4, 8, 16, 0.97)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: 20,
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 320,
+        background: '#0a0f18',
+        border: '1px solid rgba(245, 230, 200, 0.1)',
+        borderRadius: 16, padding: 28,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>◎</div>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 20, color: '#f5e6c8', marginBottom: 6,
+          }}>Encrypted content</div>
+          <div style={{
+            fontSize: 11, fontFamily: 'monospace',
+            color: 'rgba(245, 230, 200, 0.35)', letterSpacing: '0.08em',
+          }}>ENTER PASSPHRASE TO DECRYPT</div>
+        </div>
+        <form onSubmit={handleUnlock}>
+          <input
+            type="password"
+            placeholder="Passphrase"
+            value={passphrase}
+            onChange={e => setPassphrase(e.target.value)}
+            autoFocus
+            required
+            style={{
+              width: '100%', padding: '12px 14px', marginBottom: 12,
+              background: 'rgba(245, 230, 200, 0.03)',
+              border: '1px solid rgba(245, 230, 200, 0.1)',
+              borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none',
+            }}
+          />
+          {error && (
+            <div style={{
+              padding: '8px 12px', marginBottom: 12,
+              background: 'rgba(252, 129, 129, 0.1)',
+              border: '1px solid rgba(252, 129, 129, 0.3)',
+              borderRadius: 6, color: 'rgba(252, 129, 129, 0.9)', fontSize: 12,
+            }}>{error}</div>
+          )}
+          <button type="submit" disabled={loading} style={{
+            width: '100%', padding: '12px',
+            background: 'rgba(245, 230, 200, 0.08)',
+            border: '1px solid rgba(245, 230, 200, 0.15)',
+            borderRadius: 8, color: '#f5e6c8', fontSize: 13,
+            cursor: loading ? 'wait' : 'pointer',
+          }}>
+            {loading ? '...' : 'Unlock'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('sky');
@@ -30,6 +108,8 @@ export default function App() {
   const [phrasesLoading, setPhrasesLoading] = useState(true);
   const [loops, setLoops] = useState([]);
   const [echoes, setEchoes] = useState([]);
+
+  const { initFromProfile, status: encryptionStatus } = useEncryption();
 
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
@@ -56,8 +136,16 @@ export default function App() {
       fetchProfile(user.id);
     } else {
       setUserProfile(null);
+      initFromProfile(null);
     }
-  }, [user]);
+  }, [user, initFromProfile]);
+
+  // Init encryption when profile loads (only after auth check completes)
+  useEffect(() => {
+    if (!loading) {
+      initFromProfile(userProfile);
+    }
+  }, [userProfile, initFromProfile, loading]);
 
   const fetchProfile = async (userId) => {
     try {
@@ -282,6 +370,11 @@ export default function App() {
       {/* Privacy Notice — shown once to new users (email or OAuth) */}
       {showPrivacyNotice && (
         <PrivacyNotice onAck={handlePrivacyAck} />
+      )}
+
+      {/* Encryption unlock — shown when user has encryption set up but session key missing */}
+      {encryptionStatus === 'locked' && userProfile?.encryption_verify_token && (
+        <UnlockModal verifyToken={userProfile.encryption_verify_token} userId={user?.id} />
       )}
 
       {/* Tab Content */}

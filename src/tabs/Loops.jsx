@@ -8,6 +8,7 @@ import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
 import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 export function Loops({ userId, phrases, phrasesLoading }) {
   const [loops, setLoops] = useState([]);
@@ -22,6 +23,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
+  const { encryptField, decryptField, sessionKey } = useEncryption();
 
   // Check if we're in New Moon phase
   const isNewMoon = lunarData.phase.key === 'new';
@@ -47,14 +49,20 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     }
   }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
 
-  // Fetch loops on mount
+  // Fetch loops on mount; decrypt encrypted titles if key is available
   useEffect(() => {
     setLoading(true);
-    getLoops(userId).then(data => {
-      setLoops(data);
+    getLoops(userId).then(async (data) => {
+      const decrypted = await Promise.all(data.map(async (loop) => {
+        if (loop.isEncrypted && sessionKey) {
+          return { ...loop, title: await decryptField(loop.title) };
+        }
+        return loop;
+      }));
+      setLoops(decrypted);
       setLoading(false);
     });
-  }, [userId]);
+  }, [userId, sessionKey, decryptField]);
 
   // Auto-close phase loops when their phase has ended
   useEffect(() => {
@@ -94,9 +102,11 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
   // Create cycle loop (from ritual)
   const createCycleLoop = async (intention) => {
+    const isEncrypted = !!sessionKey;
+    const storedTitle = isEncrypted ? await encryptField(intention) : intention;
     const newLoop = {
       id: generateId('c'),
-      title: intention,
+      title: intention, // plaintext in state
       type: 'cycle',
       status: 'active',
       color: '#A78BFA',
@@ -110,11 +120,12 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       openedAt: new Date().toISOString(),
       closedAt: null,
       releasedAt: null,
+      isEncrypted,
       createdAt: new Date().toISOString(),
     };
     setLoops(prev => [newLoop, ...prev]);
     setShowRitual(false);
-    await saveLoop(newLoop, userId);
+    await saveLoop({ ...newLoop, title: storedTitle }, userId);
   };
 
   // Create phase loop
@@ -122,6 +133,8 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     // Close the sheet immediately to prevent double-clicks
     setShowLoopSheet(false);
 
+    const isEncrypted = !!sessionKey;
+    const storedTitle = isEncrypted ? await encryptField(loopData.title) : loopData.title;
     const newLoop = {
       ...loopData,
       id: generateId('p'),
@@ -129,12 +142,13 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       openedAt: new Date().toISOString(),
       closedAt: null,
       releasedAt: null,
+      isEncrypted,
       createdAt: new Date().toISOString(),
     };
     setLoops(prev => [newLoop, ...prev]);
     setSelected(newLoop);
     setShowDetail(true);
-    await saveLoop(newLoop, userId);
+    await saveLoop({ ...newLoop, title: storedTitle }, userId);
   };
 
   // Close loop

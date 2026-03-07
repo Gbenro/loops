@@ -8,7 +8,17 @@ const PRIVACY_POINTS = [
   {
     icon: '◯',
     title: 'Your words stay yours',
-    body: 'Echoes and loops are stored privately. Only you can see them — each account is fully isolated.',
+    body: 'Echoes and loops are stored securely on our servers, private to your account. No one else can access them.',
+  },
+  {
+    icon: '◎',
+    title: 'Voice recordings stay on your device',
+    body: 'Audio recordings are stored locally on this device only and are never uploaded.',
+  },
+  {
+    icon: '◈',
+    title: 'Optional end-to-end encryption',
+    body: 'Enable a passphrase in Settings to encrypt all your loops and echoes before they leave your device.',
   },
   {
     icon: '☽',

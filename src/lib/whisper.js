@@ -2,6 +2,7 @@
 // Fast, accurate speech-to-text via Supabase Edge Function
 
 const TRANSCRIBE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
+const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 
 // Transcribe audio blob via Groq Whisper API
 export async function transcribeAudio(audioBlob, onProgress) {
@@ -23,6 +24,10 @@ export async function transcribeAudio(audioBlob, onProgress) {
 
     const response = await fetch(TRANSCRIBE_URL, {
       method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
       body: formData,
     });
 

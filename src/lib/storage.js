@@ -67,6 +67,7 @@ export async function getLoops(userId) {
       phaseClosed: row.phase_closed || null,
       phaseNameClosed: row.phase_name_closed || null,
       lunarMonthClosed: row.lunar_month_closed || null,
+      isEncrypted: row.is_encrypted || false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -126,6 +127,7 @@ export async function saveLoop(loop, userId) {
         phase_closed: loop.phaseClosed || null,
         phase_name_closed: loop.phaseNameClosed || null,
         lunar_month_closed: loop.lunarMonthClosed || null,
+        is_encrypted: loop.isEncrypted || false,
         updated_at: new Date().toISOString(),
       })
       .select();
@@ -180,6 +182,7 @@ export async function getEchoes(userId) {
       dayOfCycle: row.day_of_cycle,
       zodiac: row.zodiac,
       illumination: row.illumination,
+      isEncrypted: row.is_encrypted || false,
       createdAt: row.created_at,
     }));
 
@@ -213,6 +216,7 @@ export async function saveEcho(echo, userId) {
         day_of_cycle: echo.dayOfCycle,
         zodiac: echo.zodiac,
         illumination: echo.illumination,
+        is_encrypted: echo.isEncrypted || false,
         created_at: echo.createdAt,
       });
 
