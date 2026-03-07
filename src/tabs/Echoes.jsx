@@ -60,6 +60,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
   const [keepAudio, setKeepAudio] = useState(true);  // Option to save audio locally
+  const wakeLockRef = useRef(null);
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -165,6 +166,13 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       setIsWriting(true);
       setRecordingTime(0);
 
+      // Keep screen on while recording
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').then(lock => {
+          wakeLockRef.current = lock;
+        }).catch(() => {}); // silently ignore if denied
+      }
+
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(t => t + 1);
@@ -187,6 +195,12 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+
+      // Release screen wake lock
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
