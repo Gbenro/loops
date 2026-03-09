@@ -64,10 +64,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [source, setSource] = useState('text'); // 'text' | 'voice'
 
   // Filter state
-  const [filterDay, setFilterDay] = useState('all');
-  const [filterPhase, setFilterPhase] = useState('all');
-  const [filterCycle, setFilterCycle] = useState('all');
-  const [openFilter, setOpenFilter] = useState(null); // 'day' | 'phase' | 'cycle' | null
+  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'phase' | 'cycle'
+  const [filterNavIndex, setFilterNavIndex] = useState(0); // 0 = most recent
 
   // Voice state (Whisper-based)
   const [isRecording, setIsRecording] = useState(false);
@@ -86,42 +84,60 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Derive unique filter options from echoes
-  const filterOptions = useMemo(() => {
-    const days = [...new Set(echoes.map(e => e.createdAt?.slice(0, 10)).filter(Boolean))]
-      .sort((a, b) => b.localeCompare(a));
-    const phases = PHASE_ORDER.filter(p => echoes.some(e => e.phase === p));
-    const cycles = [...new Set(echoes.map(e => e.lunarMonth).filter(Boolean))]
-      .sort((a, b) => b - a);
-    return { days, phases, cycles };
-  }, [echoes]);
+  // Derive sorted unique values for navigation
+  const uniqueDays = useMemo(() =>
+    [...new Set(echoes.map(e => e.createdAt?.slice(0, 10)).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
+  [echoes]);
+
+  const uniquePhases = useMemo(() =>
+    PHASE_ORDER.filter(p => echoes.some(e => e.phase === p)),
+  [echoes]);
+
+  const uniqueCycles = useMemo(() =>
+    [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))].sort((a, b) => b - a),
+  [echoes]);
+
+  const switchFilterMode = (mode) => { setFilterMode(mode); setFilterNavIndex(0); };
+
+  // Nav bounds
+  const navList = filterMode === 'day' ? uniqueDays : filterMode === 'phase' ? uniquePhases : uniqueCycles;
+  const canNavPrev = filterNavIndex < navList.length - 1;
+  const canNavNext = filterNavIndex > 0;
+
+  // Current nav label
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const navLabel = (() => {
+    if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
+    if (filterMode === 'phase') {
+      const p = uniquePhases[filterNavIndex];
+      return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
+    }
+    const c = uniqueCycles[filterNavIndex];
+    return c != null ? `Cycle ${c}` : '';
+  })();
+
+  const isCurrentNav = filterMode === 'day'
+    ? uniqueDays[filterNavIndex] === todayStr
+    : filterMode === 'phase'
+      ? uniquePhases[filterNavIndex] === lunarData.phase.key
+      : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
 
   // Filtered echoes
   const filteredEchoes = useMemo(() => {
+    if (navList.length === 0) return echoes;
+    const target = navList[filterNavIndex];
     return echoes.filter(e => {
-      if (filterDay !== 'all' && e.createdAt?.slice(0, 10) !== filterDay) return false;
-      if (filterPhase !== 'all' && e.phase !== filterPhase) return false;
-      if (filterCycle !== 'all' && String(e.lunarMonth) !== filterCycle) return false;
-      return true;
+      if (filterMode === 'day') return e.createdAt?.slice(0, 10) === target;
+      if (filterMode === 'phase') return e.phase === target;
+      return e.lunarMonth === target;
     });
-  }, [echoes, filterDay, filterPhase, filterCycle]);
-
-  const hasActiveFilter = filterDay !== 'all' || filterPhase !== 'all' || filterCycle !== 'all';
+  }, [echoes, filterMode, filterNavIndex, navList]);
 
   // Preload Whisper model in background
   useEffect(() => {
     preloadModel();
   }, []);
 
-  // Close filter dropdown on outside click
-  useEffect(() => {
-    if (!openFilter) return;
-    const handler = (e) => {
-      if (!e.target.closest('[data-filter-bar]')) setOpenFilter(null);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [openFilter]);
 
   // Use generated prompts or fallbacks
   const voicePrompt = phrasesLoading
@@ -464,106 +480,87 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div data-filter-bar style={{ padding: '0 20px 14px', position: 'relative' }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {[
-            { key: 'phase', label: filterPhase !== 'all' ? (echoes.find(e => e.phase === filterPhase)?.phaseName || filterPhase) : 'Phase', value: filterPhase },
-            { key: 'day', label: filterDay !== 'all' ? formatDayLabel(filterDay) : 'Day', value: filterDay },
-            { key: 'cycle', label: filterCycle !== 'all' ? `Cycle ${filterCycle}` : 'Cycle', value: filterCycle },
-          ].map(({ key, label, value }) => (
+      {/* Filter Navigator */}
+      <div style={{ padding: '0 20px 14px' }}>
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
+          {['day', 'phase', 'cycle'].map(mode => (
             <button
-              key={key}
-              onClick={() => setOpenFilter(openFilter === key ? null : key)}
+              key={mode}
+              onClick={() => switchFilterMode(mode)}
               style={{
-                padding: '5px 10px',
-                borderRadius: 20,
-                border: `1px solid ${value !== 'all' ? 'rgba(167, 139, 250, 0.5)' : 'rgba(245, 230, 200, 0.12)'}`,
-                background: value !== 'all' ? 'rgba(167, 139, 250, 0.12)' : 'rgba(245, 230, 200, 0.03)',
-                color: value !== 'all' ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.45)',
-                fontSize: 10,
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: 'none',
+                background: filterMode === mode ? 'rgba(245, 230, 200, 0.1)' : 'transparent',
+                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.25)',
+                fontSize: 9,
                 fontFamily: 'monospace',
-                letterSpacing: '0.05em',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
+                textTransform: 'uppercase',
               }}
             >
-              {label.toUpperCase()}{value !== 'all' ? ' ×' : ''}
+              {mode}
             </button>
           ))}
-          {hasActiveFilter && (
+        </div>
+
+        {/* Arrow navigation */}
+        {navList.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+          }}>
             <button
-              onClick={() => { setFilterDay('all'); setFilterPhase('all'); setFilterCycle('all'); setOpenFilter(null); }}
+              onClick={() => setFilterNavIndex(i => i + 1)}
+              disabled={!canNavPrev}
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'rgba(245, 230, 200, 0.3)',
-                fontSize: 10,
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-                padding: '5px 6px',
+                color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                fontSize: 16,
+                cursor: canNavPrev ? 'pointer' : 'default',
+                padding: '4px 8px',
               }}
             >
-              CLEAR
+              ‹
             </button>
-          )}
-        </div>
-
-        {/* Dropdown */}
-        {openFilter && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 20,
-            zIndex: 50,
-            background: '#0d1420',
-            border: '1px solid rgba(245, 230, 200, 0.12)',
-            borderRadius: 10,
-            padding: '6px 0',
-            minWidth: 160,
-            maxHeight: 220,
-            overflowY: 'auto',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-          }}>
-            {openFilter === 'phase' && (
-              <>
-                <DropdownItem label="All phases" active={filterPhase === 'all'} onClick={() => { setFilterPhase('all'); setOpenFilter(null); }} />
-                {filterOptions.phases.map(p => (
-                  <DropdownItem
-                    key={p}
-                    label={`${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`}
-                    active={filterPhase === p}
-                    onClick={() => { setFilterPhase(p); setOpenFilter(null); }}
-                  />
-                ))}
-              </>
-            )}
-            {openFilter === 'day' && (
-              <>
-                <DropdownItem label="All days" active={filterDay === 'all'} onClick={() => { setFilterDay('all'); setOpenFilter(null); }} />
-                {filterOptions.days.map(d => (
-                  <DropdownItem
-                    key={d}
-                    label={formatDayLabel(d)}
-                    active={filterDay === d}
-                    onClick={() => { setFilterDay(d); setOpenFilter(null); }}
-                  />
-                ))}
-              </>
-            )}
-            {openFilter === 'cycle' && (
-              <>
-                <DropdownItem label="All cycles" active={filterCycle === 'all'} onClick={() => { setFilterCycle('all'); setOpenFilter(null); }} />
-                {filterOptions.cycles.map(c => (
-                  <DropdownItem
-                    key={c}
-                    label={`Cycle ${c}`}
-                    active={filterCycle === String(c)}
-                    onClick={() => { setFilterCycle(String(c)); setOpenFilter(null); }}
-                  />
-                ))}
-              </>
-            )}
+            <div style={{ textAlign: 'center', minWidth: 140 }}>
+              <div style={{
+                fontSize: 13,
+                color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+                fontFamily: "'Cormorant Garamond', serif",
+              }}>
+                {navLabel}
+              </div>
+              {isCurrentNav && (
+                <div style={{
+                  fontSize: 8,
+                  fontFamily: 'monospace',
+                  color: 'rgba(167, 139, 250, 0.5)',
+                  letterSpacing: '0.1em',
+                  marginTop: 2,
+                }}>
+                  CURRENT
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setFilterNavIndex(i => i - 1)}
+              disabled={!canNavNext}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                fontSize: 16,
+                cursor: canNavNext ? 'pointer' : 'default',
+                padding: '4px 8px',
+              }}
+            >
+              ›
+            </button>
           </div>
         )}
       </div>
@@ -885,7 +882,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             fontSize: 13,
             fontStyle: 'italic',
           }}>
-            No echoes match this filter.
+            No echoes in this {filterMode}.
           </div>
         ) : (
           filteredEchoes.map(echo => (
@@ -937,28 +934,6 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   );
 }
 
-function DropdownItem({ label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        padding: '8px 14px',
-        background: active ? 'rgba(167, 139, 250, 0.12)' : 'none',
-        border: 'none',
-        color: active ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.6)',
-        fontSize: 12,
-        cursor: 'pointer',
-        fontFamily: 'monospace',
-        letterSpacing: '0.03em',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
 
 function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
