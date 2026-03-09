@@ -39,6 +39,12 @@ function getPhaseType(phaseKey) {
   return PHASE_TYPES[phaseKey] || 'flow';
 }
 
+// Get local YYYY-MM-DD for any ISO timestamp
+function localDateStr(isoString) {
+  const d = new Date(isoString);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function formatDayLabel(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -86,7 +92,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 
   // Derive sorted unique values for navigation
   const uniqueDays = useMemo(() =>
-    [...new Set(echoes.map(e => e.createdAt?.slice(0, 10)).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
+    [...new Set(echoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
   [echoes]);
 
   const uniquePhases = useMemo(() =>
@@ -105,7 +111,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const canNavNext = filterNavIndex > 0;
 
   // Current nav label
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateStr(new Date().toISOString());
   const navLabel = (() => {
     if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
     if (filterMode === 'phase') {
@@ -127,7 +133,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     if (navList.length === 0) return echoes;
     const target = navList[filterNavIndex];
     return echoes.filter(e => {
-      if (filterMode === 'day') return e.createdAt?.slice(0, 10) === target;
+      if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
       return e.lunarMonth === target;
     });
