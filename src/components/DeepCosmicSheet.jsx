@@ -8,7 +8,7 @@ import { getZodiacInfo } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
 
-const SECTIONS = [
+const BASE_SECTIONS = [
   { id: 'phase', label: 'Phase', icon: '☽' },
   { id: 'moon', label: 'Moon', icon: '◐' },
   { id: 'sign', label: 'Sign', icon: '♈' },
@@ -30,6 +30,9 @@ export function DeepCosmicSheet({
   const [activeSection, setActiveSection] = useState('phase');
 
   if (!isOpen) return null;
+
+  const hasNatal = userProfile?.sun_sign || userProfile?.moon_sign || userProfile?.rising_sign;
+  const SECTIONS = hasNatal ? BASE_SECTIONS : BASE_SECTIONS.filter(s => s.id !== 'you');
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
