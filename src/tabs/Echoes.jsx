@@ -39,6 +39,21 @@ function getPhaseType(phaseKey) {
   return PHASE_TYPES[phaseKey] || 'flow';
 }
 
+function formatDayLabel(dateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr + 'T12:00:00');
+  const diffDays = Math.round((today - d) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+];
+
 export function Echoes({ userId, phrases, phrasesLoading }) {
   const { encryptField, decryptField, sessionKey } = useEncryption();
   const [echoes, setEchoes] = useState([]);
@@ -47,6 +62,12 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [currentText, setCurrentText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [source, setSource] = useState('text'); // 'text' | 'voice'
+
+  // Filter state
+  const [filterDay, setFilterDay] = useState('all');
+  const [filterPhase, setFilterPhase] = useState('all');
+  const [filterCycle, setFilterCycle] = useState('all');
+  const [openFilter, setOpenFilter] = useState(null); // 'day' | 'phase' | 'cycle' | null
 
   // Voice state (Whisper-based)
   const [isRecording, setIsRecording] = useState(false);
@@ -65,10 +86,42 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
+  // Derive unique filter options from echoes
+  const filterOptions = useMemo(() => {
+    const days = [...new Set(echoes.map(e => e.createdAt?.slice(0, 10)).filter(Boolean))]
+      .sort((a, b) => b.localeCompare(a));
+    const phases = PHASE_ORDER.filter(p => echoes.some(e => e.phase === p));
+    const cycles = [...new Set(echoes.map(e => e.lunarMonth).filter(Boolean))]
+      .sort((a, b) => b - a);
+    return { days, phases, cycles };
+  }, [echoes]);
+
+  // Filtered echoes
+  const filteredEchoes = useMemo(() => {
+    return echoes.filter(e => {
+      if (filterDay !== 'all' && e.createdAt?.slice(0, 10) !== filterDay) return false;
+      if (filterPhase !== 'all' && e.phase !== filterPhase) return false;
+      if (filterCycle !== 'all' && String(e.lunarMonth) !== filterCycle) return false;
+      return true;
+    });
+  }, [echoes, filterDay, filterPhase, filterCycle]);
+
+  const hasActiveFilter = filterDay !== 'all' || filterPhase !== 'all' || filterCycle !== 'all';
+
   // Preload Whisper model in background
   useEffect(() => {
     preloadModel();
   }, []);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    if (!openFilter) return;
+    const handler = (e) => {
+      if (!e.target.closest('[data-filter-bar]')) setOpenFilter(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openFilter]);
 
   // Use generated prompts or fallbacks
   const voicePrompt = phrasesLoading
@@ -411,6 +464,110 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <div data-filter-bar style={{ padding: '0 20px 14px', position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {[
+            { key: 'phase', label: filterPhase !== 'all' ? (echoes.find(e => e.phase === filterPhase)?.phaseName || filterPhase) : 'Phase', value: filterPhase },
+            { key: 'day', label: filterDay !== 'all' ? formatDayLabel(filterDay) : 'Day', value: filterDay },
+            { key: 'cycle', label: filterCycle !== 'all' ? `Cycle ${filterCycle}` : 'Cycle', value: filterCycle },
+          ].map(({ key, label, value }) => (
+            <button
+              key={key}
+              onClick={() => setOpenFilter(openFilter === key ? null : key)}
+              style={{
+                padding: '5px 10px',
+                borderRadius: 20,
+                border: `1px solid ${value !== 'all' ? 'rgba(167, 139, 250, 0.5)' : 'rgba(245, 230, 200, 0.12)'}`,
+                background: value !== 'all' ? 'rgba(167, 139, 250, 0.12)' : 'rgba(245, 230, 200, 0.03)',
+                color: value !== 'all' ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.45)',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.05em',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label.toUpperCase()}{value !== 'all' ? ' ×' : ''}
+            </button>
+          ))}
+          {hasActiveFilter && (
+            <button
+              onClick={() => { setFilterDay('all'); setFilterPhase('all'); setFilterCycle('all'); setOpenFilter(null); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(245, 230, 200, 0.3)',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                cursor: 'pointer',
+                padding: '5px 6px',
+              }}
+            >
+              CLEAR
+            </button>
+          )}
+        </div>
+
+        {/* Dropdown */}
+        {openFilter && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 20,
+            zIndex: 50,
+            background: '#0d1420',
+            border: '1px solid rgba(245, 230, 200, 0.12)',
+            borderRadius: 10,
+            padding: '6px 0',
+            minWidth: 160,
+            maxHeight: 220,
+            overflowY: 'auto',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}>
+            {openFilter === 'phase' && (
+              <>
+                <DropdownItem label="All phases" active={filterPhase === 'all'} onClick={() => { setFilterPhase('all'); setOpenFilter(null); }} />
+                {filterOptions.phases.map(p => (
+                  <DropdownItem
+                    key={p}
+                    label={`${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`}
+                    active={filterPhase === p}
+                    onClick={() => { setFilterPhase(p); setOpenFilter(null); }}
+                  />
+                ))}
+              </>
+            )}
+            {openFilter === 'day' && (
+              <>
+                <DropdownItem label="All days" active={filterDay === 'all'} onClick={() => { setFilterDay('all'); setOpenFilter(null); }} />
+                {filterOptions.days.map(d => (
+                  <DropdownItem
+                    key={d}
+                    label={formatDayLabel(d)}
+                    active={filterDay === d}
+                    onClick={() => { setFilterDay(d); setOpenFilter(null); }}
+                  />
+                ))}
+              </>
+            )}
+            {openFilter === 'cycle' && (
+              <>
+                <DropdownItem label="All cycles" active={filterCycle === 'all'} onClick={() => { setFilterCycle('all'); setOpenFilter(null); }} />
+                {filterOptions.cycles.map(c => (
+                  <DropdownItem
+                    key={c}
+                    label={`Cycle ${c}`}
+                    active={filterCycle === String(c)}
+                    onClick={() => { setFilterCycle(String(c)); setOpenFilter(null); }}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Write Area */}
       <div style={{ padding: '0 20px 20px' }}>
         {isWriting ? (
@@ -720,8 +877,18 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
           }}>
             No echoes yet. What is alive in you?
           </div>
+        ) : filteredEchoes.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: 'rgba(245, 230, 200, 0.3)',
+            fontSize: 13,
+            fontStyle: 'italic',
+          }}>
+            No echoes match this filter.
+          </div>
         ) : (
-          echoes.map(echo => (
+          filteredEchoes.map(echo => (
             <EchoCard
               key={echo.id}
               echo={echo}
@@ -767,6 +934,29 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         }
       `}</style>
     </div>
+  );
+}
+
+function DropdownItem({ label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 14px',
+        background: active ? 'rgba(167, 139, 250, 0.12)' : 'none',
+        border: 'none',
+        color: active ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.6)',
+        fontSize: 12,
+        cursor: 'pointer',
+        fontFamily: 'monospace',
+        letterSpacing: '0.03em',
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
