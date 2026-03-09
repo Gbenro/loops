@@ -6,9 +6,7 @@ import { MiniMoon } from './MoonFace.jsx';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
-import { NATAL } from '../data/natal.js';
 import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
-import { getSolarThresholds } from '../lib/solar.js';
 
 const SECTIONS = [
   { id: 'phase', label: 'Phase', icon: '☽' },
@@ -16,7 +14,6 @@ const SECTIONS = [
   { id: 'sign', label: 'Sign', icon: '♈' },
   { id: 'season', label: 'Season', icon: '◯' },
   { id: 'weave', label: 'Weave', icon: '✧' },
-  { id: 'arcs', label: 'Arcs', icon: '⟳' },
   { id: 'you', label: 'Your Sky', icon: '⚝' },
 ];
 
@@ -178,13 +175,6 @@ export function DeepCosmicSheet({
               solarData={solarData}
               zodiacInfo={zodiacInfo}
               generatedText={phrases.deepSheetWeave}
-              phrasesLoading={phrasesLoading}
-            />
-          )}
-          {activeSection === 'arcs' && (
-            <ArcsSection
-              solarData={solarData}
-              generatedText={phrases.deepSheetArcs}
               phrasesLoading={phrasesLoading}
             />
           )}
@@ -760,18 +750,13 @@ const PLACEMENT_DESCRIPTIONS = {
 };
 
 function YourSkySection({ resonances = [], generatedText, phrasesLoading, userProfile }) {
-  // Use user's profile signs or fall back to defaults from NATAL
-  const sunSign = userProfile?.sun_sign || NATAL.sun.sign;
-  const moonSign = userProfile?.moon_sign || NATAL.moon.sign;
-  const risingSign = userProfile?.rising_sign || NATAL.rising.sign;
-
-  const placements = [
-    { key: 'sun', label: 'Sun', sign: sunSign, role: 'Identity', symbol: '☉' },
-    { key: 'moon', label: 'Moon', sign: moonSign, role: 'Inner World', symbol: '☽' },
-    { key: 'rising', label: 'Rising', sign: risingSign, role: 'First Impression', symbol: '↑' },
-  ];
-
   const hasProfile = userProfile?.sun_sign || userProfile?.moon_sign || userProfile?.rising_sign;
+
+  const placements = hasProfile ? [
+    { key: 'sun', label: 'Sun', sign: userProfile?.sun_sign, role: 'Identity', symbol: '☉' },
+    { key: 'moon', label: 'Moon', sign: userProfile?.moon_sign, role: 'Inner World', symbol: '☽' },
+    { key: 'rising', label: 'Rising', sign: userProfile?.rising_sign, role: 'First Impression', symbol: '↑' },
+  ].filter(p => p.sign) : [];
 
   return (
     <div>
@@ -917,20 +902,6 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
         </div>
       )}
 
-      {/* Footer */}
-      {!hasProfile && (
-        <div style={{
-          marginTop: 32,
-          paddingTop: 16,
-          borderTop: '1px solid rgba(245, 230, 200, 0.08)',
-          fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.3)',
-          fontFamily: 'monospace',
-          textAlign: 'center',
-        }}>
-          Set your signs in Settings → Your Sky for personalized transits
-        </div>
-      )}
     </div>
   );
 }
