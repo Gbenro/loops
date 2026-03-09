@@ -103,12 +103,20 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))].sort((a, b) => b - a),
   [echoes]);
 
-  const switchFilterMode = (mode) => { setFilterMode(mode); setFilterNavIndex(0); };
+  const switchFilterMode = (mode) => {
+    setFilterMode(mode);
+    if (mode === 'phase') {
+      const idx = uniquePhases.indexOf(lunarData.phase.key);
+      setFilterNavIndex(idx >= 0 ? idx : 0);
+    } else {
+      setFilterNavIndex(0);
+    }
+  };
 
-  // Nav bounds
-  const navList = filterMode === 'day' ? uniqueDays : filterMode === 'phase' ? uniquePhases : uniqueCycles;
-  const canNavPrev = filterNavIndex < navList.length - 1;
-  const canNavNext = filterNavIndex > 0;
+  // Nav bounds (cycle mode has no navigation — always shows current cycle)
+  const navList = filterMode === 'day' ? uniqueDays : uniquePhases;
+  const canNavPrev = filterMode !== 'cycle' && filterNavIndex < navList.length - 1;
+  const canNavNext = filterMode !== 'cycle' && filterNavIndex > 0;
 
   // Current nav label
   const todayStr = localDateStr(new Date().toISOString());
@@ -118,26 +126,29 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       const p = uniquePhases[filterNavIndex];
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
-    const c = uniqueCycles[filterNavIndex];
-    return c != null ? `Cycle ${c}` : '';
+    return `${lunarData.lunarMonth} Moon`;
   })();
 
-  const isCurrentNav = filterMode === 'day'
-    ? uniqueDays[filterNavIndex] === todayStr
-    : filterMode === 'phase'
-      ? uniquePhases[filterNavIndex] === lunarData.phase.key
-      : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
+  const isCurrentNav = filterMode === 'cycle'
+    ? true
+    : filterMode === 'day'
+      ? uniqueDays[filterNavIndex] === todayStr
+      : uniquePhases[filterNavIndex] === lunarData.phase.key;
 
   // Filtered echoes
   const filteredEchoes = useMemo(() => {
-    if (navList.length === 0) return echoes;
-    const target = navList[filterNavIndex];
-    return echoes.filter(e => {
-      if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
-      if (filterMode === 'phase') return e.phase === target;
-      return e.lunarMonth === target;
-    });
-  }, [echoes, filterMode, filterNavIndex, navList]);
+    if (filterMode === 'cycle') {
+      return echoes.filter(e => e.lunarMonth === lunarData.lunarMonth);
+    }
+    const list = filterMode === 'day' ? uniqueDays : uniquePhases;
+    if (list.length === 0) return echoes;
+    const target = list[filterNavIndex];
+    return echoes.filter(e =>
+      filterMode === 'day'
+        ? (e.createdAt ? localDateStr(e.createdAt) === target : false)
+        : e.phase === target
+    );
+  }, [echoes, filterMode, filterNavIndex, uniqueDays, uniquePhases, lunarData.lunarMonth]);
 
   // Preload Whisper model in background
   useEffect(() => {
@@ -512,13 +523,13 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         </div>
 
         {/* Arrow navigation */}
-        {navList.length > 0 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-          }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+        }}>
+          {filterMode !== 'cycle' && (
             <button
               onClick={() => setFilterNavIndex(i => i + 1)}
               disabled={!canNavPrev}
@@ -533,26 +544,28 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             >
               ‹
             </button>
-            <div style={{ textAlign: 'center', minWidth: 140 }}>
-              <div style={{
-                fontSize: 13,
-                color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
-                fontFamily: "'Cormorant Garamond', serif",
-              }}>
-                {navLabel}
-              </div>
-              {isCurrentNav && (
-                <div style={{
-                  fontSize: 8,
-                  fontFamily: 'monospace',
-                  color: 'rgba(167, 139, 250, 0.5)',
-                  letterSpacing: '0.1em',
-                  marginTop: 2,
-                }}>
-                  CURRENT
-                </div>
-              )}
+          )}
+          <div style={{ textAlign: 'center', minWidth: 140 }}>
+            <div style={{
+              fontSize: 13,
+              color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+              fontFamily: "'Cormorant Garamond', serif",
+            }}>
+              {navLabel}
             </div>
+            {isCurrentNav && (
+              <div style={{
+                fontSize: 8,
+                fontFamily: 'monospace',
+                color: 'rgba(167, 139, 250, 0.5)',
+                letterSpacing: '0.1em',
+                marginTop: 2,
+              }}>
+                CURRENT
+              </div>
+            )}
+          </div>
+          {filterMode !== 'cycle' && (
             <button
               onClick={() => setFilterNavIndex(i => i - 1)}
               disabled={!canNavNext}
@@ -567,8 +580,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             >
               ›
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Write Area */}

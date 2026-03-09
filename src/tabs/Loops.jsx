@@ -69,12 +69,15 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     if (loading || loops.length === 0) return;
 
     const currentPhase = lunarData.phase.key;
-    const phaseLoopsToClose = loops.filter(l =>
-      l.type === 'phase' &&
-      l.status === 'active' &&
-      l.phaseOpened &&
-      l.phaseOpened !== currentPhase
-    );
+    const LATE_PHASES = ['last-quarter', 'waning-crescent'];
+    const phaseLoopsToClose = loops.filter(l => {
+      if (l.type !== 'phase' || l.status !== 'active' || !l.phaseOpened) return false;
+      if (l.phaseOpened === currentPhase) return false;
+      // New moon loops stay open through the waxing/full/waning-gibbous period
+      // Only auto-close them once we reach last-quarter or waning-crescent
+      if (l.phaseOpened === 'new' && !LATE_PHASES.includes(currentPhase)) return false;
+      return true;
+    });
 
     // Auto-close each expired phase loop
     phaseLoopsToClose.forEach(async (loop) => {
@@ -336,45 +339,40 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
   // Filter closed loops based on view mode and navigation
   const closedLoops = useMemo(() => {
-    if (closedViewMode === 'all') {
-      // All mode: show all closed loops sorted by date
-      return allClosedWithCycles;
-    } else if (closedViewMode === 'phase') {
-      // Phase mode: show loops closed in the selected phase
+    if (closedViewMode === 'phase') {
       const targetPhase = uniquePhases[closedNavIndex];
       if (!targetPhase) return [];
       return allClosedLoops.filter(l => l.phaseClosed === targetPhase.key);
     } else {
-      // Cycle mode: show ALL loops (including cycle intention) closed in selected lunar month
-      const targetCycle = uniqueCycles[closedNavIndex];
-      if (!targetCycle) return [];
+      // Cycle mode: always show current cycle
       return allClosedWithCycles.filter(l => {
         const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
-        return loopCycle === targetCycle.name;
+        return loopCycle === lunarData.lunarMonth;
       });
     }
-  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
+  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, lunarData.lunarMonth]);
 
-  // Navigation helpers
-  const canNavPrev = closedViewMode === 'all' ? false
-    : closedViewMode === 'phase'
-      ? closedNavIndex < uniquePhases.length - 1
-      : closedNavIndex < uniqueCycles.length - 1;
-  const canNavNext = closedViewMode === 'all' ? false : closedNavIndex > 0;
+  // Navigation helpers (phase only — cycle has no nav)
+  const canNavPrev = closedViewMode === 'phase' && closedNavIndex < uniquePhases.length - 1;
+  const canNavNext = closedViewMode === 'phase' && closedNavIndex > 0;
 
-  const currentNavLabel = closedViewMode === 'all' ? 'All Time'
-    : closedViewMode === 'phase'
-      ? uniquePhases[closedNavIndex]?.name || ''
-      : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
+  const currentNavLabel = closedViewMode === 'phase'
+    ? uniquePhases[closedNavIndex]?.name || ''
+    : `${lunarData.lunarMonth} Moon`;
 
   const isCurrentNav = closedViewMode === 'phase'
     ? uniquePhases[closedNavIndex]?.isCurrent
-    : uniqueCycles[closedNavIndex]?.isCurrent;
+    : true; // cycle mode always shows current
 
-  // Reset nav index when switching view modes
+  // Switch view mode — phase defaults to current phase index
   const switchViewMode = (mode) => {
     setClosedViewMode(mode);
-    setClosedNavIndex(0);
+    if (mode === 'phase') {
+      const idx = uniquePhases.findIndex(p => p.isCurrent);
+      setClosedNavIndex(idx >= 0 ? idx : 0);
+    } else {
+      setClosedNavIndex(0);
+    }
   };
 
   // Use generated prompt or fallback
@@ -695,20 +693,22 @@ export function Loops({ userId, phrases, phrasesLoading }) {
               marginBottom: 16,
               padding: '10px 0',
             }}>
-              <button
-                onClick={() => setClosedNavIndex(i => i + 1)}
-                disabled={!canNavPrev}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                  fontSize: 16,
-                  cursor: canNavPrev ? 'pointer' : 'default',
-                  padding: '4px 8px',
-                }}
-              >
-                ‹
-              </button>
+              {closedViewMode === 'phase' && (
+                <button
+                  onClick={() => setClosedNavIndex(i => i + 1)}
+                  disabled={!canNavPrev}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                    fontSize: 16,
+                    cursor: canNavPrev ? 'pointer' : 'default',
+                    padding: '4px 8px',
+                  }}
+                >
+                  ‹
+                </button>
+              )}
               <div style={{
                 textAlign: 'center',
                 minWidth: 140,
@@ -732,20 +732,22 @@ export function Loops({ userId, phrases, phrasesLoading }) {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setClosedNavIndex(i => i - 1)}
-                disabled={!canNavNext}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                  fontSize: 16,
-                  cursor: canNavNext ? 'pointer' : 'default',
-                  padding: '4px 8px',
-                }}
-              >
-                ›
-              </button>
+              {closedViewMode === 'phase' && (
+                <button
+                  onClick={() => setClosedNavIndex(i => i - 1)}
+                  disabled={!canNavNext}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                    fontSize: 16,
+                    cursor: canNavNext ? 'pointer' : 'default',
+                    padding: '4px 8px',
+                  }}
+                >
+                  ›
+                </button>
+              )}
             </div>
 
             {/* Loops for selected phase/cycle */}
