@@ -204,6 +204,16 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     await saveLoop(updated, userId);
   };
 
+  // Update loop note
+  const updateLoopNote = async (loopId, note) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop) return;
+    const updated = { ...loop, note };
+    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    if (selected?.id === loopId) setSelected(updated);
+    await saveLoop(updated, userId);
+  };
+
   // Delete loop
   const deleteLoop = async (id) => {
     setLoops(prev => prev.filter(l => l.id !== id));
@@ -918,6 +928,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
           onDeleteSubtask={(subtaskId) => deleteSubtask(selected.id, subtaskId)}
           onAddSubtask={(text) => addSubtask(selected.id, text)}
           onReorderSubtask={(subtaskId, direction) => reorderSubtask(selected.id, subtaskId, direction)}
+          onUpdateNote={(note) => updateLoopNote(selected.id, note)}
         />
       )}
     </div>
@@ -1153,9 +1164,11 @@ function DetailPanel({
   onToggleSubtask,
   onDeleteSubtask,
   onAddSubtask,
-  onReorderSubtask
+  onReorderSubtask,
+  onUpdateNote,
 }) {
   const [newSubtask, setNewSubtask] = useState('');
+  const [noteText, setNoteText] = useState(loop.note || '');
   const isCycle = loop.type === 'cycle';
   const isClosed = loop.status === 'closed';
   const isReleased = loop.status === 'released';
@@ -1438,6 +1451,44 @@ function DetailPanel({
               </button>
             </div>
           )}
+        </div>
+
+        {/* Note */}
+        <div style={{
+          padding: '0 20px 16px',
+          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+          paddingTop: 16,
+        }}>
+          <div style={{
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'rgba(245, 230, 200, 0.35)',
+            marginBottom: 8,
+          }}>
+            NOTE
+          </div>
+          <textarea
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            onBlur={() => onUpdateNote(noteText.trim() || null)}
+            placeholder="A note to yourself..."
+            rows={3}
+            style={{
+              width: '100%',
+              background: 'rgba(245, 230, 200, 0.03)',
+              border: '1px solid rgba(245, 230, 200, 0.08)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              color: 'rgba(245, 230, 200, 0.8)',
+              fontSize: 13,
+              fontFamily: "'Cormorant Garamond', serif",
+              lineHeight: 1.6,
+              resize: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
 
         {/* Actions */}

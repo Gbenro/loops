@@ -752,7 +752,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                   justifyContent: 'center',
                   fontSize: 16,
                   position: 'relative',
-                  animation: isRecording ? 'voiceOrb 2s ease-in-out infinite' : 'none',
+                  animation: isRecording ? 'voiceOrb 2s ease-in-out infinite' : isTranscribing ? 'none' : 'voiceIdle 3s ease-in-out infinite',
                   boxShadow: isRecording
                     ? '0 0 20px rgba(252, 129, 129, 0.3)'
                     : 'none',
@@ -938,6 +938,10 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
         @keyframes voiceOrb {
           0%, 100% { box-shadow: 0 0 15px rgba(252, 129, 129, 0.3); }
           50% { box-shadow: 0 0 25px rgba(252, 129, 129, 0.5); }
+        }
+        @keyframes voiceIdle {
+          0%, 100% { opacity: 0.5; box-shadow: 0 0 0px rgba(245, 230, 200, 0); }
+          50% { opacity: 0.85; box-shadow: 0 0 10px rgba(245, 230, 200, 0.12); }
         }
         @keyframes ripple {
           0% { transform: scale(1); opacity: 0.5; }
