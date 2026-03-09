@@ -115,9 +115,14 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   };
 
   // Nav list and bounds
+  // Phase navigates in natural cycle order (‹ = earlier, › = later)
+  // Day/cycle navigate newest-first (‹ = older, › = newer)
   const navList = filterMode === 'day' ? uniqueDays : filterMode === 'phase' ? uniquePhases : uniqueCycles;
-  const canNavPrev = filterNavIndex < navList.length - 1;
-  const canNavNext = filterNavIndex > 0;
+  const isPhaseMode = filterMode === 'phase';
+  const canNavPrev = isPhaseMode ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
+  const canNavNext = isPhaseMode ? filterNavIndex < navList.length - 1 : filterNavIndex > 0;
+  const onNavPrev = () => setFilterNavIndex(i => isPhaseMode ? i - 1 : i + 1);
+  const onNavNext = () => setFilterNavIndex(i => isPhaseMode ? i + 1 : i - 1);
 
   // Current nav label
   const todayStr = localDateStr(new Date().toISOString());
@@ -528,7 +533,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
           gap: 16,
         }}>
           <button
-            onClick={() => setFilterNavIndex(i => i + 1)}
+            onClick={onNavPrev}
             disabled={!canNavPrev}
             style={{
               background: 'none',
@@ -562,7 +567,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             )}
           </div>
           <button
-            onClick={() => setFilterNavIndex(i => i - 1)}
+            onClick={onNavNext}
             disabled={!canNavNext}
             style={{
               background: 'none',

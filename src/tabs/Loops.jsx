@@ -353,10 +353,13 @@ export function Loops({ userId, phrases, phrasesLoading }) {
   }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
 
   // Navigation helpers
-  const canNavPrev = closedViewMode === 'phase'
-    ? closedNavIndex < uniquePhases.length - 1
-    : closedNavIndex < uniqueCycles.length - 1;
-  const canNavNext = closedNavIndex > 0;
+  // Phase: natural cycle order (‹ = earlier, › = later in cycle)
+  // Cycle: newest-first (‹ = older cycle, › = newer cycle)
+  const isPhaseView = closedViewMode === 'phase';
+  const canNavPrev = isPhaseView ? closedNavIndex > 0 : closedNavIndex < uniqueCycles.length - 1;
+  const canNavNext = isPhaseView ? closedNavIndex < uniquePhases.length - 1 : closedNavIndex > 0;
+  const onNavPrev = () => setClosedNavIndex(i => isPhaseView ? i - 1 : i + 1);
+  const onNavNext = () => setClosedNavIndex(i => isPhaseView ? i + 1 : i - 1);
 
   const currentNavLabel = closedViewMode === 'phase'
     ? uniquePhases[closedNavIndex]?.name || ''
@@ -696,7 +699,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
               padding: '10px 0',
             }}>
               <button
-                onClick={() => setClosedNavIndex(i => i + 1)}
+                onClick={onNavPrev}
                 disabled={!canNavPrev}
                 style={{
                   background: 'none',
@@ -733,7 +736,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
                 )}
               </div>
               <button
-                onClick={() => setClosedNavIndex(i => i - 1)}
+                onClick={onNavNext}
                 disabled={!canNavNext}
                 style={{
                   background: 'none',
