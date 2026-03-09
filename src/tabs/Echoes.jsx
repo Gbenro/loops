@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
 import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
+import { lunarMonths } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudio, deleteAudio, hasAudio } from '../lib/audioStorage.js';
@@ -127,7 +128,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
     const c = uniqueCycles[filterNavIndex];
-    return c != null ? `Cycle ${c}` : '';
+    return c != null ? (lunarMonths[c]?.name || `${c} Moon`) : '';
   })();
 
   const isCurrentNav = filterMode === 'day'
