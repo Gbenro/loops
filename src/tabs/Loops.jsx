@@ -69,13 +69,12 @@ export function Loops({ userId, phrases, phrasesLoading }) {
     if (loading || loops.length === 0) return;
 
     const currentPhase = lunarData.phase.key;
-    const LATE_PHASES = ['last-quarter', 'waning-crescent'];
     const phaseLoopsToClose = loops.filter(l => {
       if (l.type !== 'phase' || l.status !== 'active' || !l.phaseOpened) return false;
       if (l.phaseOpened === currentPhase) return false;
-      // New moon loops stay open through the waxing/full/waning-gibbous period
-      // Only auto-close them once we reach last-quarter or waning-crescent
-      if (l.phaseOpened === 'new' && !LATE_PHASES.includes(currentPhase)) return false;
+      // New moon loops stay open through last-quarter (for releasing in waning-gibbous)
+      // Only auto-close when waning-crescent begins
+      if (l.phaseOpened === 'new' && currentPhase !== 'waning-crescent') return false;
       return true;
     });
 
@@ -344,27 +343,30 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       if (!targetPhase) return [];
       return allClosedLoops.filter(l => l.phaseClosed === targetPhase.key);
     } else {
-      // Cycle mode: always show current cycle
+      const targetCycle = uniqueCycles[closedNavIndex];
+      if (!targetCycle) return [];
       return allClosedWithCycles.filter(l => {
         const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
-        return loopCycle === lunarData.lunarMonth;
+        return loopCycle === targetCycle.name;
       });
     }
-  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, lunarData.lunarMonth]);
+  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
 
-  // Navigation helpers (phase only — cycle has no nav)
-  const canNavPrev = closedViewMode === 'phase' && closedNavIndex < uniquePhases.length - 1;
-  const canNavNext = closedViewMode === 'phase' && closedNavIndex > 0;
+  // Navigation helpers
+  const canNavPrev = closedViewMode === 'phase'
+    ? closedNavIndex < uniquePhases.length - 1
+    : closedNavIndex < uniqueCycles.length - 1;
+  const canNavNext = closedNavIndex > 0;
 
   const currentNavLabel = closedViewMode === 'phase'
     ? uniquePhases[closedNavIndex]?.name || ''
-    : `${lunarData.lunarMonth} Moon`;
+    : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
 
   const isCurrentNav = closedViewMode === 'phase'
     ? uniquePhases[closedNavIndex]?.isCurrent
-    : true; // cycle mode always shows current
+    : uniqueCycles[closedNavIndex]?.isCurrent;
 
-  // Switch view mode — phase defaults to current phase index
+  // Switch view mode — phase defaults to current phase, cycle defaults to current
   const switchViewMode = (mode) => {
     setClosedViewMode(mode);
     if (mode === 'phase') {
@@ -693,22 +695,20 @@ export function Loops({ userId, phrases, phrasesLoading }) {
               marginBottom: 16,
               padding: '10px 0',
             }}>
-              {closedViewMode === 'phase' && (
-                <button
-                  onClick={() => setClosedNavIndex(i => i + 1)}
-                  disabled={!canNavPrev}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                    fontSize: 16,
-                    cursor: canNavPrev ? 'pointer' : 'default',
-                    padding: '4px 8px',
-                  }}
-                >
-                  ‹
-                </button>
-              )}
+              <button
+                onClick={() => setClosedNavIndex(i => i + 1)}
+                disabled={!canNavPrev}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                  fontSize: 16,
+                  cursor: canNavPrev ? 'pointer' : 'default',
+                  padding: '4px 8px',
+                }}
+              >
+                ‹
+              </button>
               <div style={{
                 textAlign: 'center',
                 minWidth: 140,
@@ -732,22 +732,20 @@ export function Loops({ userId, phrases, phrasesLoading }) {
                   </div>
                 )}
               </div>
-              {closedViewMode === 'phase' && (
-                <button
-                  onClick={() => setClosedNavIndex(i => i - 1)}
-                  disabled={!canNavNext}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                    fontSize: 16,
-                    cursor: canNavNext ? 'pointer' : 'default',
-                    padding: '4px 8px',
-                  }}
-                >
-                  ›
-                </button>
-              )}
+              <button
+                onClick={() => setClosedNavIndex(i => i - 1)}
+                disabled={!canNavNext}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                  fontSize: 16,
+                  cursor: canNavNext ? 'pointer' : 'default',
+                  padding: '4px 8px',
+                }}
+              >
+                ›
+              </button>
             </div>
 
             {/* Loops for selected phase/cycle */}
