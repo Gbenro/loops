@@ -16,6 +16,7 @@ import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
 import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
 import { AdminDashboard } from './components/AdminDashboard.jsx';
+import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 
 const TABS = [
@@ -241,6 +242,7 @@ export default function App() {
   const [accessStatus, setAccessStatus] = useState('checking'); // 'checking' | 'allowed' | 'denied'
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
   const [loops, setLoops] = useState([]);
@@ -382,6 +384,13 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Auto-show tutorial on first launch (V2 only)
+  useEffect(() => {
+    if (!loading && IS_V2 && !localStorage.getItem('tutorial_completed')) {
+      setShowTutorial(true);
+    }
+  }, [loading]);
 
   // Detect precise location for accurate hemisphere + future moonrise/set
   useEffect(() => {
@@ -673,6 +682,7 @@ export default function App() {
             solarData={solarData}
             loops={loops}
             echoes={echoes}
+            onOpenTutorial={IS_V2 ? () => setShowTutorial(true) : undefined}
           />
         )}
         {activeTab === 'loops' && (
@@ -704,6 +714,7 @@ export default function App() {
           return (
             <button
               key={tab.id}
+              data-tutorial={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1,
@@ -768,6 +779,18 @@ export default function App() {
           </button>
         )}
       </nav>
+
+      {/* Tutorial — V2 only, mounts outside overflow:hidden container */}
+      {IS_V2 && showTutorial && (
+        <Tutorial
+          activeTab={activeTab}
+          onSwitchTab={setActiveTab}
+          onClose={() => {
+            localStorage.setItem('tutorial_completed', 'true');
+            setShowTutorial(false);
+          }}
+        />
+      )}
       </div>
     </div>
   );

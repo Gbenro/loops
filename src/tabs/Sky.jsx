@@ -14,7 +14,7 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData, loops = [], echoes = [] }) {
+export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData, loops = [], echoes = [], onOpenTutorial }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
@@ -114,6 +114,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         }}>
         {/* Tappable Moon */}
         <div
+          data-tutorial="moon-display"
           onClick={() => setSheetOpen(true)}
           style={{
             cursor: 'pointer',
@@ -305,7 +306,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Phase Tide Bar */}
-        <div style={{ margin: '0 -20px 16px' }}>
+        <div data-tutorial="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
           <PhaseTideBar lunarData={lunarData} />
         </div>
 
@@ -327,6 +328,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Phase Transition Card (< 24h before shift) */}
+        <div data-tutorial="phase-transition-card" style={{ display: 'contents' }}>
         {lunarData.isApproaching && !transitionDismissed && (
           <PhaseTransitionCard
             lunarData={lunarData}
@@ -338,10 +340,12 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             echoes={echoes}
           />
         )}
+        </div>{/* end data-tutorial="phase-transition-card" */}
 
         {/* Personal Transit Card (if resonances active) */}
         {resonanceSummary.hasResonance && (
           <div
+            data-tutorial="your-sky"
             onClick={() => setSheetOpen(true)}
             style={{
               padding: '14px 18px',
@@ -426,6 +430,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         user={user}
         onSignOut={onSignOut}
         onProfileUpdate={onProfileUpdate}
+        onOpenTutorial={onOpenTutorial}
       />
     </div>
   );

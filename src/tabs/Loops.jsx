@@ -558,7 +558,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
       }}>
         {/* Cycle Loop (pinned at top) */}
         {cycleLoop && (
-          <div style={{ marginBottom: 24 }}>
+          <div data-tutorial="cycle-loop" style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
@@ -581,7 +581,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
 
         {/* Phase Loops (Windowed) */}
         {phaseLoops.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
+          <div data-tutorial="phase-loops" style={{ marginBottom: 24 }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -895,6 +895,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
         borderTop: '1px solid rgba(245, 230, 200, 0.06)',
       }}>
         <button
+          data-tutorial="add-loop-btn"
           onClick={() => setShowLoopSheet(true)}
           style={{
             width: '100%',
