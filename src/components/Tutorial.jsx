@@ -244,7 +244,7 @@ const PHASE_DATA = [
 
 // ─── Tutorial Component ───────────────────────────────────────────────────────
 
-export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide' }) {
+export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'phases' }) {
   const [mode, setMode] = useState(initialMode);
   const [guideStep, setGuideStep] = useState(0);
   const [phaseIdx, setPhaseIdx] = useState(0);
@@ -331,6 +331,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
           phaseIdx={phaseIdx}
           setPhaseIdx={setPhaseIdx}
           onClose={onClose}
+          onDone={() => setMode('guide')}
         />
       )}
 
@@ -624,7 +625,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
 
 // ─── Phases Mode ─────────────────────────────────────────────────────────────
 
-function PhasesMode({ phaseIdx, setPhaseIdx, onClose }) {
+function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
   const phase = PHASE_DATA[phaseIdx];
   const moonAge = phase.age / 29.53;
 
@@ -727,14 +728,14 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose }) {
           </button>
         ) : (
           <button
-            onClick={onClose}
+            onClick={onDone || onClose}
             style={{
               padding: '10px 20px', borderRadius: 10, border: 'none',
               background: 'rgba(245,230,200,0.1)',
               color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
             }}
           >
-            Done ✦
+            How it works ›
           </button>
         )}
       </div>
