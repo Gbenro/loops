@@ -319,13 +319,28 @@ export default function App() {
 
   // Check auth state on mount
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const init = async () => {
+      // If tokens are in URL hash (from version switcher), restore session explicitly
+      const hash = window.location.hash;
+      if (hash.includes('access_token=')) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          // Clean the tokens from the URL
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
       const u = session?.user || null;
       setUser(u);
       setLoading(false);
       if (u) checkAccess(u.email);
-      else setAccessStatus('allowed'); // unauthenticated users see sign-in, not blocked
-    });
+      else setAccessStatus('allowed');
+    };
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
