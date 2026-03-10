@@ -255,9 +255,16 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
     requestAnimationFrame(() => {
       const el = document.querySelector(step.targetSelector);
       if (!el) { setSpotlightRect(null); return; }
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) { setSpotlightRect(null); return; }
-      setSpotlightRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+
+      // Scroll the element into view so it's visible on mobile
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+      // Wait for scroll to settle before measuring
+      setTimeout(() => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) { setSpotlightRect(null); return; }
+        setSpotlightRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      }, 450);
     });
   }, []);
 
@@ -266,7 +273,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
     const step = GUIDE_STEPS[guideStep];
     if (step?.tabToActivate && activeTab !== step.tabToActivate) {
       onSwitchTab(step.tabToActivate);
-      setTimeout(() => measureStep(guideStep), 200);
+      setTimeout(() => measureStep(guideStep), 300);
     } else {
       measureStep(guideStep);
     }
@@ -432,20 +439,45 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
           </div>
 
           {isClosing ? (
-            <button
-              onClick={onClose}
-              style={{
-                marginTop: 48, padding: '14px 32px',
-                borderRadius: 24,
-                background: 'rgba(245,230,200,0.1)',
-                border: '1px solid rgba(245,230,200,0.2)',
-                color: '#f5e6c8', fontSize: 15,
-                fontFamily: "'DM Sans', sans-serif",
-                cursor: 'pointer', letterSpacing: '0.05em',
-              }}
-            >
-              Enter the app ✦
-            </button>
+            <>
+              <button
+                onClick={onClose}
+                style={{
+                  marginTop: 40, padding: '14px 32px',
+                  borderRadius: 24,
+                  background: 'rgba(245,230,200,0.1)',
+                  border: '1px solid rgba(245,230,200,0.2)',
+                  color: '#f5e6c8', fontSize: 15,
+                  fontFamily: "'DM Sans', sans-serif",
+                  cursor: 'pointer', letterSpacing: '0.05em',
+                }}
+              >
+                Enter the app ✦
+              </button>
+              {/* Where to find it again */}
+              <div style={{
+                marginTop: 32,
+                padding: '14px 20px',
+                borderRadius: 12,
+                background: 'rgba(245,230,200,0.03)',
+                border: '1px solid rgba(245,230,200,0.08)',
+                maxWidth: 300, textAlign: 'center',
+              }}>
+                <div style={{
+                  fontSize: 9, fontFamily: 'monospace',
+                  letterSpacing: '0.15em', color: 'rgba(245,230,200,0.25)',
+                  marginBottom: 8,
+                }}>
+                  FIND THIS AGAIN
+                </div>
+                <div style={{
+                  fontSize: 12, color: 'rgba(245,230,200,0.45)',
+                  lineHeight: 1.7,
+                }}>
+                  ☽ icon (top right) → About → App Guide & Phase Reference
+                </div>
+              </div>
+            </>
           ) : (
             <button
               onClick={onNext}
