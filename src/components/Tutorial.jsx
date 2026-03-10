@@ -127,13 +127,17 @@ const PHASE_DATA = [
     label: 'NEW MOON · RITUAL',
     title: 'The Seed',
     age: 0,
-    accent: null, // special treatment
+    accent: 'rgba(245,230,200,0.6)',
     isNew: true,
+    type: 'Ritual',
+    duration: '29.5 days',
+    illumination: '0%',
     question: 'What wants to be born through me this cycle?',
     description: 'The New Moon is not a phase to move through — it is a threshold to cross. The sky goes dark and something new becomes possible. This is the most important moment in the cycle. Everything that follows grows from what is planted here.',
     body2: 'You do not plan at the New Moon. You plant. One intention. No subtasks, no categories, no metadata. The cycle loop opens here as a ceremony, held for the full 29.5 days.',
     bodyState: 'Still, empty, quietly receptive',
     loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
+    activities: ['Ceremony', 'Intention', 'Stillness', 'Planting', 'Prayer'],
     entrainment: 'You can sit with blankness without filling it.',
   },
   {
@@ -808,65 +812,78 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
 
 function NewMoonCard({ phase }) {
   return (
-    <div style={{ paddingTop: 32, animation: 'tutSlideUp 0.35s ease' }}>
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{
-          fontSize: 10, fontFamily: 'monospace',
-          letterSpacing: '0.2em', color: 'rgba(245,230,200,0.35)',
-          marginBottom: 20,
-        }}>
-          {phase.label}
-        </div>
+    <div style={{ paddingTop: 0, animation: 'tutSlideUp 0.35s ease' }}>
+      {/* Top glow */}
+      <div style={{
+        height: 140,
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(245,230,200,0.07) 0%, transparent 65%)',
+        marginLeft: -20, marginRight: -20,
+        marginBottom: -60,
+        pointerEvents: 'none',
+      }} />
 
-        {/* Dark moon with ring */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="36" fill="rgba(245,230,200,0.08)" stroke="rgba(245,230,200,0.08)" strokeWidth="1" />
-            <circle cx="40" cy="40" r="28" fill="#04080e" />
-          </svg>
-        </div>
+      {/* Dark moon */}
+      <div style={{ textAlign: 'center', marginBottom: 8, paddingTop: 20 }}>
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="36" fill="rgba(245,230,200,0.06)" stroke="rgba(245,230,200,0.1)" strokeWidth="1" />
+          <circle cx="40" cy="40" r="28" fill="#04080e" />
+        </svg>
+      </div>
 
-        <PlantIllustration phaseKey="new" accent={null} />
+      <PlantIllustration phaseKey="new" accent={null} />
 
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 28, fontWeight: 300,
-          color: 'rgba(245,230,200,0.7)',
-          marginBottom: 28,
+          fontSize: 26, color: 'rgba(245,230,200,0.75)',
+          marginBottom: 6,
         }}>
           {phase.title}
         </div>
 
-        {/* Central question */}
         <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 20, fontStyle: 'italic',
-          color: 'rgba(245,230,200,0.85)',
-          lineHeight: 1.5,
-          padding: '0 16px',
-          marginBottom: 32,
+          fontSize: 11, fontFamily: 'monospace',
+          letterSpacing: '0.2em', color: 'rgba(245,230,200,0.4)',
+          marginBottom: 12,
         }}>
-          "{phase.question}"
+          {phase.label}
         </div>
+
+        {/* Type pill */}
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 12px', borderRadius: 20,
+          background: 'rgba(245,230,200,0.06)',
+          border: '1px solid rgba(245,230,200,0.15)',
+          color: 'rgba(245,230,200,0.5)', fontSize: 10,
+          fontFamily: 'monospace', letterSpacing: '0.1em',
+        }}>
+          {phase.type.toUpperCase()} · {phase.duration}
+        </span>
       </div>
 
+      {/* Description */}
       <div style={{
-        fontSize: 14, color: 'rgba(245,230,200,0.6)',
-        lineHeight: 1.8, marginBottom: 20,
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: 16, fontStyle: 'italic',
+        color: 'rgba(245,230,200,0.75)',
+        lineHeight: 1.75, marginBottom: 16,
       }}>
         {phase.description}
       </div>
       <div style={{
-        fontSize: 14, color: 'rgba(245,230,200,0.6)',
-        lineHeight: 1.8, marginBottom: 28,
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: 16, fontStyle: 'italic',
+        color: 'rgba(245,230,200,0.6)',
+        lineHeight: 1.75, marginBottom: 20,
       }}>
-        {phase.body2}
+        {phase.question && `"${phase.question}"`}
       </div>
 
-      {/* Body state + Loop behaviour */}
+      {/* 2-col meta */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
         {[
-          { label: 'ILLUMINATION', value: '0%' },
+          { label: 'ILLUMINATION', value: phase.illumination },
           { label: 'BODY STATE', value: phase.bodyState },
         ].map(m => (
           <div key={m.label} style={{
@@ -886,12 +903,12 @@ function NewMoonCard({ phase }) {
         ))}
       </div>
 
+      {/* Loop behaviour */}
       <div style={{
-        padding: '14px 16px',
-        borderRadius: 10,
+        padding: '14px 16px', borderRadius: 10,
         background: 'rgba(245,230,200,0.03)',
         border: '1px solid rgba(245,230,200,0.08)',
-        marginBottom: 24,
+        marginBottom: 20,
       }}>
         <div style={{
           fontSize: 9, fontFamily: 'monospace',
@@ -905,10 +922,27 @@ function NewMoonCard({ phase }) {
         </div>
       </div>
 
+      {/* Activities */}
+      {phase.activities && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 24 }}>
+          {phase.activities.map(a => (
+            <span key={a} style={{
+              padding: '4px 10px', borderRadius: 14,
+              background: 'rgba(245,230,200,0.05)',
+              border: '1px solid rgba(245,230,200,0.12)',
+              color: 'rgba(245,230,200,0.45)', fontSize: 11,
+              fontFamily: 'monospace', letterSpacing: '0.05em',
+            }}>
+              {a}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Entrainment sign */}
       <div style={{
-        borderLeft: '2px solid rgba(245,230,200,0.12)',
-        paddingLeft: 14,
+        borderLeft: '2px solid rgba(245,230,200,0.18)',
+        paddingLeft: 14, marginBottom: 8,
       }}>
         <div style={{
           fontSize: 9, fontFamily: 'monospace',
