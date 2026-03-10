@@ -284,12 +284,12 @@ export default function App() {
   }, [userProfile, initFromProfile, loading]);
 
   const checkAccess = async (userEmail) => {
-    if (!IS_V2) { setAccessStatus('allowed'); return; } // V1: everyone in
     if (!userEmail) { setAccessStatus('denied'); return; }
     const { data, error } = await supabase.rpc('check_my_access');
     if (error) {
       console.error('checkAccess error:', error);
-      setAccessStatus('denied');
+      // On V1, fail open; on V2, fail closed
+      setAccessStatus(IS_V2 ? 'denied' : 'allowed');
       setIsAdmin(false);
       return;
     }
@@ -297,7 +297,8 @@ export default function App() {
       setAccessStatus('allowed');
       setIsAdmin(data === 'admin');
     } else {
-      setAccessStatus('denied');
+      // Not on allowlist: V1 still lets them in, V2 gates them
+      setAccessStatus(IS_V2 ? 'denied' : 'allowed');
       setIsAdmin(false);
     }
   };
