@@ -584,7 +584,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       </div>
 
       {/* Write Area */}
-      <div style={{ padding: '0 20px 20px' }}>
+      <div data-tutorial="echoes-write-area" style={{ padding: '0 20px 20px' }}>
         {isWriting ? (
           <div style={{
             background: 'rgba(245, 230, 200, 0.03)',
@@ -694,7 +694,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
             />
 
             {/* Cosmic stamp with phase type */}
-            <div style={{
+            <div data-tutorial="echo-stamp" style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -729,6 +729,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 
               {/* Voice orb */}
               <button
+                data-tutorial="echoes-voice-orb"
                 onClick={toggleRecording}
                 disabled={isTranscribing}
                 style={{
