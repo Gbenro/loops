@@ -132,6 +132,7 @@ const PHASE_DATA = [
     question: 'What wants to be born through me this cycle?',
     description: 'The New Moon is not a phase to move through — it is a threshold to cross. The sky goes dark and something new becomes possible. This is the most important moment in the cycle. Everything that follows grows from what is planted here.',
     body2: 'You do not plan at the New Moon. You plant. One intention. No subtasks, no categories, no metadata. The cycle loop opens here as a ceremony, held for the full 29.5 days.',
+    bodyState: 'Still, empty, quietly receptive',
     loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
     entrainment: 'You can sit with blankness without filling it.',
   },
@@ -862,7 +863,29 @@ function NewMoonCard({ phase }) {
         {phase.body2}
       </div>
 
-      {/* Loop behaviour */}
+      {/* Body state + Loop behaviour */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+        {[
+          { label: 'ILLUMINATION', value: '0%' },
+          { label: 'BODY STATE', value: phase.bodyState },
+        ].map(m => (
+          <div key={m.label} style={{
+            padding: '12px 14px', borderRadius: 10,
+            background: 'rgba(245,230,200,0.03)',
+            border: '1px solid rgba(245,230,200,0.06)',
+          }}>
+            <div style={{
+              fontSize: 8, fontFamily: 'monospace',
+              letterSpacing: '0.1em', color: 'rgba(245,230,200,0.28)',
+              marginBottom: 6,
+            }}>
+              {m.label}
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.6)' }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
       <div style={{
         padding: '14px 16px',
         borderRadius: 10,
