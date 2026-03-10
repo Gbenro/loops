@@ -58,6 +58,16 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
     loadData();
   };
 
+  const switchVersion = async (targetUrl) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const hash = `access_token=${session.access_token}&refresh_token=${session.refresh_token}&type=bearer`;
+      window.location.href = `${targetUrl}/#${hash}`;
+    } else {
+      window.location.href = targetUrl;
+    }
+  };
+
   if (!isOpen) return null;
 
   // Stats derived from users
@@ -108,22 +118,22 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
             {(V1_URL || V2_URL) && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingTop: 4 }}>
                 {V1_URL && (
-                  <a href={V1_URL} style={{
-                    padding: '4px 10px', borderRadius: 4,
+                  <button onClick={() => switchVersion(V1_URL)} style={{
+                    padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
                     border: `1px solid ${!IS_V2 ? 'rgba(245,230,200,0.4)' : 'rgba(245,230,200,0.12)'}`,
                     color: !IS_V2 ? 'rgba(245,230,200,0.8)' : 'rgba(245,230,200,0.35)',
                     fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
-                    textDecoration: 'none',
-                  }}>V1</a>
+                    background: 'none',
+                  }}>V1</button>
                 )}
                 {V2_URL && (
-                  <a href={V2_URL} style={{
-                    padding: '4px 10px', borderRadius: 4,
+                  <button onClick={() => switchVersion(V2_URL)} style={{
+                    padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
                     border: `1px solid ${IS_V2 ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.15)'}`,
                     color: IS_V2 ? 'rgba(167,139,250,0.9)' : 'rgba(167,139,250,0.4)',
                     fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
-                    textDecoration: 'none',
-                  }}>V2</a>
+                    background: 'none',
+                  }}>V2</button>
                 )}
               </div>
             )}
