@@ -5,7 +5,7 @@ const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
-import { migrateLocalToServer, getLoops, getEchoes } from './lib/storage.js';
+import { migrateLocalToServer, getLoops, getEchoes, clearLocalCache } from './lib/storage.js';
 import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
@@ -345,6 +345,14 @@ export default function App() {
 
       const { data: { session } } = await supabase.auth.getSession();
       const u = session?.user || null;
+
+      // If a different user is signing in, wipe the previous user's local cache
+      const lastUserId = localStorage.getItem('last_user_id');
+      if (u && lastUserId && lastUserId !== u.id) {
+        clearLocalCache();
+      }
+      if (u) localStorage.setItem('last_user_id', u.id);
+
       setUser(u);
       setLoading(false);
       if (u) checkAccess(u.email);
@@ -354,6 +362,15 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
+
+      if (u) {
+        const lastUserId = localStorage.getItem('last_user_id');
+        if (lastUserId && lastUserId !== u.id) {
+          clearLocalCache();
+        }
+        localStorage.setItem('last_user_id', u.id);
+      }
+
       setUser(u);
       if (u) {
         checkAccess(u.email);

@@ -398,6 +398,13 @@ export function getCurrentCyclePhaseSummaries(lunarMonth) {
   return summaries.filter(s => s.lunarMonth === lunarMonth);
 }
 
+// Clear all local cache — called when a different user signs in
+export function clearLocalCache() {
+  [LOOPS_KEY, ECHOES_KEY, PHASE_SUMMARIES_KEY, CYCLE_SUMMARIES_KEY].forEach(key => {
+    try { localStorage.removeItem(key); } catch {}
+  });
+}
+
 // Legacy exports for compatibility
 export const storage = {
   generateId,
