@@ -12,6 +12,7 @@ import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
 import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
+import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 
 const TABS = [
@@ -190,6 +191,41 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
   );
 }
 
+function BetaGate({ onSignOut }) {
+  return (
+    <div style={{
+      height: '100dvh', background: '#040810',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 32, flexDirection: 'column', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 36, marginBottom: 20 }}>☽</div>
+      <div style={{
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: 26, color: '#f5e6c8', marginBottom: 12,
+      }}>
+        Luna Loops v2
+      </div>
+      <div style={{
+        fontSize: 14, color: 'rgba(245,230,200,0.5)',
+        lineHeight: 1.8, maxWidth: 280, marginBottom: 32,
+      }}>
+        This version is in private beta. You're on the list — we'll be in touch when your access is ready.
+      </div>
+      <button
+        onClick={onSignOut}
+        style={{
+          background: 'none', border: '1px solid rgba(245,230,200,0.15)',
+          borderRadius: 8, color: 'rgba(245,230,200,0.4)',
+          fontSize: 11, fontFamily: 'monospace', padding: '10px 20px',
+          cursor: 'pointer', letterSpacing: '0.08em',
+        }}
+      >
+        SIGN OUT
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('sky');
   const [user, setUser] = useState(null);
@@ -199,6 +235,9 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState('checking'); // 'checking' | 'allowed' | 'denied'
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
   const [loops, setLoops] = useState([]);
@@ -242,6 +281,22 @@ export default function App() {
     }
   }, [userProfile, initFromProfile, loading]);
 
+  const checkAccess = async (userEmail) => {
+    if (!userEmail) { setAccessStatus('denied'); return; }
+    const { data } = await supabase
+      .from('allowed_emails')
+      .select('role')
+      .eq('email', userEmail.toLowerCase())
+      .single();
+    if (data) {
+      setAccessStatus('allowed');
+      setIsAdmin(data.role === 'admin');
+    } else {
+      setAccessStatus('denied');
+      setIsAdmin(false);
+    }
+  };
+
   const fetchProfile = async (userId) => {
     try {
       const { data } = await supabase
@@ -259,18 +314,23 @@ export default function App() {
   // Check auth state on mount
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
+      const u = session?.user || null;
+      setUser(u);
       setLoading(false);
+      if (u) checkAccess(u.email);
+      else setAccessStatus('allowed'); // unauthenticated users see sign-in, not blocked
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user || null);
-      // Show privacy notice for new OAuth sign-ups (Google etc.)
-      if (event === 'SIGNED_IN' && session?.user) {
-        const key = `privacy_ack_${session.user.id}`;
-        if (!localStorage.getItem(key)) {
-          setShowPrivacyNotice(true);
-        }
+      const u = session?.user || null;
+      setUser(u);
+      if (u) {
+        checkAccess(u.email);
+        const key = `privacy_ack_${u.id}`;
+        if (!localStorage.getItem(key)) setShowPrivacyNotice(true);
+      } else {
+        setAccessStatus('allowed');
+        setIsAdmin(false);
       }
     });
 
@@ -353,6 +413,17 @@ export default function App() {
         fontSize: 24,
       }}>
         ☽
+      </div>
+    );
+  }
+
+  // Beta gate: user is signed in but not on the allowlist
+  if (user && accessStatus === 'denied') {
+    return (
+      <div style={{ minHeight: '100dvh', background: '#040810', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: 520 }}>
+          <BetaGate onSignOut={handleSignOut} />
+        </div>
       </div>
     );
   }
@@ -500,6 +571,15 @@ export default function App() {
         />
       )}
 
+      {/* Admin Dashboard */}
+      {isAdmin && showAdmin && (
+        <AdminDashboard
+          isOpen={showAdmin}
+          onClose={() => setShowAdmin(false)}
+          currentUserEmail={user?.email}
+        />
+      )}
+
       {/* Tab Content */}
       <div style={{
         flex: 1,
@@ -587,6 +667,22 @@ export default function App() {
             </button>
           );
         })}
+        {isAdmin && (
+          <button
+            onClick={() => setShowAdmin(true)}
+            style={{
+              padding: '16px 14px 12px',
+              background: 'none', border: 'none',
+              color: 'rgba(167,139,250,0.4)',
+              cursor: 'pointer', display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: 6,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>⚡</span>
+            <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>ADMIN</span>
+          </button>
+        )}
       </nav>
       </div>
     </div>
