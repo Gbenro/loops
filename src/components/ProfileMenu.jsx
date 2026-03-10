@@ -948,8 +948,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 </div>
               </div>
 
-              {/* Guide / Tutorial — V2 only */}
-              {IS_V2 && onOpenTutorial && (
+              {/* Guide / Tutorial */}
+              {onOpenTutorial && (
                 <div style={{ marginTop: 24 }}>
                   <button
                     onClick={() => { onOpenTutorial(); onClose(); }}
