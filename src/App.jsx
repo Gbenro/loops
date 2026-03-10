@@ -385,9 +385,9 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auto-show tutorial on first launch (V2 only)
+  // Auto-show tutorial on first launch or first time seeing this version
   useEffect(() => {
-    if (!loading && IS_V2 && !localStorage.getItem('tutorial_completed')) {
+    if (!loading && !localStorage.getItem('tutorial_seen_v2')) {
       setShowTutorial(true);
     }
   }, [loading]);
@@ -682,7 +682,7 @@ export default function App() {
             solarData={solarData}
             loops={loops}
             echoes={echoes}
-            onOpenTutorial={IS_V2 ? () => setShowTutorial(true) : undefined}
+            onOpenTutorial={() => setShowTutorial(true)}
           />
         )}
         {activeTab === 'loops' && (
@@ -780,13 +780,13 @@ export default function App() {
         )}
       </nav>
 
-      {/* Tutorial — V2 only, mounts outside overflow:hidden container */}
-      {IS_V2 && showTutorial && (
+      {/* Tutorial — shown once to all users, re-openable from settings */}
+      {showTutorial && (
         <Tutorial
           activeTab={activeTab}
           onSwitchTab={setActiveTab}
           onClose={() => {
-            localStorage.setItem('tutorial_completed', 'true');
+            localStorage.setItem('tutorial_seen_v2', 'true');
             setShowTutorial(false);
           }}
         />
