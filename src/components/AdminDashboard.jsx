@@ -2,6 +2,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 
+const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+const V1_URL = import.meta.env.VITE_V1_URL || null;
+const V2_URL = import.meta.env.VITE_V2_URL || null;
+
 export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
   const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState([]);
@@ -88,14 +92,41 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
 
         {/* Header */}
         <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(245,230,200,0.06)' }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 22, color: '#f5e6c8', marginBottom: 4,
-          }}>
-            Mission Control
-          </div>
-          <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em' }}>
-            LUNA LOOPS · PRIVATE BETA
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 22, color: '#f5e6c8', marginBottom: 4,
+              }}>
+                Mission Control
+              </div>
+              <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em' }}>
+                LUNA LOOPS · {IS_V2 ? 'V2 BETA' : 'V1 PUBLIC'}
+              </div>
+            </div>
+            {/* Version switcher */}
+            {(V1_URL || V2_URL) && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingTop: 4 }}>
+                {V1_URL && (
+                  <a href={V1_URL} style={{
+                    padding: '4px 10px', borderRadius: 4,
+                    border: `1px solid ${!IS_V2 ? 'rgba(245,230,200,0.4)' : 'rgba(245,230,200,0.12)'}`,
+                    color: !IS_V2 ? 'rgba(245,230,200,0.8)' : 'rgba(245,230,200,0.35)',
+                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
+                    textDecoration: 'none',
+                  }}>V1</a>
+                )}
+                {V2_URL && (
+                  <a href={V2_URL} style={{
+                    padding: '4px 10px', borderRadius: 4,
+                    border: `1px solid ${IS_V2 ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.15)'}`,
+                    color: IS_V2 ? 'rgba(167,139,250,0.9)' : 'rgba(167,139,250,0.4)',
+                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
+                    textDecoration: 'none',
+                  }}>V2</a>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

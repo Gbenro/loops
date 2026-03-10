@@ -1,6 +1,8 @@
 // Luna Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
+const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
 import { migrateLocalToServer, getLoops, getEchoes } from './lib/storage.js';
@@ -282,6 +284,7 @@ export default function App() {
   }, [userProfile, initFromProfile, loading]);
 
   const checkAccess = async (userEmail) => {
+    if (!IS_V2) { setAccessStatus('allowed'); return; } // V1: everyone in
     if (!userEmail) { setAccessStatus('denied'); return; }
     const { data, error } = await supabase.rpc('check_my_access');
     if (error) {
@@ -669,6 +672,16 @@ export default function App() {
             </button>
           );
         })}
+        {/* Version badge */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 10px',
+          color: IS_V2 ? 'rgba(167,139,250,0.35)' : 'rgba(245,230,200,0.2)',
+          fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.1em',
+          userSelect: 'none',
+        }}>
+          {IS_V2 ? 'V2' : 'V1'}
+        </div>
         {isAdmin && (
           <button
             onClick={() => setShowAdmin(true)}
