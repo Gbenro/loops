@@ -269,7 +269,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         {/* Section tabs */}
         <div style={{
           display: 'flex',
-          gap: 8,
+          gap: 6,
           padding: '0 20px 16px',
         }}>
           {[
@@ -282,9 +282,10 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             <button
               key={s.id}
               onClick={() => setActiveSection(s.id)}
+              title={s.label}
               style={{
                 flex: 1,
-                padding: '10px',
+                padding: '10px 4px',
                 borderRadius: 10,
                 border: 'none',
                 background: activeSection === s.id
@@ -293,16 +294,22 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 color: activeSection === s.id
                   ? '#f5e6c8'
                   : 'rgba(245, 230, 200, 0.4)',
-                fontSize: 12,
                 cursor: 'pointer',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 6,
+                gap: 4,
+                minWidth: 0,
               }}
             >
-              <span>{s.icon}</span>
-              <span>{s.label}</span>
+              <span style={{ fontSize: 16 }}>{s.icon}</span>
+              <span style={{
+                fontSize: 9, fontFamily: 'monospace',
+                letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                maxWidth: '100%',
+              }}>{s.label}</span>
             </button>
           ))}
         </div>
