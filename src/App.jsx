@@ -9,6 +9,7 @@ import { migrateLocalToServer, getLoops, getEchoes } from './lib/storage.js';
 import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
+import { detectLocation, getCachedLocation, hemisphereFromLat } from './lib/location.js';
 import { startNotificationScheduler, checkPhaseNotifications } from './lib/notifications.js';
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
@@ -247,9 +248,16 @@ export default function App() {
 
   const { initFromProfile, status: encryptionStatus } = useEncryption();
 
+  // Location state — seeded from cache immediately, then updated from GPS
+  const [location, setLocation] = useState(() => getCachedLocation());
+
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
-  const hemisphere = userProfile?.hemisphere || 'north';
+  // Hemisphere priority: live GPS > profile setting > default north
+  const hemisphere = location?.hemisphere
+    || (userProfile?.latitude != null ? hemisphereFromLat(userProfile.latitude) : null)
+    || userProfile?.hemisphere
+    || 'north';
   const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
 
   // Fetch loops and echoes for phase summaries
@@ -357,6 +365,31 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Detect precise location for accurate hemisphere + future moonrise/set
+  useEffect(() => {
+    detectLocation().then(async (loc) => {
+      if (!loc) return;
+      setLocation(loc);
+
+      // Save to Supabase profile if logged in and data changed
+      if (user) {
+        const profile = userProfile;
+        const sameHemisphere = profile?.hemisphere === loc.hemisphere;
+        const sameCoords = Math.abs((profile?.latitude || 0) - loc.latitude) < 0.1
+          && Math.abs((profile?.longitude || 0) - loc.longitude) < 0.1;
+        if (!sameHemisphere || !sameCoords) {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            hemisphere: loc.hemisphere,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            timezone: loc.timezone,
+          });
+        }
+      }
+    });
+  }, [user?.id]);
 
   // Load generative phrases on mount
   useEffect(() => {
