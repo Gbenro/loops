@@ -11,7 +11,7 @@ const GUIDE_STEPS = [
   // 0 — Welcome (no spotlight)
   {
     title: 'A different relationship with time',
-    body: 'Cosmic Loops replaces the Gregorian calendar with the lunar cycle. You move through eight phases — each with its own quality and invitation. This guide shows you how the app works.',
+    body: 'Luna Loops replaces the Gregorian calendar with the lunar cycle. You move through eight phases — each with its own quality and invitation. This guide shows you how the app works.',
   },
   // Sky
   {
@@ -626,8 +626,68 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
 // ─── Phases Mode ─────────────────────────────────────────────────────────────
 
 function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
+  const [started, setStarted] = useState(false);
   const phase = PHASE_DATA[phaseIdx];
   const moonAge = phase.age / 29.53;
+
+  if (!started) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1001,
+        background: '#040810',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '60px 32px 40px',
+        animation: 'tutSlideUp 0.4s ease',
+      }}>
+        {/* 8 mini moons in a circle-ish arc */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 36, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 240 }}>
+          {PHASE_DATA.map((p, i) => (
+            <div key={p.key} style={{ opacity: 0.4 + i * 0.075 }}>
+              {p.isNew ? (
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" fill="#040810" stroke="rgba(245,230,200,0.4)" strokeWidth="1.5" />
+                </svg>
+              ) : (
+                <MoonFace size={20} phase={p.age / 29.53} illumination={parseFloat(p.illumination) || 50} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 32, fontWeight: 300,
+          color: '#f5e6c8', marginBottom: 16,
+          textAlign: 'center', lineHeight: 1.2,
+        }}>
+          The eight phases
+        </div>
+
+        <div style={{
+          fontSize: 15, color: 'rgba(245,230,200,0.6)',
+          lineHeight: 1.75, textAlign: 'center',
+          maxWidth: 300, marginBottom: 48,
+        }}>
+          The lunar cycle is not a clock — it is a living rhythm. Each phase has its own quality, invitation, and way of moving. Understanding them changes how you work with time.
+        </div>
+
+        <button
+          onClick={() => setStarted(true)}
+          style={{
+            padding: '14px 32px', borderRadius: 24,
+            background: 'rgba(245,230,200,0.1)',
+            border: '1px solid rgba(245,230,200,0.2)',
+            color: '#f5e6c8', fontSize: 15,
+            fontFamily: "'DM Sans', sans-serif",
+            cursor: 'pointer', letterSpacing: '0.05em',
+          }}
+        >
+          Explore the phases
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{
