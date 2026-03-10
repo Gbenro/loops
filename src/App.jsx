@@ -672,16 +672,18 @@ export default function App() {
             </button>
           );
         })}
-        {/* Version badge */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 10px',
-          color: IS_V2 ? 'rgba(167,139,250,0.35)' : 'rgba(245,230,200,0.2)',
-          fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.1em',
-          userSelect: 'none',
-        }}>
-          {IS_V2 ? 'V2' : 'V1'}
-        </div>
+        {/* Version badge — only shown on V2 */}
+        {IS_V2 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 10px',
+            color: 'rgba(167,139,250,0.35)',
+            fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.1em',
+            userSelect: 'none',
+          }}>
+            V2
+          </div>
+        )}
         {isAdmin && (
           <button
             onClick={() => setShowAdmin(true)}
