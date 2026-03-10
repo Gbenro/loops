@@ -40,6 +40,17 @@ function getPhaseType(phaseKey) {
   return PHASE_TYPES[phaseKey] || 'flow';
 }
 
+// Time-of-day emoji from ISO timestamp
+function timeOfDayEmoji(isoString) {
+  const hour = new Date(isoString).getHours();
+  if (hour >= 5 && hour < 8) return '🌅';
+  if (hour >= 8 && hour < 12) return '☀️';
+  if (hour >= 12 && hour < 17) return '🌤️';
+  if (hour >= 17 && hour < 20) return '🌆';
+  if (hour >= 20) return '🌃';
+  return '🌙'; // midnight–5am
+}
+
 // Get local YYYY-MM-DD for any ISO timestamp
 function localDateStr(isoString) {
   const d = new Date(isoString);
@@ -958,8 +969,13 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 }
 
 
+const TEXT_LIMIT = 180;
+
 function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
+  const [textExpanded, setTextExpanded] = useState(false);
+  const isLong = echo.text && echo.text.length > TEXT_LIMIT;
+  const displayText = isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
 
   const phaseNum = (echo.phase || 'new').includes('waxing')
     ? echo.illumination / 100 * 0.5
@@ -1005,6 +1021,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
           alignItems: 'center',
           gap: 6,
         }}>
+          <span>{echo.createdAt ? timeOfDayEmoji(echo.createdAt) : ''}</span>
           <span>{(echo.phaseName || 'MOON').toUpperCase()} · {isThreshold ? 'THR' : 'FLW'} · {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}</span>
           {echo.source === 'voice' && (
             <span style={{
@@ -1041,7 +1058,22 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
         lineHeight: 1.76,
         color: 'rgba(245, 230, 200, 0.85)',
       }}>
-        {echo.text}
+        {displayText}
+        {isLong && (
+          <span
+            onClick={() => setTextExpanded(e => !e)}
+            style={{
+              marginLeft: 6,
+              fontSize: 11,
+              fontFamily: "'DM Sans', sans-serif",
+              color: 'rgba(245,230,200,0.35)',
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {textExpanded ? 'read less' : 'read more'}
+          </span>
+        )}
       </div>
 
       {/* Expanded info */}
