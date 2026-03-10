@@ -283,14 +283,16 @@ export default function App() {
 
   const checkAccess = async (userEmail) => {
     if (!userEmail) { setAccessStatus('denied'); return; }
-    const { data } = await supabase
-      .from('allowed_emails')
-      .select('role')
-      .eq('email', userEmail.toLowerCase())
-      .single();
+    const { data, error } = await supabase.rpc('check_my_access');
+    if (error) {
+      console.error('checkAccess error:', error);
+      setAccessStatus('denied');
+      setIsAdmin(false);
+      return;
+    }
     if (data) {
       setAccessStatus('allowed');
-      setIsAdmin(data.role === 'admin');
+      setIsAdmin(data === 'admin');
     } else {
       setAccessStatus('denied');
       setIsAdmin(false);
