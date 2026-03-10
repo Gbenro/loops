@@ -489,7 +489,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
                   fontSize: 12, color: 'rgba(245,230,200,0.45)',
                   lineHeight: 1.7,
                 }}>
-                  ☽ icon (top right) → About → App Guide & Phase Reference
+                  Menu → About → App Guide & Phase Reference
                 </div>
               </div>
             </>
