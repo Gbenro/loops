@@ -256,15 +256,22 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
       const el = document.querySelector(step.targetSelector);
       if (!el) { setSpotlightRect(null); return; }
 
-      // Scroll the element into view so it's visible on mobile
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      // Scroll the element into view so it's visible on mobile.
+      // Use instant (no animation) to avoid timing races — the spotlight
+      // itself animates smoothly regardless.
+      try {
+        el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+      } catch {
+        // Fallback for browsers that don't support 'instant'
+        el.scrollIntoView(false);
+      }
 
-      // Wait for scroll to settle before measuring
-      setTimeout(() => {
+      // One frame to let the browser apply the scroll before measuring
+      requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) { setSpotlightRect(null); return; }
         setSpotlightRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-      }, 450);
+      });
     });
   }, []);
 
@@ -273,7 +280,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
     const step = GUIDE_STEPS[guideStep];
     if (step?.tabToActivate && activeTab !== step.tabToActivate) {
       onSwitchTab(step.tabToActivate);
-      setTimeout(() => measureStep(guideStep), 300);
+      setTimeout(() => measureStep(guideStep), 150);
     } else {
       measureStep(guideStep);
     }
