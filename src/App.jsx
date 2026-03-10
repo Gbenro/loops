@@ -253,10 +253,10 @@ export default function App() {
 
   // Calculate cosmic data once at app level
   const lunarData = useMemo(() => getLunarData(), []);
-  // Hemisphere priority: live GPS > profile setting > default north
-  const hemisphere = location?.hemisphere
-    || (userProfile?.latitude != null ? hemisphereFromLat(userProfile.latitude) : null)
-    || userProfile?.hemisphere
+  // Hemisphere priority: manual profile setting > GPS > default north
+  // Manual setting wins so users who explicitly choose south aren't overridden by GPS
+  const hemisphere = userProfile?.hemisphere
+    || location?.hemisphere
     || 'north';
   const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
 
@@ -378,10 +378,11 @@ export default function App() {
         const sameHemisphere = profile?.hemisphere === loc.hemisphere;
         const sameCoords = Math.abs((profile?.latitude || 0) - loc.latitude) < 0.1
           && Math.abs((profile?.longitude || 0) - loc.longitude) < 0.1;
-        if (!sameHemisphere || !sameCoords) {
+        if (!sameCoords) {
           await supabase.from('profiles').upsert({
             id: user.id,
-            hemisphere: loc.hemisphere,
+            // Only set hemisphere from GPS if user hasn't manually chosen one
+            ...(profile?.hemisphere ? {} : { hemisphere: loc.hemisphere }),
             latitude: loc.latitude,
             longitude: loc.longitude,
             timezone: loc.timezone,
