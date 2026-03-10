@@ -764,6 +764,8 @@ function NewMoonCard({ phase }) {
           </svg>
         </div>
 
+        <PlantIllustration phaseKey="new" accent={null} />
+
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 28, fontWeight: 300,
@@ -843,6 +845,221 @@ function NewMoonCard({ phase }) {
   );
 }
 
+// ─── Plant Illustration ───────────────────────────────────────────────────────
+
+function PlantIllustration({ phaseKey, accent }) {
+  const c = accent || '#f5e6c8';
+  const s = (op) => `${c}${Math.round(op * 255).toString(16).padStart(2, '0')}`;
+
+  const groundLine = (y) => (
+    <line x1="10" y1={y} x2="130" y2={y} stroke={s(0.22)} strokeWidth="1" />
+  );
+
+  const illustrations = {
+    'new': (
+      // Seed in dark earth
+      <>
+        {groundLine(68)}
+        {/* soil texture */}
+        <circle cx="28" cy="78" r="1.5" fill={s(0.12)} />
+        <circle cx="50" cy="83" r="1" fill={s(0.1)} />
+        <circle cx="92" cy="76" r="1.5" fill={s(0.1)} />
+        <circle cx="112" cy="82" r="1" fill={s(0.09)} />
+        {/* seed glow */}
+        <ellipse cx="70" cy="86" rx="20" ry="14" fill={s(0.05)} />
+        {/* seed */}
+        <ellipse cx="70" cy="87" rx="11" ry="8" fill={s(0.14)} stroke={s(0.45)} strokeWidth="1.2" />
+        <path d="M68 95 Q60 102 57 108" stroke={s(0.2)} strokeWidth="0.8" fill="none" />
+        <path d="M72 95 Q80 102 83 108" stroke={s(0.2)} strokeWidth="0.8" fill="none" />
+        <path d="M70 96 Q70 104 70 108" stroke={s(0.18)} strokeWidth="0.8" fill="none" />
+        {/* quiet dark sky */}
+        <circle cx="35" cy="22" r="1" fill={s(0.07)} />
+        <circle cx="70" cy="15" r="1.2" fill={s(0.06)} />
+        <circle cx="108" cy="28" r="0.8" fill={s(0.07)} />
+        <circle cx="90" cy="10" r="1" fill={s(0.05)} />
+      </>
+    ),
+    'waxing-crescent': (
+      // Sprout breaking through soil
+      <>
+        {groundLine(75)}
+        {/* soil mound */}
+        <path d="M56 75 Q70 68 84 75" stroke={s(0.18)} strokeWidth="1" fill="none" />
+        {/* stem */}
+        <path d="M70 75 Q70 62 71 48" stroke={s(0.7)} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        {/* left cotyledon */}
+        <path d="M71 54 Q56 44 50 52 Q56 62 71 58 Z" fill={s(0.16)} stroke={s(0.5)} strokeWidth="0.9" />
+        {/* right cotyledon */}
+        <path d="M71 54 Q86 44 92 52 Q86 62 71 58 Z" fill={s(0.16)} stroke={s(0.5)} strokeWidth="0.9" />
+        {/* tiny new tip */}
+        <circle cx="71" cy="47" r="2" fill={s(0.65)} />
+        {/* soil dots */}
+        <circle cx="40" cy="82" r="1.2" fill={s(0.1)} />
+        <circle cx="100" cy="80" r="1" fill={s(0.1)} />
+      </>
+    ),
+    'first-quarter': (
+      // Young plant, sturdy, growing
+      <>
+        {groundLine(80)}
+        {/* stem */}
+        <path d="M70 80 Q68 62 70 30" stroke={s(0.68)} strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        {/* leaf low-left */}
+        <path d="M69 70 Q50 60 44 66 Q52 74 69 72 Z" fill={s(0.16)} stroke={s(0.45)} strokeWidth="0.9" />
+        {/* leaf low-right */}
+        <path d="M70 62 Q90 52 94 59 Q87 67 70 65 Z" fill={s(0.16)} stroke={s(0.45)} strokeWidth="0.9" />
+        {/* leaf mid-left */}
+        <path d="M69 50 Q54 40 50 47 Q56 55 69 53 Z" fill={s(0.13)} stroke={s(0.4)} strokeWidth="0.9" />
+        {/* top bud */}
+        <path d="M70 30 Q66 22 70 16 Q74 22 70 30" fill={s(0.22)} stroke={s(0.55)} strokeWidth="0.9" />
+      </>
+    ),
+    'waxing-gibbous': (
+      // Mature plant, lush, budding
+      <>
+        {groundLine(82)}
+        {/* main stem */}
+        <path d="M70 82 Q67 62 69 18" stroke={s(0.65)} strokeWidth="2" fill="none" strokeLinecap="round" />
+        {/* side branches */}
+        <path d="M69 62 Q52 54 44 57" stroke={s(0.5)} strokeWidth="1.2" fill="none" />
+        <path d="M70 48 Q87 40 96 44" stroke={s(0.5)} strokeWidth="1.2" fill="none" />
+        {/* lower-left leaf */}
+        <path d="M69 66 Q44 55 38 62 Q48 72 69 69 Z" fill={s(0.17)} stroke={s(0.42)} strokeWidth="0.9" />
+        {/* lower-right leaf */}
+        <path d="M70 58 Q95 47 99 55 Q90 63 70 62 Z" fill={s(0.17)} stroke={s(0.42)} strokeWidth="0.9" />
+        {/* mid-left leaf */}
+        <path d="M69 50 Q52 42 48 48 Q55 56 69 53 Z" fill={s(0.14)} stroke={s(0.38)} strokeWidth="0.9" />
+        {/* bud */}
+        <ellipse cx="69" cy="16" rx="5" ry="7" fill={s(0.2)} stroke={s(0.55)} strokeWidth="1" />
+        <path d="M69 9 Q67 6 69 3 Q71 6 69 9" fill={s(0.32)} stroke={s(0.6)} strokeWidth="0.8" />
+      </>
+    ),
+    'full': (
+      // Full bloom — flower open
+      <>
+        {groundLine(84)}
+        {/* stem */}
+        <path d="M70 84 Q68 65 70 42" stroke={s(0.62)} strokeWidth="2" fill="none" strokeLinecap="round" />
+        {/* branches */}
+        <path d="M69 65 Q50 56 42 60" stroke={s(0.5)} strokeWidth="1.2" fill="none" />
+        <path d="M70 52 Q88 44 97 48" stroke={s(0.5)} strokeWidth="1.2" fill="none" />
+        {/* leaves */}
+        <path d="M69 68 Q44 57 38 65 Q50 75 69 72 Z" fill={s(0.18)} stroke={s(0.45)} strokeWidth="0.9" />
+        <path d="M70 56 Q96 45 100 54 Q89 63 70 60 Z" fill={s(0.18)} stroke={s(0.45)} strokeWidth="0.9" />
+        {/* petals (8-petal flower at top) */}
+        {[0, 45, 90, 135, 180, 225, 270, 315].map(angle => {
+          const rad = (angle * Math.PI) / 180;
+          const px = 70 + Math.cos(rad) * 10;
+          const py = 22 + Math.sin(rad) * 10;
+          return (
+            <ellipse
+              key={angle}
+              cx={px} cy={py}
+              rx="4.5" ry="7"
+              transform={`rotate(${angle} ${px} ${py})`}
+              fill={s(0.2)} stroke={s(0.48)} strokeWidth="0.8"
+            />
+          );
+        })}
+        {/* flower center */}
+        <circle cx="70" cy="22" r="5.5" fill={s(0.35)} stroke={s(0.7)} strokeWidth="1" />
+        {/* radiance */}
+        <line x1="70" y1="10" x2="70" y2="6" stroke={s(0.28)} strokeWidth="0.8" />
+        <line x1="58" y1="13" x2="55" y2="10" stroke={s(0.22)} strokeWidth="0.8" />
+        <line x1="82" y1="13" x2="85" y2="10" stroke={s(0.22)} strokeWidth="0.8" />
+      </>
+    ),
+    'waning-gibbous': (
+      // Leaves turning, some falling
+      <>
+        {groundLine(84)}
+        {/* stem */}
+        <path d="M70 84 Q68 64 70 26" stroke={s(0.55)} strokeWidth="2" fill="none" strokeLinecap="round" />
+        {/* branches */}
+        <path d="M69 64 Q50 55 42 58" stroke={s(0.45)} strokeWidth="1.2" fill="none" />
+        <path d="M70 50 Q88 42 97 46" stroke={s(0.45)} strokeWidth="1.2" fill="none" />
+        {/* still-attached leaves */}
+        <path d="M69 68 Q46 57 40 64 Q50 73 69 71 Z" fill={s(0.17)} stroke={s(0.4)} strokeWidth="0.9" />
+        <path d="M70 55 Q95 44 99 52 Q88 61 70 58 Z" fill={s(0.15)} stroke={s(0.38)} strokeWidth="0.9" />
+        <path d="M69 44 Q55 36 51 42 Q57 50 69 47 Z" fill={s(0.12)} stroke={s(0.32)} strokeWidth="0.9" />
+        {/* spent seedhead */}
+        <circle cx="70" cy="23" r="5" fill="none" stroke={s(0.42)} strokeWidth="0.9" />
+        <line x1="67" y1="18" x2="65" y2="14" stroke={s(0.3)} strokeWidth="0.8" />
+        <line x1="70" y1="18" x2="70" y2="14" stroke={s(0.3)} strokeWidth="0.8" />
+        <line x1="73" y1="18" x2="75" y2="14" stroke={s(0.3)} strokeWidth="0.8" />
+        {/* falling leaf 1 */}
+        <path d="M52 66 Q44 72 46 79 Q53 76 55 70 Z"
+          fill={s(0.14)} stroke={s(0.28)} strokeWidth="0.8"
+          transform="rotate(-15 50 73)" />
+        {/* falling leaf 2 */}
+        <path d="M90 72 Q98 67 96 60 Q89 62 90 70 Z"
+          fill={s(0.12)} stroke={s(0.24)} strokeWidth="0.8"
+          transform="rotate(12 93 66)" />
+      </>
+    ),
+    'last-quarter': (
+      // Mostly bare, seed pods, a few fallen leaves on ground
+      <>
+        {groundLine(86)}
+        {/* main stem */}
+        <path d="M70 86 Q68 68 70 24" stroke={s(0.5)} strokeWidth="2" fill="none" strokeLinecap="round" />
+        {/* bare branches */}
+        <path d="M69 68 Q48 57 34 60" stroke={s(0.45)} strokeWidth="1.3" fill="none" />
+        <path d="M70 52 Q90 42 104 46" stroke={s(0.45)} strokeWidth="1.3" fill="none" />
+        <path d="M70 36 Q57 28 50 30" stroke={s(0.4)} strokeWidth="1" fill="none" />
+        {/* sub-branches */}
+        <path d="M34 60 Q28 55 24 56" stroke={s(0.3)} strokeWidth="0.8" fill="none" />
+        <path d="M34 60 Q30 65 27 65" stroke={s(0.3)} strokeWidth="0.8" fill="none" />
+        {/* one last leaf */}
+        <path d="M69 55 Q53 46 50 52 Q56 60 69 58 Z" fill={s(0.13)} stroke={s(0.35)} strokeWidth="0.9" />
+        {/* seed pods */}
+        <ellipse cx="38" cy="58" rx="4" ry="6" fill={s(0.1)} stroke={s(0.35)} strokeWidth="0.8" />
+        <ellipse cx="100" cy="44" rx="3.5" ry="5.5" fill={s(0.1)} stroke={s(0.35)} strokeWidth="0.8" />
+        {/* leaves on ground */}
+        <path d="M42 86 Q36 83 33 88 Q39 90 43 87 Z" fill={s(0.1)} stroke={s(0.2)} strokeWidth="0.8" />
+        <path d="M95 86 Q101 82 105 87 Q99 90 96 87 Z" fill={s(0.1)} stroke={s(0.2)} strokeWidth="0.8" />
+        <path d="M62 86 Q57 83 54 87 Q59 90 63 87 Z" fill={s(0.08)} stroke={s(0.16)} strokeWidth="0.8" />
+      </>
+    ),
+    'waning-crescent': (
+      // Bare winter branches — skeletal, still, beautiful
+      <>
+        {groundLine(90)}
+        {/* trunk */}
+        <path d="M70 90 Q68 74 70 55 Q71 40 70 18" stroke={s(0.48)} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        {/* main branches */}
+        <path d="M70 58 Q48 47 30 50" stroke={s(0.42)} strokeWidth="1.6" fill="none" />
+        <path d="M70 44 Q92 34 112 38" stroke={s(0.42)} strokeWidth="1.6" fill="none" />
+        <path d="M70 32 Q58 24 50 26" stroke={s(0.36)} strokeWidth="1.1" fill="none" />
+        {/* sub-branches left */}
+        <path d="M30 50 Q24 45 20 46" stroke={s(0.28)} strokeWidth="0.9" fill="none" />
+        <path d="M30 50 Q26 55 23 56" stroke={s(0.28)} strokeWidth="0.9" fill="none" />
+        <path d="M50 26 Q45 20 42 22" stroke={s(0.24)} strokeWidth="0.8" fill="none" />
+        {/* sub-branches right */}
+        <path d="M112 38 Q118 33 121 34" stroke={s(0.28)} strokeWidth="0.9" fill="none" />
+        <path d="M112 38 Q116 43 119 44" stroke={s(0.28)} strokeWidth="0.9" fill="none" />
+        {/* snow/frost dots on ground */}
+        <circle cx="44" cy="90" r="1.5" fill={s(0.14)} />
+        <circle cx="58" cy="90" r="1" fill={s(0.12)} />
+        <circle cx="84" cy="90" r="1.5" fill={s(0.14)} />
+        <circle cx="98" cy="90" r="1" fill={s(0.1)} />
+        {/* quiet stars */}
+        <circle cx="28" cy="18" r="1" fill={s(0.1)} />
+        <circle cx="112" cy="12" r="0.8" fill={s(0.1)} />
+        <circle cx="90" cy="22" r="0.8" fill={s(0.08)} />
+      </>
+    ),
+  };
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 8px' }}>
+      <svg width="140" height="110" viewBox="0 0 140 110" style={{ overflow: 'visible' }}>
+        {illustrations[phaseKey] || null}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Phase Card (7 phases) ────────────────────────────────────────────────────
 
 function PhaseCard({ phase, moonAge }) {
@@ -860,13 +1077,15 @@ function PhaseCard({ phase, moonAge }) {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ textAlign: 'center', marginBottom: 24, paddingTop: 20 }}>
+      <div style={{ textAlign: 'center', marginBottom: 8, paddingTop: 20 }}>
         <MoonFace
           size={80}
           phase={moonAge}
           illumination={parseFloat(phase.illumination) || 50}
         />
       </div>
+
+      <PlantIllustration phaseKey={phase.key} accent={phase.accent} />
 
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <div style={{
