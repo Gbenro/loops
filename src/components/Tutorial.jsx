@@ -342,12 +342,20 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
         background: 'linear-gradient(to bottom, rgba(4,8,16,0.9) 0%, transparent 100%)',
         pointerEvents: 'none',
       }}>
-        <div style={{
-          fontSize: 11, fontFamily: 'monospace',
-          letterSpacing: '0.2em', color: 'rgba(245,230,200,0.35)',
-        }}>
-          COSMIC LOOPS · GUIDE
-        </div>
+        {/* Exit button */}
+        <button
+          onClick={onClose}
+          style={{
+            pointerEvents: 'all',
+            background: 'none', border: 'none',
+            color: 'rgba(245,230,200,0.35)',
+            fontSize: 20, cursor: 'pointer',
+            padding: '2px 6px', lineHeight: 1,
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          ×
+        </button>
         {/* Mode toggle */}
         <div style={{
           display: 'flex',
