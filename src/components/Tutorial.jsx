@@ -68,6 +68,7 @@ const GUIDE_STEPS = [
     title: 'Phase Loops',
     body: 'Smaller moves aligned to the energy of each phase. 1–2 per waxing phase. The phase doesn\'t just timestamp the loop — it shapes what the loop is.',
     fallbackBody: 'Smaller moves aligned to the energy of each phase. 1–2 per waxing phase. As you open loops, they appear here sorted by when they were opened.',
+    image: '/tutorial/phase-loops.png',
   },
   {
     targetSelector: '[data-tutorial="add-loop-btn"]',
@@ -75,6 +76,7 @@ const GUIDE_STEPS = [
     sectionLabel: 'LOOPS · 4 of 4',
     title: 'Phase-Aware Adding',
     body: 'The add button changes with the phase. Hidden at Full Moon. Dimmed during waning. At Waning Crescent it disappears entirely. The app guides you — it doesn\'t force.',
+    image: '/tutorial/add-loop.png',
   },
   // Echoes
   {
@@ -90,6 +92,7 @@ const GUIDE_STEPS = [
     sectionLabel: 'ECHOES · 2 of 4',
     title: 'Write or Speak',
     body: 'Type to compose. Or tap the orb to speak — the transcript forms in real time. Voice captures the stream before the thinking mind edits it.',
+    image: '/tutorial/echoes-write.png',
   },
   {
     targetSelector: '[data-tutorial="echoes-voice-orb"]',
@@ -106,6 +109,7 @@ const GUIDE_STEPS = [
     title: 'The Lunar Stamp',
     body: 'Phase name, phase type (THR/FLW), moon age in days. The Gregorian date is hidden — tap the stamp to reveal it. Lunar context is always primary.',
     fallbackBody: 'Each echo carries a lunar stamp — phase name, type (THR/FLW), and moon age in days. The calendar date is hidden by default; lunar context is always primary.',
+    image: '/tutorial/echo-stamp.png',
   },
   // 14 — Closing (no spotlight)
   {
@@ -554,6 +558,27 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
           }}>
             {spotlightRect ? step?.body : (step?.fallbackBody || step?.body)}
           </div>
+
+          {step?.image && (
+            <div style={{
+              marginTop: 14,
+              borderRadius: 10,
+              overflow: 'hidden',
+              border: '1px solid rgba(245,230,200,0.08)',
+            }}>
+              <img
+                src={step.image}
+                alt=""
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxHeight: 160,
+                  objectFit: 'cover',
+                  objectPosition: 'top',
+                }}
+              />
+            </div>
+          )}
 
           {/* Prev / Next */}
           <div style={{
