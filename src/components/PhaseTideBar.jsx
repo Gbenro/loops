@@ -76,10 +76,16 @@ export function PhaseTideBar({ lunarData }) {
     return baseColor;
   }, [isApproaching, isImminent, baseColor]);
 
-  // Sub-label based on phase type
+  // Sub-label based on phase type and tide position — observational, distinct from Sky card text
   const subLabel = isThreshold
-    ? 'A turning point. Brief and potent.'
-    : 'Time to move with what is already moving.';
+    ? (clampedProgress < 0.20 ? 'A turning point. Brief and potent.'
+      : clampedProgress < 0.62 ? 'Inside the pivot.'
+      : clampedProgress < 0.88 ? 'The decision is resolving.'
+      : 'The threshold is passing.')
+    : (clampedProgress < 0.20 ? 'Time to move with what is already moving.'
+      : clampedProgress < 0.62 ? 'In the current.'
+      : clampedProgress < 0.88 ? 'Approaching the close.'
+      : 'Final movement.');
 
   return (
     <div style={{
