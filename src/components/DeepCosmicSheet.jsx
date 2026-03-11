@@ -36,7 +36,7 @@ export function DeepCosmicSheet({
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
-  const lunarMonthInfo = getLunarMonthInfo(lunarData.lunarMonth);
+  const lunarMonthInfo = getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere);
   const tideKey = (lunarData.phaseProgress || 0) < 0.20 ? 'opening'
     : (lunarData.phaseProgress || 0) < 0.62 ? 'flowing'
     : (lunarData.phaseProgress || 0) < 0.88 ? 'completing'
