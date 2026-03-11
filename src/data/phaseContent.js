@@ -16,6 +16,22 @@ const FLOW_TIDES = {
   closing:    'The phase is closing. Take what you have moved through with you.',
 };
 
+// deepTides — deeper, more contemplative. Used in the deep sheet.
+// Distinct from typeOpening: these invite reflection on what the stage calls forth.
+const THRESHOLD_DEEP_TIDES = {
+  opening:    'The threshold has just opened. Something is being asked of you — let it come into focus before you move.',
+  flowing:    'You are inside the threshold. The question it carries is live. Stay with it — do not resolve it prematurely.',
+  completing: 'The threshold is finishing its work. What it clarified in you is becoming visible.',
+  closing:    'The threshold is nearly past. Carry what was revealed, and release the tension that no longer serves.',
+};
+
+const FLOW_DEEP_TIDES = {
+  opening:    'The phase has just opened. The energy is available — orient before the momentum builds.',
+  flowing:    'You are in the current of this phase. Work with what is moving rather than forcing something new.',
+  completing: 'The phase is in its final arc. What was opened is reaching completion — land it before the shift.',
+  closing:    'This phase is nearly done. What you moved through belongs to you now. The next phase will ask something different.',
+};
+
 export const phaseContent = {
   'new': {
     title: 'New Moon',
@@ -23,6 +39,7 @@ export const phaseContent = {
     energy: 'Seed',
     phaseType: 'threshold',
     typeOpening: THRESHOLD_TIDES,
+    deepTides: THRESHOLD_DEEP_TIDES,
     guidance: 'Plant intentions. What do you want to call into this cycle?',
     deep: 'The dark between cycles. Seeds germinate in darkness. Set intentions privately. Let them form before light reveals them.',
     keywords: ['Intention', 'Darkness', 'Reset', 'Silence', 'Potential'],
@@ -36,6 +53,7 @@ export const phaseContent = {
     energy: 'Build',
     phaseType: 'flow',
     typeOpening: FLOW_TIDES,
+    deepTides: FLOW_DEEP_TIDES,
     guidance: 'The energy is rising. Push forward. Open new loops.',
     deep: 'First light after darkness. The cycle begins. Take small steps forward. Build momentum. Trust your direction.',
     keywords: ['Emergence', 'Momentum', 'Courage', 'Beginning', 'Growth'],
@@ -49,6 +67,7 @@ export const phaseContent = {
     energy: 'Decide',
     phaseType: 'threshold',
     typeOpening: THRESHOLD_TIDES,
+    deepTides: THRESHOLD_DEEP_TIDES,
     guidance: 'Commit. Decisions made now carry real weight.',
     deep: 'Half-lit, half-dark. Tension and decision. Obstacles test your intention. Commit fully or let go.',
     keywords: ['Decision', 'Tension', 'Commitment', 'Action', 'Challenge'],
@@ -62,6 +81,7 @@ export const phaseContent = {
     energy: 'Refine',
     phaseType: 'flow',
     typeOpening: FLOW_TIDES,
+    deepTides: FLOW_DEEP_TIDES,
     guidance: "You're close. Adjust, trust, keep going.",
     deep: 'Almost full. Refine, don\'t revolutionize. Adjust the details. The peak approaches. Trust what you\'ve built.',
     keywords: ['Refinement', 'Anticipation', 'Adjustment', 'Nearing', 'Clarity'],
@@ -75,6 +95,7 @@ export const phaseContent = {
     energy: 'Illuminate',
     phaseType: 'threshold',
     typeOpening: THRESHOLD_TIDES,
+    deepTides: THRESHOLD_DEEP_TIDES,
     guidance: 'Peak. What has this cycle revealed about you?',
     deep: 'Maximum light. Everything illuminated. Harvest what has grown. See clearly. Feel fully. Let truth arrive.',
     keywords: ['Revelation', 'Harvest', 'Illumination', 'Completion', 'Truth'],
@@ -88,6 +109,7 @@ export const phaseContent = {
     energy: 'Share',
     phaseType: 'flow',
     typeOpening: FLOW_TIDES,
+    deepTides: FLOW_DEEP_TIDES,
     guidance: 'Give back what you have gathered. Reflect and release.',
     deep: 'The peak has passed. Share what you\'ve learned. Give back. Gratitude flows naturally now.',
     keywords: ['Gratitude', 'Sharing', 'Integration', 'Generosity', 'Wisdom'],
@@ -101,6 +123,7 @@ export const phaseContent = {
     energy: 'Release',
     phaseType: 'threshold',
     typeOpening: THRESHOLD_TIDES,
+    deepTides: THRESHOLD_DEEP_TIDES,
     guidance: "Let go of what didn't close. Clear space.",
     deep: 'Half-lit again, but releasing. What didn\'t work? Let it go. Clear the field for what\'s next.',
     keywords: ['Release', 'Forgiveness', 'Clearing', 'Surrender', 'Space'],
@@ -114,6 +137,7 @@ export const phaseContent = {
     energy: 'Rest',
     phaseType: 'flow',
     typeOpening: FLOW_TIDES,
+    deepTides: FLOW_DEEP_TIDES,
     guidance: 'The cycle completes. Be still. Restore.',
     deep: 'Final sliver before darkness. Rest deeply. Dream. Don\'t start new things. Let the cycle complete.',
     keywords: ['Rest', 'Mystery', 'Restoration', 'Endings', 'Surrender'],

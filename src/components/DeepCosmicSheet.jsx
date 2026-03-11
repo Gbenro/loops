@@ -37,6 +37,10 @@ export function DeepCosmicSheet({
   const phaseContent = getPhaseContent(lunarData.phase.key);
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
   const lunarMonthInfo = getLunarMonthInfo(lunarData.lunarMonth);
+  const tideKey = (lunarData.phaseProgress || 0) < 0.20 ? 'opening'
+    : (lunarData.phaseProgress || 0) < 0.62 ? 'flowing'
+    : (lunarData.phaseProgress || 0) < 0.88 ? 'completing'
+    : 'closing';
 
   return (
     <div style={{
@@ -144,6 +148,7 @@ export function DeepCosmicSheet({
             <PhaseSection
               phase={lunarData.phase}
               content={phaseContent}
+              tideKey={tideKey}
               generatedText={phrases.deepSheetPhase}
               phrasesLoading={phrasesLoading}
             />
@@ -204,9 +209,9 @@ export function DeepCosmicSheet({
 
 // ─── Phase Section ─────────────────────────────────────────────────────────
 
-function PhaseSection({ phase, content, generatedText, phrasesLoading }) {
-  // Use generated deep text or fallback to static content
-  const deepText = generatedText || content.deep;
+function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }) {
+  // Use AI-generated text if available, then tide-aware fallback, then static phase description
+  const deepText = generatedText || (content.deepTides && content.deepTides[tideKey]) || content.deep;
 
   return (
     <div>

@@ -17,7 +17,7 @@ export const FALLBACK_PHRASES = {
   echoesWritePrompt:   "What is alive in you right now?",
   echoesVoicePrompt:   "Speak what is present...",
   transitionInvitation:"A shift is coming. Orient before it arrives.",
-  deepSheetPhase:      "You are in the arc of this phase.",
+  deepSheetPhase:      null, // falls back to tide-aware deepTides in phaseContent
   deepSheetMoon:       "This lunar month carries its own signature.",
   deepSheetSign:       "The moon's position colors everything.",
   deepSheetSeason:     "The season shapes the light.",
@@ -64,6 +64,12 @@ function buildCycleState(lunarData, solarData) {
     phaseStatus = 'early in phase';
   }
 
+  const progress = lunarData.phaseProgress || 0;
+  const tideStage = progress < 0.20 ? 'opening'
+    : progress < 0.62 ? 'flowing'
+    : progress < 0.88 ? 'completing'
+    : 'closing';
+
   return {
     phase: lunarData.phase.name,
     moonAge: lunarData.age,
@@ -71,6 +77,7 @@ function buildCycleState(lunarData, solarData) {
     zodiac: lunarData.zodiac.sign,
     phaseType: lunarData.phase.isThreshold ? 'threshold' : 'flow',
     phaseStatus,
+    tideStage,
     remainingHours,
     nextPhase: nextPhaseNames[nextPhaseKey],
     nextEnergy: nextEnergies[nextPhaseKey],
