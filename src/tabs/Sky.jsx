@@ -25,6 +25,11 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
   const resonanceSummary = useMemo(() => getResonanceSummary(now, userProfile), [userProfile]);
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
+  const tideKey = lunarData.phaseProgress < 0.20 ? 'opening'
+    : lunarData.phaseProgress < 0.62 ? 'flowing'
+    : lunarData.phaseProgress < 0.88 ? 'completing'
+    : 'closing';
+  const typeOpening = phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening;
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
   const allPhases = getAllPhases();
 
@@ -235,7 +240,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             marginBottom: 10,
             lineHeight: 1.5,
           }}>
-            {phaseContent.typeOpening}
+            {typeOpening}
           </div>
           {phrasesLoading ? (
             <div style={{
