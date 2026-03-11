@@ -498,6 +498,7 @@ export default function App() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem('last_user_id');
     setUser(null);
   };
 
@@ -517,7 +518,21 @@ export default function App() {
     );
   }
 
-  // No user — show sign-in prompt
+  // No user — if there's a stored session identity, show spinner while
+  // Supabase restores the session (prevents auth prompt flash on app resume)
+  if (!user && localStorage.getItem('last_user_id')) {
+    return (
+      <div style={{
+        height: '100dvh', background: '#040810',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#f5e6c8', fontSize: 24,
+      }}>
+        ☽
+      </div>
+    );
+  }
+
+  // No user and no stored session — show sign-in prompt
   if (!user) {
     return (
       <div style={{
