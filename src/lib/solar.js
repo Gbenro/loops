@@ -14,6 +14,14 @@ const SOLAR_THRESHOLDS = [
   { name: 'Samhain',         solarDay: 316 },  // Nov 1  - ~316 days after WS
 ];
 
+// Season descriptions — what each season quality invites
+const SEASON_DESCRIPTIONS = {
+  'Winter': 'The land rests. Energy draws inward. What you tend to internally during winter shapes what can emerge in spring.',
+  'Spring': 'The world stirs again. The sap rises. Creative force returns to the surface — meet it with intention.',
+  'Summer': 'Full light, full heat, full action. The peak of the outward arc. This is the time to do what needs doing.',
+  'Autumn': 'Light retreats. The harvest comes in. What you built in the outward arc is being gathered and sorted.',
+};
+
 // Season definitions with day-of-year boundaries (Northern Hemisphere)
 const SEASONS_NORTH = [
   { name: 'Winter', start: 355, end: 80, next: 'Spring Equinox', nextDay: 80 },
@@ -107,6 +115,7 @@ export function getSeasonInfo(date = new Date(), hemisphere = 'north') {
 
     return {
       name: wrapSeason.name,
+      description: SEASON_DESCRIPTIONS[wrapSeason.name] || '',
       nextEvent: wrapSeason.next,
       daysToNext,
       progress: Math.round(progress * 100),
@@ -125,6 +134,7 @@ export function getSeasonInfo(date = new Date(), hemisphere = 'north') {
 
       return {
         name: season.name,
+        description: SEASON_DESCRIPTIONS[season.name] || '',
         nextEvent: season.next,
         daysToNext,
         progress: Math.round(progress * 100),
