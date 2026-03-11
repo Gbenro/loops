@@ -161,7 +161,7 @@ const PHASE_DATA = [
     key: 'first-quarter',
     label: 'FIRST QUARTER',
     title: 'First Quarter',
-    plantStage: 'The Roots',
+    plantStage: 'The Stem',
     age: 7.38,
     accent: '#f6ad55',
     type: 'Threshold',
@@ -202,7 +202,7 @@ const PHASE_DATA = [
     bodyState: 'Peak energy, heightened emotion',
     description: 'Maximum light. Everything illuminated. What you built is visible in full — including what didn\'t work. This is the harvest and the revelation simultaneously. Let what is true arrive without editing it. Celebrate completions. See clearly.',
     loopBehaviour: 'No new loops. See what the light reveals. Close loops that have completed.',
-    activities: ['Celebration', 'Revelation', 'Harvest', 'Gratitude', 'Visibility'],
+    activities: ['Celebration', 'Revelation', 'Completion', 'Gratitude', 'Visibility'],
     entrainment: 'You receive what the cycle has been building toward.',
   },
   {
