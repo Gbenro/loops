@@ -239,6 +239,7 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionRestoring, setSessionRestoring] = useState(true);
   const [accessStatus, setAccessStatus] = useState('checking'); // 'checking' | 'allowed' | 'denied'
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -355,6 +356,7 @@ export default function App() {
 
       setUser(u);
       setLoading(false);
+      setSessionRestoring(false);
       if (u) checkAccess(u.email);
       else setAccessStatus('allowed');
     };
@@ -390,10 +392,10 @@ export default function App() {
   useEffect(() => {
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
+        setSessionRestoring(true);
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-        }
+        setUser(session?.user || null);
+        setSessionRestoring(false);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -518,9 +520,8 @@ export default function App() {
     );
   }
 
-  // No user — if there's a stored session identity, show spinner while
-  // Supabase restores the session (prevents auth prompt flash on app resume)
-  if (!user && localStorage.getItem('last_user_id')) {
+  // Session is being checked or restored — show spinner, never the auth prompt
+  if (sessionRestoring) {
     return (
       <div style={{
         height: '100dvh', background: '#040810',
@@ -532,7 +533,7 @@ export default function App() {
     );
   }
 
-  // No user and no stored session — show sign-in prompt
+  // Confirmed no session — show sign-in prompt
   if (!user) {
     return (
       <div style={{
