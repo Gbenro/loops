@@ -18,6 +18,7 @@ import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
 import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
+import { LunaLogo } from './components/LunaLogo.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -202,7 +203,7 @@ function BetaGate({ onSignOut }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 32, flexDirection: 'column', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 36, marginBottom: 20 }}>☽</div>
+      <LunaLogo variant="icon" width={64} style={{ marginBottom: 20 }} />
       <div style={{
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 26, color: '#f5e6c8', marginBottom: 12,
@@ -508,10 +509,8 @@ export default function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#f5e6c8',
-        fontSize: 24,
       }}>
-        ☽
+        <LunaLogo variant="icon" width={72} />
       </div>
     );
   }
