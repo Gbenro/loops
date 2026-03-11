@@ -142,7 +142,7 @@ const PHASE_DATA_ORIGINAL = [
     bodyState: 'Still, empty, quietly receptive',
     loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
     activities: ['Ceremony', 'Intention', 'Stillness', 'Planting', 'Void Energy'],
-    entrainment: 'You can sit with void without filling it.',
+    entrainment: 'You can sit with the void without filling it.',
   },
   {
     key: 'waxing-crescent',
