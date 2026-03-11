@@ -11,7 +11,7 @@ const GUIDE_STEPS = [
   // 0 — Welcome (no spotlight)
   {
     title: 'A different relationship with time',
-    body: 'Luna Loops replaces the Gregorian calendar with the lunar cycle. You move through eight phases — each with its own quality and invitation. This guide shows you how the app works.',
+    body: 'Luna Loops replaces the Gregorian calendar with the lunar cycle. You move through eight phases — each with its own quality and invitation.',
   },
   // Sky
   {
@@ -124,13 +124,14 @@ const GUIDE_STEPS = [
 const PHASE_DATA = [
   {
     key: 'new',
-    label: 'NEW MOON · RITUAL',
-    title: 'The Seed',
+    label: 'NEW MOON',
+    title: 'New Moon',
+    plantStage: 'The Seed',
     age: 0,
     accent: 'rgba(245,230,200,0.6)',
     isNew: true,
-    type: 'Ritual',
-    duration: '29.5 days',
+    type: 'Threshold',
+    duration: '1.85 days',
     illumination: '0%',
     question: 'What wants to be born through me this cycle?',
     description: 'The New Moon is not a phase to move through — it is a threshold to cross. The sky goes dark and something new becomes possible. This is the most important moment in the cycle. Everything that follows grows from what is planted here.',
@@ -144,6 +145,7 @@ const PHASE_DATA = [
     key: 'waxing-crescent',
     label: 'WAXING CRESCENT',
     title: 'Waxing Crescent',
+    plantStage: 'The Sprout',
     age: 3.7,
     accent: '#74c69d',
     type: 'Flow',
@@ -159,6 +161,7 @@ const PHASE_DATA = [
     key: 'first-quarter',
     label: 'FIRST QUARTER',
     title: 'First Quarter',
+    plantStage: 'The Roots',
     age: 7.38,
     accent: '#f6ad55',
     type: 'Threshold',
@@ -174,6 +177,7 @@ const PHASE_DATA = [
     key: 'waxing-gibbous',
     label: 'WAXING GIBBOUS',
     title: 'Waxing Gibbous',
+    plantStage: 'The Growth',
     age: 11.1,
     accent: '#81e6d9',
     type: 'Flow',
@@ -189,6 +193,7 @@ const PHASE_DATA = [
     key: 'full',
     label: 'FULL MOON',
     title: 'Full Moon',
+    plantStage: 'The Bloom',
     age: 14.765,
     accent: '#fefcbf',
     type: 'Threshold',
@@ -204,6 +209,7 @@ const PHASE_DATA = [
     key: 'waning-gibbous',
     label: 'WANING GIBBOUS',
     title: 'Waning Gibbous',
+    plantStage: 'The Harvest',
     age: 18.5,
     accent: '#b794f4',
     type: 'Flow',
@@ -219,6 +225,7 @@ const PHASE_DATA = [
     key: 'last-quarter',
     label: 'LAST QUARTER',
     title: 'Last Quarter',
+    plantStage: 'The Shedding',
     age: 22.15,
     accent: '#f687b3',
     type: 'Threshold',
@@ -234,6 +241,7 @@ const PHASE_DATA = [
     key: 'waning-crescent',
     label: 'WANING CRESCENT',
     title: 'Waning Crescent',
+    plantStage: 'The Dormancy',
     age: 26,
     accent: '#718096',
     type: 'Flow',
@@ -249,7 +257,7 @@ const PHASE_DATA = [
 
 // ─── Tutorial Component ───────────────────────────────────────────────────────
 
-export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'phases' }) {
+export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide' }) {
   const [mode, setMode] = useState(initialMode);
   const [guideStep, setGuideStep] = useState(0);
   const [phaseIdx, setPhaseIdx] = useState(0);
@@ -301,6 +309,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'phase
   const isFullScreen = isWelcome || isClosing;
 
   const goNext = () => {
+    if (guideStep === 0) { setMode('phases'); return; }
     if (guideStep < GUIDE_STEPS.length - 1) setGuideStep(g => g + 1);
     else onClose();
   };
@@ -336,7 +345,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'phase
           phaseIdx={phaseIdx}
           setPhaseIdx={setPhaseIdx}
           onClose={onClose}
-          onDone={() => setMode('guide')}
+          onDone={onClose}
         />
       )}
 
@@ -366,26 +375,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'phase
         >
           ×
         </button>
-        {/* Mode toggle */}
-        <div style={{
-          display: 'flex',
-          background: 'rgba(245,230,200,0.06)',
-          borderRadius: 20, padding: 3,
-          pointerEvents: 'all',
-        }}>
-          {['guide', 'phases'].map(m => (
-            <button key={m} onClick={() => setMode(m)} style={{
-              padding: '5px 14px', borderRadius: 16, border: 'none',
-              background: mode === m ? 'rgba(245,230,200,0.12)' : 'transparent',
-              color: mode === m ? '#f5e6c8' : 'rgba(245,230,200,0.4)',
-              fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.08em',
-              textTransform: 'uppercase', cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}>
-              {m === 'guide' ? 'App Guide' : 'Phases'}
-            </button>
-          ))}
-        </div>
+        <div />
       </div>
     </div>
   );
@@ -800,7 +790,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
               color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
             }}
           >
-            How it works ›
+            Enter the app ✦
           </button>
         )}
       </div>
@@ -836,10 +826,21 @@ function NewMoonCard({ phase }) {
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 26, color: 'rgba(245,230,200,0.75)',
-          marginBottom: 6,
+          marginBottom: 4,
         }}>
           {phase.title}
         </div>
+
+        {phase.plantStage && (
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 14, fontStyle: 'italic',
+            color: 'rgba(245,230,200,0.38)',
+            marginBottom: 8,
+          }}>
+            {phase.plantStage}
+          </div>
+        )}
 
         <div style={{
           fontSize: 11, fontFamily: 'monospace',
@@ -1209,10 +1210,21 @@ function PhaseCard({ phase, moonAge }) {
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 26, color: phase.accent,
-          marginBottom: 6,
+          marginBottom: 4,
         }}>
           {phase.title}
         </div>
+
+        {phase.plantStage && (
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 14, fontStyle: 'italic',
+            color: 'rgba(245,230,200,0.38)',
+            marginBottom: 8,
+          }}>
+            {phase.plantStage}
+          </div>
+        )}
 
         <div style={{
           fontSize: 11, fontFamily: 'monospace',
