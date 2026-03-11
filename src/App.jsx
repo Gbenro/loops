@@ -385,6 +385,21 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // On mobile, background timers are paused so the token refresh timer can miss.
+  // Re-check the session whenever the app comes back into view.
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
   // Auto-show tutorial on first launch or first time seeing this version
   useEffect(() => {
     if (!loading && !localStorage.getItem('tutorial_seen_v2')) {
