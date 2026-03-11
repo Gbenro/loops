@@ -141,8 +141,8 @@ const PHASE_DATA_ORIGINAL = [
     body2: 'You do not plan at the New Moon. You plant. One intention. No subtasks, no categories, no metadata. The cycle loop opens here as a ceremony, held for the full 29.5 days.',
     bodyState: 'Still, empty, quietly receptive',
     loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
-    activities: ['Ceremony', 'Intention', 'Stillness', 'Planting', 'Prayer'],
-    entrainment: 'You can sit with blankness without filling it.',
+    activities: ['Ceremony', 'Intention', 'Stillness', 'Planting', 'Void Energy'],
+    entrainment: 'You can sit with void without filling it.',
   },
   {
     key: 'waxing-crescent',
