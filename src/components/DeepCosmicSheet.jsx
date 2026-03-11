@@ -899,12 +899,25 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
                 {r.description}
               </div>
               <div style={{
-                fontSize: 12,
-                color: 'rgba(245, 230, 200, 0.6)',
-                fontStyle: 'italic',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'rgba(245, 230, 200, 0.35)',
+                marginBottom: r.invitation ? 8 : 0,
               }}>
-                {r.meaning}
+                {r.meaning.toUpperCase()}
               </div>
+              {r.invitation && (
+                <div style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 14,
+                  fontStyle: 'italic',
+                  color: 'rgba(245, 230, 200, 0.65)',
+                  lineHeight: 1.6,
+                }}>
+                  {r.invitation}
+                </div>
+              )}
             </div>
           ))}
         </div>
