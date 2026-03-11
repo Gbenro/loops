@@ -239,7 +239,6 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sessionRestoring, setSessionRestoring] = useState(true);
   const [accessStatus, setAccessStatus] = useState('checking'); // 'checking' | 'allowed' | 'denied'
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -356,7 +355,6 @@ export default function App() {
 
       setUser(u);
       setLoading(false);
-      setSessionRestoring(false);
       if (u) checkAccess(u.email);
       else setAccessStatus('allowed');
     };
@@ -392,10 +390,8 @@ export default function App() {
   useEffect(() => {
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
-        setSessionRestoring(true);
         const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user || null);
-        setSessionRestoring(false);
+        if (session?.user) setUser(session.user);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -516,92 +512,6 @@ export default function App() {
         fontSize: 24,
       }}>
         ☽
-      </div>
-    );
-  }
-
-  // Session is being checked or restored — show spinner, never the auth prompt
-  if (sessionRestoring) {
-    return (
-      <div style={{
-        height: '100dvh', background: '#040810',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#f5e6c8', fontSize: 24,
-      }}>
-        ☽
-      </div>
-    );
-  }
-
-  // Confirmed no session — show sign-in prompt
-  if (!user) {
-    return (
-      <div style={{
-        height: '100dvh', background: '#040810',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <div style={{
-          width: '100%', maxWidth: 520, height: '100dvh',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '40px 32px',
-          fontFamily: "'DM Sans', sans-serif",
-        }}>
-          {/* Moon */}
-          <div style={{ fontSize: 52, marginBottom: 24, opacity: 0.9 }}>☽</div>
-
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 34, fontWeight: 300,
-            color: '#f5e6c8', marginBottom: 10, textAlign: 'center',
-          }}>
-            Luna Loops
-          </div>
-
-          <div style={{
-            fontSize: 14, color: 'rgba(245,230,200,0.45)',
-            lineHeight: 1.7, textAlign: 'center',
-            maxWidth: 280, marginBottom: 48,
-          }}>
-            Live in rhythm with the lunar cycle. Track intentions, capture reflections, move with the moon.
-          </div>
-
-          <button
-            onClick={() => setShowAuth(true)}
-            style={{
-              width: '100%', maxWidth: 280,
-              padding: '14px 0', borderRadius: 24,
-              background: 'rgba(245,230,200,0.1)',
-              border: '1px solid rgba(245,230,200,0.2)',
-              color: '#f5e6c8', fontSize: 15,
-              cursor: 'pointer', letterSpacing: '0.05em',
-              marginBottom: 12,
-            }}
-          >
-            Sign in
-          </button>
-
-          <button
-            onClick={() => setShowAuth(true)}
-            style={{
-              width: '100%', maxWidth: 280,
-              padding: '14px 0', borderRadius: 24,
-              background: 'transparent',
-              border: '1px solid rgba(245,230,200,0.1)',
-              color: 'rgba(245,230,200,0.5)', fontSize: 15,
-              cursor: 'pointer', letterSpacing: '0.05em',
-            }}
-          >
-            Create account
-          </button>
-        </div>
-
-        {showAuth && (
-          <AuthModal
-            onClose={() => setShowAuth(false)}
-            onSuccess={handleAuthSuccess}
-          />
-        )}
       </div>
     );
   }
