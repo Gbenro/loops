@@ -10,7 +10,7 @@ export default defineConfig({
       includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'Luna Loops',
-        short_name: 'Cosmic',
+        short_name: 'Luna Loops',
         description: 'Track your growth with lunar wisdom',
         theme_color: '#040810',
         background_color: '#040810',
