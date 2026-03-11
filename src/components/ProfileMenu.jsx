@@ -959,7 +959,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     }}
                   >
                     <span style={{ fontSize: 16 }}>☽</span>
-                    <span>App Guide & Phase Reference</span>
+                    <span>Phase Guide</span>
                   </button>
                 </div>
               )}
