@@ -6,6 +6,31 @@ import { getLunarData, getMoonAge } from './lunar.js';
 
 const SYNODIC = 29.53058867;
 
+// What each convergence actually invites — specific to aspect type × natal body
+const INVITATIONS = {
+  'Moon:Moon': {
+    conjunction:   'Your emotional body is fully activated. What you feel right now is speaking truth.',
+    approaching:   'Your emotional nature is building toward activation. Notice what is rising.',
+    sextile:       'Emotional flow comes easily. Trust what you feel without needing to justify it.',
+    square:        'Tension in your emotional world. Let what is uncomfortable show you what matters.',
+    trine:         'Your feelings and your nature are in harmony. An easy day for inner work.',
+    opposition:    'Your emotions are at full stretch — between what you feel and what you know. Both are real.',
+    'same-sign':   'The moon is in your emotional home. You are more attuned than usual today.',
+  },
+  'Moon:Sun': {
+    conjunction:   'The sky is shining directly on your core. Visibility and identity are heightened.',
+    approaching:   'Your sense of self is building toward expression. Something wants to emerge.',
+    sextile:       'A quiet opening to express who you are. The sky supports showing up.',
+    square:        'Friction between your feeling self and your doing self. Let the tension clarify rather than frustrate.',
+    trine:         'You are in flow with your purpose. Act from identity today.',
+    opposition:    'Full awareness of who you are and what you feel. Let the polarity illuminate you.',
+    'same-sign':   'The moon passes through your solar field. Your core purpose is quietly lit.',
+  },
+  'Full Moon:Moon': {
+    'full-moon-natal': 'The fullest light of the cycle meets your deepest emotional nature. What you have carried privately is ready to be seen.',
+  },
+};
+
 // Zodiac sign to ecliptic longitude (midpoint of each sign)
 const SIGN_LONGITUDES = {
   'Aries': 15,
@@ -118,6 +143,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
       natalSign: natal.moon.sign,
       ...moonToMoon,
       description: `Moon ${moonToMoon.type} your natal Moon`,
+      invitation: INVITATIONS['Moon:Moon'][moonToMoon.type] || null,
     });
   }
 
@@ -131,6 +157,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
       strength: 'MEDIUM',
       meaning: 'Emotional resonance',
       description: 'Moon in your natal Moon sign',
+      invitation: INVITATIONS['Moon:Moon']['same-sign'],
     });
   }
 
@@ -143,6 +170,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
       natalSign: natal.sun.sign,
       ...moonToSun,
       description: `Moon ${moonToSun.type} your natal Sun`,
+      invitation: INVITATIONS['Moon:Sun'][moonToSun.type] || null,
     });
   }
 
@@ -156,6 +184,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
       strength: 'MEDIUM',
       meaning: 'Identity activation',
       description: 'Moon moving through your Sun sign',
+      invitation: INVITATIONS['Moon:Sun']['same-sign'],
     });
   }
 
@@ -169,6 +198,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
       strength: 'HIGH',
       meaning: 'Deep emotional illumination',
       description: 'Full Moon on your natal Moon',
+      invitation: INVITATIONS['Full Moon:Moon']['full-moon-natal'],
     });
   }
 

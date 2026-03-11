@@ -373,9 +373,21 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             <div style={{
               fontSize: 'var(--font-md)',
               color: 'rgba(245, 230, 200, 0.85)',
+              marginBottom: resonanceSummary.strongest?.invitation ? 6 : 0,
             }}>
               {resonanceSummary.message}
             </div>
+            {resonanceSummary.strongest?.invitation && (
+              <div style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: 'italic',
+                fontSize: 'var(--font-md)',
+                color: 'rgba(245, 230, 200, 0.6)',
+                lineHeight: 1.5,
+              }}>
+                {resonanceSummary.strongest.invitation}
+              </div>
+            )}
           </div>
         )}
 
