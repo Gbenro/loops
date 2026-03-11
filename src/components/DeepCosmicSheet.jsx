@@ -475,29 +475,31 @@ function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
         ))}
       </div>
 
-      {/* Practical guidance */}
-      <div style={{
-        padding: 20,
-        borderRadius: 12,
-        background: 'rgba(245, 230, 200, 0.04)',
-        border: '1px solid rgba(245, 230, 200, 0.08)',
-      }}>
+      {/* Practical guidance — only show when AI text is above, otherwise moonIn is already the main text */}
+      {generatedText && (
         <div style={{
-          fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.4)',
-          fontFamily: 'monospace',
-          marginBottom: 8,
+          padding: 20,
+          borderRadius: 12,
+          background: 'rgba(245, 230, 200, 0.04)',
+          border: '1px solid rgba(245, 230, 200, 0.08)',
         }}>
-          HOW TO WORK WITH THIS
+          <div style={{
+            fontSize: 10,
+            color: 'rgba(245, 230, 200, 0.4)',
+            fontFamily: 'monospace',
+            marginBottom: 8,
+          }}>
+            HOW TO WORK WITH THIS
+          </div>
+          <div style={{
+            fontSize: 14,
+            lineHeight: 1.7,
+            color: 'rgba(245, 230, 200, 0.8)',
+          }}>
+            {info.moonIn}
+          </div>
         </div>
-        <div style={{
-          fontSize: 14,
-          lineHeight: 1.7,
-          color: 'rgba(245, 230, 200, 0.8)',
-        }}>
-          {info.moonIn}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
