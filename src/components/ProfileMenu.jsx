@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
+import { LunaLogo } from './LunaLogo.jsx';
 
 const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
@@ -899,20 +900,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 textAlign: 'center',
                 marginBottom: 24,
               }}>
-                <div style={{
-                  fontSize: 32,
-                  marginBottom: 8,
-                }}>
-                  ☽
-                </div>
-                <div style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: 20,
-                  color: '#f5e6c8',
-                  marginBottom: 4,
-                }}>
-                  Luna Loops
-                </div>
+                <LunaLogo variant="wordmark" width={200} style={{ marginBottom: 4 }} />
                 <div style={{
                   fontSize: 11,
                   fontFamily: 'monospace',

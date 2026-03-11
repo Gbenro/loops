@@ -1,6 +1,7 @@
 // Luna Loops - Auth Modal
 import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { LunaLogo } from './LunaLogo.jsx';
 
 const REDIRECT_URL = 'https://lunaloops.app';
 
@@ -53,7 +54,7 @@ export function PrivacyNotice({ onAck }) {
         padding: 28,
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>☽</div>
+          <LunaLogo variant="icon" width={52} style={{ marginBottom: 10 }} />
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 22,
@@ -192,7 +193,7 @@ export function AuthModal({ onClose, onSuccess }) {
       }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>☽</div>
+          <LunaLogo variant="wordmark" width={180} style={{ marginBottom: 8 }} />
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 22,
