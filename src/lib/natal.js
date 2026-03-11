@@ -10,7 +10,7 @@ const SYNODIC = 29.53058867;
 const INVITATIONS = {
   'Moon:Moon': {
     conjunction:   'Your emotional body is fully activated. What you feel right now is speaking truth.',
-    approaching:   'Your emotional nature is building toward activation. Notice what is rising.',
+    near:          'Your emotional nature is building toward activation. Notice what is rising.',
     sextile:       'Emotional flow comes easily. Trust what you feel without needing to justify it.',
     square:        'Tension in your emotional world. Let what is uncomfortable show you what matters.',
     trine:         'Your feelings and your nature are in harmony. An easy day for inner work.',
@@ -19,7 +19,7 @@ const INVITATIONS = {
   },
   'Moon:Sun': {
     conjunction:   'The sky is shining directly on your core. Visibility and identity are heightened.',
-    approaching:   'Your sense of self is building toward expression. Something wants to emerge.',
+    near:          'Your sense of self is building toward expression. Something wants to emerge.',
     sextile:       'A quiet opening to express who you are. The sky supports showing up.',
     square:        'Friction between your feeling self and your doing self. Let the tension clarify rather than frustrate.',
     trine:         'You are in flow with your purpose. Act from identity today.',
@@ -93,9 +93,9 @@ function getAspect(currentLon, natalLon) {
     return { type: 'conjunction', strength: 'HIGH', meaning: 'Intense focus and activation' };
   }
 
-  // Approaching conjunction - within 15°
+  // Near conjunction - within 15° but not exact
   if (diff <= 15) {
-    return { type: 'approaching', strength: 'MEDIUM', meaning: 'Building toward activation' };
+    return { type: 'near', strength: 'MEDIUM', meaning: 'Building toward activation' };
   }
 
   // Sextile (60°) - within 6°
