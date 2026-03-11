@@ -18,10 +18,10 @@ export const FALLBACK_PHRASES = {
   echoesVoicePrompt:   "Speak what is present...",
   transitionInvitation:"A shift is coming. Orient before it arrives.",
   deepSheetPhase:      null, // falls back to tide-aware deepTides in phaseContent
-  deepSheetMoon:       "This lunar month carries its own signature.",
-  deepSheetSign:       "The moon's position colors everything.",
-  deepSheetSeason:     "The season shapes the light.",
-  deepSheetWeave:      "All cycles meet in this moment.",
+  deepSheetMoon:       null, // falls back to monthInfo.meaning in lunarMonths.js
+  deepSheetSign:       null, // falls back to info.moonIn in zodiacMeanings.js
+  deepSheetSeason:     null, // falls back to season static description in solar.js
+  deepSheetWeave:      null, // falls back to dynamically-built fallbackText
   deepSheetArcs:       "Larger patterns move beneath your days.",
   deepSheetNatal:      "The sky speaks to your chart.",
 };

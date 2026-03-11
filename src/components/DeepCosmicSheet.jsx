@@ -506,6 +506,7 @@ function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
 
 function SeasonSection({ solarData, generatedText, phrasesLoading }) {
   if (!solarData) return null;
+  const displayText = generatedText || solarData.season.description;
 
   return (
     <div>
@@ -537,7 +538,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
           opacity: 0.3,
           marginBottom: 24,
         }} />
-      ) : generatedText && (
+      ) : displayText && (
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
@@ -545,7 +546,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
           marginBottom: 24,
           fontStyle: 'italic',
         }}>
-          {generatedText}
+          {displayText}
         </p>
       )}
 
