@@ -1106,7 +1106,11 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                 <button
                   onClick={() => {
                     if (queuePlaying) {
-                      stopQueue();
+                      audioPlayerRef.current?.pause();
+                      setQueuePlaying(false);
+                    } else if (audioPlayerRef.current) {
+                      audioPlayerRef.current.play();
+                      setQueuePlaying(true);
                     } else {
                       playQueueTrackRef.current(queueIndex);
                     }
@@ -1154,9 +1158,13 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (queuePlaying) {
-                    stopQueue();
+                    audioPlayerRef.current?.pause();
+                    setQueuePlaying(false);
+                  } else if (audioPlayerRef.current) {
+                    audioPlayerRef.current.play();
+                    setQueuePlaying(true);
                   } else {
-                    playQueueTrackRef.current(queuePlaying ? queueIndex : 0);
+                    playQueueTrackRef.current(queueIndex);
                   }
                 }}
                 style={{
