@@ -99,6 +99,13 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [keepAudio, setKeepAudio] = useState(true);  // Option to save audio locally
   const wakeLockRef = useRef(null);
 
+  // Queue player
+  const [queueExpanded, setQueueExpanded] = useState(false);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [queuePlaying, setQueuePlaying] = useState(false);
+  const queueRef = useRef([]);
+  const playQueueTrackRef = useRef(null);
+
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
@@ -163,6 +170,26 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       return e.lunarMonth === target;
     });
   }, [echoes, filterMode, filterNavIndex, navList]);
+
+  // Echoes that have audio — the queue for the player
+  const audioQueue = useMemo(() => filteredEchoes.filter(e => e.hasAudio), [filteredEchoes]);
+
+  // Keep queueRef in sync so onended closures always see the latest queue
+  useEffect(() => {
+    queueRef.current = audioQueue;
+    if (queueIndex >= audioQueue.length) setQueueIndex(0);
+  }, [audioQueue]); // eslint-disable-line
+
+  // Stop queue and reset when filter changes
+  useEffect(() => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setPlayingId(null);
+    setQueuePlaying(false);
+    setQueueIndex(0);
+  }, [filterMode, filterNavIndex]);
 
   // Preload Whisper model in background
   useEffect(() => {
@@ -413,8 +440,62 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     pendingAudioBlobRef.current = null;
   };
 
-  // Play/stop audio for an echo
+  // Queue track player — uses ref pattern so onended always calls the latest version
+  playQueueTrackRef.current = async (index) => {
+    const queue = queueRef.current;
+    if (index < 0 || index >= queue.length) {
+      setQueuePlaying(false);
+      setPlayingId(null);
+      setQueueIndex(0);
+      audioPlayerRef.current = null;
+      return;
+    }
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    const echo = queue[index];
+    setQueueIndex(index);
+    const audioBlob = await getAudio(echo.id);
+    if (!audioBlob) {
+      playQueueTrackRef.current(index + 1);
+      return;
+    }
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      audioPlayerRef.current = null;
+      playQueueTrackRef.current(index + 1);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      audioPlayerRef.current = null;
+      playQueueTrackRef.current(index + 1);
+    };
+    audioPlayerRef.current = audio;
+    setPlayingId(echo.id);
+    setQueuePlaying(true);
+    audio.play();
+  };
+
+  const stopQueue = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setQueuePlaying(false);
+    setPlayingId(null);
+    setQueueIndex(0);
+  };
+
+  // Play/stop audio for an echo (single card — stops queue if active)
   const playAudio = async (echoId) => {
+    // Stop queue mode if running
+    if (queuePlaying) {
+      setQueuePlaying(false);
+    }
+
     // If already playing this echo, stop it
     if (playingId === echoId && audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -892,7 +973,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '0 20px 40px',
+        padding: `0 20px ${audioQueue.length > 0 ? '100px' : '40px'}`,
       }}>
         {echoes.length === 0 ? (
           <div style={{
@@ -940,6 +1021,214 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
           ))
         )}
       </div>
+
+      {/* Queue Player Bar */}
+      {audioQueue.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'rgba(10, 8, 20, 0.97)',
+          borderTop: '1px solid rgba(245, 230, 200, 0.08)',
+          backdropFilter: 'blur(12px)',
+          zIndex: 20,
+          transition: 'all 0.25s ease',
+        }}>
+          {queueExpanded ? (
+            /* Expanded */
+            <div style={{ padding: '16px 20px 20px' }}>
+              {/* Collapse handle */}
+              <div
+                onClick={() => setQueueExpanded(false)}
+                style={{
+                  display: 'flex', justifyContent: 'center',
+                  marginBottom: 12, cursor: 'pointer',
+                }}
+              >
+                <div style={{
+                  width: 32, height: 3, borderRadius: 2,
+                  background: 'rgba(245, 230, 200, 0.2)',
+                }} />
+              </div>
+
+              {/* Track info */}
+              <div style={{
+                textAlign: 'center',
+                fontFamily: 'monospace',
+                fontSize: 9,
+                letterSpacing: '0.12em',
+                color: 'rgba(245, 230, 200, 0.35)',
+                marginBottom: 6,
+              }}>
+                {queuePlaying || queueIndex > 0
+                  ? `VOICE ${queueIndex + 1} OF ${audioQueue.length}`
+                  : `${audioQueue.length} VOICE ${audioQueue.length === 1 ? 'ECHO' : 'ECHOES'}`}
+              </div>
+
+              {(queuePlaying || queueIndex > 0) && audioQueue[queueIndex] && (
+                <div style={{
+                  textAlign: 'center',
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 13,
+                  fontStyle: 'italic',
+                  color: 'rgba(245, 230, 200, 0.5)',
+                  marginBottom: 16,
+                  padding: '0 20px',
+                  lineHeight: 1.5,
+                  maxHeight: 40,
+                  overflow: 'hidden',
+                }}>
+                  {audioQueue[queueIndex].text?.slice(0, 80)}{audioQueue[queueIndex].text?.length > 80 ? '…' : ''}
+                </div>
+              )}
+
+              {/* Controls */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 24,
+              }}>
+                <button
+                  onClick={() => playQueueTrackRef.current(queueIndex - 1)}
+                  disabled={queueIndex === 0}
+                  style={{
+                    background: 'none', border: 'none',
+                    color: queueIndex > 0 ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.2)',
+                    fontSize: 20, cursor: queueIndex > 0 ? 'pointer' : 'default',
+                    padding: '4px 8px',
+                  }}
+                >
+                  ◁
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (queuePlaying) {
+                      stopQueue();
+                    } else {
+                      playQueueTrackRef.current(queueIndex);
+                    }
+                  }}
+                  style={{
+                    width: 48, height: 48,
+                    borderRadius: '50%',
+                    border: '1px solid rgba(245, 230, 200, 0.2)',
+                    background: 'rgba(245, 230, 200, 0.08)',
+                    color: '#f5e6c8',
+                    fontSize: 18,
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {queuePlaying ? '⏸' : '▶'}
+                </button>
+
+                <button
+                  onClick={() => playQueueTrackRef.current(queueIndex + 1)}
+                  disabled={queueIndex >= audioQueue.length - 1}
+                  style={{
+                    background: 'none', border: 'none',
+                    color: queueIndex < audioQueue.length - 1 ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.2)',
+                    fontSize: 20,
+                    cursor: queueIndex < audioQueue.length - 1 ? 'pointer' : 'default',
+                    padding: '4px 8px',
+                  }}
+                >
+                  ▷
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Minimized */
+            <div
+              style={{
+                display: 'flex', alignItems: 'center',
+                padding: '10px 16px',
+                gap: 12, cursor: 'pointer',
+              }}
+            >
+              {/* Play/stop button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (queuePlaying) {
+                    stopQueue();
+                  } else {
+                    playQueueTrackRef.current(queuePlaying ? queueIndex : 0);
+                  }
+                }}
+                style={{
+                  width: 32, height: 32,
+                  borderRadius: '50%',
+                  border: '1px solid rgba(245, 230, 200, 0.15)',
+                  background: queuePlaying ? 'rgba(167, 139, 250, 0.15)' : 'rgba(245, 230, 200, 0.06)',
+                  color: queuePlaying ? '#A78BFA' : 'rgba(245, 230, 200, 0.6)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {queuePlaying ? '⏸' : '▶'}
+              </button>
+
+              {/* Label */}
+              <div
+                onClick={() => setQueueExpanded(true)}
+                style={{ flex: 1, overflow: 'hidden' }}
+              >
+                {queuePlaying && audioQueue[queueIndex] ? (
+                  <>
+                    <div style={{
+                      fontSize: 9, fontFamily: 'monospace',
+                      letterSpacing: '0.1em',
+                      color: 'rgba(167, 139, 250, 0.7)',
+                      marginBottom: 2,
+                    }}>
+                      PLAYING {queueIndex + 1} / {audioQueue.length}
+                    </div>
+                    <div style={{
+                      fontSize: 12,
+                      fontFamily: "'Cormorant Garamond', serif",
+                      fontStyle: 'italic',
+                      color: 'rgba(245, 230, 200, 0.55)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {audioQueue[queueIndex].text?.slice(0, 60)}{audioQueue[queueIndex].text?.length > 60 ? '…' : ''}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{
+                    fontSize: 11, fontFamily: 'monospace',
+                    letterSpacing: '0.08em',
+                    color: 'rgba(245, 230, 200, 0.35)',
+                  }}>
+                    {audioQueue.length} VOICE {audioQueue.length === 1 ? 'ECHO' : 'ECHOES'} · PLAY ALL
+                  </div>
+                )}
+              </div>
+
+              {/* Expand arrow */}
+              <button
+                onClick={() => setQueueExpanded(true)}
+                style={{
+                  background: 'none', border: 'none',
+                  color: 'rgba(245, 230, 200, 0.25)',
+                  fontSize: 14, cursor: 'pointer',
+                  padding: '4px',
+                  flexShrink: 0,
+                }}
+              >
+                ↑
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Voice animations */}
       <style>{`
