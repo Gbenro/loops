@@ -1,196 +1,143 @@
 // Luna Loops - Audio Storage
-// IndexedDB storage for voice recordings
+// Supabase Storage bucket for voice recordings (private, per-user)
+// Falls back to IndexedDB read for migrating legacy local audio
 
-const DB_NAME = 'cosmic_audio_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'audio_recordings';
+import { supabase } from './supabase.js';
 
-let db = null;
+const BUCKET = 'echo-audio';
 
-// Initialize IndexedDB
-function initDB() {
-  return new Promise((resolve, reject) => {
-    if (db) {
-      resolve(db);
-      return;
-    }
+// ─── Supabase Storage ─────────────────────────────────────────────────────────
 
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => {
-      console.error('[Audio] IndexedDB error:', request.error);
-      reject(request.error);
-    };
-
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const database = event.target.result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-    };
-  });
+function storagePath(userId, echoId, mimeType) {
+  const ext = mimeType?.includes('mp4') ? 'mp4'
+    : mimeType?.includes('ogg') ? 'ogg'
+    : 'webm';
+  return `${userId}/${echoId}.${ext}`;
 }
 
-// Save audio blob for an echo
-export async function saveAudio(echoId, audioBlob) {
-  try {
-    const database = await initDB();
-
-    return new Promise((resolve, reject) => {
-      const transaction = database.transaction([STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-
-      const record = {
-        id: echoId,
-        blob: audioBlob,
-        mimeType: audioBlob.type,
-        size: audioBlob.size,
-        savedAt: new Date().toISOString(),
-      };
-
-      const request = store.put(record);
-
-      request.onsuccess = () => {
-        console.log('[Audio] Saved recording for echo:', echoId);
-        resolve(true);
-      };
-
-      request.onerror = () => {
-        console.error('[Audio] Failed to save:', request.error);
-        reject(request.error);
-      };
-    });
-  } catch (e) {
-    console.warn('[Audio] Could not save audio:', e);
-    return false;
+// Upload audio blob — returns the storage path, or null on failure
+export async function saveAudio(echoId, audioBlob, userId) {
+  if (!userId) {
+    console.warn('[Audio] Cannot save — user not logged in');
+    return null;
   }
-}
-
-// Get audio blob for an echo
-export async function getAudio(echoId) {
   try {
-    const database = await initDB();
-
-    return new Promise((resolve, reject) => {
-      const transaction = database.transaction([STORE_NAME], 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(echoId);
-
-      request.onsuccess = () => {
-        if (request.result) {
-          resolve(request.result.blob);
-        } else {
-          resolve(null);
-        }
-      };
-
-      request.onerror = () => {
-        reject(request.error);
-      };
-    });
+    const path = storagePath(userId, echoId, audioBlob.type);
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, audioBlob, {
+        contentType: audioBlob.type || 'audio/webm',
+        upsert: true,
+      });
+    if (error) throw error;
+    console.log('[Audio] Uploaded to storage:', path);
+    return path;
   } catch (e) {
-    console.warn('[Audio] Could not get audio:', e);
+    console.error('[Audio] Upload failed:', e);
     return null;
   }
 }
 
-// Check if audio exists for an echo
-export async function hasAudio(echoId) {
+// Get a short-lived signed URL for playback (1 hour)
+export async function getAudioUrl(audioPath) {
+  if (!audioPath) return null;
   try {
-    const database = await initDB();
-
-    return new Promise((resolve) => {
-      const transaction = database.transaction([STORE_NAME], 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(echoId);
-
-      request.onsuccess = () => {
-        resolve(!!request.result);
-      };
-
-      request.onerror = () => {
-        resolve(false);
-      };
-    });
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(audioPath, 3600);
+    if (error) throw error;
+    return data.signedUrl;
   } catch (e) {
+    console.error('[Audio] Could not get signed URL:', e);
+    return null;
+  }
+}
+
+// Download blob (for the download button) — uses signed URL
+export async function getAudio(audioPath) {
+  if (!audioPath) return null;
+  try {
+    const url = await getAudioUrl(audioPath);
+    if (!url) return null;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+    return await res.blob();
+  } catch (e) {
+    console.error('[Audio] Download failed:', e);
+    return null;
+  }
+}
+
+// Delete audio file from storage
+export async function deleteAudio(audioPath) {
+  if (!audioPath) return false;
+  try {
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .remove([audioPath]);
+    if (error) throw error;
+    console.log('[Audio] Deleted from storage:', audioPath);
+    return true;
+  } catch (e) {
+    console.error('[Audio] Delete failed:', e);
     return false;
   }
 }
 
-// Delete audio for an echo
-export async function deleteAudio(echoId) {
-  try {
-    const database = await initDB();
+// ─── Legacy IndexedDB (read-only, for migration) ──────────────────────────────
 
-    return new Promise((resolve, reject) => {
-      const transaction = database.transaction([STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(echoId);
+const IDB_NAME = 'cosmic_audio_db';
+const IDB_STORE = 'audio_recordings';
 
-      request.onsuccess = () => {
-        console.log('[Audio] Deleted recording for echo:', echoId);
-        resolve(true);
-      };
-
-      request.onerror = () => {
-        reject(request.error);
-      };
-    });
-  } catch (e) {
-    console.warn('[Audio] Could not delete audio:', e);
-    return false;
-  }
+async function openLegacyDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onupgradeneeded = () => resolve(null); // empty DB, nothing to migrate
+  });
 }
 
-// Get storage stats
-export async function getStorageStats() {
+// Read all legacy IndexedDB entries for migration
+export async function getLegacyAudioIds() {
   try {
-    const database = await initDB();
-
+    const db = await openLegacyDB();
+    if (!db) return [];
     return new Promise((resolve) => {
-      const transaction = database.transaction([STORE_NAME], 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.getAll();
-
-      request.onsuccess = () => {
-        const records = request.result || [];
-        const totalSize = records.reduce((sum, r) => sum + (r.size || 0), 0);
-        resolve({
-          count: records.length,
-          totalSize,
-          formattedSize: formatBytes(totalSize),
-        });
-      };
-
-      request.onerror = () => {
-        resolve({ count: 0, totalSize: 0, formattedSize: '0 B' });
-      };
+      const req = db.transaction(IDB_STORE, 'readonly')
+        .objectStore(IDB_STORE).getAllKeys();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
     });
-  } catch (e) {
-    return { count: 0, totalSize: 0, formattedSize: '0 B' };
+  } catch {
+    return [];
   }
 }
 
-// Format bytes to human readable
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+export async function getLegacyAudioBlob(echoId) {
+  try {
+    const db = await openLegacyDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const req = db.transaction(IDB_STORE, 'readonly')
+        .objectStore(IDB_STORE).get(echoId);
+      req.onsuccess = () => resolve(req.result?.blob || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
 }
 
-// Create a playable URL from stored audio
-export function createAudioURL(blob) {
-  return URL.createObjectURL(blob);
-}
-
-// Revoke audio URL when done
-export function revokeAudioURL(url) {
-  URL.revokeObjectURL(url);
+export async function deleteLegacyAudio(echoId) {
+  try {
+    const db = await openLegacyDB();
+    if (!db) return;
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(echoId);
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  } catch { /* ignore */ }
 }

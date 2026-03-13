@@ -3,12 +3,12 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
-import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, generateId } from '../lib/storage.js';
+import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
-import { saveAudio, getAudio, deleteAudio, hasAudio } from '../lib/audioStorage.js';
+import { saveAudio, getAudioUrl, getAudio, deleteAudio, getLegacyAudioIds, getLegacyAudioBlob, deleteLegacyAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -96,8 +96,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const pendingAudioBlobRef = useRef(null);  // Store audio blob until echo is saved
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
-  const [keepAudio, setKeepAudio] = useState(true);  // Option to save audio locally
   const wakeLockRef = useRef(null);
+
+  // Legacy migration
+  const [legacyIds, setLegacyIds] = useState([]);
+  const [legacyMigrating, setLegacyMigrating] = useState(false);
 
   // Queue player
   const [queueExpanded, setQueueExpanded] = useState(false);
@@ -175,7 +178,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
-    const q = filteredEchoes.filter(e => e.hasAudio);
+    const q = filteredEchoes.filter(e => !!e.audio_path);
     return queueReversed ? [...q].reverse() : q;
   }, [filteredEchoes, queueReversed]);
 
@@ -213,6 +216,10 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Start recording
   const startRecording = useCallback(async () => {
+    if (!userId) {
+      alert('Sign in to record voice echoes — audio is saved securely to your account.');
+      return;
+    }
     try {
       console.log('[Voice] Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -367,16 +374,23 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setLoading(true);
     getEchoes(userId).then(async data => {
       const updated = await Promise.all(data.map(async echo => {
-        const audioExists = await hasAudio(echo.id);
         const text = (echo.isEncrypted && sessionKey)
           ? await decryptField(echo.text)
           : echo.text;
-        return { ...echo, text, hasAudio: audioExists };
+        return { ...echo, text };
       }));
       setEchoes(updated);
       setLoading(false);
     });
   }, [userId, sessionKey, decryptField]);
+
+  // Check for legacy IndexedDB audio to migrate
+  useEffect(() => {
+    if (!userId) return;
+    getLegacyAudioIds().then(ids => {
+      if (ids.length > 0) setLegacyIds(ids);
+    });
+  }, [userId]);
 
   const saveEcho = async () => {
     if (!currentText.trim()) return;
@@ -388,7 +402,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
     const echoId = generateId('e');
     const hasVoice = source === 'voice' && pendingAudioBlobRef.current;
-    const willSaveAudio = hasVoice && keepAudio;
 
     const isEncrypted = !!sessionKey;
     const plainText = currentText.trim();
@@ -398,7 +411,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       id: echoId,
       text: plainText, // plaintext in state
       source,
-      hasAudio: willSaveAudio,
+      audio_path: null,
       isEncrypted,
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
@@ -415,20 +428,26 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setIsWriting(false);
     setSource('text');
     setRecordingTime(0);
-    setKeepAudio(true);  // Reset for next time
 
-    // Save audio to IndexedDB if user chose to keep it
-    if (willSaveAudio) {
-      await saveAudio(echoId, pendingAudioBlobRef.current);
-    }
+    // Save echo record first, then upload audio
+    const audioBlob = pendingAudioBlobRef.current;
     pendingAudioBlobRef.current = null;
 
-    await saveEchoToDb({ ...newEcho, text: storedText }, userId);
+    await saveEchoToDb({ ...newEcho, text: storedText, audioPath: null }, userId);
+
+    // Upload audio to cloud storage (requires login — already blocked in startRecording)
+    if (hasVoice && audioBlob && userId) {
+      const audioPath = await saveAudio(echoId, audioBlob, userId);
+      if (audioPath) {
+        setEchoes(prev => prev.map(e => e.id === echoId ? { ...e, audio_path: audioPath } : e));
+        await updateEchoAudioPath(echoId, audioPath, userId);
+      }
+    }
   };
 
   const deleteEcho = async (id) => {
-    // Also delete stored audio
-    await deleteAudio(id);
+    const echo = echoes.find(e => e.id === id);
+    if (echo?.audio_path) await deleteAudio(echo.audio_path);
     setEchoes(prev => prev.filter(e => e.id !== id));
     setExpandedId(null);
     await deleteEchoFromDb(id, userId);
@@ -466,24 +485,21 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     }
     const echo = queue[index];
     setQueueIndex(index);
-    const audioBlob = await getAudio(echo.id);
-    if (!audioBlob) {
+    const audioUrl = await getAudioUrl(echo.audio_path);
+    if (!audioUrl) {
       playQueueTrackRef.current(index + 1);
       return;
     }
-    const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     setAudioDuration(null);
     audio.onloadedmetadata = () => {
       if (isFinite(audio.duration)) setAudioDuration(audio.duration);
     };
     audio.onended = () => {
-      URL.revokeObjectURL(audioUrl);
       audioPlayerRef.current = null;
       playQueueTrackRef.current(index + 1);
     };
     audio.onerror = () => {
-      URL.revokeObjectURL(audioUrl);
       audioPlayerRef.current = null;
       playQueueTrackRef.current(index + 1);
     };
@@ -504,7 +520,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   };
 
   // Play/stop audio for an echo (single card — stops queue if active)
-  const playAudio = async (echoId) => {
+  const playAudio = async (echoId, audioPath) => {
     // Stop queue mode if running
     if (queuePlaying) {
       setQueuePlaying(false);
@@ -524,38 +540,29 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       audioPlayerRef.current = null;
     }
 
-    // Load and play the audio
-    const audioBlob = await getAudio(echoId);
-    if (!audioBlob) {
+    const audioUrl = await getAudioUrl(audioPath);
+    if (!audioUrl) {
       setPlayingId('unavailable-' + echoId);
       setTimeout(() => setPlayingId(null), 2000);
       return;
     }
-    if (audioBlob) {
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
 
-      setAudioDuration(null);
-      audio.onloadedmetadata = () => {
-        if (isFinite(audio.duration)) setAudioDuration(audio.duration);
-      };
-
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        setPlayingId(null);
-        audioPlayerRef.current = null;
-      };
-
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        setPlayingId(null);
-        audioPlayerRef.current = null;
-      };
-
-      audioPlayerRef.current = audio;
-      setPlayingId(echoId);
-      audio.play();
-    }
+    const audio = new Audio(audioUrl);
+    setAudioDuration(null);
+    audio.onloadedmetadata = () => {
+      if (isFinite(audio.duration)) setAudioDuration(audio.duration);
+    };
+    audio.onended = () => {
+      setPlayingId(null);
+      audioPlayerRef.current = null;
+    };
+    audio.onerror = () => {
+      setPlayingId(null);
+      audioPlayerRef.current = null;
+    };
+    audioPlayerRef.current = audio;
+    setPlayingId(echoId);
+    audio.play();
   };
 
   // Format recording time
@@ -886,42 +893,16 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               </button>
             </div>
 
-            {/* Keep audio option - shown after voice recording */}
+            {/* Audio ready indicator */}
             {source === 'voice' && pendingAudioBlobRef.current && !isRecording && !isTranscribing && (
-              <div
-                onClick={() => setKeepAudio(!keepAudio)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
-                  marginBottom: 12,
-                  borderRadius: 8,
-                  background: 'rgba(167, 139, 250, 0.05)',
-                  border: '1px solid rgba(167, 139, 250, 0.15)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 4,
-                  border: `2px solid ${keepAudio ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.3)'}`,
-                  background: keepAudio ? 'rgba(167, 139, 250, 0.3)' : 'transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 11,
-                  color: '#f5e6c8',
-                }}>
-                  {keepAudio && '✓'}
-                </div>
-                <span style={{
-                  fontSize: 11,
-                  color: 'rgba(245, 230, 200, 0.7)',
-                }}>
-                  Save to device
-                </span>
+              <div style={{
+                fontSize: 9,
+                fontFamily: 'monospace',
+                letterSpacing: '0.08em',
+                color: 'rgba(167, 139, 250, 0.6)',
+                marginBottom: 12,
+              }}>
+                ◉ VOICE RECORDING READY · WILL SAVE TO CLOUD
               </div>
             )}
 
@@ -989,6 +970,102 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         )}
       </div>
 
+      {/* Legacy Migration Banner */}
+      {legacyIds.length > 0 && !legacyMigrating && (
+        <div style={{
+          margin: '0 20px 12px',
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: 'rgba(167, 139, 250, 0.07)',
+          border: '1px solid rgba(167, 139, 250, 0.2)',
+        }}>
+          <div style={{
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: 'rgba(167, 139, 250, 0.7)',
+            marginBottom: 6,
+          }}>
+            {legacyIds.length} LOCAL VOICE {legacyIds.length === 1 ? 'RECORDING' : 'RECORDINGS'} FOUND
+          </div>
+          <div style={{
+            fontSize: 12,
+            color: 'rgba(245, 230, 200, 0.55)',
+            marginBottom: 10,
+            lineHeight: 1.4,
+          }}>
+            Your device has voice recordings stored locally. Upload them to your account so they're available everywhere.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={async () => {
+                setLegacyMigrating(true);
+                let migrated = 0;
+                for (const echoId of legacyIds) {
+                  const echo = echoes.find(e => e.id === echoId);
+                  if (!echo || echo.audio_path) { await deleteLegacyAudio(echoId); continue; }
+                  const blob = await getLegacyAudioBlob(echoId);
+                  if (!blob) { await deleteLegacyAudio(echoId); continue; }
+                  const audioPath = await saveAudio(echoId, blob, userId);
+                  if (audioPath) {
+                    setEchoes(prev => prev.map(e => e.id === echoId ? { ...e, audio_path: audioPath } : e));
+                    await updateEchoAudioPath(echoId, audioPath, userId);
+                    await deleteLegacyAudio(echoId);
+                    migrated++;
+                  }
+                }
+                setLegacyIds([]);
+                setLegacyMigrating(false);
+                if (migrated > 0) console.log(`[Migration] Uploaded ${migrated} voice recordings`);
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid rgba(167, 139, 250, 0.3)',
+                background: 'rgba(167, 139, 250, 0.1)',
+                color: 'rgba(167, 139, 250, 0.8)',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.06em',
+                cursor: 'pointer',
+              }}
+            >
+              UPLOAD NOW
+            </button>
+            <button
+              onClick={() => setLegacyIds([])}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'none',
+                color: 'rgba(245, 230, 200, 0.3)',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                cursor: 'pointer',
+              }}
+            >
+              DISMISS
+            </button>
+          </div>
+        </div>
+      )}
+      {legacyMigrating && (
+        <div style={{
+          margin: '0 20px 12px',
+          padding: '10px 16px',
+          borderRadius: 10,
+          background: 'rgba(167, 139, 250, 0.05)',
+          border: '1px solid rgba(167, 139, 250, 0.1)',
+          fontSize: 10,
+          fontFamily: 'monospace',
+          letterSpacing: '0.08em',
+          color: 'rgba(167, 139, 250, 0.6)',
+        }}>
+          UPLOADING RECORDINGS...
+        </div>
+      )}
+
       {/* Echoes List */}
       <div style={{
         flex: 1,
@@ -1023,19 +1100,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               isExpanded={expandedId === echo.id}
               onToggle={() => setExpandedId(expandedId === echo.id ? null : echo.id)}
               onDelete={() => deleteEcho(echo.id)}
-              onPlayAudio={playAudio}
+              onPlayAudio={(id) => playAudio(id, echo.audio_path)}
               onUpdateText={handleUpdateEchoText}
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
-              onDownloadAudio={async (echoId) => {
-                const blob = await getAudio(echoId);
+              onDownloadAudio={async () => {
+                const blob = await getAudio(echo.audio_path);
                 if (!blob) return;
                 const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `echo-${echoId}.${ext}`;
+                a.download = `echo-${echo.id}.${ext}`;
                 a.click();
                 URL.revokeObjectURL(url);
               }}
@@ -1340,7 +1417,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   // Derive phase type from stored value or phase key
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
   const isThreshold = phaseType === 'threshold';
-  const canPlay = echo.source === 'voice';
+  const canPlay = !!echo.audio_path;
 
   const copyText = () => {
     navigator.clipboard.writeText(echo.text).then(() => {
@@ -1526,7 +1603,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                     {isUnavailable ? '✕ NOT FOUND' : isPlaying ? `■ ${playingDuration != null ? Math.round(playingDuration) + 's' : 'STOP'}` : '▶ PLAY'}
                   </button>
                   <button
-                    onClick={() => onDownloadAudio(echo.id)}
+                    onClick={() => onDownloadAudio()}
                     style={{
                       background: 'none',
                       border: 'none',

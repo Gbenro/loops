@@ -190,6 +190,7 @@ export async function getEchoes(userId) {
       zodiac: row.zodiac,
       illumination: row.illumination,
       isEncrypted: row.is_encrypted || false,
+      audioPath: row.audio_path || null,
       createdAt: row.created_at,
     }));
 
@@ -224,6 +225,7 @@ export async function saveEcho(echo, userId) {
         zodiac: echo.zodiac,
         illumination: echo.illumination,
         is_encrypted: echo.isEncrypted || false,
+        audio_path: echo.audioPath || null,
         created_at: echo.createdAt,
       });
 
@@ -233,6 +235,26 @@ export async function saveEcho(echo, userId) {
   }
 
   return echo;
+}
+
+export async function updateEchoAudioPath(echoId, audioPath, userId) {
+  const echoes = getLocal(ECHOES_KEY);
+  const idx = echoes.findIndex(e => e.id === echoId);
+  if (idx !== -1) {
+    echoes[idx] = { ...echoes[idx], audioPath };
+    setLocal(ECHOES_KEY, echoes);
+  }
+
+  if (!userId) return;
+
+  try {
+    await supabase
+      .from('echoes')
+      .update({ audio_path: audioPath })
+      .eq('id', echoId);
+  } catch (e) {
+    console.warn('Failed to update echo audio_path on server:', e);
+  }
 }
 
 export async function updateEchoText(echoId, newText, userId) {
