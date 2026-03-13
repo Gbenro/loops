@@ -235,6 +235,26 @@ export async function saveEcho(echo, userId) {
   return echo;
 }
 
+export async function updateEchoText(echoId, newText, userId) {
+  const echoes = getLocal(ECHOES_KEY);
+  const idx = echoes.findIndex(e => e.id === echoId);
+  if (idx !== -1) {
+    echoes[idx] = { ...echoes[idx], text: newText };
+    setLocal(ECHOES_KEY, echoes);
+  }
+
+  if (!userId) return;
+
+  try {
+    await supabase
+      .from('echoes')
+      .update({ text: newText })
+      .eq('id', echoId);
+  } catch (e) {
+    console.warn('Failed to update echo text on server:', e);
+  }
+}
+
 export async function deleteEcho(echoId, userId) {
   const echoes = getLocal(ECHOES_KEY).filter(e => e.id !== echoId);
   setLocal(ECHOES_KEY, echoes);

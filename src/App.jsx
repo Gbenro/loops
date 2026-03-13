@@ -707,6 +707,7 @@ export default function App() {
             userId={user?.id}
             phrases={phrases}
             phrasesLoading={phrasesLoading}
+            hemisphere={hemisphere}
           />
         )}
         {activeTab === 'echoes' && (
@@ -714,6 +715,7 @@ export default function App() {
             userId={user?.id}
             phrases={phrases}
             phrasesLoading={phrasesLoading}
+            hemisphere={hemisphere}
           />
         )}
       </div>

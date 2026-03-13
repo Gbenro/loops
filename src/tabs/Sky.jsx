@@ -9,6 +9,7 @@ import { PhaseTideBar } from '../components/PhaseTideBar.jsx';
 import { PhaseTransitionCard } from '../components/PhaseTransitionCard.jsx';
 import { ProfileMenu } from '../components/ProfileMenu.jsx';
 import { getLunarData, getPhaseEmoji, getAllPhases } from '../lib/lunar.js';
+import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getSolarData } from '../lib/solar.js';
 import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent } from '../data/phaseContent.js';
@@ -174,7 +175,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           color: 'rgba(245, 230, 200, 0.5)',
           marginBottom: 10,
         }}>
-          {lunarData.illumination}% · {lunarData.lunarMonth.toUpperCase()} MOON · MOON IN {lunarData.zodiac.sign.toUpperCase()}
+          {lunarData.illumination}% · {getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name.toUpperCase()} · MOON IN {lunarData.zodiac.sign.toUpperCase()}
         </div>
 
         {/* Day Line */}

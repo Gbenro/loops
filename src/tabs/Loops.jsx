@@ -9,8 +9,9 @@ import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
+import { getLunarMonthInfo } from '../data/lunarMonths.js';
 
-export function Loops({ userId, phrases, phrasesLoading }) {
+export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const [loops, setLoops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRitual, setShowRitual] = useState(false);
@@ -427,6 +428,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
           }}
           newMoonQuestion={phrases.newMoonQuestion}
           phrasesLoading={phrasesLoading}
+          hemisphere={hemisphere}
         />
       )}
 
@@ -507,7 +509,7 @@ export function Loops({ userId, phrases, phrasesLoading }) {
             letterSpacing: '0.08em',
             color: 'rgba(245, 230, 200, 0.4)',
           }}>
-            {lunarData.lunarMonth.toUpperCase()} MOON CYCLE
+            {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()} CYCLE
           </span>
           <span style={{
             fontSize: 10,
@@ -1005,7 +1007,7 @@ function CycleLoopCard({ loop, lunarData, onSelect }) {
             }}>
               ☽ CYCLE
             </span>
-            <span>{loop.lunarMonthOpened?.toUpperCase()} MOON</span>
+            <span>{getLunarMonthInfo(loop.lunarMonthOpened, hemisphere).name.toUpperCase()}</span>
           </div>
         </div>
       </div>
@@ -1473,7 +1475,7 @@ function DetailPanel({
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
             onBlur={() => onUpdateNote(noteText.trim() || null)}
-            placeholder="A note to yourself..."
+            placeholder="A note to yourself... (saves when you stop writing)"
             rows={3}
             style={{
               width: '100%',
