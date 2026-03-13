@@ -13,8 +13,8 @@ const PRIVACY_POINTS = [
   },
   {
     icon: '◎',
-    title: 'Voice recordings stay on your device',
-    body: 'Audio recordings are stored on this device only and are never uploaded. If you clear your browser data or switch devices, recordings cannot be recovered.',
+    title: 'Voice recordings saved to your account',
+    body: 'Audio recordings are stored securely in your account (Supabase/AWS, encrypted in transit). Only you can access them. They are deleted when you delete the echo, and you can download them at any time.',
   },
   {
     icon: '◈',
