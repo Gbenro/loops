@@ -121,7 +121,7 @@ const GUIDE_STEPS = [
 
 // ─── Phase Data ───────────────────────────────────────────────────────────────
 
-const PHASE_DATA = [
+const PHASE_DATA_ORIGINAL = [
   {
     key: 'new',
     label: 'NEW MOON',
@@ -254,6 +254,145 @@ const PHASE_DATA = [
     entrainment: 'You rest before you feel the tiredness.',
   },
 ];
+
+const PHASE_DATA_V2 = [
+  {
+    key: 'new',
+    label: 'NEW MOON',
+    title: 'New Moon',
+    plantStage: 'The Seed in Darkness',
+    age: 0,
+    accent: 'rgba(245,230,200,0.6)',
+    isNew: true,
+    type: 'Threshold',
+    duration: '1.85 days',
+    illumination: '0%',
+    question: 'What do you want to plant this cycle?',
+    description: 'A quiet darkness surrounds you. Something subtle stirs within — a seed of intention waiting to emerge. There is no need to act yet. Sit with the stillness, notice your inner stirrings, and honor what wants to grow.',
+    body2: 'You do not plan at the New Moon. You plant. One intention. No subtasks, no categories, no metadata. The cycle loop opens here as a ceremony, held for the full 29.5 days.',
+    bodyState: 'Still, empty, quietly receptive',
+    loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
+    voidTag: 'Void Energy',
+    activities: ['Reflect on your intention', 'Choose one small intention', 'Rest and allow the seed to form'],
+    entrainment: 'You can sit with blankness without filling it.',
+  },
+  {
+    key: 'waxing-crescent',
+    label: 'WAXING CRESCENT',
+    title: 'Waxing Crescent',
+    plantStage: 'The First Light of Possibility',
+    age: 3.7,
+    accent: '#74c69d',
+    type: 'Flow',
+    duration: '~5.55 days',
+    illumination: '~25%',
+    bodyState: 'Energy rising, momentum building',
+    description: "The moon's first sliver appears. Energy rises. Ideas spark and possibilities abound. Curiosity and excitement guide your exploration. This is a time to gather, imagine, and dream around your intention, without committing to everything that arises.",
+    loopBehaviour: 'Open 1–2 phase loops. Focus on first steps and building structure.',
+    activities: ['Capture ideas and thoughts', 'Notice what resonates', 'Explore freely, stay close to your seed'],
+    entrainment: 'You begin before you feel ready.',
+  },
+  {
+    key: 'first-quarter',
+    label: 'FIRST QUARTER',
+    title: 'First Quarter',
+    plantStage: 'Choosing the Path',
+    age: 7.38,
+    accent: '#f6ad55',
+    type: 'Threshold',
+    duration: '~1.85 days',
+    illumination: '50%',
+    bodyState: 'Tension and decisiveness',
+    description: 'Half light, half dark. The cycle asks for a decision. Some ideas move forward; others return to rest. Focus your energy on the path that will allow your intention to grow. Choosing clarity now gives momentum to the next phases.',
+    loopBehaviour: 'Face the obstacle in each active loop. Make one clear decision per loop.',
+    activities: ['Place ideas in light or dark', 'Commit to one clear direction', 'Release distractions'],
+    entrainment: 'You make the decision before you have certainty.',
+  },
+  {
+    key: 'waxing-gibbous',
+    label: 'WAXING GIBBOUS',
+    title: 'Waxing Gibbous',
+    plantStage: 'Momentum in Motion',
+    age: 11.1,
+    accent: '#81e6d9',
+    type: 'Flow',
+    duration: '~5.55 days',
+    illumination: '~75%',
+    bodyState: 'Refinement, anticipation',
+    description: 'The moon grows almost full. Energy surges. The chosen path now demands creation. Build, shape, and refine your work. Focused action transforms the seed into something tangible. This is a phase of energy, momentum, and dedication.',
+    loopBehaviour: 'Refine active loops. Adjust details. Do not open new loops — finish existing ones.',
+    activities: ['Develop your chosen idea', 'Notice what strengthens or weakens', 'Keep work aligned and intentional'],
+    entrainment: 'You refine without starting over.',
+  },
+  {
+    key: 'full',
+    label: 'FULL MOON',
+    title: 'Full Moon',
+    plantStage: 'The Light Revealed',
+    age: 14.765,
+    accent: '#fefcbf',
+    type: 'Threshold',
+    duration: '~1.85 days',
+    illumination: '100%',
+    bodyState: 'Peak energy, heightened emotion',
+    description: 'The moon is fully illuminated. The work of the cycle shines clearly. Celebrate what has grown. Witness your progress, honor your achievements, and share the joy. The Full Moon reveals the tangible outcome of your intentions.',
+    loopBehaviour: 'No new loops. See what the light reveals. Close loops that have completed.',
+    activities: ['Observe what you have built', 'Celebrate accomplishments', 'Share insights or results'],
+    entrainment: 'You receive what the cycle has been building toward.',
+  },
+  {
+    key: 'waning-gibbous',
+    label: 'WANING GIBBOUS',
+    title: 'Waning Gibbous',
+    plantStage: 'The Harvest Shared',
+    age: 18.5,
+    accent: '#b794f4',
+    type: 'Flow',
+    duration: '~5.55 days',
+    illumination: '~75%',
+    bodyState: 'Integration, generosity',
+    description: 'The light begins to wane, flowing outward. This is the phase of giving and connecting. Share your creations and gather feedback. Reflect on lessons and insights, while connecting with others and the energy that comes from sharing your harvest.',
+    loopBehaviour: 'Share progress. Close loops that served their purpose. Begin releasing.',
+    activities: ['Share work or insights', 'Collect feedback', 'Connect with people around your work'],
+    entrainment: 'You give without needing to keep.',
+  },
+  {
+    key: 'last-quarter',
+    label: 'LAST QUARTER',
+    title: 'Last Quarter',
+    plantStage: 'Reflection and Realignment',
+    age: 22.15,
+    accent: '#f687b3',
+    type: 'Threshold',
+    duration: '~1.85 days',
+    illumination: '50%',
+    bodyState: 'Release, spaciousness',
+    description: "Half-dark, half-light. Momentum inward. Energy quiets. This is a phase of reflection, evaluation, and alignment. Observe what worked, release what didn't, and prepare for the next cycle. Minimal action, maximum insight.",
+    loopBehaviour: 'Release loops that didn\'t close. Clear incomplete intentions. Forgive.',
+    activities: ['Review work from this cycle', 'Adjust what needs refining', 'Step back and observe'],
+    entrainment: 'You release without needing to understand why.',
+  },
+  {
+    key: 'waning-crescent',
+    label: 'WANING CRESCENT',
+    title: 'Waning Crescent',
+    plantStage: 'Rest Before the New',
+    age: 26,
+    accent: '#718096',
+    type: 'Flow',
+    duration: '~5.55 days',
+    illumination: '~10%',
+    bodyState: 'Deep rest, dreamlike',
+    description: 'Darkness deepens. Energy slows. Fully release the cycle\'s work and rest deeply. Integrate the lessons, honor the journey, and prepare for the next New Moon. This phase is a quiet pause before the next beginning.',
+    loopBehaviour: 'Do not open loops. Rest. Let the cycle complete naturally.',
+    activities: ['Rest physically and mentally', 'Reflect on lessons and growth', 'Release fully and prepare'],
+    entrainment: 'You rest before you feel the tiredness.',
+  },
+];
+
+// Toggle active version here — swap PHASE_DATA_V2 ↔ PHASE_DATA_ORIGINAL to revert
+// const PHASE_DATA = PHASE_DATA_ORIGINAL;
+const PHASE_DATA = PHASE_DATA_V2;
 
 // ─── Tutorial Component ───────────────────────────────────────────────────────
 
@@ -850,17 +989,31 @@ function NewMoonCard({ phase }) {
           {phase.label}
         </div>
 
-        {/* Type pill */}
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 12px', borderRadius: 20,
-          background: 'rgba(245,230,200,0.06)',
-          border: '1px solid rgba(245,230,200,0.15)',
-          color: 'rgba(245,230,200,0.5)', fontSize: 10,
-          fontFamily: 'monospace', letterSpacing: '0.1em',
-        }}>
-          {phase.type.toUpperCase()} · {phase.duration}
-        </span>
+        {/* Type pill + optional void tag */}
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 12px', borderRadius: 20,
+            background: 'rgba(245,230,200,0.06)',
+            border: '1px solid rgba(245,230,200,0.15)',
+            color: 'rgba(245,230,200,0.5)', fontSize: 10,
+            fontFamily: 'monospace', letterSpacing: '0.1em',
+          }}>
+            {phase.type.toUpperCase()} · {phase.duration}
+          </span>
+          {phase.voidTag && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '4px 12px', borderRadius: 20,
+              background: 'rgba(120,100,180,0.1)',
+              border: '1px solid rgba(120,100,180,0.3)',
+              color: 'rgba(180,160,230,0.7)', fontSize: 10,
+              fontFamily: 'monospace', letterSpacing: '0.1em',
+            }}>
+              {phase.voidTag.toUpperCase()}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Description */}
