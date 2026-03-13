@@ -12,7 +12,7 @@ import { getLunarData, getPhaseEmoji, getAllPhases } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getSolarData } from '../lib/solar.js';
 import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
-import { getPhaseContent } from '../data/phaseContent.js';
+import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
 export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData, loops = [], echoes = [], onOpenTutorial }) {
@@ -30,7 +30,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
     : lunarData.phaseProgress < 0.62 ? 'flowing'
     : lunarData.phaseProgress < 0.88 ? 'completing'
     : 'closing';
-  const typeOpening = phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening;
+  const typeOpening = pickForToday(phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening);
   const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
   const allPhases = getAllPhases();
 
