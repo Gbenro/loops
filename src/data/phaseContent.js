@@ -9,13 +9,6 @@ const THRESHOLD_TIDES = {
   closing:    'The threshold is passing. Move forward with what was revealed.',
 };
 
-const FLOW_TIDES = {
-  opening:    'You have time. This phase gives you room to move.',
-  flowing:    'You are in it. Follow where the energy leads.',
-  completing: 'This phase is in its final stretch. Land what needs landing.',
-  closing:    'The phase is closing. Take what you have moved through with you.',
-};
-
 // deepTides — deeper, more contemplative. Used in the deep sheet.
 // Distinct from typeOpening: these invite reflection on what the stage calls forth.
 const THRESHOLD_DEEP_TIDES = {
@@ -25,11 +18,62 @@ const THRESHOLD_DEEP_TIDES = {
   closing:    'The threshold is nearly past. Carry what was revealed, and release the tension that no longer serves.',
 };
 
-const FLOW_DEEP_TIDES = {
-  opening:    'The phase has just opened. The energy is available — orient before the momentum builds.',
-  flowing:    'You are in the current of this phase. Work with what is moving rather than forcing something new.',
-  completing: 'The phase is in its final arc. What was opened is reaching completion — land it before the shift.',
-  closing:    'This phase is nearly done. What you moved through belongs to you now. The next phase will ask something different.',
+// ─── Flow phase tides — each phase has its own set ───────────────────────────
+
+const WAXING_CRESCENT_TIDES = {
+  opening:    'The crescent is just forming. You have the full phase ahead — begin with one step.',
+  flowing:    'The build is underway. What you put in now compounds.',
+  completing: 'The crescent is thinning toward the quarter. Close what you opened before the decision phase arrives.',
+  closing:    'The first quarter is near. Bring your early movement to a point.',
+};
+
+const WAXING_CRESCENT_DEEP_TIDES = {
+  opening:    'The crescent is opening. The full arc of this phase lies ahead — plant yourself in it before the momentum takes over.',
+  flowing:    'You are building. What you sustain now becomes the foundation the full moon will illuminate.',
+  completing: 'The crescent is ending. What you set in motion here will meet its first real test at the quarter. Consolidate before that threshold.',
+  closing:    'The first quarter is arriving. Bring your intentions to a point. The next phase demands a decision.',
+};
+
+const WAXING_GIBBOUS_TIDES = {
+  opening:    'The gibbous opens wide. You are close — use this phase to refine, not rebuild.',
+  flowing:    'Refinement is the work now. Adjust the details. The full moon is coming.',
+  completing: 'The peak is near. What needs one last adjustment before the light arrives?',
+  closing:    'The full moon is hours away. What you have refined is ready. Stop changing it.',
+};
+
+const WAXING_GIBBOUS_DEEP_TIDES = {
+  opening:    'The gibbous phase opens. Most of the work has been done — now the task is trust and precision, not effort.',
+  flowing:    'You are refining. Resist the urge to start something new. What exists is nearly ready.',
+  completing: 'The full moon is close. Refinement should be finishing, not beginning. Let what you have be enough.',
+  closing:    'The peak is upon you. The gibbous has done its work. Step into the full moon with what you have built.',
+};
+
+const WANING_GIBBOUS_TIDES = {
+  opening:    'The peak has just passed. You have the whole waning gibbous to integrate and share what arose.',
+  flowing:    'The light is slowly leaving. Give back what the cycle has given you.',
+  completing: 'The gibbous is closing. What you have learned needs to land — share it before the last quarter.',
+  closing:    'The last quarter threshold is near. Finish sharing. A reckoning is coming.',
+};
+
+const WANING_GIBBOUS_DEEP_TIDES = {
+  opening:    'The full moon has passed. This phase is the cycle\'s most generous — let what you received begin to move outward.',
+  flowing:    'You are integrating. What the full moon revealed wants to become something you can offer. Share, teach, pass on.',
+  completing: 'The gibbous waning is closing. What was shared and integrated now approaches its release. Prepare to let go.',
+  closing:    'The last quarter threshold is near. What was gathered and given in this phase now asks to be released. Let the tide turn.',
+};
+
+const WANING_CRESCENT_TIDES = {
+  opening:    'The final phase opens. Let the cycle breathe down.',
+  flowing:    'You are in the slowest, darkest part. This is not a time to push.',
+  completing: 'The darkness is almost complete. What remains can wait for the new cycle.',
+  closing:    'The new moon is near. Release the last of what this cycle held.',
+};
+
+const WANING_CRESCENT_DEEP_TIDES = {
+  opening:    'The last phase begins. The cycle is completing itself — your work now is restoration, not production.',
+  flowing:    'You are in the fallow period. The darkness before the new moon has its own intelligence. Trust what rises in stillness.',
+  completing: 'The new moon is approaching. What this cycle has taught you is settling in. Do not force conclusions.',
+  closing:    'The new moon is nearly here. The old cycle is done. Allow the darkness to complete its work — something new is forming in the quiet.',
 };
 
 export const phaseContent = {
@@ -52,8 +96,8 @@ export const phaseContent = {
     symbol: '🌒',
     energy: 'Build',
     phaseType: 'flow',
-    typeOpening: FLOW_TIDES,
-    deepTides: FLOW_DEEP_TIDES,
+    typeOpening: WAXING_CRESCENT_TIDES,
+    deepTides: WAXING_CRESCENT_DEEP_TIDES,
     guidance: 'The energy is rising. Push forward. Open new loops.',
     deep: 'First light after darkness. The cycle begins. Take small steps forward. Build momentum. Trust your direction.',
     keywords: ['Emergence', 'Momentum', 'Courage', 'Beginning', 'Growth'],
@@ -80,8 +124,8 @@ export const phaseContent = {
     symbol: '🌔',
     energy: 'Refine',
     phaseType: 'flow',
-    typeOpening: FLOW_TIDES,
-    deepTides: FLOW_DEEP_TIDES,
+    typeOpening: WAXING_GIBBOUS_TIDES,
+    deepTides: WAXING_GIBBOUS_DEEP_TIDES,
     guidance: "You're close. Adjust, trust, keep going.",
     deep: 'Almost full. Refine, don\'t revolutionize. Adjust the details. The peak approaches. Trust what you\'ve built.',
     keywords: ['Refinement', 'Anticipation', 'Adjustment', 'Nearing', 'Clarity'],
@@ -108,8 +152,8 @@ export const phaseContent = {
     symbol: '🌖',
     energy: 'Share',
     phaseType: 'flow',
-    typeOpening: FLOW_TIDES,
-    deepTides: FLOW_DEEP_TIDES,
+    typeOpening: WANING_GIBBOUS_TIDES,
+    deepTides: WANING_GIBBOUS_DEEP_TIDES,
     guidance: 'Give back what you have gathered. Reflect and release.',
     deep: 'The peak has passed. Share what you\'ve learned. Give back. Gratitude flows naturally now.',
     keywords: ['Gratitude', 'Sharing', 'Integration', 'Generosity', 'Wisdom'],
@@ -136,8 +180,8 @@ export const phaseContent = {
     symbol: '🌘',
     energy: 'Rest',
     phaseType: 'flow',
-    typeOpening: FLOW_TIDES,
-    deepTides: FLOW_DEEP_TIDES,
+    typeOpening: WANING_CRESCENT_TIDES,
+    deepTides: WANING_CRESCENT_DEEP_TIDES,
     guidance: 'The cycle completes. Be still. Restore.',
     deep: 'Final sliver before darkness. Rest deeply. Dream. Don\'t start new things. Let the cycle complete.',
     keywords: ['Rest', 'Mystery', 'Restoration', 'Endings', 'Surrender'],
