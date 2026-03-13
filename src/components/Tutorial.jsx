@@ -120,9 +120,6 @@ const GUIDE_STEPS = [
 ];
 
 // ─── Phase Data ───────────────────────────────────────────────────────────────
-// Toggle active version here — swap PHASE_DATA_V2 ↔ PHASE_DATA_ORIGINAL to revert
-// const PHASE_DATA = PHASE_DATA_ORIGINAL;
-const PHASE_DATA = PHASE_DATA_V2;
 
 const PHASE_DATA_ORIGINAL = [
   {
@@ -392,6 +389,10 @@ const PHASE_DATA_V2 = [
     entrainment: 'You rest before you feel the tiredness.',
   },
 ];
+
+// Toggle active version here — swap PHASE_DATA_V2 ↔ PHASE_DATA_ORIGINAL to revert
+// const PHASE_DATA = PHASE_DATA_ORIGINAL;
+const PHASE_DATA = PHASE_DATA_V2;
 
 // ─── Tutorial Component ───────────────────────────────────────────────────────
 
