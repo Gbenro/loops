@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
-import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, generateId } from '../lib/storage.js';
+import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
-import { lunarMonths } from '../data/lunarMonths.js';
+import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudio, deleteAudio, hasAudio } from '../lib/audioStorage.js';
@@ -72,7 +72,7 @@ const PHASE_ORDER = [
   'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
 ];
 
-export function Echoes({ userId, phrases, phrasesLoading }) {
+export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const { encryptField, decryptField, sessionKey } = useEncryption();
   const [echoes, setEchoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +103,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   const [queueExpanded, setQueueExpanded] = useState(false);
   const [queueIndex, setQueueIndex] = useState(0);
   const [queuePlaying, setQueuePlaying] = useState(false);
+  const [queueReversed, setQueueReversed] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(null);
   const queueRef = useRef([]);
   const playQueueTrackRef = useRef(null);
 
@@ -151,7 +153,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
     const c = uniqueCycles[filterNavIndex];
-    return c != null ? (lunarMonths[c]?.name || `${c} Moon`) : '';
+    return c != null ? getLunarMonthInfo(c, hemisphere).name : '';
   })();
 
   const isCurrentNav = filterMode === 'day'
@@ -172,7 +174,10 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
   }, [echoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
-  const audioQueue = useMemo(() => filteredEchoes.filter(e => e.hasAudio), [filteredEchoes]);
+  const audioQueue = useMemo(() => {
+    const q = filteredEchoes.filter(e => e.hasAudio);
+    return queueReversed ? [...q].reverse() : q;
+  }, [filteredEchoes, queueReversed]);
 
   // Keep queueRef in sync so onended closures always see the latest queue
   useEffect(() => {
@@ -429,6 +434,11 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     await deleteEchoFromDb(id, userId);
   };
 
+  const handleUpdateEchoText = async (id, newText) => {
+    setEchoes(prev => prev.map(e => e.id === id ? { ...e, text: newText } : e));
+    await updateEchoText(id, newText, userId);
+  };
+
   const cancelWriting = () => {
     if (isRecording) {
       stopRecording();
@@ -463,6 +473,10 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     }
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    setAudioDuration(null);
+    audio.onloadedmetadata = () => {
+      if (isFinite(audio.duration)) setAudioDuration(audio.duration);
+    };
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl);
       audioPlayerRef.current = null;
@@ -520,6 +534,11 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
     if (audioBlob) {
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
+
+      setAudioDuration(null);
+      audio.onloadedmetadata = () => {
+        if (isFinite(audio.duration)) setAudioDuration(audio.duration);
+      };
 
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
@@ -767,7 +786,8 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               value={currentText}
               onChange={e => {
                 setCurrentText(e.target.value);
-                setSource('text');
+                // Only reset to text source if there's no pending voice audio
+                if (!pendingAudioBlobRef.current) setSource('text');
               }}
               readOnly={isRecording || isTranscribing}
               placeholder={isRecording ? '' : writePrompt}
@@ -1004,7 +1024,9 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
               onToggle={() => setExpandedId(expandedId === echo.id ? null : echo.id)}
               onDelete={() => deleteEcho(echo.id)}
               onPlayAudio={playAudio}
+              onUpdateText={handleUpdateEchoText}
               isPlaying={playingId === echo.id}
+              playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
               onDownloadAudio={async (echoId) => {
                 const blob = await getAudio(echoId);
@@ -1143,6 +1165,39 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                   ▷
                 </button>
               </div>
+
+              {/* Duration + Reverse */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: 12,
+              }}>
+                <div style={{
+                  fontSize: 9, fontFamily: 'monospace',
+                  letterSpacing: '0.08em',
+                  color: 'rgba(245, 230, 200, 0.3)',
+                }}>
+                  {audioDuration != null ? formatTime(Math.round(audioDuration)) : ''}
+                </div>
+                <button
+                  onClick={() => {
+                    setQueueReversed(r => !r);
+                    setQueueIndex(0);
+                    if (queuePlaying) stopQueue();
+                  }}
+                  style={{
+                    background: 'none', border: 'none',
+                    fontSize: 9, fontFamily: 'monospace',
+                    letterSpacing: '0.08em',
+                    color: queueReversed ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.3)',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                  }}
+                >
+                  ⇅ {queueReversed ? 'OLDEST FIRST' : 'NEWEST FIRST'}
+                </button>
+              </div>
             </div>
           ) : (
             /* Minimized */
@@ -1195,7 +1250,7 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
                       color: 'rgba(167, 139, 250, 0.7)',
                       marginBottom: 2,
                     }}>
-                      PLAYING {queueIndex + 1} / {audioQueue.length}
+                      PLAYING {queueIndex + 1} / {audioQueue.length}{audioDuration != null ? ` · ${formatTime(Math.round(audioDuration))}` : ''}
                     </div>
                     <div style={{
                       fontSize: 12,
@@ -1268,9 +1323,11 @@ export function Echoes({ userId, phrases, phrasesLoading }) {
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying, isUnavailable, onDownloadAudio }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(echo.text || '');
   const isLong = echo.text && echo.text.length > TEXT_LIMIT;
   const displayText = isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
 
@@ -1349,29 +1406,81 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
       </div>
 
       {/* Text */}
-      <div style={{
-        fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 15,
-        lineHeight: 1.76,
-        color: 'rgba(245, 230, 200, 0.85)',
-      }}>
-        {displayText}
-        {isLong && (
-          <span
-            onClick={() => setTextExpanded(e => !e)}
+      {isEditing ? (
+        <div>
+          <textarea
+            autoFocus
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
             style={{
-              marginLeft: 6,
-              fontSize: 11,
-              fontFamily: "'DM Sans', sans-serif",
-              color: 'rgba(245,230,200,0.35)',
-              cursor: 'pointer',
-              letterSpacing: '0.04em',
+              width: '100%',
+              minHeight: 80,
+              background: 'rgba(245, 230, 200, 0.04)',
+              border: '1px solid rgba(245, 230, 200, 0.15)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              color: '#f5e6c8',
+              fontSize: 15,
+              fontFamily: "'Cormorant Garamond', serif",
+              lineHeight: 1.76,
+              resize: 'vertical',
+              outline: 'none',
+              boxSizing: 'border-box',
             }}
-          >
-            {textExpanded ? 'read less' : 'read more'}
-          </span>
-        )}
-      </div>
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={() => {
+                onUpdateText(echo.id, editText.trim());
+                setIsEditing(false);
+              }}
+              style={{
+                background: 'none', border: '1px solid rgba(245, 230, 200, 0.2)',
+                borderRadius: 6, color: 'rgba(245, 230, 200, 0.7)',
+                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
+                cursor: 'pointer', padding: '4px 10px',
+              }}
+            >
+              SAVE
+            </button>
+            <button
+              onClick={() => { setEditText(echo.text || ''); setIsEditing(false); }}
+              style={{
+                background: 'none', border: 'none',
+                color: 'rgba(245, 230, 200, 0.3)',
+                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
+                cursor: 'pointer', padding: '4px 8px',
+              }}
+            >
+              CANCEL
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 15,
+          lineHeight: 1.76,
+          color: 'rgba(245, 230, 200, 0.85)',
+        }}>
+          {displayText}
+          {isLong && (
+            <span
+              onClick={() => setTextExpanded(e => !e)}
+              style={{
+                marginLeft: 6,
+                fontSize: 11,
+                fontFamily: "'DM Sans', sans-serif",
+                color: 'rgba(245,230,200,0.35)',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {textExpanded ? 'read less' : 'read more'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Expanded info */}
       {isExpanded && (
@@ -1414,7 +1523,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
                       padding: '4px 8px',
                     }}
                   >
-                    {isUnavailable ? '✕ NOT FOUND' : isPlaying ? '■ STOP' : '▶ PLAY'}
+                    {isUnavailable ? '✕ NOT FOUND' : isPlaying ? `■ ${playingDuration != null ? Math.round(playingDuration) + 's' : 'STOP'}` : '▶ PLAY'}
                   </button>
                   <button
                     onClick={() => onDownloadAudio(echo.id)}
@@ -1432,6 +1541,20 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, isPlaying
                   </button>
                 </>
               )}
+              <button
+                onClick={() => { setEditText(echo.text || ''); setIsEditing(true); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(245, 230, 200, 0.4)',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  lineHeight: 1,
+                }}
+              >
+                ✎
+              </button>
               <button
                 onClick={copyText}
                 style={{

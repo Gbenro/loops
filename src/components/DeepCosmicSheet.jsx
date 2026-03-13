@@ -615,7 +615,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
 // ─── Weave Section (Synthesis) ─────────────────────────────────────────────
 
 function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrasesLoading }) {
-  const fallbackText = `The ${lunarData.phase.name} arrives in ${lunarData.zodiac.sign}, carrying ${zodiacInfo?.element || 'cosmic'} energy into the ${lunarData.lunarMonth} Moon cycle. ${lunarData.phase.isWaning
+  const fallbackText = `The ${lunarData.phase.name} arrives in ${lunarData.zodiac.sign}, carrying ${zodiacInfo?.element || 'cosmic'} energy into the ${getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name} cycle. ${lunarData.phase.isWaning
     ? 'This is a time for release, reflection, and completion. Let what needs to end, end.'
     : 'This is a time for building, creating, and moving forward. Energy supports action.'}${solarData ? ` The ${solarData.season.name} season deepens this ${lunarData.phase.energy.toLowerCase()} energy.` : ''}`;
 
@@ -637,7 +637,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
         <Pill>{lunarData.phase.name}</Pill>
         <Pill>{lunarData.zodiac.sign}</Pill>
-        <Pill>{lunarData.lunarMonth} Moon</Pill>
+        <Pill>{getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name}</Pill>
         {solarData && <Pill>{solarData.season.name}</Pill>}
       </div>
 

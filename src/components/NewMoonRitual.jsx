@@ -2,10 +2,11 @@
 // Ceremonial screen for setting cycle intention at New Moon
 
 import { useState } from 'react';
+import { getLunarMonthInfo } from '../data/lunarMonths.js';
 
 const FALLBACK_QUESTION = 'What wants to be born through me this cycle?';
 
-export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQuestion, phrasesLoading }) {
+export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQuestion, phrasesLoading, hemisphere = 'north' }) {
   const [intention, setIntention] = useState('');
   const [isClosing, setIsClosing] = useState(false);
 
@@ -69,7 +70,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
         color: 'rgba(245, 230, 200, 0.4)',
         marginBottom: 40,
       }}>
-        NEW MOON · {lunarData.lunarMonth?.toUpperCase()} MOON
+        NEW MOON · {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()}
       </div>
 
       {/* The Question */}

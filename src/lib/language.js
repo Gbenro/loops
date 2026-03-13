@@ -7,24 +7,123 @@ const CACHE_KEY = 'phrases_v1';
 // Supabase edge function URL (deployed with --no-verify-jwt)
 const GENERATE_PHRASES_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/generate-phrases';
 
-export const FALLBACK_PHRASES = {
-  phaseGuidance:       "Move with what the phase allows.",
-  cosmicSynthesis:     "The cycles converge. Pay attention.",
-  energyDescription:   "Something is moving through you.",
-  phaseBanner:         "Follow the energy of this phase.",
-  addLoopPrompt:       "What wants to open?",
-  newMoonQuestion:     "What wants to be born through you this cycle?",
-  echoesWritePrompt:   "What is alive in you right now?",
-  echoesVoicePrompt:   "Speak what is present...",
-  transitionInvitation:"A shift is coming. Orient before it arrives.",
-  deepSheetPhase:      null, // falls back to tide-aware deepTides in phaseContent
-  deepSheetMoon:       null, // falls back to monthInfo.meaning in lunarMonths.js
-  deepSheetSign:       null, // falls back to info.moonIn in zodiacMeanings.js
-  deepSheetSeason:     null, // falls back to season static description in solar.js
-  deepSheetWeave:      null, // falls back to dynamically-built fallbackText
-  deepSheetArcs:       "Larger patterns move beneath your days.",
-  deepSheetNatal:      "The sky speaks to your chart.",
+// Pools of fallback phrases — one is picked randomly each time
+const FALLBACK_POOLS = {
+  phaseGuidance: [
+    "Move with what the phase allows.",
+    "The phase has its own logic. Trust it.",
+    "Work with the energy that is present, not the energy you wish for.",
+    "This phase asks something specific of you. Listen.",
+    "Let the cycle guide the pace.",
+    "The phase knows what it is doing. Follow.",
+  ],
+  cosmicSynthesis: [
+    "The cycles converge. Pay attention.",
+    "Something larger is in motion.",
+    "The patterns are speaking. Be still enough to hear.",
+    "The sky and the cycle are aligned. Notice what that stirs.",
+    "Layers of rhythm are moving together right now.",
+    "There is a weave here. You are part of it.",
+  ],
+  energyDescription: [
+    "Something is moving through you.",
+    "A current is present. Let it move.",
+    "There is a quality in the air today.",
+    "The energy is available. What will you do with it?",
+    "Something wants to come through if you let it.",
+    "Notice what is stirring beneath the surface.",
+  ],
+  phaseBanner: [
+    "Follow the energy of this phase.",
+    "This phase has its own invitation.",
+    "Let the phase do its work through you.",
+    "The phase is the teacher. You are the student.",
+    "Stay close to what this phase is asking.",
+    "The cycle is speaking. This is its current word.",
+  ],
+  addLoopPrompt: [
+    "What wants to open?",
+    "What are you ready to begin?",
+    "What intention wants to take form?",
+    "What is calling for your attention?",
+    "What loop wants to be opened?",
+  ],
+  newMoonQuestion: [
+    "What wants to be born through you this cycle?",
+    "What seed are you planting in the dark?",
+    "What intention wants to take root?",
+    "What are you calling into being?",
+    "What do you want to grow this lunar cycle?",
+  ],
+  echoesWritePrompt: [
+    "What is alive in you right now?",
+    "What arrived today?",
+    "What are you noticing?",
+    "What wants to be spoken?",
+    "What is moving in you that hasn't been named yet?",
+    "What truth is present right now?",
+  ],
+  echoesVoicePrompt: [
+    "Speak what is present...",
+    "Let the words come...",
+    "Say what is true right now...",
+    "Speak before you think...",
+    "What is alive — speak it...",
+    "Voice what is moving in you...",
+  ],
+  transitionInvitation: [
+    "A shift is coming. Orient before it arrives.",
+    "The phase is turning. Prepare yourself.",
+    "Something is completing. Something new is near.",
+    "The cycle is about to change its quality.",
+    "A threshold is approaching. Meet it consciously.",
+    "The energy is about to shift. Notice how you feel.",
+  ],
+  deepSheetArcs: [
+    "Larger patterns move beneath your days.",
+    "You are inside rhythms older than you.",
+    "The longer cycles carry what the shorter ones cannot hold.",
+    "Something vast is in motion beneath the surface.",
+    "Your life moves inside cycles you can feel but not always name.",
+    "The larger arcs are patient. They do not rush.",
+  ],
+  deepSheetNatal: [
+    "The sky speaks to your chart.",
+    "The current sky is in conversation with your birth moment.",
+    "What is above resonates with what you were born into.",
+    "Your natal imprint is being activated by the sky.",
+    "The heavens and your chart are in dialogue.",
+    "Something in the current sky recognises you.",
+  ],
 };
+
+function pick(pool) {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function buildRandomFallback() {
+  return {
+    phaseGuidance:       pick(FALLBACK_POOLS.phaseGuidance),
+    cosmicSynthesis:     pick(FALLBACK_POOLS.cosmicSynthesis),
+    energyDescription:   pick(FALLBACK_POOLS.energyDescription),
+    phaseBanner:         pick(FALLBACK_POOLS.phaseBanner),
+    addLoopPrompt:       pick(FALLBACK_POOLS.addLoopPrompt),
+    newMoonQuestion:     pick(FALLBACK_POOLS.newMoonQuestion),
+    echoesWritePrompt:   pick(FALLBACK_POOLS.echoesWritePrompt),
+    echoesVoicePrompt:   pick(FALLBACK_POOLS.echoesVoicePrompt),
+    transitionInvitation:pick(FALLBACK_POOLS.transitionInvitation),
+    deepSheetPhase:      null,
+    deepSheetMoon:       null,
+    deepSheetSign:       null,
+    deepSheetSeason:     null,
+    deepSheetWeave:      null,
+    deepSheetArcs:       pick(FALLBACK_POOLS.deepSheetArcs),
+    deepSheetNatal:      pick(FALLBACK_POOLS.deepSheetNatal),
+  };
+}
+
+// Static export for components that need a reference shape (keys only)
+export const FALLBACK_PHRASES = buildRandomFallback();
 
 function buildCycleState(lunarData, solarData) {
   // Get next phase info
