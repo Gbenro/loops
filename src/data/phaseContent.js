@@ -1,21 +1,62 @@
 // Luna Loops - Moon Phase Content
 // Deep wisdom, guidance, and keywords for each of the 8 lunar phases
 
-// typeOpening varies by where you are within the phase (tide position)
-const THRESHOLD_TIDES = {
-  opening:    'This is a threshold moment — brief, clear, potent.',
-  flowing:    'You are inside the threshold. Stay with what it is asking.',
-  completing: 'The threshold is reaching its edge. What has it clarified?',
-  closing:    'The threshold is passing. Move forward with what was revealed.',
+// ─── Threshold phase tides — each phase has its own set ──────────────────────
+
+const NEW_MOON_TIDES = {
+  opening:    'The dark has just begun. Let the silence be enough for now.',
+  flowing:    'You are inside the new moon. Hold your intention quietly — do not rush it into the light.',
+  completing: 'The darkness is thinning. What seed did you plant? Feel it before it surfaces.',
+  closing:    'The crescent is coming. Carry your intention forward into the growing light.',
 };
 
-// deepTides — deeper, more contemplative. Used in the deep sheet.
-// Distinct from typeOpening: these invite reflection on what the stage calls forth.
-const THRESHOLD_DEEP_TIDES = {
-  opening:    'The threshold has just opened. Something is being asked of you — let it come into focus before you move.',
-  flowing:    'You are inside the threshold. The question it carries is live. Stay with it — do not resolve it prematurely.',
-  completing: 'The threshold is finishing its work. What it clarified in you is becoming visible.',
-  closing:    'The threshold is nearly past. Carry what was revealed, and release the tension that no longer serves.',
+const NEW_MOON_DEEP_TIDES = {
+  opening:    'The new moon has just opened. This is the most interior moment of the cycle — something is forming that does not yet have a name.',
+  flowing:    'You are in the dark. This is not emptiness — it is gestation. What you hold quietly now will shape the whole cycle ahead.',
+  completing: 'The new moon is finishing its work. The intention you have seeded is ready to meet the light. Trust what formed in the silence.',
+  closing:    'The crescent is nearly here. The dark has done what it came to do. Move forward with what the stillness gave you.',
+};
+
+const FIRST_QUARTER_TIDES = {
+  opening:    'The tension is arriving. Something in you knows what needs to be decided.',
+  flowing:    'You are at the crossroads. The decision this phase is asking for will not make itself.',
+  completing: 'The quarter is resolving. What you commit to now sets the direction for the full moon.',
+  closing:    'The decision has been made, or it is being made. Move forward — the gibbous will refine what you chose.',
+};
+
+const FIRST_QUARTER_DEEP_TIDES = {
+  opening:    'The first quarter has arrived. Half-lit, half-dark — the same tension lives in you. Something is being asked for that cannot be halfway.',
+  flowing:    'You are inside the decision. The obstacle this phase brings is not against you — it is testing whether your intention has roots.',
+  completing: 'The quarter threshold is completing its work. What you have committed to is now real. What you have avoided is also visible.',
+  closing:    'The first quarter is passing. Whatever was decided here — consciously or not — is already in motion. The waxing gibbous will show you what it means.',
+};
+
+const FULL_MOON_TIDES = {
+  opening:    'The peak is arriving. What this cycle has been building is becoming visible.',
+  flowing:    'You are at maximum light. What the cycle has grown is fully illuminated now.',
+  completing: 'The full moon is at its height. What has been revealed cannot be unseen.',
+  closing:    'The light is beginning to wane. Take what was illuminated with you into the release.',
+};
+
+const FULL_MOON_DEEP_TIDES = {
+  opening:    'The full moon is opening. Everything the cycle has built is rising to the surface — what arrives now was seeded at the new moon.',
+  flowing:    'You are at the peak. The light shows what is true. Some of what you see will be welcome; some will not. Both are the harvest.',
+  completing: 'The full moon is completing its work. What it has revealed is yours to reckon with. This is not the time to look away.',
+  closing:    'The full moon is passing. The light has shown what it came to show. Carry the truth of it into the waning — that is what release is made from.',
+};
+
+const LAST_QUARTER_TIDES = {
+  opening:    'The release is beginning. What did not complete wants to be let go now.',
+  flowing:    'You are inside the clearing. What you release here makes room for the new cycle.',
+  completing: 'The last quarter is finishing its work. What are you still holding that no longer serves?',
+  closing:    'The crescent of darkness is coming. Set down what belongs to this cycle. The new moon will ask for only what is true.',
+};
+
+const LAST_QUARTER_DEEP_TIDES = {
+  opening:    'The last quarter has opened. Half the light remains — and with it, a clear-eyed reckoning. What from this cycle needs to end before the dark arrives?',
+  flowing:    'You are in the release. This is not failure — it is completion. What you let go of here is an act of care for the cycle that follows.',
+  completing: 'The last quarter is closing. The clearing is nearly done. What you surrender now is not lost — it becomes the compost for the next beginning.',
+  closing:    'The last quarter is nearly past. The waning crescent and then the dark await. Whatever remains to release, release it now. The new moon does not carry old weight.',
 };
 
 // ─── Flow phase tides — each phase has its own set ───────────────────────────
@@ -82,8 +123,8 @@ export const phaseContent = {
     symbol: '🌑',
     energy: 'Seed',
     phaseType: 'threshold',
-    typeOpening: THRESHOLD_TIDES,
-    deepTides: THRESHOLD_DEEP_TIDES,
+    typeOpening: NEW_MOON_TIDES,
+    deepTides: NEW_MOON_DEEP_TIDES,
     guidance: 'Plant intentions. What do you want to call into this cycle?',
     deep: 'The dark between cycles. Seeds germinate in darkness. Set intentions privately. Let them form before light reveals them.',
     keywords: ['Intention', 'Darkness', 'Reset', 'Silence', 'Potential'],
@@ -110,8 +151,8 @@ export const phaseContent = {
     symbol: '🌓',
     energy: 'Decide',
     phaseType: 'threshold',
-    typeOpening: THRESHOLD_TIDES,
-    deepTides: THRESHOLD_DEEP_TIDES,
+    typeOpening: FIRST_QUARTER_TIDES,
+    deepTides: FIRST_QUARTER_DEEP_TIDES,
     guidance: 'Commit. Decisions made now carry real weight.',
     deep: 'Half-lit, half-dark. Tension and decision. Obstacles test your intention. Commit fully or let go.',
     keywords: ['Decision', 'Tension', 'Commitment', 'Action', 'Challenge'],
@@ -138,8 +179,8 @@ export const phaseContent = {
     symbol: '🌕',
     energy: 'Illuminate',
     phaseType: 'threshold',
-    typeOpening: THRESHOLD_TIDES,
-    deepTides: THRESHOLD_DEEP_TIDES,
+    typeOpening: FULL_MOON_TIDES,
+    deepTides: FULL_MOON_DEEP_TIDES,
     guidance: 'Peak. What has this cycle revealed about you?',
     deep: 'Maximum light. Everything illuminated. Harvest what has grown. See clearly. Feel fully. Let truth arrive.',
     keywords: ['Revelation', 'Harvest', 'Illumination', 'Completion', 'Truth'],
@@ -166,8 +207,8 @@ export const phaseContent = {
     symbol: '🌗',
     energy: 'Release',
     phaseType: 'threshold',
-    typeOpening: THRESHOLD_TIDES,
-    deepTides: THRESHOLD_DEEP_TIDES,
+    typeOpening: LAST_QUARTER_TIDES,
+    deepTides: LAST_QUARTER_DEEP_TIDES,
     guidance: "Let go of what didn't close. Clear space.",
     deep: 'Half-lit again, but releasing. What didn\'t work? Let it go. Clear the field for what\'s next.',
     keywords: ['Release', 'Forgiveness', 'Clearing', 'Surrender', 'Space'],
