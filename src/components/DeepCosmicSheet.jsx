@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { MiniMoon } from './MoonFace.jsx';
-import { getPhaseContent } from '../data/phaseContent.js';
-import { getZodiacInfo } from '../data/zodiacMeanings.js';
+import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
+import { getZodiacInfo, pickForToday as pickZodiac } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
 
@@ -211,7 +211,7 @@ export function DeepCosmicSheet({
 
 function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }) {
   // Use AI-generated text if available, then tide-aware fallback, then static phase description
-  const deepText = generatedText || (content.deepTides && content.deepTides[tideKey]) || content.deep;
+  const deepText = generatedText || pickForToday(content.deepTides?.[tideKey]) || content.deep;
 
   return (
     <div>
@@ -416,7 +416,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
 // ─── Sign Section (Zodiac) ─────────────────────────────────────────────────
 
 function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
-  const displayText = generatedText || info.moonIn;
+  const displayText = generatedText || pickZodiac(info.moonIn);
 
   return (
     <div>
@@ -496,7 +496,7 @@ function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
             lineHeight: 1.7,
             color: 'rgba(245, 230, 200, 0.8)',
           }}>
-            {info.moonIn}
+            {pickZodiac(info.moonIn)}
           </div>
         </div>
       )}
