@@ -67,6 +67,26 @@ function formatDayLabel(dateStr) {
   return d.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
+// Short bell chime between queue tracks
+function playChime() {
+  return new Promise(resolve => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 1047; // C6
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.7);
+      osc.onended = () => { ctx.close(); resolve(); };
+    } catch { resolve(); }
+  });
+}
+
 const PHASE_ORDER = [
   'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
   'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
@@ -499,7 +519,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     };
     audio.onended = () => {
       audioPlayerRef.current = null;
-      playQueueTrackRef.current(index + 1);
+      const hasNext = index + 1 < queueRef.current.length;
+      if (hasNext) {
+        playChime().then(() => playQueueTrackRef.current(index + 1));
+      } else {
+        playQueueTrackRef.current(index + 1);
+      }
     };
     audio.onerror = () => {
       audioPlayerRef.current = null;
