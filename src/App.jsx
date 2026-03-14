@@ -244,6 +244,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialMode, setTutorialMode] = useState('guide');
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
   const [loops, setLoops] = useState([]);
@@ -699,7 +700,7 @@ export default function App() {
             solarData={solarData}
             loops={loops}
             echoes={echoes}
-            onOpenTutorial={() => setShowTutorial(true)}
+            onOpenTutorial={(mode = 'guide') => { setTutorialMode(mode); setShowTutorial(true); }}
           />
         )}
         {activeTab === 'loops' && (
@@ -804,6 +805,7 @@ export default function App() {
         <Tutorial
           activeTab={activeTab}
           onSwitchTab={setActiveTab}
+          initialMode={tutorialMode}
           onClose={() => {
             localStorage.setItem('tutorial_seen_v2', 'true');
             setShowTutorial(false);

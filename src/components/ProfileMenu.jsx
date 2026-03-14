@@ -945,9 +945,26 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
               {/* Guide / Tutorial */}
               {onOpenTutorial && (
-                <div style={{ marginTop: 24 }}>
+                <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {IS_V2 && (
+                    <button
+                      onClick={() => { onOpenTutorial('guide'); onClose(); }}
+                      style={{
+                        width: '100%', padding: '12px 16px',
+                        borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',
+                        background: 'rgba(245,230,200,0.04)',
+                        color: 'rgba(245,230,200,0.7)',
+                        fontSize: 13, cursor: 'pointer',
+                        fontFamily: "'DM Sans', sans-serif",
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>◎</span>
+                      <span>App Guide</span>
+                    </button>
+                  )}
                   <button
-                    onClick={() => { onOpenTutorial(); onClose(); }}
+                    onClick={() => { onOpenTutorial('phases'); onClose(); }}
                     style={{
                       width: '100%', padding: '12px 16px',
                       borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',

@@ -220,6 +220,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     preloadModel();
   }, []);
 
+  // Tutorial action listener
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.action === 'open-echo-write') {
+        setIsWriting(true);
+        setSource('text');
+      }
+    };
+    window.addEventListener('luna-tutorial-action', handler);
+    return () => window.removeEventListener('luna-tutorial-action', handler);
+  }, []);
+
 
   // Use generated prompts or fallbacks
   const voicePrompt = phrasesLoading

@@ -79,6 +79,7 @@ const GUIDE_STEPS = [
     title: 'Phase-Aware Adding',
     body: 'The add button changes with the phase. Hidden at Full Moon. Dimmed during waning. At Waning Crescent it disappears entirely. The app guides you — it doesn\'t force.',
     image: '/tutorial/add-loop.png',
+    action: 'open-loop-sheet',
   },
   // Echoes
   {
@@ -95,6 +96,7 @@ const GUIDE_STEPS = [
     title: 'Write or Speak',
     body: 'Type to compose. Or tap the orb to speak — the transcript forms in real time. Voice captures the stream before the thinking mind edits it.',
     image: '/tutorial/echoes-write.png',
+    action: 'open-echo-write',
   },
   {
     targetSelector: '[data-tutorial="echoes-voice-orb"]',
@@ -434,11 +436,19 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
   useEffect(() => {
     if (mode !== 'guide') return;
     const step = GUIDE_STEPS[guideStep];
+    const dispatchAction = () => {
+      if (IS_V2 && step?.action) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('luna-tutorial-action', { detail: { action: step.action } }));
+        }, 250);
+      }
+    };
     if (step?.tabToActivate && activeTab !== step.tabToActivate) {
       onSwitchTab(step.tabToActivate);
-      setTimeout(() => measureStep(guideStep), 150);
+      setTimeout(() => { measureStep(guideStep); dispatchAction(); }, 150);
     } else {
       measureStep(guideStep);
+      dispatchAction();
     }
   }, [guideStep, mode, activeTab, measureStep, onSwitchTab]);
 
@@ -463,6 +473,10 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
       <style>{`
         @keyframes tutFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes tutSlideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes tutTap {
+          0%   { transform: translate(-50%,-50%) scale(0.4); opacity: 0.7; }
+          100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; }
+        }
       `}</style>
 
       {mode === 'guide' ? (
@@ -551,6 +565,28 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
           zIndex: 1001,
           pointerEvents: 'none',
         }} />
+      )}
+
+      {/* Tap indicator — v2 only, pulses on the spotlight target */}
+      {IS_V2 && hasSpotlight && (
+        <div style={{
+          position: 'fixed',
+          left: spotlightRect.left + spotlightRect.width / 2,
+          top: spotlightRect.top + spotlightRect.height / 2,
+          zIndex: 1002,
+          pointerEvents: 'none',
+        }}>
+          {[0, 0.5, 1].map(delay => (
+            <div key={delay} style={{
+              position: 'absolute',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              border: '2px solid rgba(245, 230, 200, 0.55)',
+              animation: `tutTap 1.8s ease-out ${delay}s infinite`,
+            }} />
+          ))}
+        </div>
       )}
 
       {/* Dim backdrop when no spotlight and not full-screen (element not found) */}

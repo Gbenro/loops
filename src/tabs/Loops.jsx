@@ -40,6 +40,15 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   );
 
   // Check if ritual should show
+  // Tutorial action listener
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.action === 'open-loop-sheet') setShowLoopSheet(true);
+    };
+    window.addEventListener('luna-tutorial-action', handler);
+    return () => window.removeEventListener('luna-tutorial-action', handler);
+  }, []);
+
   useEffect(() => {
     if (isNewMoon && !cycleLoop && !loading) {
       // Check if dismissed
