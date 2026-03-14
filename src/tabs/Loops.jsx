@@ -217,6 +217,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Delete loop
   const deleteLoop = async (id) => {
+    if (!window.confirm('Delete this loop? This cannot be undone.')) return;
     setLoops(prev => prev.filter(l => l.id !== id));
     setSelected(null);
     setShowDetail(false);
