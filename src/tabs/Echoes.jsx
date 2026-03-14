@@ -381,16 +381,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       }));
       setEchoes(updated);
       setLoading(false);
+
+      // Check for legacy IndexedDB audio — only show for echoes that don't have cloud audio yet
+      if (userId) {
+        const ids = await getLegacyAudioIds();
+        const pending = ids.filter(id => {
+          const echo = updated.find(e => e.id === id);
+          return !echo?.audio_path;
+        });
+        if (pending.length > 0) setLegacyIds(pending);
+      }
     });
   }, [userId, sessionKey, decryptField]);
-
-  // Check for legacy IndexedDB audio to migrate
-  useEffect(() => {
-    if (!userId) return;
-    getLegacyAudioIds().then(ids => {
-      if (ids.length > 0) setLegacyIds(ids);
-    });
-  }, [userId]);
 
   const saveEcho = async () => {
     if (!currentText.trim()) return;
