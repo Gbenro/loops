@@ -5,6 +5,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MoonFace } from './MoonFace.jsx';
 
+const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+
 // ─── Guide Steps ─────────────────────────────────────────────────────────────
 
 const GUIDE_STEPS = [
@@ -274,7 +276,7 @@ const PHASE_DATA_V2 = [
     loopBehaviour: 'Open 1 cycle loop only. No phase loops. No tasks. The what and why only.',
     voidTag: 'Void Energy',
     activities: ['Reflect on your intention', 'Choose one small intention', 'Rest and allow the seed to form'],
-    entrainment: 'You can sit with blankness without filling it.',
+    entrainment: 'You can sit with the void without filling it.',
   },
   {
     key: 'waxing-crescent',
@@ -390,9 +392,7 @@ const PHASE_DATA_V2 = [
   },
 ];
 
-// Toggle active version here — swap PHASE_DATA_V2 ↔ PHASE_DATA_ORIGINAL to revert
-// const PHASE_DATA = PHASE_DATA_ORIGINAL;
-const PHASE_DATA = PHASE_DATA_V2;
+const PHASE_DATA = IS_V2 ? PHASE_DATA_V2 : PHASE_DATA_ORIGINAL;
 
 // ─── Tutorial Component ───────────────────────────────────────────────────────
 

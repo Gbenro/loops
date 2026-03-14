@@ -8,7 +8,7 @@ import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
-import { saveAudio, getAudioUrl, getAudio, deleteAudio, getLegacyAudioIds, getLegacyAudioBlob, deleteLegacyAudio } from '../lib/audioStorage.js';
+import { saveAudio, getAudioUrl, getAudio, deleteAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -117,10 +117,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
   const wakeLockRef = useRef(null);
-
-  // Legacy migration
-  const [legacyIds, setLegacyIds] = useState([]);
-  const [legacyMigrating, setLegacyMigrating] = useState(false);
 
   // Queue player
   const [queueExpanded, setQueueExpanded] = useState(false);
@@ -332,11 +328,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         }).catch(() => {}); // silently ignore if denied
       }
 
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime(t => t + 1);
-      }, 1000);
-
     } catch (error) {
       console.error('[Voice] Could not start recording:', error);
       if (error.name === 'NotAllowedError') {
@@ -361,11 +352,15 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         wakeLockRef.current = null;
       }
 
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
     }
+  }, [isRecording]);
+
+  // Recording timer — driven by isRecording state, no manual interval needed
+  useEffect(() => {
+    if (!isRecording) return;
+    setRecordingTime(0);
+    const interval = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    return () => clearInterval(interval);
   }, [isRecording]);
 
   // Toggle recording
@@ -380,14 +375,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (mediaRecorderRef.current && isRecording) {
-        mediaRecorderRef.current.stop();
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
       }
     };
-  }, [isRecording]);
+  }, []); // eslint-disable-line
 
   // Fetch echoes on mount; decrypt encrypted texts if key is available
   useEffect(() => {
@@ -401,16 +396,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       }));
       setEchoes(updated);
       setLoading(false);
-
-      // Check for legacy IndexedDB audio — only show for echoes that don't have cloud audio yet
-      if (userId) {
-        const ids = await getLegacyAudioIds();
-        const pending = ids.filter(id => {
-          const echo = updated.find(e => e.id === id);
-          return !echo?.audio_path;
-        });
-        if (pending.length > 0) setLegacyIds(pending);
-      }
     });
   }, [userId, sessionKey, decryptField]);
 
@@ -468,6 +453,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   };
 
   const deleteEcho = async (id) => {
+    if (!window.confirm('Delete this echo? This cannot be undone.')) return;
     const echo = echoes.find(e => e.id === id);
     if (echo?.audio_path) await deleteAudio(echo.audio_path);
     setEchoes(prev => prev.filter(e => e.id !== id));
@@ -996,102 +982,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           </button>
         )}
       </div>
-
-      {/* Legacy Migration Banner */}
-      {legacyIds.length > 0 && !legacyMigrating && (
-        <div style={{
-          margin: '0 20px 12px',
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: 'rgba(167, 139, 250, 0.07)',
-          border: '1px solid rgba(167, 139, 250, 0.2)',
-        }}>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            color: 'rgba(167, 139, 250, 0.7)',
-            marginBottom: 6,
-          }}>
-            {legacyIds.length} LOCAL VOICE {legacyIds.length === 1 ? 'RECORDING' : 'RECORDINGS'} FOUND
-          </div>
-          <div style={{
-            fontSize: 12,
-            color: 'rgba(245, 230, 200, 0.55)',
-            marginBottom: 10,
-            lineHeight: 1.4,
-          }}>
-            Your device has voice recordings stored locally. Upload them to your account so they're available everywhere.
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={async () => {
-                setLegacyMigrating(true);
-                let migrated = 0;
-                for (const echoId of legacyIds) {
-                  const echo = echoes.find(e => e.id === echoId);
-                  if (!echo || echo.audio_path) { await deleteLegacyAudio(echoId); continue; }
-                  const blob = await getLegacyAudioBlob(echoId);
-                  if (!blob) { await deleteLegacyAudio(echoId); continue; }
-                  const audioPath = await saveAudio(echoId, blob, userId);
-                  if (audioPath) {
-                    setEchoes(prev => prev.map(e => e.id === echoId ? { ...e, audio_path: audioPath } : e));
-                    await updateEchoAudioPath(echoId, audioPath, userId);
-                    await deleteLegacyAudio(echoId);
-                    migrated++;
-                  }
-                }
-                setLegacyIds([]);
-                setLegacyMigrating(false);
-                if (migrated > 0) console.log(`[Migration] Uploaded ${migrated} voice recordings`);
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: '1px solid rgba(167, 139, 250, 0.3)',
-                background: 'rgba(167, 139, 250, 0.1)',
-                color: 'rgba(167, 139, 250, 0.8)',
-                fontSize: 10,
-                fontFamily: 'monospace',
-                letterSpacing: '0.06em',
-                cursor: 'pointer',
-              }}
-            >
-              UPLOAD NOW
-            </button>
-            <button
-              onClick={() => setLegacyIds([])}
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: 'none',
-                background: 'none',
-                color: 'rgba(245, 230, 200, 0.3)',
-                fontSize: 10,
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-              }}
-            >
-              DISMISS
-            </button>
-          </div>
-        </div>
-      )}
-      {legacyMigrating && (
-        <div style={{
-          margin: '0 20px 12px',
-          padding: '10px 16px',
-          borderRadius: 10,
-          background: 'rgba(167, 139, 250, 0.05)',
-          border: '1px solid rgba(167, 139, 250, 0.1)',
-          fontSize: 10,
-          fontFamily: 'monospace',
-          letterSpacing: '0.08em',
-          color: 'rgba(167, 139, 250, 0.6)',
-        }}>
-          UPLOADING RECORDINGS...
-        </div>
-      )}
 
       {/* Echoes List */}
       <div style={{
