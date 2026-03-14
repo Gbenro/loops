@@ -1114,7 +1114,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `echo-${echo.id}.${ext}`;
+                const date = echo.createdAt ? new Date(echo.createdAt).toISOString().slice(0, 10) : 'unknown';
+                const phase = (echo.phase || 'moon').replace(/\s+/g, '-');
+                const zodiac = (echo.zodiac || '').toLowerCase();
+                const day = echo.dayOfCycle ? `day${echo.dayOfCycle}` : '';
+                const parts = ['echo', phase, zodiac, day, date].filter(Boolean);
+                a.download = `${parts.join('_')}.${ext}`;
                 a.click();
                 URL.revokeObjectURL(url);
               }}
