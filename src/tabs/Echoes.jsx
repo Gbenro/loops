@@ -433,7 +433,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     const audioBlob = pendingAudioBlobRef.current;
     pendingAudioBlobRef.current = null;
 
-    await saveEchoToDb({ ...newEcho, text: storedText, audioPath: null }, userId);
+    await saveEchoToDb({ ...newEcho, text: storedText }, userId);
 
     // Upload audio to cloud storage (requires login — already blocked in startRecording)
     if (hasVoice && audioBlob && userId) {
