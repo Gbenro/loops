@@ -492,7 +492,15 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     marginBottom: 16,
                     fontStyle: 'italic',
                   }}>
-                    Sun and moon are enough. Rising is a bonus if you know it.
+                    Sun and moon are enough. Rising is a bonus if you know it.{' '}
+                    <a
+                      href="https://horoscopes.astro-seek.com/birth-chart-horoscope-online"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'rgba(167, 139, 250, 0.6)', textDecoration: 'none' }}
+                    >
+                      Find yours →
+                    </a>
                   </div>
 
                   {/* Sun Sign */}
