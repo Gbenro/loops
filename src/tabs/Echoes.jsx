@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
-import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, generateId } from '../lib/storage.js';
+import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, updateEchoTags, generateId } from '../lib/storage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
@@ -92,6 +92,14 @@ const PHASE_ORDER = [
   'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
 ];
 
+const PRESET_TAGS = [
+  'clarity', 'release', 'grief', 'joy', 'fear',
+  'gratitude', 'tension', 'longing', 'body', 'work',
+  'relationship', 'dream', 'intention', 'shadow', 'insight',
+  'prayer', 'question', 'vision', 'rest', 'breakthrough',
+];
+const MAX_TAGS = 3;
+
 export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const { encryptField, decryptField, sessionKey } = useEncryption();
   const [echoes, setEchoes] = useState([]);
@@ -143,25 +151,35 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))].sort((a, b) => b - a),
   [echoes]);
 
+  const uniqueTags = useMemo(() => {
+    const all = echoes.flatMap(e => e.tags || []);
+    return [...new Set(all)].sort();
+  }, [echoes]);
+
   const switchFilterMode = (mode) => {
     setFilterMode(mode);
     if (mode === 'phase') {
       const idx = uniquePhases.indexOf(lunarData.phase.key);
       setFilterNavIndex(idx >= 0 ? idx : 0);
     } else {
-      setFilterNavIndex(0); // day → today (index 0); cycle → current cycle (index 0)
+      setFilterNavIndex(0);
     }
   };
 
   // Nav list and bounds
   // Phase navigates in natural cycle order (‹ = earlier, › = later)
   // Day/cycle navigate newest-first (‹ = older, › = newer)
-  const navList = filterMode === 'day' ? uniqueDays : filterMode === 'phase' ? uniquePhases : uniqueCycles;
+  // Tag navigates alphabetically (‹ = prev, › = next)
+  const navList = filterMode === 'day' ? uniqueDays
+    : filterMode === 'phase' ? uniquePhases
+    : filterMode === 'tag' ? uniqueTags
+    : uniqueCycles;
   const isPhaseMode = filterMode === 'phase';
-  const canNavPrev = isPhaseMode ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
-  const canNavNext = isPhaseMode ? filterNavIndex < navList.length - 1 : filterNavIndex > 0;
-  const onNavPrev = () => setFilterNavIndex(i => isPhaseMode ? i - 1 : i + 1);
-  const onNavNext = () => setFilterNavIndex(i => isPhaseMode ? i + 1 : i - 1);
+  const isTagMode = filterMode === 'tag';
+  const canNavPrev = (isPhaseMode || isTagMode) ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
+  const canNavNext = (isPhaseMode || isTagMode) ? filterNavIndex < navList.length - 1 : filterNavIndex > 0;
+  const onNavPrev = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i - 1 : i + 1);
+  const onNavNext = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i + 1 : i - 1);
 
   // Current nav label
   const todayStr = localDateStr(new Date().toISOString());
@@ -171,6 +189,10 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       const p = uniquePhases[filterNavIndex];
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
+    if (filterMode === 'tag') {
+      const t = uniqueTags[filterNavIndex];
+      return t ? `# ${t}` : '';
+    }
     const c = uniqueCycles[filterNavIndex];
     return c != null ? getLunarMonthInfo(c, hemisphere).name : '';
   })();
@@ -179,7 +201,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     ? uniqueDays[filterNavIndex] === todayStr
     : filterMode === 'phase'
       ? uniquePhases[filterNavIndex] === lunarData.phase.key
-      : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
+      : filterMode === 'tag'
+        ? false
+        : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
 
   // Filtered echoes
   const filteredEchoes = useMemo(() => {
@@ -188,6 +212,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     return echoes.filter(e => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
+      if (filterMode === 'tag') return (e.tags || []).includes(target);
       return e.lunarMonth === target;
     });
   }, [echoes, filterMode, filterNavIndex, navList]);
@@ -480,6 +505,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     await updateEchoText(id, newText, userId);
   };
 
+  const handleUpdateEchoTags = async (id, tags) => {
+    setEchoes(prev => prev.map(e => e.id === id ? { ...e, tags } : e));
+    await updateEchoTags(id, tags, userId);
+  };
+
   const cancelWriting = () => {
     if (isRecording) {
       stopRecording();
@@ -649,7 +679,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       <div style={{ padding: '0 20px 14px' }}>
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
-          {['day', 'phase', 'cycle'].map(mode => (
+          {['day', 'phase', 'cycle', 'tag'].map(mode => (
             <button
               key={mode}
               onClick={() => switchFilterMode(mode)}
@@ -1021,7 +1051,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             fontSize: 13,
             fontStyle: 'italic',
           }}>
-            No echoes in this {filterMode}.
+            {filterMode === 'tag' ? `No echoes tagged "${navList[filterNavIndex]}".` : `No echoes in this ${filterMode}.`}
           </div>
         ) : (
           filteredEchoes.map(echo => (
@@ -1033,6 +1063,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               onDelete={() => deleteEcho(echo.id)}
               onPlayAudio={(id) => playAudio(id, echo.audio_path)}
               onUpdateText={handleUpdateEchoText}
+              onUpdateTags={handleUpdateEchoTags}
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
@@ -1336,11 +1367,30 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(echo.text || '');
+  const [isTagging, setIsTagging] = useState(false);
+  const [customTagInput, setCustomTagInput] = useState('');
+
+  const tags = echo.tags || [];
+  const atMax = tags.length >= MAX_TAGS;
+
+  const toggleTag = (tag) => {
+    const next = tags.includes(tag)
+      ? tags.filter(t => t !== tag)
+      : atMax ? tags : [...tags, tag];
+    onUpdateTags(echo.id, next);
+  };
+
+  const addCustomTag = () => {
+    const t = customTagInput.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 20);
+    if (!t || tags.includes(t) || atMax) return;
+    onUpdateTags(echo.id, [...tags, t]);
+    setCustomTagInput('');
+  };
   const isLong = echo.text && echo.text.length > TEXT_LIMIT;
   const displayText = isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
 
@@ -1492,6 +1542,122 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               {textExpanded ? 'read less' : 'read more'}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Tags row */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10, alignItems: 'center' }}>
+        {tags.map(tag => (
+          <span
+            key={tag}
+            onClick={() => isTagging && toggleTag(tag)}
+            style={{
+              padding: '2px 7px',
+              borderRadius: 3,
+              background: 'rgba(167, 139, 250, 0.12)',
+              color: 'rgba(167, 139, 250, 0.75)',
+              fontSize: 9,
+              fontFamily: 'monospace',
+              letterSpacing: '0.06em',
+              cursor: isTagging ? 'pointer' : 'default',
+            }}
+          >
+            #{tag}{isTagging ? ' ×' : ''}
+          </span>
+        ))}
+        <button
+          onClick={() => setIsTagging(t => !t)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: isTagging ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.2)',
+            fontSize: 11,
+            fontFamily: 'monospace',
+            cursor: 'pointer',
+            padding: '2px 4px',
+            letterSpacing: '0.05em',
+          }}
+        >
+          {isTagging ? 'done' : '#'}
+        </button>
+      </div>
+
+      {/* Tag picker */}
+      {isTagging && (
+        <div style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          background: 'rgba(245, 230, 200, 0.03)',
+          borderRadius: 8,
+          border: '1px solid rgba(245, 230, 200, 0.07)',
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+            {PRESET_TAGS.map(tag => {
+              const selected = tags.includes(tag);
+              const disabled = !selected && atMax;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => !disabled && toggleTag(tag)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 3,
+                    border: 'none',
+                    background: selected
+                      ? 'rgba(167, 139, 250, 0.25)'
+                      : 'rgba(245, 230, 200, 0.05)',
+                    color: selected
+                      ? 'rgba(167, 139, 250, 0.9)'
+                      : disabled
+                        ? 'rgba(245, 230, 200, 0.2)'
+                        : 'rgba(245, 230, 200, 0.45)',
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.05em',
+                    cursor: disabled ? 'default' : 'pointer',
+                  }}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={customTagInput}
+              onChange={e => setCustomTagInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addCustomTag()}
+              placeholder={atMax ? `max ${MAX_TAGS} tags` : 'custom tag...'}
+              disabled={atMax}
+              style={{
+                flex: 1,
+                background: 'rgba(245, 230, 200, 0.04)',
+                border: '1px solid rgba(245, 230, 200, 0.1)',
+                borderRadius: 4,
+                padding: '4px 8px',
+                color: '#f5e6c8',
+                fontSize: 11,
+                fontFamily: 'monospace',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={addCustomTag}
+              disabled={atMax || !customTagInput.trim()}
+              style={{
+                background: 'none',
+                border: '1px solid rgba(245, 230, 200, 0.1)',
+                borderRadius: 4,
+                color: 'rgba(245, 230, 200, 0.5)',
+                fontSize: 11,
+                fontFamily: 'monospace',
+                padding: '4px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              +
+            </button>
+          </div>
         </div>
       )}
 
