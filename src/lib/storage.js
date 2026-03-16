@@ -70,6 +70,7 @@ export async function getLoops(userId) {
       lunarMonthClosed: row.lunar_month_closed || null,
       note: row.note || null,
       isEncrypted: row.is_encrypted || false,
+      tags: row.tags || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -131,6 +132,7 @@ export async function saveLoop(loop, userId) {
         lunar_month_closed: loop.lunarMonthClosed || null,
         note: loop.note || null,
         is_encrypted: loop.isEncrypted || false,
+        tags: loop.tags || [],
         updated_at: new Date().toISOString(),
       })
       .select();

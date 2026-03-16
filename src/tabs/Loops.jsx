@@ -90,6 +90,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
     // Auto-close each expired phase loop
     phaseLoopsToClose.forEach(async (loop) => {
+      const existingTags = loop.tags || [];
       const updated = {
         ...loop,
         status: 'closed',
@@ -98,6 +99,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         phaseNameClosed: lunarData.phase.name,
         lunarMonthClosed: lunarData.lunarMonth,
         autoClosedReason: 'phase_ended',
+        tags: existingTags.includes('phase-ended') ? existingTags : [...existingTags, 'phase-ended'],
       };
       setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
       await saveLoop(updated, userId);
@@ -1135,6 +1137,19 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
               {windowText}
             </span>
           )}
+          {(loop.tags || []).map(tag => (
+            <span key={tag} style={{
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: 'rgba(167, 139, 250, 0.08)',
+              color: 'rgba(167, 139, 250, 0.5)',
+              fontSize: 8,
+              fontFamily: 'monospace',
+              letterSpacing: '0.05em',
+            }}>
+              #{tag}
+            </span>
+          ))}
         </div>
       </div>
 
