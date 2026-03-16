@@ -483,7 +483,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     marginBottom: 12,
                     letterSpacing: '0.1em',
                   }}>
-                    YOUR BIG THREE
+                    YOUR SIGNS
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    fontFamily: "'Cormorant Garamond', serif",
+                    color: 'rgba(245, 230, 200, 0.4)',
+                    marginBottom: 16,
+                    fontStyle: 'italic',
+                  }}>
+                    Sun and moon are enough. Rising is a bonus if you know it.
                   </div>
 
                   {/* Sun Sign */}
@@ -557,7 +566,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       color: 'rgba(245, 230, 200, 0.4)',
                       marginBottom: 6,
                     }}>
-                      ↑ RISING SIGN (how others see you)
+                      ↑ RISING SIGN (optional · how others see you)
                     </label>
                     <select
                       value={risingSign}

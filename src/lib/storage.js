@@ -257,6 +257,26 @@ export async function updateEchoAudioPath(echoId, audioPath, userId) {
   }
 }
 
+export async function updateEchoTags(echoId, tags, userId) {
+  const echoes = getLocal(ECHOES_KEY);
+  const idx = echoes.findIndex(e => e.id === echoId);
+  if (idx !== -1) {
+    echoes[idx] = { ...echoes[idx], tags };
+    setLocal(ECHOES_KEY, echoes);
+  }
+
+  if (!userId) return;
+
+  try {
+    await supabase
+      .from('echoes')
+      .update({ tags })
+      .eq('id', echoId);
+  } catch (e) {
+    console.warn('Failed to update echo tags on server:', e);
+  }
+}
+
 export async function updateEchoText(echoId, newText, userId) {
   const echoes = getLocal(ECHOES_KEY);
   const idx = echoes.findIndex(e => e.id === echoId);
