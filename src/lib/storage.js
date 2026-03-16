@@ -191,6 +191,7 @@ export async function getEchoes(userId) {
       illumination: row.illumination,
       isEncrypted: row.is_encrypted || false,
       audio_path: row.audio_path || null,
+      tags: row.tags || [],
       createdAt: row.created_at,
     }));
 
