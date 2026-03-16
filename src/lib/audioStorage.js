@@ -5,6 +5,7 @@
 import { supabase } from './supabase.js';
 
 const BUCKET = 'echo-audio';
+const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
 
 // ─── Supabase Storage ─────────────────────────────────────────────────────────
 
@@ -15,11 +16,15 @@ function storagePath(userId, echoId, mimeType) {
   return `${userId}/${echoId}.${ext}`;
 }
 
-// Upload audio blob — returns the storage path, or null on failure
+// Upload audio blob — returns the storage path, 'TOO_LARGE' if over limit, or null on failure
 export async function saveAudio(echoId, audioBlob, userId) {
   if (!userId) {
     console.warn('[Audio] Cannot save — user not logged in');
     return null;
+  }
+  if (audioBlob.size > MAX_AUDIO_SIZE) {
+    console.warn('[Audio] File too large to upload:', (audioBlob.size / 1024 / 1024).toFixed(1), 'MB');
+    return 'TOO_LARGE';
   }
   try {
     const path = storagePath(userId, echoId, audioBlob.type);
