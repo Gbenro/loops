@@ -457,7 +457,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     // Upload audio to cloud storage (requires login — already blocked in startRecording)
     if (hasVoice && audioBlob && userId) {
       const audioPath = await saveAudio(echoId, audioBlob, userId);
-      if (audioPath) {
+      if (audioPath === 'TOO_LARGE') {
+        alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
+      } else if (audioPath) {
         setEchoes(prev => prev.map(e => e.id === echoId ? { ...e, audio_path: audioPath } : e));
         await updateEchoAudioPath(echoId, audioPath, userId);
       }
