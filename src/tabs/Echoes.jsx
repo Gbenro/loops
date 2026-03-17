@@ -521,6 +521,21 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     pendingAudioBlobRef.current = null;
   };
 
+  // Wake lock helpers for playback
+  const acquirePlaybackWakeLock = () => {
+    if ('wakeLock' in navigator && !wakeLockRef.current) {
+      navigator.wakeLock.request('screen').then(lock => {
+        wakeLockRef.current = lock;
+      }).catch(() => {});
+    }
+  };
+  const releasePlaybackWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+    }
+  };
+
   // Queue track player — uses ref pattern so onended always calls the latest version
   playQueueTrackRef.current = async (index) => {
     const queue = queueRef.current;
@@ -529,6 +544,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       setPlayingId(null);
       setQueueIndex(0);
       audioPlayerRef.current = null;
+      releasePlaybackWakeLock();
       return;
     }
     if (audioPlayerRef.current) {
@@ -563,6 +579,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     audioPlayerRef.current = audio;
     setPlayingId(echo.id);
     setQueuePlaying(true);
+    acquirePlaybackWakeLock();
     audio.play();
   };
 
@@ -574,6 +591,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setQueuePlaying(false);
     setPlayingId(null);
     setQueueIndex(0);
+    releasePlaybackWakeLock();
   };
 
   // Play/stop audio for an echo (single card — stops queue if active)
@@ -588,6 +606,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       audioPlayerRef.current.pause();
       audioPlayerRef.current = null;
       setPlayingId(null);
+      releasePlaybackWakeLock();
       return;
     }
 
@@ -612,13 +631,16 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     audio.onended = () => {
       setPlayingId(null);
       audioPlayerRef.current = null;
+      releasePlaybackWakeLock();
     };
     audio.onerror = () => {
       setPlayingId(null);
       audioPlayerRef.current = null;
+      releasePlaybackWakeLock();
     };
     audioPlayerRef.current = audio;
     setPlayingId(echoId);
+    acquirePlaybackWakeLock();
     audio.play();
   };
 
@@ -1132,22 +1154,50 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   : `${audioQueue.length} VOICE ${audioQueue.length === 1 ? 'ECHO' : 'ECHOES'}`}
               </div>
 
-              {(queuePlaying || queueIndex > 0) && audioQueue[queueIndex] && (
-                <div style={{
-                  textAlign: 'center',
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: 13,
-                  fontStyle: 'italic',
-                  color: 'rgba(245, 230, 200, 0.5)',
-                  marginBottom: 16,
-                  padding: '0 20px',
-                  lineHeight: 1.5,
-                  maxHeight: 40,
-                  overflow: 'hidden',
-                }}>
-                  {audioQueue[queueIndex].text?.slice(0, 80)}{audioQueue[queueIndex].text?.length > 80 ? '…' : ''}
-                </div>
-              )}
+              {(queuePlaying || queueIndex > 0) && audioQueue[queueIndex] && (() => {
+                const eq = audioQueue[queueIndex];
+                const phType = eq.phaseType || getPhaseType(eq.phase);
+                const imprint = [
+                  (eq.phaseName || eq.phase || '').replace(/-/g, ' '),
+                  phType,
+                  eq.zodiac,
+                  eq.dayOfCycle != null ? `day ${eq.dayOfCycle}` : null,
+                ].filter(Boolean).join(' · ');
+                return (
+                  <>
+                    <div style={{
+                      textAlign: 'center',
+                      fontFamily: "'Cormorant Garamond', serif",
+                      fontSize: 13,
+                      fontStyle: 'italic',
+                      color: 'rgba(245, 230, 200, 0.6)',
+                      marginBottom: 4,
+                      padding: '0 20px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {eq.text || '—'}
+                    </div>
+                    {imprint && (
+                      <div style={{
+                        textAlign: 'center',
+                        fontFamily: 'monospace',
+                        fontSize: 9,
+                        letterSpacing: '0.08em',
+                        color: 'rgba(167, 139, 250, 0.5)',
+                        marginBottom: 16,
+                        padding: '0 20px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {imprint}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Controls */}
               <div style={{
@@ -1287,27 +1337,42 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 style={{ flex: 1, overflow: 'hidden' }}
               >
                 {queuePlaying && audioQueue[queueIndex] ? (
-                  <>
-                    <div style={{
-                      fontSize: 9, fontFamily: 'monospace',
-                      letterSpacing: '0.1em',
-                      color: 'rgba(167, 139, 250, 0.7)',
-                      marginBottom: 2,
-                    }}>
-                      PLAYING {queueIndex + 1} / {audioQueue.length}{audioDuration != null ? ` · ${formatTime(Math.round(audioDuration))}` : ''}
-                    </div>
-                    <div style={{
-                      fontSize: 12,
-                      fontFamily: "'Cormorant Garamond', serif",
-                      fontStyle: 'italic',
-                      color: 'rgba(245, 230, 200, 0.55)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      {audioQueue[queueIndex].text?.slice(0, 60)}{audioQueue[queueIndex].text?.length > 60 ? '…' : ''}
-                    </div>
-                  </>
+                  (() => {
+                    const eq = audioQueue[queueIndex];
+                    const phType = eq.phaseType || getPhaseType(eq.phase);
+                    const imprint = [
+                      (eq.phaseName || eq.phase || '').replace(/-/g, ' '),
+                      phType,
+                      eq.zodiac,
+                      eq.dayOfCycle != null ? `day ${eq.dayOfCycle}` : null,
+                    ].filter(Boolean).join(' · ');
+                    return (
+                      <>
+                        <div style={{
+                          fontSize: 12,
+                          fontFamily: "'Cormorant Garamond', serif",
+                          fontStyle: 'italic',
+                          color: 'rgba(245, 230, 200, 0.7)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          marginBottom: 2,
+                        }}>
+                          {eq.text || '—'}
+                        </div>
+                        <div style={{
+                          fontSize: 9, fontFamily: 'monospace',
+                          letterSpacing: '0.08em',
+                          color: 'rgba(167, 139, 250, 0.55)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {queueIndex + 1}/{audioQueue.length}{audioDuration != null ? ` · ${formatTime(Math.round(audioDuration))}` : ''}{imprint ? ` · ${imprint}` : ''}
+                        </div>
+                      </>
+                    );
+                  })()
                 ) : (
                   <div style={{
                     fontSize: 11, fontFamily: 'monospace',
@@ -1625,9 +1690,9 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={customTagInput}
-              onChange={e => setCustomTagInput(e.target.value)}
+              onChange={e => setCustomTagInput(e.target.value.replace(/ /g, '-'))}
               onKeyDown={e => e.key === 'Enter' && addCustomTag()}
-              placeholder={atMax ? `max ${MAX_TAGS} tags` : 'custom tag...'}
+              placeholder={atMax ? `max ${MAX_TAGS} tags` : 'custom tag (use - for spaces)'}
               disabled={atMax}
               style={{
                 flex: 1,
