@@ -30,6 +30,7 @@ function checkRateLimit(ip: string): boolean {
 const ALLOWED_ORIGINS = [
   "https://lunaloops.app",
   "https://www.lunaloops.app",
+  "https://beta.lunaloops.app",
   "http://localhost:5173",
   "http://localhost:4173",
 ];
