@@ -76,6 +76,9 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         const justAdded = prev.filter(l => !fetchedIds.has(l.id));
         return [...decrypted, ...justAdded];
       });
+    }).catch(err => {
+      console.error('Failed to load loops:', err);
+    }).finally(() => {
       setLoading(false);
     });
   }, [userId, sessionKey, decryptField]);

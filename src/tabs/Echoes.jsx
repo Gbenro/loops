@@ -1735,7 +1735,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={customTagInput}
-              onChange={e => setCustomTagInput(e.target.value.replace(/ /g, '-'))}
+              onChange={e => setCustomTagInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addCustomTag()}
               placeholder={atMax ? `max ${MAX_TAGS} tags` : 'tag or tag1, tag2'}
               disabled={atMax}
