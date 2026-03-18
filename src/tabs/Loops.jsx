@@ -1,7 +1,7 @@
 // Luna Loops - Loops Tab
 // Cycle loops (29.5 day intentions) and Phase loops (3.5 day actions)
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Ring } from '../components/Ring.jsx';
 import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
 import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
@@ -21,6 +21,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
   const [closedViewMode, setClosedViewMode] = useState('cycle'); // 'all' | 'phase' | 'cycle'
   const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current, 1 = previous, etc.
+  const justCreatedCycleRef = useRef(false); // prevent ritual re-showing after creation
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -51,7 +52,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   useEffect(() => {
     if (isNewMoon && !cycleLoop && !loading) {
-      // Check if dismissed
+      if (justCreatedCycleRef.current) return; // just set intention this session
       if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
         return;
       }
@@ -69,7 +70,12 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         }
         return loop;
       }));
-      setLoops(decrypted);
+      // Merge: keep any loops added to state since fetch started (e.g. just-created cycle loop)
+      setLoops(prev => {
+        const fetchedIds = new Set(decrypted.map(l => l.id));
+        const justAdded = prev.filter(l => !fetchedIds.has(l.id));
+        return [...decrypted, ...justAdded];
+      });
       setLoading(false);
     });
   }, [userId, sessionKey, decryptField]);
@@ -135,6 +141,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       isEncrypted,
       createdAt: new Date().toISOString(),
     };
+    justCreatedCycleRef.current = true;
     setLoops(prev => [newLoop, ...prev]);
     setShowRitual(false);
     await saveLoop({ ...newLoop, title: storedTitle }, userId);
