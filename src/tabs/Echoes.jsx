@@ -1086,6 +1086,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               onPlayAudio={(id) => playAudio(id, echo.audio_path)}
               onUpdateText={handleUpdateEchoText}
               onUpdateTags={handleUpdateEchoTags}
+              pastTags={uniqueTags}
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
@@ -1432,7 +1433,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -1451,11 +1452,24 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   };
 
   const addCustomTag = () => {
-    const t = customTagInput.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 20);
-    if (!t || tags.includes(t) || atMax) return;
-    onUpdateTags(echo.id, [...tags, t]);
+    // Split on comma to support multi-tag entry; spaces already converted to hyphens by onChange
+    const parts = customTagInput.split(',')
+      .map(p => p.trim().replace(/^-+|-+$/g, '').toLowerCase().slice(0, 20))
+      .filter(Boolean);
+    if (parts.length === 0) return;
+    const newTags = [...tags];
+    for (const t of parts) {
+      if (!t || newTags.includes(t) || newTags.length >= MAX_TAGS) continue;
+      newTags.push(t);
+    }
+    if (newTags.length !== tags.length) onUpdateTags(echo.id, newTags);
     setCustomTagInput('');
   };
+
+  // Past tags the user has used, excluding presets and current tags — shown first
+  const userPastTags = (pastTags || []).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
+  // Preset tags not already applied
+  const presetTagList = PRESET_TAGS.filter(t => !userPastTags.includes(t));
   const isLong = echo.text && echo.text.length > TEXT_LIMIT;
   const displayText = isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
 
@@ -1657,7 +1671,38 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           border: '1px solid rgba(245, 230, 200, 0.07)',
         }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-            {PRESET_TAGS.map(tag => {
+            {/* Past user tags first (highlighted) */}
+            {userPastTags.map(tag => {
+              const selected = tags.includes(tag);
+              const disabled = !selected && atMax;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => !disabled && toggleTag(tag)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 3,
+                    border: '1px solid rgba(167, 139, 250, 0.2)',
+                    background: selected
+                      ? 'rgba(167, 139, 250, 0.25)'
+                      : 'rgba(167, 139, 250, 0.07)',
+                    color: selected
+                      ? 'rgba(167, 139, 250, 0.9)'
+                      : disabled
+                        ? 'rgba(245, 230, 200, 0.2)'
+                        : 'rgba(167, 139, 250, 0.65)',
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.05em',
+                    cursor: disabled ? 'default' : 'pointer',
+                  }}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+            {/* Preset tags */}
+            {presetTagList.map(tag => {
               const selected = tags.includes(tag);
               const disabled = !selected && atMax;
               return (
@@ -1692,7 +1737,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               value={customTagInput}
               onChange={e => setCustomTagInput(e.target.value.replace(/ /g, '-'))}
               onKeyDown={e => e.key === 'Enter' && addCustomTag()}
-              placeholder={atMax ? `max ${MAX_TAGS} tags` : 'custom tag (use - for spaces)'}
+              placeholder={atMax ? `max ${MAX_TAGS} tags` : 'tag or tag1, tag2'}
               disabled={atMax}
               style={{
                 flex: 1,
