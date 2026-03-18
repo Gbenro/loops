@@ -593,6 +593,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             <CycleLoopCard
               loop={cycleLoop}
               lunarData={lunarData}
+              hemisphere={hemisphere}
               onSelect={() => {
                 setSelected(cycleLoop);
                 setShowDetail(true);
@@ -960,7 +961,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
 // ─── Cycle Loop Card ─────────────────────────────────────────────────────────
 
-function CycleLoopCard({ loop, lunarData, onSelect }) {
+function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north' }) {
   const cycleProgress = (lunarData.age / 29.53) * 100;
 
   return (
