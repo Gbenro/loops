@@ -103,9 +103,10 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         ...loop,
         status: 'closed',
         closedAt: new Date().toISOString(),
-        phaseClosed: currentPhase,
-        phaseNameClosed: lunarData.phase.name,
-        lunarMonthClosed: lunarData.lunarMonth,
+        // Register closure in the phase the loop lived in, not the new phase that triggered it
+        phaseClosed: loop.phaseOpened,
+        phaseNameClosed: loop.phaseName,
+        lunarMonthClosed: loop.lunarMonthOpened,
         autoClosedReason: 'phase_ended',
       };
       setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
