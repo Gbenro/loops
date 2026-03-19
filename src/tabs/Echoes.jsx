@@ -1436,6 +1436,14 @@ const TEXT_LIMIT = 180;
 function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
+  const cardRef = useRef(null);
+
+  // Scroll card back into view when collapsing long text
+  useEffect(() => {
+    if (!textExpanded && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [textExpanded]);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(echo.text || '');
   const [isTagging, setIsTagging] = useState(false);
@@ -1492,7 +1500,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   };
 
   return (
-    <div style={{
+    <div ref={cardRef} style={{
       background: 'rgba(245, 230, 200, 0.025)',
       border: '1px solid rgba(245, 230, 200, 0.06)',
       borderRadius: 12,
