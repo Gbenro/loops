@@ -38,7 +38,17 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
+    }}>
+    {/* Constrain content to app width */}
+    <div style={{
+      width: '100%',
+      maxWidth: 520,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
       padding: 24,
+      position: 'relative',
     }}>
       {/* Ambient glow behind moon */}
       <div style={{
@@ -187,6 +197,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           The New Moon lasts until day {Math.ceil(1.85 - lunarData.age + 1)}. You can return.
         </div>
       )}
+    </div>
     </div>
   );
 }

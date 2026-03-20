@@ -86,7 +86,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
 
       {/* Panel */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
+        position: 'absolute', bottom: 0, left: '50%',
+        transform: 'translateX(-50%)', width: '100%', maxWidth: 520,
         height: '92vh',
         background: '#070b14',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,

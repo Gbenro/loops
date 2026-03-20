@@ -1323,8 +1323,10 @@ function DetailPanel({
       <div style={{
         position: 'absolute',
         bottom: 0,
-        left: 0,
-        right: 0,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%',
+        maxWidth: 520,
         maxHeight: '85vh',
         background: '#0a0a12',
         borderTopLeftRadius: 20,
@@ -1598,12 +1600,12 @@ function DetailPanel({
       {/* Echo detail modal */}
       {echoModal && (
         <div
-          style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end' }}
+          style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
           onClick={() => setEchoModal(null)}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
+            style={{ width: '100%', maxWidth: 520, background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
             <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginBottom: 12, display: 'flex', gap: 8 }}>

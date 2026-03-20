@@ -505,7 +505,9 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
       {/* Top bar — always visible */}
       <div style={{
         position: 'fixed',
-        top: 0, left: 0, right: 0,
+        top: 0, left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%', maxWidth: 520,
         zIndex: 1003,
         display: 'flex',
         alignItems: 'center',
