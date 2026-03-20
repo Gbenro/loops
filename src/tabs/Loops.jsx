@@ -1236,13 +1236,24 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
           {loop.title}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
+          {/* Phase badge */}
           <span style={{
             padding: '2px 6px', borderRadius: 4,
-            background: isAutoReleased ? 'rgba(251, 191, 36, 0.1)' : released ? 'rgba(252, 129, 129, 0.1)' : isCycle ? 'rgba(245, 230, 200, 0.08)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
-            color: isAutoReleased ? 'rgba(251, 191, 36, 0.7)' : released ? 'rgba(252, 129, 129, 0.6)' : isCycle ? 'rgba(245, 230, 200, 0.7)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
+            background: isCycle ? 'rgba(245, 230, 200, 0.08)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
+            color: isCycle ? 'rgba(245, 230, 200, 0.7)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
           }}>
-            {isAutoReleased ? 'PHASE ENDED' : released ? 'RELEASED' : isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
+            {isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
+          {/* Status badge for closed/released */}
+          {(isAutoReleased || released) && (
+            <span style={{
+              padding: '2px 6px', borderRadius: 4,
+              background: isAutoReleased ? 'rgba(251, 191, 36, 0.1)' : 'rgba(252, 129, 129, 0.1)',
+              color: isAutoReleased ? 'rgba(251, 191, 36, 0.7)' : 'rgba(252, 129, 129, 0.6)',
+            }}>
+              {isAutoReleased ? 'PHASE ENDED' : 'RELEASED'}
+            </span>
+          )}
           {isOngoing && <span style={{ color: '#34D399', letterSpacing: '0.08em' }}>▶ ONGOING</span>}
           {isOpen && loop.phaseName && !closed && <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>↑ {loop.phaseName}</span>}
           {isOpen && closed && <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>}
