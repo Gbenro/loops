@@ -5,11 +5,24 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Ring } from '../components/Ring.jsx';
 import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
 import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
-import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId } from '../lib/storage.js';
+import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId, saveEcho, getEchoes } from '../lib/storage.js';
+import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
+
+// 8 lunar phase checkpoints pre-populated into every new cycle loop
+const PHASE_CHECKPOINTS = [
+  { phase: 'new', name: 'New Moon' },
+  { phase: 'waxing-crescent', name: 'Waxing Crescent' },
+  { phase: 'first-quarter', name: 'First Quarter' },
+  { phase: 'waxing-gibbous', name: 'Waxing Gibbous' },
+  { phase: 'full', name: 'Full Moon' },
+  { phase: 'waning-gibbous', name: 'Waning Gibbous' },
+  { phase: 'last-quarter', name: 'Last Quarter' },
+  { phase: 'waning-crescent', name: 'Waning Crescent' },
+];
 
 export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const [loops, setLoops] = useState([]);
@@ -132,7 +145,13 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       type: 'cycle',
       status: 'active',
       color: '#A78BFA',
-      subtasks: [],
+      subtasks: PHASE_CHECKPOINTS.map(cp => ({
+        id: generateId('pc'),
+        text: cp.name,
+        phase: cp.phase,
+        done: false,
+        isPhaseCheckpoint: true,
+      })),
       linkedTo: null,
       phaseOpened: lunarData.phase.key,
       phaseName: lunarData.phase.name,
@@ -595,6 +614,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               loop={cycleLoop}
               lunarData={lunarData}
               hemisphere={hemisphere}
+              pct={getLoopPct(cycleLoop)}
               onSelect={() => {
                 setSelected(cycleLoop);
                 setShowDetail(true);
@@ -941,6 +961,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         <DetailPanel
           loop={selected}
           pct={getLoopPct(selected)}
+          userId={userId}
           onClose={() => {
             setShowDetail(false);
             setSelected(null);
@@ -962,8 +983,11 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
 // ─── Cycle Loop Card ─────────────────────────────────────────────────────────
 
-function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north' }) {
-  const cycleProgress = (lunarData.age / 29.53) * 100;
+function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct }) {
+  const checkpoints = loop.subtasks?.filter(s => s.isPhaseCheckpoint) || [];
+  const cycleProgress = checkpoints.length > 0
+    ? (checkpoints.filter(s => s.done).length / checkpoints.length) * 100
+    : pct != null ? pct : (lunarData.age / 29.53) * 100;
 
   return (
     <div
@@ -1181,6 +1205,7 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
 function DetailPanel({
   loop,
   pct,
+  userId,
   onClose,
   onCloseLoop,
   onReopenLoop,
@@ -1194,10 +1219,40 @@ function DetailPanel({
 }) {
   const [newSubtask, setNewSubtask] = useState('');
   const [noteText, setNoteText] = useState(loop.note || '');
+  const [linkedEchoes, setLinkedEchoes] = useState([]);
+  const [showEchoInput, setShowEchoInput] = useState(false);
+  const [newEchoText, setNewEchoText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [echoAudioBlob, setEchoAudioBlob] = useState(null);
+  const [echoModal, setEchoModal] = useState(null);
+  const [modalAudioUrl, setModalAudioUrl] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   const isCycle = loop.type === 'cycle';
   const isClosed = loop.status === 'closed';
   const isReleased = loop.status === 'released';
   const isActive = loop.status === 'active';
+
+  const phaseCheckpoints = isCycle
+    ? (loop.subtasks?.filter(s => s.isPhaseCheckpoint) || [])
+    : [];
+  const regularSubtasks = loop.subtasks?.filter(s => !s.isPhaseCheckpoint) || [];
+
+  const lunarData = useMemo(() => getLunarData(), []);
+
+  // Load echoes linked to this loop
+  useEffect(() => {
+    getEchoes(userId).then(all => {
+      setLinkedEchoes(all.filter(e => e.linkedLoopId === loop.id));
+    }).catch(() => {});
+  }, [loop.id, userId]);
+
+  // Get signed URL when echo modal opens
+  useEffect(() => {
+    if (!echoModal?.audio_path) { setModalAudioUrl(null); return; }
+    getAudioUrl(echoModal.audio_path).then(url => setModalAudioUrl(url)).catch(() => {});
+  }, [echoModal]);
 
   const handleAddSubtask = () => {
     if (!newSubtask.trim()) return;
@@ -1205,21 +1260,63 @@ function DetailPanel({
     setNewSubtask('');
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        setEchoAudioBlob(new Blob(audioChunksRef.current, { type: 'audio/webm' }));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setIsRecording(true);
+    } catch (e) {
+      console.warn('Mic access denied:', e);
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const submitEcho = async () => {
+    if (!newEchoText.trim() && !echoAudioBlob) return;
+    const echoId = generateId('e');
+    const echo = {
+      id: echoId,
+      text: newEchoText.trim(),
+      source: echoAudioBlob ? 'voice' : 'text',
+      phase: lunarData.phase.key,
+      phaseName: lunarData.phase.name,
+      phaseType: null,
+      lunarMonth: lunarData.lunarMonth,
+      dayOfCycle: lunarData.dayOfCycle,
+      zodiac: lunarData.zodiac.sign,
+      illumination: lunarData.illumination,
+      linkedLoopId: loop.id,
+      createdAt: new Date().toISOString(),
+    };
+    await saveEcho(echo, userId);
+    if (echoAudioBlob) {
+      const path = await saveAudio(echoId, echoAudioBlob, userId);
+      if (path && path !== 'TOO_LARGE') echo.audio_path = path;
+    }
+    setLinkedEchoes(prev => [echo, ...prev]);
+    setNewEchoText('');
+    setEchoAudioBlob(null);
+    setShowEchoInput(false);
+  };
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-    }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(4px)',
-        }}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
       />
 
       {/* Panel */}
@@ -1236,65 +1333,29 @@ function DetailPanel({
         flexDirection: 'column',
       }}>
         {/* Header */}
-        <div style={{
-          padding: '20px 20px 16px',
-          borderBottom: '1px solid rgba(245, 230, 200, 0.08)',
-        }}>
-          <div style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            background: 'rgba(245, 230, 200, 0.2)',
-            margin: '0 auto 20px',
-          }} />
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-          }}>
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(245, 230, 200, 0.08)' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Ring
               pct={pct}
               color={isReleased ? 'rgba(245,230,200,0.3)' : (loop.color || '#A78BFA')}
               size={56}
               stroke={4}
             >
-              <span style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: '#f5e6c8',
-              }}>
-                {pct}%
-              </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#f5e6c8' }}>{pct}%</span>
             </Ring>
-
             <div style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 22,
-                color: '#f5e6c8',
-                marginBottom: 4,
-              }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#f5e6c8', marginBottom: 4 }}>
                 {loop.title}
               </div>
-              <div style={{
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-                fontSize: 9,
-                fontFamily: 'monospace',
-                color: 'rgba(245, 230, 200, 0.4)',
-              }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
                 <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
                 <span>·</span>
                 {loop.type === 'open' ? (
                   <>
                     <span>↑ {loop.phaseName || '?'}</span>
                     {(isClosed || isReleased) && (
-                      <>
-                        <span>·</span>
-                        <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>
-                      </>
+                      <><span>·</span><span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span></>
                     )}
                   </>
                 ) : (
@@ -1305,276 +1366,269 @@ function DetailPanel({
           </div>
         </div>
 
-        {/* Subtasks */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '16px 20px',
-        }}>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            color: 'rgba(245, 230, 200, 0.35)',
-            marginBottom: 12,
-          }}>
-            STEPS
-          </div>
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
 
-          {loop.subtasks?.map((subtask, index) => (
-            <div
-              key={subtask.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '12px 0',
-                borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
-              }}
-            >
-              {/* Reorder buttons */}
-              {isActive && loop.subtasks.length > 1 && (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onReorderSubtask(subtask.id, 'up');
-                    }}
-                    disabled={index === 0}
-                    style={{
-                      width: 18,
-                      height: 14,
-                      padding: 0,
-                      background: 'none',
-                      border: 'none',
-                      color: index === 0 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)',
-                      cursor: index === 0 ? 'default' : 'pointer',
-                      fontSize: 10,
-                    }}
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onReorderSubtask(subtask.id, 'down');
-                    }}
-                    disabled={index === loop.subtasks.length - 1}
-                    style={{
-                      width: 18,
-                      height: 14,
-                      padding: 0,
-                      background: 'none',
-                      border: 'none',
-                      color: index === loop.subtasks.length - 1 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)',
-                      cursor: index === loop.subtasks.length - 1 ? 'default' : 'pointer',
-                      fontSize: 10,
-                    }}
-                  >
-                    ▼
-                  </button>
-                </div>
-              )}
-
-              {/* Checkbox */}
-              <div
-                onClick={() => onToggleSubtask(subtask.id)}
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`,
-                  background: subtask.done ? '#34D399' : 'transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: subtask.done ? '#040810' : 'transparent',
-                  fontSize: 12,
-                  flexShrink: 0,
-                  cursor: 'pointer',
-                }}
-              >
-                {subtask.done && '✓'}
+          {/* Phase Journey — cycle loops only */}
+          {isCycle && phaseCheckpoints.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(167, 139, 250, 0.5)', marginBottom: 12 }}>
+                PHASE JOURNEY
               </div>
-
-              {/* Text */}
-              <span
-                onClick={() => onToggleSubtask(subtask.id)}
-                style={{
-                  flex: 1,
-                  color: subtask.done ? 'rgba(245, 230, 200, 0.4)' : '#f5e6c8',
-                  textDecoration: subtask.done ? 'line-through' : 'none',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                }}
-              >
-                {subtask.text}
-              </span>
-              <button
-                onClick={() => onDeleteSubtask(subtask.id)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(252, 129, 129, 0.4)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  padding: '4px 6px',
-                  lineHeight: 1,
-                  flexShrink: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-
-          {/* Add subtask */}
-          {isActive && (
-            <div style={{
-              display: 'flex',
-              gap: 10,
-              marginTop: 16,
-            }}>
-              <input
-                value={newSubtask}
-                onChange={e => setNewSubtask(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
-                placeholder="Add a step..."
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(245, 230, 200, 0.1)',
-                  background: 'rgba(245, 230, 200, 0.03)',
-                  color: '#f5e6c8',
-                  fontSize: 13,
-                  outline: 'none',
-                }}
-              />
-              <button
-                onClick={handleAddSubtask}
-                disabled={!newSubtask.trim()}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: newSubtask.trim()
-                    ? 'rgba(245, 230, 200, 0.1)'
-                    : 'rgba(245, 230, 200, 0.03)',
-                  color: newSubtask.trim()
-                    ? '#f5e6c8'
-                    : 'rgba(245, 230, 200, 0.3)',
-                  fontSize: 13,
-                  cursor: newSubtask.trim() ? 'pointer' : 'default',
-                }}
-              >
-                Add
-              </button>
+              {phaseCheckpoints.map(cp => (
+                <div
+                  key={cp.id}
+                  onClick={() => onToggleSubtask(cp.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    marginBottom: 6,
+                    borderRadius: 8,
+                    background: cp.done ? 'rgba(167, 139, 250, 0.08)' : 'rgba(245, 230, 200, 0.02)',
+                    border: `1px solid ${cp.done ? 'rgba(167, 139, 250, 0.2)' : 'rgba(245, 230, 200, 0.06)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    border: `2px solid ${cp.done ? '#A78BFA' : 'rgba(245, 230, 200, 0.2)'}`,
+                    background: cp.done ? '#A78BFA' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    fontSize: 10,
+                    color: cp.done ? '#040810' : 'transparent',
+                  }}>
+                    {cp.done && '✓'}
+                  </div>
+                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.5)' }}>
+                    {getPhaseEmoji(cp.phase)} {cp.text}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
-        </div>
 
-        {/* Note */}
-        <div style={{
-          padding: '0 20px 16px',
-          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-          paddingTop: 16,
-        }}>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            color: 'rgba(245, 230, 200, 0.35)',
-            marginBottom: 8,
-          }}>
-            NOTE
+          {/* Regular Steps */}
+          {(regularSubtasks.length > 0 || isActive) && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)', marginBottom: 12 }}>
+                STEPS
+              </div>
+              {regularSubtasks.map((subtask, index) => (
+                <div
+                  key={subtask.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(245, 230, 200, 0.06)' }}
+                >
+                  {/* Reorder buttons — only for non-cycle loops */}
+                  {!isCycle && isActive && regularSubtasks.length > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'up'); }}
+                        disabled={index === 0}
+                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === 0 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)', cursor: index === 0 ? 'default' : 'pointer', fontSize: 10 }}
+                      >▲</button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'down'); }}
+                        disabled={index === regularSubtasks.length - 1}
+                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === regularSubtasks.length - 1 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)', cursor: index === regularSubtasks.length - 1 ? 'default' : 'pointer', fontSize: 10 }}
+                      >▼</button>
+                    </div>
+                  )}
+                  <div
+                    onClick={() => onToggleSubtask(subtask.id)}
+                    style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12, flexShrink: 0, cursor: 'pointer' }}
+                  >
+                    {subtask.done && '✓'}
+                  </div>
+                  <span
+                    onClick={() => onToggleSubtask(subtask.id)}
+                    style={{ flex: 1, color: subtask.done ? 'rgba(245, 230, 200, 0.4)' : '#f5e6c8', textDecoration: subtask.done ? 'line-through' : 'none', fontSize: 14, cursor: 'pointer' }}
+                  >
+                    {subtask.text}
+                  </span>
+                  <button
+                    onClick={() => onDeleteSubtask(subtask.id)}
+                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', lineHeight: 1, flexShrink: 0 }}
+                  >×</button>
+                </div>
+              ))}
+              {isActive && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                  <input
+                    value={newSubtask}
+                    onChange={e => setNewSubtask(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
+                    placeholder="Add a step..."
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.1)', background: 'rgba(245, 230, 200, 0.03)', color: '#f5e6c8', fontSize: 13, outline: 'none' }}
+                  />
+                  <button
+                    onClick={handleAddSubtask}
+                    disabled={!newSubtask.trim()}
+                    style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: newSubtask.trim() ? 'rgba(245, 230, 200, 0.1)' : 'rgba(245, 230, 200, 0.03)', color: newSubtask.trim() ? '#f5e6c8' : 'rgba(245, 230, 200, 0.3)', fontSize: 13, cursor: newSubtask.trim() ? 'pointer' : 'default' }}
+                  >Add</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Echoes */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)' }}>
+                ECHOES{linkedEchoes.length > 0 ? ` (${linkedEchoes.length})` : ''}
+              </div>
+              {!showEchoInput && (
+                <button
+                  onClick={() => setShowEchoInput(true)}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
+                >
+                  + ADD ECHO
+                </button>
+              )}
+            </div>
+
+            {/* Echo input form */}
+            {showEchoInput && (
+              <div style={{ background: 'rgba(245, 230, 200, 0.03)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <textarea
+                  value={newEchoText}
+                  onChange={e => setNewEchoText(e.target.value)}
+                  placeholder="Write your reflection..."
+                  rows={3}
+                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'rgba(245, 230, 200, 0.9)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+                />
+                {echoAudioBlob && (
+                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(52, 211, 153, 0.7)', marginTop: 4 }}>
+                    ● voice recorded
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.5)' : 'rgba(245, 230, 200, 0.15)'}`, background: isRecording ? 'rgba(252, 129, 129, 0.1)' : 'transparent', color: isRecording ? 'rgba(252, 129, 129, 0.9)' : 'rgba(245, 230, 200, 0.5)', fontSize: 11, cursor: 'pointer' }}
+                    >
+                      {isRecording ? '◼ Stop' : '🎙 Record'}
+                    </button>
+                    <button
+                      onClick={() => { setShowEchoInput(false); setNewEchoText(''); setEchoAudioBlob(null); if (isRecording) stopRecording(); }}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: 'rgba(245, 230, 200, 0.3)', fontSize: 11, cursor: 'pointer' }}
+                    >Cancel</button>
+                  </div>
+                  <button
+                    onClick={submitEcho}
+                    disabled={!newEchoText.trim() && !echoAudioBlob}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: (newEchoText.trim() || echoAudioBlob) ? 'rgba(245, 230, 200, 0.1)' : 'rgba(245, 230, 200, 0.03)', color: (newEchoText.trim() || echoAudioBlob) ? '#f5e6c8' : 'rgba(245, 230, 200, 0.3)', fontSize: 12, cursor: (newEchoText.trim() || echoAudioBlob) ? 'pointer' : 'default' }}
+                  >Save Echo</button>
+                </div>
+              </div>
+            )}
+
+            {/* Linked echoes list */}
+            {linkedEchoes.length > 0 ? (
+              linkedEchoes.map(echo => (
+                <div
+                  key={echo.id}
+                  onClick={() => setEchoModal(echo)}
+                  style={{ padding: '12px 14px', background: 'rgba(245, 230, 200, 0.02)', border: '1px solid rgba(245, 230, 200, 0.06)', borderRadius: 8, marginBottom: 8, cursor: 'pointer' }}
+                >
+                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.7)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
+                  </div>
+                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginTop: 6, display: 'flex', gap: 8 }}>
+                    <span>{getPhaseEmoji(echo.phase)} {echo.phaseName}</span>
+                    {echo.audio_path && <span>· 🎙</span>}
+                  </div>
+                </div>
+              ))
+            ) : (
+              !showEchoInput && (
+                <div style={{ fontSize: 12, fontStyle: 'italic', color: 'rgba(245, 230, 200, 0.2)', textAlign: 'center', padding: '12px 0' }}>
+                  No echoes yet
+                </div>
+              )
+            )}
           </div>
-          <textarea
-            value={noteText}
-            onChange={e => setNoteText(e.target.value)}
-            onBlur={() => onUpdateNote(noteText.trim() || null)}
-            placeholder="A note to yourself... (saves when you stop writing)"
-            rows={3}
-            style={{
-              width: '100%',
-              background: 'rgba(245, 230, 200, 0.03)',
-              border: '1px solid rgba(245, 230, 200, 0.08)',
-              borderRadius: 8,
-              padding: '10px 12px',
-              color: 'rgba(245, 230, 200, 0.8)',
-              fontSize: 13,
-              fontFamily: "'Cormorant Garamond', serif",
-              lineHeight: 1.6,
-              resize: 'none',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
+
+          {/* Note */}
+          <div style={{ borderTop: '1px solid rgba(245, 230, 200, 0.06)', paddingTop: 16, marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)', marginBottom: 8 }}>
+              NOTE
+            </div>
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              onBlur={() => onUpdateNote(noteText.trim() || null)}
+              placeholder="A note to yourself... (saves when you stop writing)"
+              rows={3}
+              style={{ width: '100%', background: 'rgba(245, 230, 200, 0.03)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 8, padding: '10px 12px', color: 'rgba(245, 230, 200, 0.8)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
         </div>
 
         {/* Actions */}
-        <div style={{
-          padding: '16px 20px 24px',
-          borderTop: '1px solid rgba(245, 230, 200, 0.08)',
-          display: 'flex',
-          gap: 10,
-        }}>
+        <div style={{ padding: '16px 20px 24px', borderTop: '1px solid rgba(245, 230, 200, 0.08)', display: 'flex', gap: 10 }}>
           {!isCycle && (
             <button
               onClick={onDelete}
-              style={{
-                padding: '12px 16px',
-                borderRadius: 10,
-                border: '1px solid rgba(252, 129, 129, 0.3)',
-                background: 'transparent',
-                color: 'rgba(252, 129, 129, 0.7)',
-                fontSize: 11,
-                cursor: 'pointer',
-              }}
-            >
-              Delete
-            </button>
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(252, 129, 129, 0.3)', background: 'transparent', color: 'rgba(252, 129, 129, 0.7)', fontSize: 11, cursor: 'pointer' }}
+            >Delete</button>
           )}
-
           {isActive && (
             <button
               onClick={onReleaseLoop}
-              style={{
-                padding: '12px 16px',
-                borderRadius: 10,
-                border: '1px solid rgba(245, 230, 200, 0.15)',
-                background: 'transparent',
-                color: 'rgba(245, 230, 200, 0.5)',
-                fontSize: 11,
-                cursor: 'pointer',
-              }}
-            >
-              Release
-            </button>
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 11, cursor: 'pointer' }}
+            >Release</button>
           )}
-
           <button
             onClick={isActive ? onCloseLoop : onReopenLoop}
-            style={{
-              flex: 1,
-              padding: '12px 20px',
-              borderRadius: 10,
-              border: 'none',
-              background: isActive ? '#34D399' : 'rgba(245, 230, 200, 0.1)',
-              color: isActive ? '#040810' : '#f5e6c8',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', background: isActive ? '#34D399' : 'rgba(245, 230, 200, 0.1)', color: isActive ? '#040810' : '#f5e6c8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             {isActive ? 'Close Loop' : (isReleased ? 'Reopen' : 'Reopen Loop')}
           </button>
         </div>
       </div>
+
+      {/* Echo detail modal */}
+      {echoModal && (
+        <div
+          style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end' }}
+          onClick={() => setEchoModal(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
+            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginBottom: 12, display: 'flex', gap: 8 }}>
+              <span>{getPhaseEmoji(echoModal.phase)} {echoModal.phaseName}</span>
+              <span>· {echoModal.zodiac}</span>
+              <span>· day {echoModal.dayOfCycle}</span>
+            </div>
+            {echoModal.text && (
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: 'rgba(245, 230, 200, 0.85)', lineHeight: 1.7, marginBottom: 16 }}>
+                {echoModal.text}
+              </div>
+            )}
+            {modalAudioUrl && (
+              <audio controls src={modalAudioUrl} style={{ width: '100%', marginTop: 12 }} />
+            )}
+            {echoModal.audio_path && !modalAudioUrl && (
+              <div style={{ fontSize: 11, color: 'rgba(245, 230, 200, 0.3)', fontStyle: 'italic' }}>Loading audio...</div>
+            )}
+            <button
+              onClick={() => setEchoModal(null)}
+              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
+            >Close</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
