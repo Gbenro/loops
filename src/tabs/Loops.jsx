@@ -1244,7 +1244,6 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
             {isAutoReleased ? 'PHASE ENDED' : released ? 'RELEASED' : isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
           {isOngoing && <span style={{ color: '#34D399', letterSpacing: '0.08em' }}>▶ ONGOING</span>}
-          {isPaused && <span style={{ color: 'rgba(251, 191, 36, 0.6)', letterSpacing: '0.08em' }}>⏸ PAUSED</span>}
           {isOpen && loop.phaseName && !closed && <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>↑ {loop.phaseName}</span>}
           {isOpen && closed && <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>}
           {windowText && <span style={{ color: 'rgba(167, 139, 250, 0.5)' }}>{windowText}</span>}
