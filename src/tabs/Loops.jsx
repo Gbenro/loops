@@ -96,6 +96,31 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     });
   }, [userId, sessionKey, decryptField]);
 
+  // Auto-populate phase checkpoints on existing cycle loops that predate the feature
+  useEffect(() => {
+    if (loading) return;
+    loops.forEach(async (loop) => {
+      if (loop.type !== 'cycle') return;
+      if (loop.subtasks?.some(s => s.isPhaseCheckpoint)) return; // already has checkpoints
+      const updated = {
+        ...loop,
+        subtasks: [
+          ...PHASE_CHECKPOINTS.map(cp => ({
+            id: generateId('pc'),
+            text: cp.name,
+            phase: cp.phase,
+            done: false,
+            isPhaseCheckpoint: true,
+          })),
+          ...(loop.subtasks || []),
+        ],
+      };
+      setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
+      setSelected(prev => prev?.id === loop.id ? updated : prev);
+      await saveLoop(updated, userId);
+    });
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-close phase loops when their phase has ended
   useEffect(() => {
     if (loading || loops.length === 0) return;
@@ -1416,8 +1441,8 @@ function DetailPanel({
             </div>
           )}
 
-          {/* Regular Steps */}
-          {(regularSubtasks.length > 0 || isActive) && (
+          {/* Regular Steps — not shown for cycle loops */}
+          {!isCycle && (regularSubtasks.length > 0 || isActive) && (
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)', marginBottom: 12 }}>
                 STEPS

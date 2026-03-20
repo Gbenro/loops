@@ -194,11 +194,23 @@ export async function getEchoes(userId) {
       isEncrypted: row.is_encrypted || false,
       audio_path: row.audio_path || null,
       tags: row.tags || [],
+      linkedLoopId: row.linked_loop_id || null,
       createdAt: row.created_at,
     }));
 
-    setLocal(ECHOES_KEY, echoes);
-    return echoes;
+    // Merge: keep local echoes not on server (e.g. save failed due to missing column)
+    const serverIds = new Set(echoes.map(e => e.id));
+    const localEchoes = getLocal(ECHOES_KEY);
+    const unsyncedLocal = localEchoes.filter(e => !serverIds.has(e.id));
+    const merged = [...echoes, ...unsyncedLocal];
+    setLocal(ECHOES_KEY, merged);
+
+    // Retry syncing unsynced local echoes
+    for (const echo of unsyncedLocal) {
+      saveEcho(echo, userId);
+    }
+
+    return merged;
   } catch (e) {
     console.warn('Failed to fetch echoes from server:', e);
     return getLocal(ECHOES_KEY);
@@ -229,6 +241,7 @@ export async function saveEcho(echo, userId) {
         illumination: echo.illumination,
         is_encrypted: echo.isEncrypted || false,
         audio_path: echo.audio_path || null,
+        linked_loop_id: echo.linkedLoopId || null,
         created_at: echo.createdAt,
       });
 
