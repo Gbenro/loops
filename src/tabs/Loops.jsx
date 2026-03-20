@@ -345,9 +345,70 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     await saveLoop(updated, userId);
   };
 
+  // ─── Active loop ordering (localStorage, per-device) ───────────────────────
+  const [activeLoopsOrder, setActiveLoopsOrder] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('loops_active_order_v1') || '[]'); } catch { return []; }
+  });
+
+  const persistLoopsOrder = (order) => {
+    try { localStorage.setItem('loops_active_order_v1', JSON.stringify(order)); } catch {}
+  };
+
+  const sortByOrder = (list, order) => {
+    if (!order.length) return list;
+    return [...list].sort((a, b) => {
+      const ai = order.indexOf(a.id);
+      const bi = order.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  };
+
+  const reorderActiveLoop = (loopId, direction, sectionLoops) => {
+    const sectionIds = sectionLoops.map(l => l.id);
+    const base = [...activeLoopsOrder.filter(id => sectionIds.includes(id))];
+    // ensure all section IDs present
+    for (const id of sectionIds) if (!base.includes(id)) base.push(id);
+    const idx = base.indexOf(loopId);
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= base.length) return;
+    [base[idx], base[newIdx]] = [base[newIdx], base[idx]];
+    const merged = [...activeLoopsOrder.filter(id => !sectionIds.includes(id)), ...base];
+    setActiveLoopsOrder(merged);
+    persistLoopsOrder(merged);
+  };
+
+  // ─── Focus: ongoing / paused ────────────────────────────────────────────────
+  const toggleLoopFocus = async (loopId) => {
+    const loop = loops.find(l => l.id === loopId);
+    if (!loop) return;
+    const isOngoing = loop.focus === 'ongoing';
+    const updatedLoops = loops.map(l => {
+      if (l.type === 'cycle' || l.status !== 'active') return l;
+      if (l.id === loopId) return { ...l, focus: isOngoing ? null : 'ongoing' };
+      // when setting one as ongoing, pause all others; when clearing, leave as-is
+      if (!isOngoing) return { ...l, focus: 'paused' };
+      return l;
+    });
+    setLoops(updatedLoops);
+    if (selected?.id === loopId) setSelected(updatedLoops.find(l => l.id === loopId));
+    for (const updated of updatedLoops) {
+      const original = loops.find(l => l.id === updated.id);
+      if (original?.focus !== updated.focus) await saveLoop(updated, userId);
+    }
+  };
+
   // Filter loops by type
-  const phaseLoops = loops.filter(l => l.type === 'phase' && l.status === 'active');
-  const openLoops = loops.filter(l => l.type === 'open' && l.status === 'active');
+  const phaseLoops = sortByOrder(
+    loops.filter(l => l.type === 'phase' && l.status === 'active'),
+    activeLoopsOrder
+  );
+  const openLoops = sortByOrder(
+    loops.filter(l => l.type === 'open' && l.status === 'active'),
+    activeLoopsOrder
+  );
 
   // All closed phase/open loops (for phase mode)
   const allClosedLoops = loops
@@ -676,13 +737,19 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                 {lunarData.phaseRemaining?.toFixed(1)}D WINDOW
               </span>
             </div>
-            {phaseLoops.map(loop => (
+            {phaseLoops.map((loop, i) => (
               <LoopCard
                 key={loop.id}
                 loop={loop}
                 pct={getLoopPct(loop)}
                 isWindowed
                 lunarData={lunarData}
+                focus={loop.focus || null}
+                onToggleFocus={() => toggleLoopFocus(loop.id)}
+                canMoveUp={i > 0}
+                canMoveDown={i < phaseLoops.length - 1}
+                onMoveUp={() => reorderActiveLoop(loop.id, 'up', phaseLoops)}
+                onMoveDown={() => reorderActiveLoop(loop.id, 'down', phaseLoops)}
                 onSelect={() => {
                   setSelected(loop);
                   setShowDetail(true);
@@ -705,11 +772,17 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             }}>
               OPEN LOOPS
             </div>
-            {openLoops.map(loop => (
+            {openLoops.map((loop, i) => (
               <LoopCard
                 key={loop.id}
                 loop={loop}
                 pct={getLoopPct(loop)}
+                focus={loop.focus || null}
+                onToggleFocus={() => toggleLoopFocus(loop.id)}
+                canMoveUp={i > 0}
+                canMoveDown={i < openLoops.length - 1}
+                onMoveUp={() => reorderActiveLoop(loop.id, 'up', openLoops)}
+                onMoveDown={() => reorderActiveLoop(loop.id, 'down', openLoops)}
                 onSelect={() => {
                   setSelected(loop);
                   setShowDetail(true);
@@ -1088,11 +1161,13 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
 
 // ─── Loop Card ───────────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect, onClose, onReopen }) {
+function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const isOpen = loop.type === 'open';
   const isPhase = loop.type === 'phase';
   const isCycle = loop.type === 'cycle';
   const isAutoReleased = loop.autoClosedReason === 'phase_ended';
+  const isOngoing = focus === 'ongoing';
+  const isPaused = focus === 'paused';
 
   // Calculate window remaining for phase loops
   let windowText = null;
@@ -1110,21 +1185,37 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '14px 16px',
+        gap: 10,
+        padding: '14px 12px 14px 14px',
         background: isOpen
           ? 'rgba(148, 163, 184, 0.03)'
           : 'rgba(245, 230, 200, 0.025)',
-        border: `1px solid ${isOpen
-          ? 'rgba(148, 163, 184, 0.08)'
-          : 'rgba(245, 230, 200, 0.06)'}`,
+        border: `1px solid ${isOpen ? 'rgba(148, 163, 184, 0.08)' : 'rgba(245, 230, 200, 0.06)'}`,
+        borderLeft: !closed ? `3px solid ${isOngoing ? '#34D399' : isPaused ? 'rgba(251, 191, 36, 0.45)' : 'transparent'}` : undefined,
         borderRadius: 12,
         marginBottom: 10,
-        opacity: closed ? 0.5 : 1,
+        opacity: closed ? 0.5 : isPaused ? 0.55 : 1,
         cursor: 'pointer',
+        transition: 'opacity 0.2s',
       }}
       onClick={onSelect}
     >
+      {/* Reorder buttons — active non-cycle only */}
+      {!closed && (onMoveUp || onMoveDown) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+            disabled={!canMoveUp}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'rgba(245, 230, 200, 0.35)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+          >▲</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+            disabled={!canMoveDown}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'rgba(245, 230, 200, 0.35)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+          >▼</button>
+        </div>
+      )}
+
       <Ring
         pct={pct}
         color={isAutoReleased ? 'rgba(251, 191, 36, 0.5)' : released ? 'rgba(245, 230, 200, 0.3)' : (loop.color || '#A78BFA')}
@@ -1144,79 +1235,48 @@ function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect
         }}>
           {loop.title}
         </div>
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          fontSize: 9,
-          fontFamily: 'monospace',
-          color: 'rgba(245, 230, 200, 0.4)',
-        }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
           <span style={{
-            padding: '2px 6px',
-            borderRadius: 4,
-            background: isAutoReleased
-              ? 'rgba(251, 191, 36, 0.1)'
-              : released
-                ? 'rgba(252, 129, 129, 0.1)'
-                : isCycle
-                  ? 'rgba(245, 230, 200, 0.08)'
-                  : isOpen
-                    ? 'rgba(148, 163, 184, 0.1)'
-                    : 'rgba(167, 139, 250, 0.1)',
-            color: isAutoReleased
-              ? 'rgba(251, 191, 36, 0.7)'
-              : released
-                ? 'rgba(252, 129, 129, 0.6)'
-                : isCycle
-                  ? 'rgba(245, 230, 200, 0.7)'
-                  : isOpen
-                    ? 'rgba(148, 163, 184, 0.7)'
-                    : 'rgba(167, 139, 250, 0.7)',
+            padding: '2px 6px', borderRadius: 4,
+            background: isAutoReleased ? 'rgba(251, 191, 36, 0.1)' : released ? 'rgba(252, 129, 129, 0.1)' : isCycle ? 'rgba(245, 230, 200, 0.08)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
+            color: isAutoReleased ? 'rgba(251, 191, 36, 0.7)' : released ? 'rgba(252, 129, 129, 0.6)' : isCycle ? 'rgba(245, 230, 200, 0.7)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
           }}>
             {isAutoReleased ? 'PHASE ENDED' : released ? 'RELEASED' : isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
-          {/* Show phase opened for open loops */}
-          {isOpen && loop.phaseName && (
-            <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>
-              ↑ {loop.phaseName}
-            </span>
-          )}
-          {/* Show phase closed for completed open loops */}
-          {isOpen && closed && (
-            <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>
-              ↓ {loop.phaseNameClosed || '?'}
-            </span>
-          )}
-          {windowText && (
-            <span style={{
-              color: 'rgba(167, 139, 250, 0.5)',
-            }}>
-              {windowText}
-            </span>
-          )}
+          {isOngoing && <span style={{ color: '#34D399', letterSpacing: '0.08em' }}>▶ ONGOING</span>}
+          {isPaused && <span style={{ color: 'rgba(251, 191, 36, 0.6)', letterSpacing: '0.08em' }}>⏸ PAUSED</span>}
+          {isOpen && loop.phaseName && !closed && <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>↑ {loop.phaseName}</span>}
+          {isOpen && closed && <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>}
+          {windowText && <span style={{ color: 'rgba(167, 139, 250, 0.5)' }}>{windowText}</span>}
         </div>
       </div>
 
+      {/* Focus toggle button */}
+      {!closed && onToggleFocus && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFocus(); }}
+          title={isOngoing ? 'Clear ongoing' : 'Set as ongoing'}
+          style={{
+            width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+            border: `1px solid ${isOngoing ? 'rgba(52,211,153,0.5)' : isPaused ? 'rgba(251,191,36,0.3)' : 'rgba(245,230,200,0.15)'}`,
+            background: isOngoing ? 'rgba(52,211,153,0.12)' : 'transparent',
+            color: isOngoing ? '#34D399' : isPaused ? 'rgba(251,191,36,0.5)' : 'rgba(245,230,200,0.2)',
+            fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {isOngoing ? '▶' : isPaused ? '⏸' : '◎'}
+        </button>
+      )}
+
+      {/* Close / reopen button */}
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          closed ? onReopen?.() : onClose?.();
-        }}
+        onClick={(e) => { e.stopPropagation(); closed ? onReopen?.() : onClose?.(); }}
         style={{
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
+          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
           border: `2px solid ${closed ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`,
           background: closed ? '#34D399' : 'transparent',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: closed ? '#040810' : 'transparent',
-          fontSize: 14,
-          flexShrink: 0,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: closed ? '#040810' : 'transparent', fontSize: 14,
         }}
       >
         {closed && '✓'}
