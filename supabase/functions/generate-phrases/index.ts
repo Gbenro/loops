@@ -104,7 +104,42 @@ serve(async (req) => {
       throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
-    const { cycleState } = await req.json();
+    const body = await req.json();
+
+    // Rhythm report: client provides systemPrompt + userMessage directly
+    if (body.type === 'rhythm_report') {
+      const { systemPrompt, userMessage } = body;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 400,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Anthropic API error (rhythm_report):", errorText);
+        throw new Error(`Anthropic API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.content[0].text;
+
+      return new Response(JSON.stringify({ text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { cycleState } = body;
 
     const userPrompt = `Current cosmic state:
 - Moon Phase: ${cycleState.phase} (${cycleState.phaseStatus})
