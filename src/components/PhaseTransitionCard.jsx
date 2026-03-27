@@ -3,20 +3,30 @@
 // Two parts: Phase Summary (closing) + Transition Preview (opening)
 
 import { useMemo } from 'react';
-import { getPhaseContent } from '../data/phaseContent.js';
+import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { generatePhaseSummary, savePhaseSummary } from '../lib/storage.js';
 
-// Phase closing summaries (fallback if no activity)
-const PHASE_CLOSING_SUMMARIES = {
-  'new': 'The stillness gave space for seeds to form.',
-  'waxing-crescent': 'First steps were taken. Momentum began.',
-  'first-quarter': 'Decisions were made. Direction clarified.',
-  'waxing-gibbous': 'Building continued. Refinement happened.',
-  'full': 'Illumination arrived. Something was revealed.',
-  'waning-gibbous': 'Sharing began. Gratitude flowed.',
-  'last-quarter': 'Release happened. Letting go.',
-  'waning-crescent': 'Rest restored. Completion neared.',
-};
+// Phase closing summaries - pulled from phaseContent.js tide data for contextual awareness
+function getPhaseClosingSummary(phaseKey, tideKey = 'closing') {
+  const content = getPhaseContent(phaseKey);
+  // Use the tide-specific content for closing phases
+  const tidePool = content.typeOpening?.[tideKey] || content.typeOpening?.closing;
+  if (tidePool && Array.isArray(tidePool)) {
+    return pickForToday(tidePool);
+  }
+  // Fallback to static summaries if tide data unavailable
+  const FALLBACK_SUMMARIES = {
+    'new': 'The stillness gave space for seeds to form.',
+    'waxing-crescent': 'First steps were taken. Momentum began.',
+    'first-quarter': 'Decisions were made. Direction clarified.',
+    'waxing-gibbous': 'Building continued. Refinement happened.',
+    'full': 'Illumination arrived. Something was revealed.',
+    'waning-gibbous': 'Sharing began. Gratitude flowed.',
+    'last-quarter': 'Release happened. Letting go.',
+    'waning-crescent': 'Rest restored. Completion neared.',
+  };
+  return FALLBACK_SUMMARIES[phaseKey] || 'This phase is completing.';
+}
 
 const TRANSITION_INVITATIONS = {
   'Waxing Crescent': 'First movement begins. What is the most natural first step toward your intention?',
@@ -68,7 +78,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     phaseSummary.stats.loopsOpenedCount > 0 ||
     phaseSummary.stats.loopsClosedCount > 0
   );
-  const closingSummary = PHASE_CLOSING_SUMMARIES[phase.key] || 'This phase is completing.';
+  const closingSummary = getPhaseClosingSummary(phase.key, 'closing');
 
   // Use generated phrase if available, fall back to static
   const invitation = transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
