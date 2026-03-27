@@ -91,7 +91,7 @@ function CreateSheet({ onSave, onClose }) {
                 key={v}
                 onClick={() => setScope(v)}
                 style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer', textAlign: 'left',
+                  flex: 1, padding: '12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
                   background: scope === v ? 'rgba(245,230,200,0.07)' : 'rgba(245,230,200,0.02)',
                   border: scope === v ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.06)',
                 }}
@@ -111,7 +111,7 @@ function CreateSheet({ onSave, onClose }) {
           onClick={handleSave}
           disabled={!canSave || saving}
           style={{
-            width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+            width: '100%', padding: '14px', borderRadius: 12,
             background: canSave ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.03)',
             border: canSave ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
             color: canSave ? '#f5e6c8' : 'rgba(245,230,200,0.25)',
@@ -248,7 +248,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
             <button
               onClick={() => handleContinueIntention(r)}
               style={{
-                flex: 1, padding: '9px', borderRadius: 8, border: 'none',
+                flex: 1, padding: '9px', borderRadius: 8,
                 background: 'rgba(245,230,200,0.06)',
                 border: '1px solid rgba(245,230,200,0.1)',
                 color: 'rgba(245,230,200,0.7)', fontSize: 12, cursor: 'pointer',
@@ -260,7 +260,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
             <button
               onClick={() => setSelectedRhythm(r)}
               style={{
-                flex: 1, padding: '9px', borderRadius: 8, border: 'none',
+                flex: 1, padding: '9px', borderRadius: 8,
                 background: 'rgba(245,230,200,0.03)',
                 border: '1px solid rgba(245,230,200,0.08)',
                 color: 'rgba(245,230,200,0.5)', fontSize: 12, cursor: 'pointer',
@@ -342,7 +342,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
           maxWidth: 'calc(520px - 40px)',
           width: 'calc(100% - 40px)',
           padding: '13px',
-          borderRadius: 12, border: 'none',
+          borderRadius: 12,
           background: 'rgba(245,230,200,0.06)',
           border: '1px solid rgba(245,230,200,0.1)',
           color: 'rgba(245,230,200,0.5)',

@@ -1044,7 +1044,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               textAlign: 'left',
             }}
           >
-            "{phaseContent.asks}"
+            &ldquo;{phaseContent.asks}&rdquo;
           </button>
         )}
       </div>

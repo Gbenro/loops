@@ -261,7 +261,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               opacity: 1,
               transition: 'opacity 0.4s ease',
             }}>
-              "{phrases.phaseGuidance}"
+              &ldquo;{phrases.phaseGuidance}&rdquo;
             </div>
           )}
         </div>

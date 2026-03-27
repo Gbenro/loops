@@ -351,7 +351,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   });
 
   const persistLoopsOrder = (order) => {
-    try { localStorage.setItem('loops_active_order_v1', JSON.stringify(order)); } catch {}
+    try { localStorage.setItem('loops_active_order_v1', JSON.stringify(order)); } catch (_e) { /* ignore localStorage errors */ }
   };
 
   const sortByOrder = (list, order) => {
