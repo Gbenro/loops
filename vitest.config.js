@@ -11,7 +11,18 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules', 'dist', 'android', 'ios', '**/*.config.js'],
+      exclude: [
+        'node_modules',
+        'dist',
+        'android',
+        'ios',
+        '**/*.config.js',
+        'src/test/**',
+        'src/main.jsx',
+      ],
+      include: ['src/lib/**', 'src/components/**'],
+      // Coverage reporting enabled. Thresholds can be added as coverage increases.
+      // Current baseline: lunar.js (100%), solar.js (95%), MoonFace.jsx (100%)
     },
   },
 });
