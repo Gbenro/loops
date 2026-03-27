@@ -55,6 +55,46 @@ const FALLBACK_POOLS = {
     "A threshold is approaching. Meet it consciously.",
     "The energy is about to shift. Notice how you feel.",
   ],
+  tapDeeperInvitation: [
+    "Tap to see what the sky is saying.",
+    "There is more here. Tap to find it.",
+    "The moon has layers. Tap to go deeper.",
+    "What else is moving? Tap to find out.",
+    "The cycles speak. Tap to listen.",
+    "More to discover. Tap the moon.",
+  ],
+  loopCreationContext: [
+    "What wants your attention right now?",
+    "What needs to open?",
+    "What is asking to be tracked?",
+    "Name what you want to move.",
+    "What loop is forming in you?",
+    "What practice needs a container?",
+  ],
+  rhythmContinuePrompt: [
+    "Does this practice want to continue as it was, or shift?",
+    "Same intention, or does something want to change?",
+    "What does this rhythm need for the new cycle?",
+    "Carry forward, or recalibrate?",
+    "How does this practice want to meet the new moon?",
+    "Continue the thread, or tie it off and start fresh?",
+  ],
+  formPlaceholder: [
+    "Write what is present...",
+    "Name what is here...",
+    "Let it take shape...",
+    "What wants to be said...",
+    "Put words to it...",
+    "Speak it into form...",
+  ],
+  emptyStateGuidance: [
+    "Nothing here yet. The space is waiting.",
+    "Empty, but ready. What wants to begin?",
+    "A blank slate. The cycle is young.",
+    "No entries yet. That is also information.",
+    "The field is clear. What will you plant?",
+    "Nothing recorded. Start when you are ready.",
+  ],
   deepSheetArcs: [
     "Larger patterns move beneath your days.",
     "You are inside rhythms older than you.",
@@ -208,6 +248,170 @@ const PHASE_GUIDANCE = {
   ],
 };
 
+// Phase-specific tap deeper invitations
+const PHASE_TAP_DEEPER = {
+  'new': [
+    "The dark holds more. Tap to enter.",
+    "Seeds form in silence. Tap to listen.",
+    "There is depth in the dark. Tap.",
+    "The new moon has secrets. Tap to find them.",
+    "Stillness speaks. Tap to hear it.",
+  ],
+  'waxing-crescent': [
+    "First light reveals. Tap to see more.",
+    "The crescent is building. Tap to go deeper.",
+    "Energy is rising. Tap to feel it.",
+    "Something is forming. Tap to witness.",
+    "The build has begun. Tap for guidance.",
+  ],
+  'first-quarter': [
+    "The tension has meaning. Tap to understand.",
+    "A decision is forming. Tap for clarity.",
+    "Half-lit, half-dark. Tap to see both.",
+    "The threshold speaks. Tap to hear it.",
+    "What is being asked? Tap to find out.",
+  ],
+  'waxing-gibbous': [
+    "You are close. Tap to refine.",
+    "Almost there. Tap for the details.",
+    "The peak approaches. Tap to prepare.",
+    "Fine-tuning time. Tap for insight.",
+    "What needs adjustment? Tap to see.",
+  ],
+  'full': [
+    "Maximum light. Tap to see clearly.",
+    "Everything illuminated. Tap to look.",
+    "The truth is visible. Tap to receive it.",
+    "The peak is here. Tap to witness.",
+    "What does the full moon show? Tap.",
+  ],
+  'waning-gibbous': [
+    "What wants to be shared? Tap to find out.",
+    "The harvest is in. Tap to see it.",
+    "Integration is underway. Tap for guidance.",
+    "The light recedes with gifts. Tap.",
+    "What did you receive? Tap to reflect.",
+  ],
+  'last-quarter': [
+    "What needs to go? Tap to see.",
+    "Release is the work. Tap for clarity.",
+    "The clearing is underway. Tap to help it.",
+    "What are you still holding? Tap.",
+    "The reckoning has insight. Tap.",
+  ],
+  'waning-crescent': [
+    "Rest is speaking. Tap to listen.",
+    "The dark returns. Tap to welcome it.",
+    "The cycle completes. Tap to honour it.",
+    "Stillness before renewal. Tap.",
+    "What wants to rest? Tap to find out.",
+  ],
+};
+
+// Phase-specific form placeholders
+const PHASE_FORM_PLACEHOLDER = {
+  'new': [
+    "What intention is forming in the quiet...",
+    "Name what wants to begin...",
+    "A seed of thought...",
+    "What is stirring in the dark...",
+  ],
+  'waxing-crescent': [
+    "What is building...",
+    "The next step is...",
+    "What wants momentum...",
+    "What are you moving toward...",
+  ],
+  'first-quarter': [
+    "What decision is forming...",
+    "The choice before you...",
+    "What needs commitment...",
+    "What the tension is showing...",
+  ],
+  'waxing-gibbous': [
+    "What needs refinement...",
+    "A small adjustment...",
+    "What is almost ready...",
+    "The finishing touch...",
+  ],
+  'full': [
+    "What the light reveals...",
+    "What is being shown...",
+    "The truth of this moment...",
+    "What you see clearly...",
+  ],
+  'waning-gibbous': [
+    "What wants to be shared...",
+    "What you are giving back...",
+    "The gratitude is for...",
+    "What moves through you...",
+  ],
+  'last-quarter': [
+    "What you are releasing...",
+    "What no longer serves...",
+    "What you are letting go...",
+    "What wants to end...",
+  ],
+  'waning-crescent': [
+    "What wants to rest...",
+    "The quiet holds...",
+    "Before the dark...",
+    "What is completing...",
+  ],
+};
+
+// Phase-specific empty state guidance
+const PHASE_EMPTY_STATE = {
+  'new': [
+    "The new moon is for planting, not harvesting. Start a seed when ready.",
+    "Nothing here yet. The dark is full of potential.",
+    "Empty — like the new moon. Something will form.",
+    "A blank space in the quiet. Let it fill naturally.",
+  ],
+  'waxing-crescent': [
+    "Nothing started yet. The crescent has energy for beginning.",
+    "Empty, but the momentum is available. Use it.",
+    "No loops yet. The waxing supports opening them.",
+    "Start something. The crescent rewards first steps.",
+  ],
+  'first-quarter': [
+    "Nothing here. What are you willing to commit to?",
+    "Empty at the threshold. A decision could fill it.",
+    "No entries. The first quarter asks for action.",
+    "The space is waiting. What will you put in it?",
+  ],
+  'waxing-gibbous': [
+    "Nothing to refine yet. What are you building toward?",
+    "Empty near the peak. What do you want illuminated?",
+    "No loops. The gibbous is for finishing, not starting.",
+    "The field is clear. Consider what to bring to the full moon.",
+  ],
+  'full': [
+    "Nothing recorded at the peak. What does the light show?",
+    "Empty at full moon. Witness what is already present.",
+    "No entries. The full moon is for receiving, not doing.",
+    "The harvest is not here. What did this cycle actually grow?",
+  ],
+  'waning-gibbous': [
+    "Nothing shared yet. What wants to move outward?",
+    "Empty in the giving phase. What do you have to offer?",
+    "No echoes. The waning gibbous supports expression.",
+    "The space is quiet. What did the full moon reveal?",
+  ],
+  'last-quarter': [
+    "Nothing to release. Or everything is already gone.",
+    "Empty at the clearing. Let it be clean.",
+    "No entries. Sometimes nothing needs to be said.",
+    "The field is clear. That is also completion.",
+  ],
+  'waning-crescent': [
+    "Nothing here. Good. Rest does not require content.",
+    "Empty before the dark. Let it stay that way.",
+    "No entries. The waning crescent asks for stillness.",
+    "The quiet is enough. Do not fill it unnecessarily.",
+  ],
+};
+
 const PHASE_BANNER = {
   'new': [
     "Set one true intention for this cycle.",
@@ -297,6 +501,11 @@ function buildRandomFallback(cycleState) {
     echoesWritePrompt:   pick(FALLBACK_POOLS.echoesWritePrompt),
     echoesVoicePrompt:   pick(FALLBACK_POOLS.echoesVoicePrompt),
     transitionInvitation:pick(FALLBACK_POOLS.transitionInvitation),
+    tapDeeperInvitation: pickPhase(PHASE_TAP_DEEPER, phase),
+    loopCreationContext: pick(FALLBACK_POOLS.loopCreationContext),
+    rhythmContinuePrompt:pick(FALLBACK_POOLS.rhythmContinuePrompt),
+    formPlaceholder:     pickPhase(PHASE_FORM_PLACEHOLDER, phase),
+    emptyStateGuidance:  pickPhase(PHASE_EMPTY_STATE, phase),
     deepSheetPhase:      null,
     deepSheetMoon:       null,
     deepSheetSign:       null,
@@ -374,7 +583,6 @@ function buildCycleState(lunarData, solarData) {
 
 export async function getSessionPhrases(lunarData, solarData) {
   const cycleState = buildCycleState(lunarData, solarData);
-  console.log('[Phrases] Cycle state:', cycleState);
 
   // 1. Check cache
   try {
@@ -383,18 +591,15 @@ export async function getSessionPhrases(lunarData, solarData) {
       const cached = JSON.parse(raw);
       const age = Date.now() - cached.generatedAt;
       const samePhase = cached.phaseWhenGenerated === cycleState.phase;
-      console.log('[Phrases] Cache found, age:', Math.round(age / 1000 / 60), 'min, samePhase:', samePhase);
       if (age < SESSION_TTL && samePhase) {
-        console.log('[Phrases] Using cached phrases');
         return cached.phrases;
       }
     }
-  } catch (e) {
-    console.warn('[Phrases] Cache read error:', e);
+  } catch (_e) {
+    // Cache read failed, continue to fetch
   }
 
   // 2. Generate fresh via edge function
-  console.log('[Phrases] Fetching fresh phrases from:', GENERATE_PHRASES_URL);
   try {
     const res = await fetch(GENERATE_PHRASES_URL, {
       method: 'POST',
@@ -404,24 +609,17 @@ export async function getSessionPhrases(lunarData, solarData) {
       body: JSON.stringify({ cycleState })
     });
 
-    console.log('[Phrases] Response status:', res.status);
-
     if (!res.ok) {
-      const error = await res.text();
-      console.error('[Phrases] Edge function error:', res.status, error);
       throw new Error(`API error: ${res.status}`);
     }
 
     const data = await res.json();
-    console.log('[Phrases] Response data:', data);
 
     if (data.error) {
-      console.error('[Phrases] API returned error:', data.error);
       throw new Error(data.error);
     }
 
     const phrases = data.phrases;
-    console.log('[Phrases] Generated phrases:', phrases);
 
     // 3. Cache it
     localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -431,9 +629,7 @@ export async function getSessionPhrases(lunarData, solarData) {
     }));
 
     return phrases;
-  } catch (e) {
-    console.error('[Phrases] Phrase generation failed:', e);
-    console.log('[Phrases] Using fallback phrases');
+  } catch (_e) {
     // 4. Fallback — build phase-aware phrases from pools
     return buildRandomFallback(cycleState);
   }

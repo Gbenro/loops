@@ -1,7 +1,28 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.DS_Store
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
 *.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
 
 # Capacitor
 android/app/src/main/assets/public/
@@ -11,3 +32,10 @@ android/app/build/
 android/build/
 ios/App/Pods/
 ios/DerivedData/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vercel
+.vercel

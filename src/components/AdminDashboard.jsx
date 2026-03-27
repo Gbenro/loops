@@ -6,7 +6,7 @@ const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 const V1_URL = import.meta.env.VITE_V1_URL || null;
 const V2_URL = import.meta.env.VITE_V2_URL || null;
 
-export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
+export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUserEmail }) {
   const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [allowlist, setAllowlist] = useState([]);
@@ -86,7 +86,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail }) {
 
       {/* Panel */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
+        position: 'absolute', bottom: 0, left: '50%',
+        transform: 'translateX(-50%)', width: '100%', maxWidth: 520,
         height: '92vh',
         background: '#070b14',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,

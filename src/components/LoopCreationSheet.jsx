@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { getPhaseEmoji } from '../lib/lunar.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 
 const PHASE_PROMPTS = {
   'new': 'What seed are you planting?',
@@ -98,8 +99,10 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
       <div style={{
         position: 'absolute',
         bottom: 0,
-        left: 0,
-        right: 0,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%',
+        maxWidth: 520,
         background: '#0a0a12',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
@@ -222,7 +225,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 lineHeight: 1.6,
                 paddingLeft: 38,
               }}>
-                Tied to {lunarData.phase.name}. You'll be nudged to close or release
+                Tied to {lunarData.phase.name}. You&apos;ll be nudged to close or release
                 this loop when the phase shifts.
               </div>
             </button>
@@ -287,7 +290,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               marginBottom: 24,
               lineHeight: 1.5,
             }}>
-              What do you want to track?
+              {resolvePhaseText('openLoopPrompt', lunarData.phase.key)}
             </div>
 
             <input

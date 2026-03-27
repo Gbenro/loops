@@ -8,9 +8,10 @@ import { DeepCosmicSheet } from '../components/DeepCosmicSheet.jsx';
 import { PhaseTideBar } from '../components/PhaseTideBar.jsx';
 import { PhaseTransitionCard } from '../components/PhaseTransitionCard.jsx';
 import { ProfileMenu } from '../components/ProfileMenu.jsx';
-import { getLunarData, getPhaseEmoji, getAllPhases } from '../lib/lunar.js';
+import { getAllPhases } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
-import { getSolarData } from '../lib/solar.js';
+// getSolarData is available but currently using passed-in solar data
+// import { getSolarData } from '../lib/solar.js';
 import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
@@ -31,7 +32,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
     : lunarData.phaseProgress < 0.88 ? 'completing'
     : 'closing';
   const typeOpening = pickForToday(phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening);
-  const zodiacInfo = getZodiacInfo(lunarData.zodiac.sign);
+  const _zodiacInfo = getZodiacInfo(lunarData.zodiac.sign); // For future zodiac details
   const allPhases = getAllPhases();
 
   // Format current time
@@ -146,7 +147,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             whiteSpace: 'nowrap',
             animation: 'breathe 3s ease-in-out infinite',
           }}>
-            TAP TO GO DEEPER
+            {phrasesLoading ? 'TAP TO GO DEEPER' : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
           </div>
         </div>
       </div>
@@ -261,7 +262,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               opacity: 1,
               transition: 'opacity 0.4s ease',
             }}>
-              "{phrases.phaseGuidance}"
+              &ldquo;{phrases.phaseGuidance}&rdquo;
             </div>
           )}
         </div>

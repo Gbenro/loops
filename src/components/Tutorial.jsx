@@ -505,7 +505,9 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
       {/* Top bar — always visible */}
       <div style={{
         position: 'fixed',
-        top: 0, left: 0, right: 0,
+        top: 0, left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%', maxWidth: 520,
         zIndex: 1003,
         display: 'flex',
         alignItems: 'center',
@@ -536,7 +538,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
 
 // ─── Guide Mode ───────────────────────────────────────────────────────────────
 
-function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, isWelcome, isClosing, cardBelow, onNext, onPrev, onClose }) {
+function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, isWelcome: _isWelcome, isClosing, cardBelow, onNext, onPrev, onClose }) {
   const pad = 12;
   const hasSpotlight = !isFullScreen && spotlightRect;
 
@@ -1146,7 +1148,7 @@ function NewMoonCard({ phase }) {
           fontSize: 15, fontStyle: 'italic',
           color: 'rgba(245,230,200,0.5)', lineHeight: 1.6,
         }}>
-          "{phase.entrainment}"
+          &ldquo;{phase.entrainment}&rdquo;
         </div>
       </div>
     </div>
@@ -1525,7 +1527,7 @@ function PhaseCard({ phase, moonAge }) {
           fontSize: 15, fontStyle: 'italic',
           color: 'rgba(245,230,200,0.5)', lineHeight: 1.6,
         }}>
-          "{phase.entrainment}"
+          &ldquo;{phase.entrainment}&rdquo;
         </div>
       </div>
     </div>

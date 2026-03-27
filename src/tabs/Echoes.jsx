@@ -7,6 +7,7 @@ import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, up
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudioUrl, getAudio, deleteAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
@@ -274,7 +275,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       return;
     }
     try {
-      console.log('[Voice] Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -283,7 +283,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           noiseSuppression: true,
         }
       });
-      console.log('[Voice] Microphone access granted');
 
       // Find supported mime type
       let mimeType = 'audio/webm';
@@ -299,28 +298,23 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         // Fallback - let browser choose
         mimeType = '';
       }
-      console.log('[Voice] Using mime type:', mimeType || 'browser default');
 
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        console.log('[Voice] Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        console.log('[Voice] Recording stopped, chunks:', audioChunksRef.current.length);
-
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
 
         // Create audio blob
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
-        console.log('[Voice] Audio blob created:', audioBlob.size, 'bytes');
 
         if (audioBlob.size > 0) {
           // Save blob for later storage
@@ -331,27 +325,20 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             const text = await transcribeAudio(audioBlob, setModelProgress);
             if (text) {
               setCurrentText(prev => prev + (prev ? ' ' : '') + text);
-            } else {
-              console.warn('[Voice] Empty transcription result');
             }
           } catch (error) {
-            console.error('[Voice] Transcription failed:', error);
             alert('Transcription failed: ' + error.message);
           }
           setIsTranscribing(false);
         } else {
-          console.error('[Voice] Empty audio blob');
           alert('No audio was recorded. Please try again.');
         }
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('[Voice] MediaRecorder error:', event.error);
-      };
+      mediaRecorder.onerror = () => {};
 
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start(500); // Collect data every 500ms
-      console.log('[Voice] Recording started');
 
       setIsRecording(true);
       setSource('voice');
@@ -366,7 +353,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       }
 
     } catch (error) {
-      console.error('[Voice] Could not start recording:', error);
       if (error.name === 'NotAllowedError') {
         alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
       } else if (error.name === 'NotFoundError') {
@@ -1044,7 +1030,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               textAlign: 'left',
             }}
           >
-            "{phaseContent.asks}"
+            &ldquo;{phaseContent.asks}&rdquo;
           </button>
         )}
       </div>
@@ -1063,7 +1049,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             fontSize: 14,
             fontStyle: 'italic',
           }}>
-            No echoes yet. What is alive in you?
+            {phrasesLoading
+              ? resolvePhaseText('noEchoesMessage', lunarData.phase.key)
+              : (phrases.emptyStateGuidance || resolvePhaseText('noEchoesMessage', lunarData.phase.key))}
           </div>
         ) : filteredEchoes.length === 0 ? (
           <div style={{

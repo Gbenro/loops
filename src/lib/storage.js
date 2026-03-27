@@ -71,6 +71,7 @@ export async function getLoops(userId) {
       note: row.note || null,
       isEncrypted: row.is_encrypted || false,
       tags: row.tags || [],
+      focus: row.focus || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -133,17 +134,16 @@ export async function saveLoop(loop, userId) {
         note: loop.note || null,
         is_encrypted: loop.isEncrypted || false,
         tags: loop.tags || [],
+        focus: loop.focus || null,
         updated_at: new Date().toISOString(),
       })
       .select();
 
     if (error) {
-      console.error('Supabase loops upsert error:', error);
       throw error;
     }
-    console.log('Loop saved to Supabase:', data);
-  } catch (e) {
-    console.error('Failed to save loop to server:', e);
+  } catch (_e) {
+    // Server save failed, local save still succeeded
   }
 
   return loop;
@@ -194,11 +194,23 @@ export async function getEchoes(userId) {
       isEncrypted: row.is_encrypted || false,
       audio_path: row.audio_path || null,
       tags: row.tags || [],
+      linkedLoopId: row.linked_loop_id || null,
       createdAt: row.created_at,
     }));
 
-    setLocal(ECHOES_KEY, echoes);
-    return echoes;
+    // Merge: keep local echoes not on server (e.g. save failed due to missing column)
+    const serverIds = new Set(echoes.map(e => e.id));
+    const localEchoes = getLocal(ECHOES_KEY);
+    const unsyncedLocal = localEchoes.filter(e => !serverIds.has(e.id));
+    const merged = [...echoes, ...unsyncedLocal];
+    setLocal(ECHOES_KEY, merged);
+
+    // Retry syncing unsynced local echoes
+    for (const echo of unsyncedLocal) {
+      saveEcho(echo, userId);
+    }
+
+    return merged;
   } catch (e) {
     console.warn('Failed to fetch echoes from server:', e);
     return getLocal(ECHOES_KEY);
@@ -229,6 +241,7 @@ export async function saveEcho(echo, userId) {
         illumination: echo.illumination,
         is_encrypted: echo.isEncrypted || false,
         audio_path: echo.audio_path || null,
+        linked_loop_id: echo.linkedLoopId || null,
         created_at: echo.createdAt,
       });
 
@@ -466,7 +479,7 @@ export function getCurrentCyclePhaseSummaries(lunarMonth) {
 // Clear all local cache — called when a different user signs in
 export function clearLocalCache() {
   [LOOPS_KEY, ECHOES_KEY, PHASE_SUMMARIES_KEY, CYCLE_SUMMARIES_KEY].forEach(key => {
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   });
 }
 

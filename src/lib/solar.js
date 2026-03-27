@@ -73,7 +73,6 @@ const WINTER_SOLSTICE_DAY = 355;
 export function getSolarDayOfYear(date = new Date()) {
   const gregorianDay = getDayOfYear(date);
   const year = date.getFullYear();
-  const daysInYear = isLeapYear(year) ? 366 : 365;
 
   if (gregorianDay >= WINTER_SOLSTICE_DAY) {
     // After Winter Solstice: day 1, 2, 3...

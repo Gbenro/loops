@@ -36,7 +36,7 @@ const THRESHOLD_INTRO = (phaseName) =>
 const FLOW_INTRO = (phaseName, duration) =>
   `A flow phase opens. ${phaseName} gives you ${duration}+ days. No rush. Settle in.`;
 
-export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading, echoes = [], loops = [] }) {
+export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading: _phrasesLoading, echoes = [], loops = [] }) {
   const {
     isApproaching,
     isImminent,
@@ -179,7 +179,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}>
-                "{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}"
+                &ldquo;{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}&rdquo;
               </div>
             ))}
             {phaseSummary.echoes.length > 2 && (
