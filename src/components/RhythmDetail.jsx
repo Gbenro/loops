@@ -286,17 +286,20 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
             {rhythm.name}
           </div>
           <button
-            onClick={() => setShowIntention(true)}
+            onClick={() => instance && setShowIntention(true)}
             style={{
               background: 'none', border: 'none', padding: 0,
               fontSize: 11, fontFamily: 'monospace',
-              color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em',
-              cursor: 'pointer',
+              color: instance ? 'rgba(245,230,200,0.3)' : 'rgba(245,230,200,0.15)',
+              letterSpacing: '0.1em',
+              cursor: instance ? 'pointer' : 'default',
             }}
           >
-            {instance?.intentionType && instance.intentionType !== 'none'
-              ? '◎ INTENTION SET — TAP TO EDIT'
-              : '◌ SET INTENTION'}
+            {!instance
+              ? '◌ LOADING…'
+              : instance.intentionType && instance.intentionType !== 'none'
+                ? '◎ INTENTION SET — TAP TO EDIT'
+                : '◌ SET INTENTION'}
           </button>
         </div>
 
