@@ -274,7 +274,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       return;
     }
     try {
-      console.log('[Voice] Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -283,7 +282,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           noiseSuppression: true,
         }
       });
-      console.log('[Voice] Microphone access granted');
 
       // Find supported mime type
       let mimeType = 'audio/webm';
@@ -299,28 +297,23 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         // Fallback - let browser choose
         mimeType = '';
       }
-      console.log('[Voice] Using mime type:', mimeType || 'browser default');
 
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        console.log('[Voice] Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        console.log('[Voice] Recording stopped, chunks:', audioChunksRef.current.length);
-
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
 
         // Create audio blob
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
-        console.log('[Voice] Audio blob created:', audioBlob.size, 'bytes');
 
         if (audioBlob.size > 0) {
           // Save blob for later storage
@@ -331,27 +324,20 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             const text = await transcribeAudio(audioBlob, setModelProgress);
             if (text) {
               setCurrentText(prev => prev + (prev ? ' ' : '') + text);
-            } else {
-              console.warn('[Voice] Empty transcription result');
             }
           } catch (error) {
-            console.error('[Voice] Transcription failed:', error);
             alert('Transcription failed: ' + error.message);
           }
           setIsTranscribing(false);
         } else {
-          console.error('[Voice] Empty audio blob');
           alert('No audio was recorded. Please try again.');
         }
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('[Voice] MediaRecorder error:', event.error);
-      };
+      mediaRecorder.onerror = () => {};
 
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start(500); // Collect data every 500ms
-      console.log('[Voice] Recording started');
 
       setIsRecording(true);
       setSource('voice');
@@ -366,7 +352,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       }
 
     } catch (error) {
-      console.error('[Voice] Could not start recording:', error);
       if (error.name === 'NotAllowedError') {
         alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
       } else if (error.name === 'NotFoundError') {

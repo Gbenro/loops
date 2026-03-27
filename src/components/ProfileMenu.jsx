@@ -63,17 +63,15 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        console.log('Profile load error:', error.message);
-      } else if (data) {
+      if (!error && data) {
         setProfile(data);
         setSunSign(data.sun_sign || '');
         setMoonSign(data.moon_sign || '');
         setRisingSign(data.rising_sign || '');
         setHemisphere(data.hemisphere || 'north');
       }
-    } catch (e) {
-      console.log('No profile yet:', e.message);
+    } catch (_e) {
+      // Profile not found yet
     }
     setLoading(false);
   };

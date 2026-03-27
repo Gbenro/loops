@@ -19,11 +19,9 @@ function storagePath(userId, echoId, mimeType) {
 // Upload audio blob — returns the storage path, 'TOO_LARGE' if over limit, or null on failure
 export async function saveAudio(echoId, audioBlob, userId) {
   if (!userId) {
-    console.warn('[Audio] Cannot save — user not logged in');
     return null;
   }
   if (audioBlob.size > MAX_AUDIO_SIZE) {
-    console.warn('[Audio] File too large to upload:', (audioBlob.size / 1024 / 1024).toFixed(1), 'MB');
     return 'TOO_LARGE';
   }
   try {
@@ -35,10 +33,8 @@ export async function saveAudio(echoId, audioBlob, userId) {
         upsert: true,
       });
     if (error) throw error;
-    console.log('[Audio] Uploaded to storage:', path);
     return path;
-  } catch (e) {
-    console.error('[Audio] Upload failed:', e);
+  } catch (_e) {
     return null;
   }
 }
@@ -52,8 +48,7 @@ export async function getAudioUrl(audioPath) {
       .createSignedUrl(audioPath, 3600);
     if (error) throw error;
     return data.signedUrl;
-  } catch (e) {
-    console.error('[Audio] Could not get signed URL:', e);
+  } catch (_e) {
     return null;
   }
 }
@@ -67,8 +62,7 @@ export async function getAudio(audioPath) {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
     return await res.blob();
-  } catch (e) {
-    console.error('[Audio] Download failed:', e);
+  } catch (_e) {
     return null;
   }
 }
@@ -81,10 +75,8 @@ export async function deleteAudio(audioPath) {
       .from(BUCKET)
       .remove([audioPath]);
     if (error) throw error;
-    console.log('[Audio] Deleted from storage:', audioPath);
     return true;
-  } catch (e) {
-    console.error('[Audio] Delete failed:', e);
+  } catch (_e) {
     return false;
   }
 }

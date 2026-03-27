@@ -140,12 +140,10 @@ export async function saveLoop(loop, userId) {
       .select();
 
     if (error) {
-      console.error('Supabase loops upsert error:', error);
       throw error;
     }
-    console.log('Loop saved to Supabase:', data);
-  } catch (e) {
-    console.error('Failed to save loop to server:', e);
+  } catch (_e) {
+    // Server save failed, local save still succeeded
   }
 
   return loop;

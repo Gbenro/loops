@@ -45,12 +45,6 @@ const PHASE_ENERGY = {
   'waning-crescent': 'Rest',
 };
 
-// Lunar month names (traditional)
-const LUNAR_MONTHS = [
-  'Wolf', 'Snow', 'Worm', 'Pink', 'Flower', 'Strawberry',
-  'Buck', 'Sturgeon', 'Harvest', "Hunter's", 'Beaver', 'Cold', 'Blue'
-];
-
 // Convert JavaScript Date to Julian Date
 export function toJulianDate(date) {
   return date.getTime() / 86400000 + 2440587.5;

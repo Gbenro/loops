@@ -374,7 +374,6 @@ function buildCycleState(lunarData, solarData) {
 
 export async function getSessionPhrases(lunarData, solarData) {
   const cycleState = buildCycleState(lunarData, solarData);
-  console.log('[Phrases] Cycle state:', cycleState);
 
   // 1. Check cache
   try {
@@ -383,18 +382,15 @@ export async function getSessionPhrases(lunarData, solarData) {
       const cached = JSON.parse(raw);
       const age = Date.now() - cached.generatedAt;
       const samePhase = cached.phaseWhenGenerated === cycleState.phase;
-      console.log('[Phrases] Cache found, age:', Math.round(age / 1000 / 60), 'min, samePhase:', samePhase);
       if (age < SESSION_TTL && samePhase) {
-        console.log('[Phrases] Using cached phrases');
         return cached.phrases;
       }
     }
-  } catch (e) {
-    console.warn('[Phrases] Cache read error:', e);
+  } catch (_e) {
+    // Cache read failed, continue to fetch
   }
 
   // 2. Generate fresh via edge function
-  console.log('[Phrases] Fetching fresh phrases from:', GENERATE_PHRASES_URL);
   try {
     const res = await fetch(GENERATE_PHRASES_URL, {
       method: 'POST',
@@ -404,24 +400,17 @@ export async function getSessionPhrases(lunarData, solarData) {
       body: JSON.stringify({ cycleState })
     });
 
-    console.log('[Phrases] Response status:', res.status);
-
     if (!res.ok) {
-      const error = await res.text();
-      console.error('[Phrases] Edge function error:', res.status, error);
       throw new Error(`API error: ${res.status}`);
     }
 
     const data = await res.json();
-    console.log('[Phrases] Response data:', data);
 
     if (data.error) {
-      console.error('[Phrases] API returned error:', data.error);
       throw new Error(data.error);
     }
 
     const phrases = data.phrases;
-    console.log('[Phrases] Generated phrases:', phrases);
 
     // 3. Cache it
     localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -431,9 +420,7 @@ export async function getSessionPhrases(lunarData, solarData) {
     }));
 
     return phrases;
-  } catch (e) {
-    console.error('[Phrases] Phrase generation failed:', e);
-    console.log('[Phrases] Using fallback phrases');
+  } catch (_e) {
     // 4. Fallback — build phase-aware phrases from pools
     return buildRandomFallback(cycleState);
   }
