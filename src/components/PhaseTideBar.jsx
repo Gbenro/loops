@@ -20,7 +20,7 @@ export function PhaseTideBar({ lunarData }) {
   } = lunarData;
 
   const isThreshold = phase?.isThreshold || false;
-  const isFlow = phase?.isFlow || false;
+  const _isFlow = phase?.isFlow || false; // Reserved for flow-phase styling
   const dayInPhase = phase?.dayInPhase || 0;
 
   // Calculate actual total phase duration from elapsed + remaining time

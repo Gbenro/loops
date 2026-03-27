@@ -1,7 +1,7 @@
 // Luna Loops - Moon Face SVG
 // Renders actual illuminated portion with realistic 3D surface texture
 
-export function MoonFace({ size = 180, phase = 0, illumination = 50 }) {
+export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 50 }) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
 
   const cx = size / 2;

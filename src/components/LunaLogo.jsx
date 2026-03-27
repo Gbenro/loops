@@ -5,7 +5,7 @@
 export function LunaLogo({ variant = 'icon', width, className, style }) {
   // Each instance gets unique gradient IDs to avoid conflicts
   const uid = Math.random().toString(36).slice(2, 7);
-  const bgId = `ll-bg-${uid}`;
+  const _bgId = `ll-bg-${uid}`; // Reserved for future background gradient
   const ringId = `ll-ring-${uid}`;
   const moonId = `ll-moon-${uid}`;
 

@@ -8,7 +8,7 @@ import { RhythmReport } from '../components/RhythmReport.jsx';
 import {
   getRhythms,
   saveRhythm,
-  deleteRhythm,
+  // deleteRhythm - available for rhythm removal feature
   getOrCreateCurrentInstance,
   saveInstance,
   getObservationsForInstance,

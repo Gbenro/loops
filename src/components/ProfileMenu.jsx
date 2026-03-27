@@ -11,7 +11,7 @@ const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
 export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate, onOpenTutorial }) {
   const [activeSection, setActiveSection] = useState('account');
-  const [profile, setProfile] = useState(null);
+  const [_profile, setProfile] = useState(null); // Profile state for future display
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);

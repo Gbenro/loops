@@ -44,8 +44,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const isNewMoon = lunarData.phase.key === 'new';
   const isWaxing = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'].includes(lunarData.phase.key);
   const isWaning = !isWaxing;
-  const isFullMoon = lunarData.phase.key === 'full';
-  const isWaningCrescent = lunarData.phase.key === 'waning-crescent';
+  const _isFullMoon = lunarData.phase.key === 'full'; // For future full moon features
+  const _isWaningCrescent = lunarData.phase.key === 'waning-crescent'; // For release reminders
 
   // Get current cycle loop (if exists)
   const cycleLoop = useMemo(() =>
@@ -1161,7 +1161,7 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
 
 // ─── Loop Card ───────────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, released, isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
+function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const isOpen = loop.type === 'open';
   const isPhase = loop.type === 'phase';
   const isCycle = loop.type === 'cycle';

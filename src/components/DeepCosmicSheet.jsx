@@ -2,11 +2,12 @@
 // Bottom modal with 6 sections of cosmic wisdom
 
 import { useState } from 'react';
-import { MiniMoon } from './MoonFace.jsx';
+// MiniMoon available for future use
+// import { MiniMoon } from './MoonFace.jsx';
 import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo, pickForToday as pickZodiac } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
-import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
+import { getAllPhases } from '../lib/lunar.js';
 import { getSolarThresholds } from '../lib/solar.js';
 
 const BASE_SECTIONS = [
@@ -212,7 +213,7 @@ export function DeepCosmicSheet({
 
 // ─── Phase Section ─────────────────────────────────────────────────────────
 
-function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }) {
+function PhaseSection({ phase: _phase, content, tideKey, generatedText, phrasesLoading }) {
   // Use AI-generated text if available, then tide-aware fallback, then static phase description
   const deepText = generatedText || pickForToday(content.deepTides?.[tideKey]) || content.deep;
 
@@ -357,7 +358,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         padding: '16px 0',
         marginBottom: 16,
       }}>
-        {allPhases.map((p, i) => {
+        {allPhases.map((p, _i) => {
           const isActive = p.key === lunarData.phase.key;
           return (
             <div
@@ -418,7 +419,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
 
 // ─── Sign Section (Zodiac) ─────────────────────────────────────────────────
 
-function SignSection({ zodiac, info, phase, generatedText, phrasesLoading }) {
+function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoading }) {
   const displayText = generatedText || pickZodiac(info.moonIn);
 
   return (
@@ -935,11 +936,11 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
 
 // ─── Arcs Section (Larger Cycles) ───────────────────────────────────────────
 
-function ArcsSection({ solarData, generatedText, phrasesLoading }) {
+function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
   const thresholds = getSolarThresholds();
   // Use solar day of year (Winter Solstice = Day 1)
   const solarDay = solarData?.solarDayOfYear || 1;
-  const daysInYear = 365;
+  const _daysInYear = 365; // For future progress calculations
 
   // Find which thresholds are passed (using solarDay)
   const passedThresholds = thresholds.filter(t => t.solarDay <= solarDay);
@@ -1042,7 +1043,7 @@ function ArcsSection({ solarData, generatedText, phrasesLoading }) {
           flexWrap: 'wrap',
           gap: 6,
         }}>
-          {thresholds.map((t, i) => {
+          {thresholds.map((t, _i) => {
             const isPassed = passedThresholds.includes(t);
             const isCurrent = t.name === solarData?.lastThresholdName;
             const isNext = t.name === solarData?.nextThresholdName;

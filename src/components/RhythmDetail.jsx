@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { PhaseRing } from './PhaseRing.jsx';
 import { CheckInSheet } from './CheckInSheet.jsx';
 import {
-  getInstancesForRhythm,
+  // getInstancesForRhythm - available for history view
   getOrCreateCurrentInstance,
   saveInstance,
   getObservationsForInstance,

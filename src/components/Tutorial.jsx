@@ -538,7 +538,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
 
 // ─── Guide Mode ───────────────────────────────────────────────────────────────
 
-function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, isWelcome, isClosing, cardBelow, onNext, onPrev, onClose }) {
+function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, isWelcome: _isWelcome, isClosing, cardBelow, onNext, onPrev, onClose }) {
   const pad = 12;
   const hasSpotlight = !isFullScreen && spotlightRect;
 

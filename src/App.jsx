@@ -10,7 +10,7 @@ import { clearRhythmCache } from './lib/rhythm.js';
 import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
-import { detectLocation, getCachedLocation, hemisphereFromLat } from './lib/location.js';
+import { detectLocation, getCachedLocation } from './lib/location.js';
 import { startNotificationScheduler, checkPhaseNotifications } from './lib/notifications.js';
 import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
@@ -419,7 +419,7 @@ export default function App() {
       // Save to Supabase profile if logged in and data changed
       if (user) {
         const profile = userProfile;
-        const sameHemisphere = profile?.hemisphere === loc.hemisphere;
+        const _sameHemisphere = profile?.hemisphere === loc.hemisphere; // For future hemisphere validation
         const sameCoords = Math.abs((profile?.latitude || 0) - loc.latitude) < 0.1
           && Math.abs((profile?.longitude || 0) - loc.longitude) < 0.1;
         if (!sameCoords) {
