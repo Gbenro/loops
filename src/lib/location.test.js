@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  getCachedLocation,
-  cacheLocation,
-  hemisphereFromLat,
-  detectLocation,
-} from './location.js';
+import { getCachedLocation, cacheLocation, hemisphereFromLat, detectLocation } from './location.js';
 
 describe('location.js', () => {
   let mockStorage = {};
@@ -12,9 +7,7 @@ describe('location.js', () => {
   beforeEach(() => {
     // Create a working localStorage mock
     mockStorage = {};
-    vi.spyOn(window.localStorage, 'getItem').mockImplementation(
-      (key) => mockStorage[key] || null
-    );
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation((key) => mockStorage[key] || null);
     vi.spyOn(window.localStorage, 'setItem').mockImplementation((key, value) => {
       mockStorage[key] = value;
     });
@@ -166,9 +159,7 @@ describe('location.js', () => {
         },
       };
 
-      mockGeolocation.getCurrentPosition.mockImplementation((success) =>
-        success(mockPosition)
-      );
+      mockGeolocation.getCurrentPosition.mockImplementation((success) => success(mockPosition));
 
       const result = await detectLocation();
       expect(result.latitude).toBe(40.7128);
@@ -194,9 +185,7 @@ describe('location.js', () => {
         },
       };
 
-      mockGeolocation.getCurrentPosition.mockImplementation((success) =>
-        success(mockPosition)
-      );
+      mockGeolocation.getCurrentPosition.mockImplementation((success) => success(mockPosition));
 
       await detectLocation();
 
@@ -214,9 +203,7 @@ describe('location.js', () => {
         },
       };
 
-      mockGeolocation.getCurrentPosition.mockImplementation((success) =>
-        success(mockPosition)
-      );
+      mockGeolocation.getCurrentPosition.mockImplementation((success) => success(mockPosition));
 
       const result = await detectLocation();
       expect(result.hemisphere).toBe('south');
