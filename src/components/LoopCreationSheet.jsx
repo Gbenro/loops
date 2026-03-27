@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { getPhaseEmoji } from '../lib/lunar.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 
 const PHASE_PROMPTS = {
   'new': 'What seed are you planting?',
@@ -289,7 +290,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               marginBottom: 24,
               lineHeight: 1.5,
             }}>
-              What do you want to track?
+              {resolvePhaseText('openLoopPrompt', lunarData.phase.key)}
             </div>
 
             <input

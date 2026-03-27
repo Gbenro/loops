@@ -147,7 +147,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             whiteSpace: 'nowrap',
             animation: 'breathe 3s ease-in-out infinite',
           }}>
-            TAP TO GO DEEPER
+            {phrasesLoading ? 'TAP TO GO DEEPER' : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
           </div>
         </div>
       </div>

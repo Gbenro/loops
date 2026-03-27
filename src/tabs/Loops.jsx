@@ -9,6 +9,7 @@ import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId, saveEch
 import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 
@@ -1000,10 +1001,12 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>◯</div>
             <div style={{ fontSize: 14, fontStyle: 'italic', marginBottom: 8 }}>
-              No loops yet.
+              {phrasesLoading
+                ? resolvePhaseText('noLoopsMessage', lunarData.phase.key)
+                : (phrases.emptyStateGuidance || resolvePhaseText('noLoopsMessage', lunarData.phase.key))}
             </div>
             <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.25)' }}>
-              Open loops for regular tasks, or phase loops to align with the moon.
+              {resolvePhaseText('noLoopsSubtext', lunarData.phase.key) || 'Open loops for regular tasks, or phase loops to align with the moon.'}
             </div>
           </div>
         )}

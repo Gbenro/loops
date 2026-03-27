@@ -7,6 +7,7 @@ import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, up
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudioUrl, getAudio, deleteAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
@@ -1048,7 +1049,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             fontSize: 14,
             fontStyle: 'italic',
           }}>
-            No echoes yet. What is alive in you?
+            {phrasesLoading
+              ? resolvePhaseText('noEchoesMessage', lunarData.phase.key)
+              : (phrases.emptyStateGuidance || resolvePhaseText('noEchoesMessage', lunarData.phase.key))}
           </div>
         ) : filteredEchoes.length === 0 ? (
           <div style={{

@@ -13,6 +13,7 @@ import {
   saveInstance,
   getObservationsForInstance,
 } from '../lib/rhythm.js';
+import { resolvePhaseText } from '../lib/phaseText.js';
 
 const PHASE_ACCENTS = {
   'new':             'rgba(245,230,200,0.75)',
@@ -242,7 +243,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
             NEW MOON · {r.name.toUpperCase()}
           </div>
           <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.6)', marginBottom: 12, lineHeight: 1.5 }}>
-            This rhythm continues into a new cycle. Same intention, or does something want to shift?
+            {resolvePhaseText('rhythmContinuePrompt', 'new')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -295,10 +296,10 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
             fontSize: 22, fontWeight: 300, color: 'rgba(245,230,200,0.4)',
             marginBottom: 12,
           }}>
-            No rhythms yet
+            {resolvePhaseText('noRhythmsMessage', currentPhaseKey)}
           </div>
           <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.25)', lineHeight: 1.65, maxWidth: 260, margin: '0 auto' }}>
-            A rhythm is a named practice you track across the lunar cycle — not a task, just witnessing.
+            {resolvePhaseText('noRhythmsSubtext', currentPhaseKey)}
           </div>
         </div>
       ) : (
