@@ -7,7 +7,7 @@ import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, up
 import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
-import { resolvePhaseText } from '../lib/phaseText.js';
+import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudioUrl, getAudio, deleteAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
@@ -1075,6 +1075,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               onUpdateText={handleUpdateEchoText}
               onUpdateTags={handleUpdateEchoTags}
               pastTags={uniqueTags}
+              phaseRelevantTags={getPhaseRelevantTags(lunarData.phase.key)}
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
@@ -1421,7 +1422,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [] }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
   const cardRef = useRef(null);
@@ -1697,10 +1698,11 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 </button>
               );
             })}
-            {/* Preset tags */}
+            {/* Preset tags - phase-relevant ones highlighted */}
             {presetTagList.map(tag => {
               const selected = tags.includes(tag);
               const disabled = !selected && atMax;
+              const isPhaseRelevant = phaseRelevantTags.includes(tag);
               return (
                 <button
                   key={tag}
@@ -1708,15 +1710,21 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                   style={{
                     padding: '3px 8px',
                     borderRadius: 3,
-                    border: 'none',
+                    border: isPhaseRelevant && !selected
+                      ? '1px solid rgba(201, 168, 76, 0.35)'
+                      : 'none',
                     background: selected
                       ? 'rgba(167, 139, 250, 0.25)'
-                      : 'rgba(245, 230, 200, 0.05)',
+                      : isPhaseRelevant
+                        ? 'rgba(201, 168, 76, 0.12)'
+                        : 'rgba(245, 230, 200, 0.05)',
                     color: selected
                       ? 'rgba(167, 139, 250, 0.9)'
                       : disabled
                         ? 'rgba(245, 230, 200, 0.2)'
-                        : 'rgba(245, 230, 200, 0.45)',
+                        : isPhaseRelevant
+                          ? 'rgba(201, 168, 76, 0.85)'
+                          : 'rgba(245, 230, 200, 0.45)',
                     fontSize: 9,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',

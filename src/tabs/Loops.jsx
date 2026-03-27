@@ -236,6 +236,63 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     await saveLoop(updated, userId);
   };
 
+  // Continue loop (create new loop from closed/released one)
+  // For cycle loops: creates a new cycle loop for the new lunar month
+  // For phase loops: creates a new phase loop in current phase
+  const continueLoop = async (id) => {
+    const sourceLoop = loops.find(l => l.id === id);
+    if (!sourceLoop) return;
+
+    const isEncrypted = !!sessionKey;
+    const isCycleLoop = sourceLoop.type === 'cycle';
+
+    const newLoop = {
+      id: generateId(isCycleLoop ? 'c' : 'p'),
+      title: sourceLoop.title, // plaintext in state, will encrypt for storage if needed
+      type: isCycleLoop ? 'cycle' : sourceLoop.type,
+      status: 'active',
+      color: sourceLoop.color,
+      linkedTo: isCycleLoop ? null : (cycleLoop?.id || null),
+      phaseOpened: lunarData.phase.key,
+      phaseName: lunarData.phase.name,
+      lunarMonthOpened: lunarData.lunarMonth,
+      moonAgeOpened: lunarData.age,
+      zodiacOpened: lunarData.zodiac.sign,
+      windowEnd: sourceLoop.type === 'phase'
+        ? new Date(Date.now() + lunarData.phaseRemaining * 24 * 60 * 60 * 1000).toISOString()
+        : null,
+      // Cycle loops get fresh phase checkpoints; phase loops start empty
+      subtasks: isCycleLoop
+        ? PHASE_CHECKPOINTS.map(cp => ({
+            id: generateId('pc'),
+            text: cp.name,
+            phase: cp.phase,
+            done: false,
+            isPhaseCheckpoint: true,
+          }))
+        : [],
+      openedAt: new Date().toISOString(),
+      closedAt: null,
+      releasedAt: null,
+      isEncrypted,
+      createdAt: new Date().toISOString(),
+      continuedFrom: sourceLoop.id, // track lineage
+      cycleNumber: isCycleLoop ? (sourceLoop.cycleNumber || 1) + 1 : undefined, // track how many cycles
+    };
+
+    // For cycle loops, mark that we just created one to prevent ritual showing
+    if (isCycleLoop) {
+      justCreatedCycleRef.current = true;
+    }
+
+    setLoops(prev => [newLoop, ...prev]);
+    setSelected(newLoop);
+    setShowDetail(true);
+
+    const storedTitle = isEncrypted ? await encryptField(sourceLoop.title) : sourceLoop.title;
+    await saveLoop({ ...newLoop, title: storedTitle }, userId);
+  };
+
   // Reopen loop
   const reopenLoop = async (id) => {
     const loop = loops.find(l => l.id === id);
@@ -1063,6 +1120,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           loop={selected}
           pct={getLoopPct(selected)}
           userId={userId}
+          lunarData={lunarData}
           onClose={() => {
             setShowDetail(false);
             setSelected(null);
@@ -1070,6 +1128,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           onCloseLoop={() => closeLoop(selected.id)}
           onReopenLoop={() => reopenLoop(selected.id)}
           onReleaseLoop={() => releaseLoop(selected.id)}
+          onContinueLoop={() => continueLoop(selected.id)}
           onDelete={() => deleteLoop(selected.id)}
           onToggleSubtask={(subtaskId) => toggleSubtask(selected.id, subtaskId)}
           onDeleteSubtask={(subtaskId) => deleteSubtask(selected.id, subtaskId)}
@@ -1304,10 +1363,12 @@ function DetailPanel({
   loop,
   pct,
   userId,
+  lunarData: lunarDataProp,
   onClose,
   onCloseLoop,
   onReopenLoop,
   onReleaseLoop,
+  onContinueLoop,
   onDelete,
   onToggleSubtask,
   onDeleteSubtask,
@@ -1337,7 +1398,7 @@ function DetailPanel({
     : [];
   const regularSubtasks = loop.subtasks?.filter(s => !s.isPhaseCheckpoint) || [];
 
-  const lunarData = useMemo(() => getLunarData(), []);
+  const lunarData = lunarDataProp || useMemo(() => getLunarData(), []);
 
   // Load echoes linked to this loop
   useEffect(() => {
@@ -1450,6 +1511,9 @@ function DetailPanel({
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
                 <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
+                {isCycle && loop.cycleNumber > 1 && (
+                  <><span>·</span><span style={{ color: 'rgba(167, 139, 250, 0.6)' }}>#{loop.cycleNumber}</span></>
+                )}
                 <span>·</span>
                 {loop.type === 'open' ? (
                   <>
@@ -1685,6 +1749,12 @@ function DetailPanel({
               onClick={onReleaseLoop}
               style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 11, cursor: 'pointer' }}
             >Release</button>
+          )}
+          {(isClosed || isReleased) && (
+            <button
+              onClick={onContinueLoop}
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(167, 139, 250, 0.3)', background: 'rgba(167, 139, 250, 0.08)', color: 'rgba(167, 139, 250, 0.9)', fontSize: 11, cursor: 'pointer' }}
+            >{isCycle ? 'New Cycle →' : 'Continue →'}</button>
           )}
           <button
             onClick={isActive ? onCloseLoop : onReopenLoop}
