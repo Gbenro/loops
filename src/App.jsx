@@ -217,7 +217,7 @@ function BetaGate({ onSignOut }) {
         fontSize: 14, color: 'rgba(245,230,200,0.5)',
         lineHeight: 1.8, maxWidth: 280, marginBottom: 32,
       }}>
-        This version is in private beta. You're on the list — we'll be in touch when your access is ready.
+        This version is in private beta. You&apos;re on the list — we&apos;ll be in touch when your access is ready.
       </div>
       <button
         onClick={onSignOut}

@@ -1148,7 +1148,7 @@ function NewMoonCard({ phase }) {
           fontSize: 15, fontStyle: 'italic',
           color: 'rgba(245,230,200,0.5)', lineHeight: 1.6,
         }}>
-          "{phase.entrainment}"
+          &ldquo;{phase.entrainment}&rdquo;
         </div>
       </div>
     </div>
@@ -1527,7 +1527,7 @@ function PhaseCard({ phase, moonAge }) {
           fontSize: 15, fontStyle: 'italic',
           color: 'rgba(245,230,200,0.5)', lineHeight: 1.6,
         }}>
-          "{phase.entrainment}"
+          &ldquo;{phase.entrainment}&rdquo;
         </div>
       </div>
     </div>

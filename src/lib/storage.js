@@ -481,7 +481,7 @@ export function getCurrentCyclePhaseSummaries(lunarMonth) {
 // Clear all local cache — called when a different user signs in
 export function clearLocalCache() {
   [LOOPS_KEY, ECHOES_KEY, PHASE_SUMMARIES_KEY, CYCLE_SUMMARIES_KEY].forEach(key => {
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   });
 }
 

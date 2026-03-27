@@ -455,7 +455,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 marginBottom: 20,
                 lineHeight: 1.6,
               }}>
-                Enter your big three for personalized transits. Don't know yours? Look up your chart at cafeastrology.com
+                Enter your big three for personalized transits. Don&apos;t know yours? Look up your chart at cafeastrology.com
               </div>
 
               {!user ? (
@@ -667,7 +667,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {activeSection === 'privacy' && (
             <div>
               <div style={{ fontSize: 13, color: 'rgba(245, 230, 200, 0.6)', marginBottom: 20, lineHeight: 1.6 }}>
-                End-to-end encryption protects your loops and echoes. Only your passphrase can decrypt them — even we can't read them.
+                End-to-end encryption protects your loops and echoes. Only your passphrase can decrypt them — even we can&apos;t read them.
               </div>
 
               {/* Status card */}
@@ -693,7 +693,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {/* Setup form (disabled state) */}
               {encStatus === 'disabled' && user && (
                 <div>
-                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You'll need it every time you open the app.</div>
+                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You&apos;ll need it every time you open the app.</div>
                   <div style={{ padding: '10px 12px', marginBottom: 12, background: 'rgba(252, 129, 129, 0.08)', border: '1px solid rgba(252, 129, 129, 0.2)', borderRadius: 8, fontSize: 12, color: 'rgba(252, 129, 129, 0.8)', lineHeight: 1.6 }}>
                     If you forget your passphrase, your encrypted content cannot be recovered — not by you, not by us. There is no reset. Write it down somewhere safe.
                   </div>

@@ -18,7 +18,7 @@ export function getCachedLocation() {
 export function cacheLocation(loc) {
   try {
     localStorage.setItem(LOCATION_KEY, JSON.stringify({ ...loc, savedAt: Date.now() }));
-  } catch {}
+  } catch { /* localStorage may be unavailable */ }
 }
 
 export function hemisphereFromLat(latitude) {

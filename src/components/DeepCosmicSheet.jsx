@@ -7,6 +7,7 @@ import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo, pickForToday as pickZodiac } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getAllPhases, getPhaseEmoji } from '../lib/lunar.js';
+import { getSolarThresholds } from '../lib/solar.js';
 
 const BASE_SECTIONS = [
   { id: 'phase', label: 'Phase', icon: '☽' },
@@ -296,7 +297,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
           fontStyle: 'italic',
           color: '#f5e6c8',
         }}>
-          "{content.asks}"
+          &ldquo;{content.asks}&rdquo;
         </div>
       </div>
     </div>

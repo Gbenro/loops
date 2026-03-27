@@ -372,6 +372,6 @@ export async function generateRhythmReport({ rhythm, instance, observations, cyc
 
 export function clearRhythmCache() {
   [RHYTHMS_KEY, INSTANCES_KEY, OBSERVATIONS_KEY].forEach(key => {
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   });
 }

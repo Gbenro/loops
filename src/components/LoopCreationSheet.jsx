@@ -224,7 +224,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 lineHeight: 1.6,
                 paddingLeft: 38,
               }}>
-                Tied to {lunarData.phase.name}. You'll be nudged to close or release
+                Tied to {lunarData.phase.name}. You&apos;ll be nudged to close or release
                 this loop when the phase shifts.
               </div>
             </button>

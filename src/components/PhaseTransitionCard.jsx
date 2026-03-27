@@ -179,7 +179,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}>
-                "{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}"
+                &ldquo;{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}&rdquo;
               </div>
             ))}
             {phaseSummary.echoes.length > 2 && (

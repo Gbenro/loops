@@ -164,7 +164,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, onSave, on
           disabled={!canSave || saving}
           style={{
             width: '100%', padding: '14px',
-            borderRadius: 12, border: 'none',
+            borderRadius: 12,
             background: canSave ? `${meta.accent}22` : 'rgba(245,230,200,0.05)',
             color: canSave ? '#f5e6c8' : 'rgba(245,230,200,0.25)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',

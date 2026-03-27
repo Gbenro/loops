@@ -81,7 +81,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
               key={v}
               onClick={() => setMode(v)}
               style={{
-                flex: 1, padding: '9px 4px', borderRadius: 8, border: 'none',
+                flex: 1, padding: '9px 4px', borderRadius: 8,
                 background: mode === v ? 'rgba(245,230,200,0.1)' : 'rgba(245,230,200,0.03)',
                 color: mode === v ? '#f5e6c8' : 'rgba(245,230,200,0.35)',
                 fontSize: 11, cursor: 'pointer',
@@ -101,7 +101,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
                 key={lv}
                 onClick={() => setWhole(lv)}
                 style={{
-                  padding: '12px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
                   background: whole === lv ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.02)',
                   color: whole === lv ? '#f5e6c8' : 'rgba(245,230,200,0.5)',
                   fontSize: 14, textAlign: 'left',
@@ -169,7 +169,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
           onClick={handleSave}
           disabled={saving}
           style={{
-            width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+            width: '100%', padding: '14px', borderRadius: 12,
             background: 'rgba(245,230,200,0.08)',
             border: '1px solid rgba(245,230,200,0.15)',
             color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
@@ -377,7 +377,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                         </div>
                         {obs.note && (
                           <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.35)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                            "{obs.note}"
+                            &ldquo;{obs.note}&rdquo;
                           </div>
                         )}
                       </div>
