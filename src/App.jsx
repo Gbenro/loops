@@ -21,7 +21,7 @@ import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
-import { OnboardingProvider, WelcomeModal, TourOverlay } from './components/Onboarding/index.js';
+import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt } from './components/Onboarding/index.js';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -267,6 +267,19 @@ function App() {
     || location?.hemisphere
     || 'north';
   const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
+
+  // Check if user has an active cycle loop for the current cycle
+  const hasActiveCycleLoop = useMemo(() => {
+    if (!loops.length || !lunarData?.cycleStart) return false;
+    return loops.some(loop =>
+      loop.scope === 'cycle' &&
+      loop.status !== 'released' &&
+      loop.cycleStart === lunarData.cycleStart
+    );
+  }, [loops, lunarData?.cycleStart]);
+
+  // Phase-specific ceremony prompts (New Moon / Waning Crescent)
+  const { showCeremony, dismissCeremony } = useCeremonyPrompt(lunarData, hasActiveCycleLoop);
 
   // Fetch loops and echoes for phase summaries
   const refreshLoopsAndEchoes = useCallback(async () => {
@@ -863,6 +876,24 @@ function App() {
       {/* Interactive Onboarding */}
       <WelcomeModal />
       <TourOverlay />
+
+      {/* Phase Ceremony Prompts */}
+      {showCeremony && (
+        <CeremonyPrompt
+          type={showCeremony}
+          onAction={() => {
+            dismissCeremony();
+            if (showCeremony === 'new-moon') {
+              // Navigate to Loops tab to plant intention
+              setActiveTab('loops');
+            } else if (showCeremony === 'waning-crescent') {
+              // Navigate to Echoes tab for cycle review
+              setActiveTab('echoes');
+            }
+          }}
+          onDismiss={dismissCeremony}
+        />
+      )}
       </div>
     </div>
   );

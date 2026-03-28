@@ -4,3 +4,4 @@
 export { OnboardingProvider, useOnboarding, TOUR_DEFINITIONS } from './OnboardingProvider.jsx';
 export { WelcomeModal } from './WelcomeModal.jsx';
 export { TourOverlay } from './TourOverlay.jsx';
+export { CeremonyPrompt, useCeremonyPrompt } from './CeremonyPrompt.jsx';
