@@ -174,27 +174,41 @@ export function TourOverlay() {
   const handleJoyrideCallback = (data) => {
     const { action, index, status, type } = data;
 
-    // Handle step navigation (both after step completes and if target not found)
-    if ([EVENTS.STEP_AFTER, EVENTS.TARGET_NOT_FOUND].includes(type)) {
-      const nextIndex = index + (action === ACTIONS.PREV ? -1 : 1);
-
-      // Check if we've completed all steps
-      if (nextIndex >= steps.length) {
-        endTour(true);
-        return;
-      }
-
-      // Move to next/previous step
-      if (nextIndex >= 0 && nextIndex < steps.length) {
-        setStepIndex(nextIndex);
-      }
+    // Handle close/skip actions first
+    if (action === ACTIONS.CLOSE) {
+      endTour(false);
+      return;
     }
 
     // Handle tour completion
     if (status === STATUS.FINISHED) {
       endTour(true);
-    } else if (status === STATUS.SKIPPED || action === ACTIONS.CLOSE) {
+      return;
+    }
+
+    if (status === STATUS.SKIPPED) {
       endTour(false);
+      return;
+    }
+
+    // Handle step navigation (both after step completes and if target not found)
+    if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+      // Calculate direction based on action
+      const isPrev = action === ACTIONS.PREV;
+      const nextStepIndex = index + (isPrev ? -1 : 1);
+
+      // Check bounds
+      if (nextStepIndex < 0) {
+        return; // Can't go before first step
+      }
+
+      if (nextStepIndex >= steps.length) {
+        endTour(true); // Completed all steps
+        return;
+      }
+
+      // Move to next/previous step
+      setStepIndex(nextStepIndex);
     }
   };
 
