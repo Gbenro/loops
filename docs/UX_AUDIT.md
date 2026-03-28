@@ -388,14 +388,14 @@ Users are prompted to sign in when trying to record voice echoes. This is approp
 
 ### Phase 2: Touch & Mobile (1-2 days) — IN PROGRESS
 4. [x] Increase touch targets to 44px minimum (2.1) — commit bc3bd12
-5. [ ] Add swipe-to-dismiss on bottom sheets (2.2) — **pending**
-6. [ ] Fix fixed-position button overlap (2.3) — **pending**
+5. [ ] Add swipe-to-dismiss on bottom sheets (2.2) — see BOTTOM_SHEET_SPEC.md
+6. [ ] Fix fixed-position button overlap (2.3) — see FIXED_BUTTON_POSITIONING.md
 
 ### Phase 3: Usability (2-3 days) — PARTIAL
 7. [x] Improve empty states with guidance (4.1) — implemented via onboarding
 8. [x] Enhance tutorial discoverability (4.2) — commit d54f1c6 (react-joyride)
-9. [ ] Reduce Loops tab cognitive load (4.3) — **pending**
-10. [ ] Improve voice recording feedback (4.4) — **pending**
+9. [ ] Reduce Loops tab cognitive load (4.3) — see LOOPS_TAB_SIMPLIFICATION.md
+10. [ ] Improve voice recording feedback (4.4) — see VOICE_RECORDING_SPEC.md
 
 ### Phase 4: Polish (1-2 days)
 11. [ ] Standardize border-radius values (3.1)
