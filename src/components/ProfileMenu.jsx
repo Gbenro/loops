@@ -1005,7 +1005,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   fontSize: 10,
                   fontFamily: 'monospace',
                   letterSpacing: '0.1em',
-                  color: 'rgba(245, 230, 200, 0.35)',
+                  color: 'var(--text-secondary)',
                   marginBottom: 10,
                 }}>
                   SHARE FEEDBACK
@@ -1092,7 +1092,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
         </div>
         <div style={{
           fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.35)',
+          color: 'var(--text-secondary)',
           marginTop: 2,
         }}>
           {sublabel}

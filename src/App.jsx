@@ -65,7 +65,7 @@ function UnlockModal({ verifyToken, userId }) {
           }}>Encrypted content</div>
           <div style={{
             fontSize: 11, fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.35)', letterSpacing: '0.08em',
+            color: 'var(--text-secondary)', letterSpacing: '0.08em',
           }}>ENTER PASSPHRASE TO DECRYPT</div>
         </div>
         <form onSubmit={handleUnlock}>
@@ -565,6 +565,12 @@ export default function App() {
           --font-xl: 22px;
           --font-2xl: 28px;
           --font-3xl: 32px;
+
+          /* Text colors - WCAG AA compliant contrast ratios */
+          --text-primary: #f5e6c8;
+          --text-secondary: rgba(245,230,200,0.55);    /* was 0.35, ~4.5:1 contrast */
+          --text-tertiary: rgba(245,230,200,0.45);     /* was 0.3, ~3.8:1 contrast */
+          --text-disabled: rgba(245,230,200,0.38);     /* was 0.25, ~3.0:1 contrast */
         }
 
         /* Larger fonts on desktop for better readability */
@@ -603,7 +609,7 @@ export default function App() {
         }
 
         input::placeholder, textarea::placeholder {
-          color: rgba(245, 230, 200, 0.35);
+          color: var(--text-secondary);
           font-style: italic;
         }
 

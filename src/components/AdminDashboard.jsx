@@ -157,7 +157,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, color: '#f5e6c8', lineHeight: 1 }}>
                 {s.value}
               </div>
-              <div style={{ fontSize: 8, fontFamily: 'monospace', color: 'rgba(245,230,200,0.35)', letterSpacing: '0.1em', marginTop: 4 }}>
+              <div style={{ fontSize: 8, fontFamily: 'monospace', color: 'var(--text-secondary)', letterSpacing: '0.1em', marginTop: 4 }}>
                 {s.label}
               </div>
             </div>
@@ -238,7 +238,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                     border: '1px solid rgba(167,139,250,0.12)',
                     marginBottom: 20,
                   }}>
-                    <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.35)', letterSpacing: '0.1em', marginBottom: 12 }}>
+                    <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-secondary)', letterSpacing: '0.1em', marginBottom: 12 }}>
                       INVITE TESTER
                     </div>
                     <input

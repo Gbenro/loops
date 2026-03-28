@@ -324,7 +324,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
             <div style={{
               fontFamily: 'monospace',
               fontSize: 9,
-              color: 'rgba(245,230,200,0.35)',
+              color: 'var(--text-secondary)',
               textAlign: 'center',
               marginTop: 12,
             }}>
@@ -357,7 +357,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
           <div style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
-              color: 'rgba(245,230,200,0.25)', marginBottom: 12,
+              color: 'var(--text-disabled)', marginBottom: 12,
             }}>
               THIS CYCLE
             </div>
@@ -391,7 +391,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                           </span>
                         </div>
                         {obs.note && (
-                          <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.35)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.5 }}>
                             &ldquo;{obs.note}&rdquo;
                           </div>
                         )}

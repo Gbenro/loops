@@ -166,7 +166,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, onSave, on
             width: '100%', padding: '14px',
             borderRadius: 12,
             background: canSave ? `${meta.accent}22` : 'rgba(245,230,200,0.05)',
-            color: canSave ? '#f5e6c8' : 'rgba(245,230,200,0.25)',
+            color: canSave ? '#f5e6c8' : 'var(--text-disabled)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
             border: canSave ? `1px solid ${meta.accent}33` : '1px solid rgba(245,230,200,0.05)',

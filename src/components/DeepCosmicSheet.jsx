@@ -909,7 +909,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
                 fontSize: 10,
                 fontFamily: 'monospace',
                 letterSpacing: '0.1em',
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 marginBottom: r.invitation ? 8 : 0,
               }}>
                 {r.meaning.toUpperCase()}

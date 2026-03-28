@@ -522,7 +522,7 @@ export function Tutorial({ onClose, activeTab, onSwitchTab, initialMode = 'guide
           style={{
             pointerEvents: 'all',
             background: 'none', border: 'none',
-            color: 'rgba(245,230,200,0.35)',
+            color: 'var(--text-secondary)',
             fontSize: 20, cursor: 'pointer',
             padding: '2px 6px', lineHeight: 1,
             WebkitTapHighlightColor: 'transparent',
@@ -657,7 +657,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
               }}>
                 <div style={{
                   fontSize: 9, fontFamily: 'monospace',
-                  letterSpacing: '0.15em', color: 'rgba(245,230,200,0.25)',
+                  letterSpacing: '0.15em', color: 'var(--text-disabled)',
                   marginBottom: 8,
                 }}>
                   FIND THIS AGAIN
@@ -1085,7 +1085,7 @@ function NewMoonCard({ phase }) {
           }}>
             <div style={{
               fontSize: 8, fontFamily: 'monospace',
-              letterSpacing: '0.1em', color: 'rgba(245,230,200,0.28)',
+              letterSpacing: '0.1em', color: 'var(--text-disabled)',
               marginBottom: 6,
             }}>
               {m.label}
@@ -1138,7 +1138,7 @@ function NewMoonCard({ phase }) {
       }}>
         <div style={{
           fontSize: 9, fontFamily: 'monospace',
-          letterSpacing: '0.1em', color: 'rgba(245,230,200,0.25)',
+          letterSpacing: '0.1em', color: 'var(--text-disabled)',
           marginBottom: 6,
         }}>
           ENTRAINMENT SIGN
@@ -1464,7 +1464,7 @@ function PhaseCard({ phase, moonAge }) {
           }}>
             <div style={{
               fontSize: 8, fontFamily: 'monospace',
-              letterSpacing: '0.1em', color: 'rgba(245,230,200,0.28)',
+              letterSpacing: '0.1em', color: 'var(--text-disabled)',
               marginBottom: 6,
             }}>
               {m.label}
@@ -1517,7 +1517,7 @@ function PhaseCard({ phase, moonAge }) {
       }}>
         <div style={{
           fontSize: 9, fontFamily: 'monospace',
-          letterSpacing: '0.1em', color: 'rgba(245,230,200,0.25)',
+          letterSpacing: '0.1em', color: 'var(--text-disabled)',
           marginBottom: 6,
         }}>
           ENTRAINMENT SIGN

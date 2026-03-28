@@ -124,7 +124,7 @@ export function PhaseTideBar({ lunarData }) {
           letterSpacing: '0.08em',
           color: isApproaching
             ? 'rgba(252, 200, 120, 0.8)'
-            : 'rgba(245, 230, 200, 0.35)',
+            : 'var(--text-secondary)',
         }}>
           {remainingText}
         </span>
@@ -208,7 +208,7 @@ export function PhaseTideBar({ lunarData }) {
           fontSize: 8,
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
-          color: 'rgba(245, 230, 200, 0.25)',
+          color: 'var(--text-disabled)',
         }}>
           {status}
         </span>

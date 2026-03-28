@@ -168,7 +168,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
       }}>
         <div style={{
           fontSize: 9, fontFamily: 'monospace',
-          letterSpacing: '0.15em', color: 'rgba(245,230,200,0.3)',
+          letterSpacing: '0.15em', color: 'var(--text-tertiary)',
           marginBottom: 6,
         }}>
           CYCLE COMPLETE · {rhythm.scope === 'ongoing' ? 'ONGOING' : 'THIS CYCLE'}
@@ -198,11 +198,11 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
         padding: '0 20px 16px',
         display: 'flex', gap: 16, flexWrap: 'wrap',
       }}>
-        <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
           {observations.length} / 8 phases logged
         </div>
         {highestPhase && (
-          <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
             Peak: <span style={{ color: LEVEL_BADGE[highestPhase.engagement] }}>
               {PHASE_NAMES[highestPhase.phase]}
             </span>
@@ -222,17 +222,17 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
           display: 'flex', flexDirection: 'column', gap: 6,
         }}>
           {engagementPattern && (
-            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               {engagementPattern}
             </div>
           )}
           {intentionAlignment && (
-            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               Your practice matched intention in {intentionAlignment.matched} phase{intentionAlignment.matched !== 1 ? 's' : ''}
             </div>
           )}
           {quietestPhase && (
-            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               Rested at {PHASE_NAMES[quietestPhase]}
             </div>
           )}
@@ -248,7 +248,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
         borderRadius: 10,
       }}>
         {loading && (
-          <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.3)', fontStyle: 'italic' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
             Reading the cycle…
           </div>
         )}
@@ -263,12 +263,12 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
           </div>
         )}
         {!loading && !reflection && observations.length === 0 && (
-          <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.25)' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-disabled)' }}>
             No check-ins logged this cycle — nothing to reflect on yet.
           </div>
         )}
         {!loading && !reflection && observations.length > 0 && tried && (
-          <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.25)' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-disabled)' }}>
             Reflection unavailable.
           </div>
         )}

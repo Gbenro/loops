@@ -700,7 +700,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 borderRadius: 4,
                 border: 'none',
                 background: filterMode === mode ? 'rgba(245, 230, 200, 0.1)' : 'transparent',
-                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.25)',
+                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'var(--text-disabled)',
                 fontSize: 9,
                 fontFamily: 'monospace',
                 cursor: 'pointer',
@@ -892,7 +892,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               <div style={{
                 fontSize: 10,
                 fontFamily: 'monospace',
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -1140,7 +1140,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 fontFamily: 'monospace',
                 fontSize: 9,
                 letterSpacing: '0.12em',
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 marginBottom: 6,
               }}>
                 {queuePlaying || queueIndex > 0
@@ -1371,7 +1371,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   <div style={{
                     fontSize: 11, fontFamily: 'monospace',
                     letterSpacing: '0.08em',
-                    color: 'rgba(245, 230, 200, 0.35)',
+                    color: 'var(--text-secondary)',
                   }}>
                     {audioQueue.length} VOICE {audioQueue.length === 1 ? 'ECHO' : 'ECHOES'} · PLAY ALL
                   </div>
@@ -1383,7 +1383,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 onClick={() => setQueueExpanded(true)}
                 style={{
                   background: 'none', border: 'none',
-                  color: 'rgba(245, 230, 200, 0.25)',
+                  color: 'var(--text-disabled)',
                   fontSize: 14, cursor: 'pointer',
                   padding: '4px',
                   flexShrink: 0,
@@ -1614,7 +1614,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 marginLeft: 6,
                 fontSize: 11,
                 fontFamily: "'DM Sans', sans-serif",
-                color: 'rgba(245,230,200,0.35)',
+                color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 letterSpacing: '0.04em',
               }}

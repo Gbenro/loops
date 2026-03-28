@@ -145,7 +145,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontSize: 'var(--font-xs)',
             fontFamily: 'monospace',
             letterSpacing: '0.15em',
-            color: 'rgba(245, 230, 200, 0.25)',
+            color: 'var(--text-disabled)',
             whiteSpace: 'nowrap',
             animation: 'breathe 3s ease-in-out infinite',
           }}>
@@ -186,7 +186,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.08em',
-          color: 'rgba(245, 230, 200, 0.35)',
+          color: 'var(--text-secondary)',
           marginBottom: 24,
         }}>
           DAY {lunarData.dayOfCycle} OF 29 · {lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}
