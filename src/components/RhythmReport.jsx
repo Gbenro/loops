@@ -24,6 +24,95 @@ const LEVEL_BADGE = {
   ceremonial: '#fefcbf',
 };
 
+// Phase order for pattern analysis
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+];
+
+const WAXING_PHASES = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'];
+const WANING_PHASES = ['full', 'waning-gibbous', 'last-quarter', 'waning-crescent'];
+
+// Describe engagement pattern shape (non-judgmental)
+function describeEngagementPattern(observations) {
+  if (observations.length < 3) return null;
+
+  const engagementValue = { none: 0, light: 1, moderate: 2, deep: 3, ceremonial: 4 };
+  const obsMap = {};
+  for (const o of observations) obsMap[o.phase] = engagementValue[o.engagement] || 0;
+
+  // Calculate average engagement for waxing vs waning phases
+  const waxingObs = WAXING_PHASES.filter(p => obsMap[p] !== undefined);
+  const waningObs = WANING_PHASES.filter(p => obsMap[p] !== undefined);
+
+  const waxingAvg = waxingObs.length > 0
+    ? waxingObs.reduce((sum, p) => sum + obsMap[p], 0) / waxingObs.length
+    : 0;
+  const waningAvg = waningObs.length > 0
+    ? waningObs.reduce((sum, p) => sum + obsMap[p], 0) / waningObs.length
+    : 0;
+
+  // Check if engagement deepened toward Full Moon
+  const fullIdx = PHASE_ORDER.indexOf('full');
+  const beforeFull = PHASE_ORDER.slice(0, fullIdx + 1).filter(p => obsMap[p] !== undefined);
+
+  if (beforeFull.length >= 2) {
+    const trend = beforeFull.reduce((acc, p, i) => {
+      if (i === 0) return 0;
+      return acc + (obsMap[p] - obsMap[beforeFull[i - 1]]);
+    }, 0);
+    if (trend > 0) return 'Engagement deepened toward Full Moon';
+  }
+
+  // Describe phase concentration
+  if (waxingAvg > waningAvg + 0.5 && waxingObs.length >= 2) {
+    return 'Most active in waxing phases';
+  }
+  if (waningAvg > waxingAvg + 0.5 && waningObs.length >= 2) {
+    return 'Most active in waning phases';
+  }
+
+  // Check for even distribution
+  if (Math.abs(waxingAvg - waningAvg) < 0.5 && observations.length >= 4) {
+    return 'Practice flowed evenly through the cycle';
+  }
+
+  return null;
+}
+
+// Count phases where observation matched intention
+function countIntentionAlignment(instance, observations) {
+  if (!instance.intentionType) return null;
+
+  const obsMap = {};
+  for (const o of observations) obsMap[o.phase] = o.engagement;
+
+  let matched = 0;
+  const total = observations.length;
+
+  if (instance.intentionType === 'whole' && instance.wholeIntention) {
+    // Whole intention: count phases where engagement was 'light' or higher
+    for (const o of observations) {
+      if (o.engagement !== 'none') matched++;
+    }
+  } else if (instance.intentionType === 'phase' && instance.phaseIntentions) {
+    // Phase intentions: count phases where intention was set and engagement was logged
+    for (const o of observations) {
+      const intended = instance.phaseIntentions[o.phase];
+      if (intended && o.engagement !== 'none') matched++;
+    }
+  }
+
+  if (total === 0) return null;
+  return { matched, total };
+}
+
+// Find quietest phase (engagement = 'none')
+function findQuietestPhase(observations) {
+  const restPhase = observations.find(o => o.engagement === 'none');
+  return restPhase ? restPhase.phase : null;
+}
+
 export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle }) {
   const [reflection, setReflection] = useState(null);
   const [loading, setLoading]       = useState(false);
@@ -59,6 +148,11 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
   }, null);
 
   const ceremonialPhases = observations.filter(o => o.engagement === 'ceremonial');
+
+  // New summary stats
+  const engagementPattern = describeEngagementPattern(observations);
+  const intentionAlignment = countIntentionAlignment(instance, observations);
+  const quietestPhase = findQuietestPhase(observations);
 
   return (
     <div style={{
@@ -120,6 +214,30 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
           </div>
         )}
       </div>
+
+      {/* Descriptive summary stats */}
+      {(engagementPattern || intentionAlignment || quietestPhase) && (
+        <div style={{
+          padding: '0 20px 16px',
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          {engagementPattern && (
+            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+              {engagementPattern}
+            </div>
+          )}
+          {intentionAlignment && (
+            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+              Your practice matched intention in {intentionAlignment.matched} phase{intentionAlignment.matched !== 1 ? 's' : ''}
+            </div>
+          )}
+          {quietestPhase && (
+            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)' }}>
+              Rested at {PHASE_NAMES[quietestPhase]}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI reflection */}
       <div style={{

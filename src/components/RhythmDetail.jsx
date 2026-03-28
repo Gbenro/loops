@@ -306,20 +306,31 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
 
         {/* Phase ring */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-          <PhaseRing
-            size={220}
-            intention={intentionMap}
-            observation={observationMap}
-            currentPhaseKey={currentPhaseKey}
-            pastPhaseKeys={pastPhaseKeys}
-            showLabels={true}
-            onPhaseClick={phaseKey => {
-              // Allow logging for current phase or recently missed phases
-              if (loggablePhases.includes(phaseKey) || observationMap[phaseKey]) {
-                setCheckInPhase(phaseKey);
-              }
-            }}
-          />
+          <div>
+            <PhaseRing
+              size={220}
+              intention={intentionMap}
+              observation={observationMap}
+              currentPhaseKey={currentPhaseKey}
+              pastPhaseKeys={pastPhaseKeys}
+              showLabels={true}
+              onPhaseClick={phaseKey => {
+                // Allow logging for current phase or recently missed phases
+                if (loggablePhases.includes(phaseKey) || observationMap[phaseKey]) {
+                  setCheckInPhase(phaseKey);
+                }
+              }}
+            />
+            <div style={{
+              fontFamily: 'monospace',
+              fontSize: 9,
+              color: 'rgba(245,230,200,0.35)',
+              textAlign: 'center',
+              marginTop: 12,
+            }}>
+              Outer ring = Intention &nbsp;•&nbsp; Inner ring = Observed
+            </div>
+          </div>
         </div>
 
         {/* Quick log prompt for current phase */}
