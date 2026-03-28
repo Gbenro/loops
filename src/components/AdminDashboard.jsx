@@ -112,7 +112,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                 Mission Control
               </div>
               <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em' }}>
-                LUNA LOOPS · {IS_V2 ? 'V2 BETA' : 'V1 PUBLIC'}
+                LUNA LOOPS
               </div>
             </div>
             {/* Version switcher */}
