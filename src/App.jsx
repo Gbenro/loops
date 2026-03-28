@@ -651,6 +651,22 @@ export default function App() {
           100% { opacity: 1; transform: translateY(0); }
         }
 
+        @keyframes moonPulse {
+          0%, 100% { filter: drop-shadow(0 0 35px rgba(245, 230, 200, 0.25)); }
+          50% { filter: drop-shadow(0 0 45px rgba(245, 230, 200, 0.35)); }
+        }
+
+        /* Moon glow animation - respects reduced motion preference */
+        .moon-glow {
+          animation: moonPulse 8s ease-in-out infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .moon-glow {
+            animation: none;
+          }
+        }
+
         ::-webkit-scrollbar {
           width: 4px;
         }
