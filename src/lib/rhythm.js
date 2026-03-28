@@ -133,12 +133,37 @@ export async function getInstancesForRhythm(rhythmId, userId) {
 
 export async function getOrCreateCurrentInstance(rhythm, cycleStart, userId) {
   const cycleStartISO = cycleStart instanceof Date ? cycleStart.toISOString() : cycleStart;
+
+  // Check local storage first
   const allLocal = getLocal(INSTANCES_KEY);
   const existing = allLocal.find(
     i => i.rhythmId === rhythm.id && i.cycleStart === cycleStartISO
   );
   if (existing) return existing;
 
+  // If logged in, check server for existing instance (may exist from another device/session)
+  if (userId) {
+    try {
+      const { data, error } = await supabase
+        .from('rhythm_cycle_instances')
+        .select('*')
+        .eq('rhythm_id', rhythm.id)
+        .eq('cycle_start', cycleStartISO)
+        .single();
+
+      if (!error && data) {
+        const serverInstance = rowToInstance(data);
+        // Save to local cache and return
+        allLocal.push(serverInstance);
+        setLocal(INSTANCES_KEY, allLocal);
+        return serverInstance;
+      }
+    } catch (e) {
+      // No server instance found, or error - continue to create new
+    }
+  }
+
+  // Create new instance
   const instance = {
     id:              crypto.randomUUID(),
     rhythmId:        rhythm.id,
