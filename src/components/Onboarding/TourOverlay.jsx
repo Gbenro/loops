@@ -174,6 +174,9 @@ export function TourOverlay() {
   const handleJoyrideCallback = (data) => {
     const { action, index, status, type } = data;
 
+    // Debug logging
+    console.log('[Tour]', { action, index, status, type, stepIndex });
+
     // Handle close/skip actions first
     if (action === ACTIONS.CLOSE) {
       endTour(false);
@@ -191,11 +194,20 @@ export function TourOverlay() {
       return;
     }
 
+    // Handle errors - close tour gracefully
+    if (status === STATUS.ERROR) {
+      console.warn('[Tour] Error encountered, closing tour');
+      endTour(false);
+      return;
+    }
+
     // Handle step navigation (both after step completes and if target not found)
     if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
       // Calculate direction based on action
       const isPrev = action === ACTIONS.PREV;
       const nextStepIndex = index + (isPrev ? -1 : 1);
+
+      console.log('[Tour] Navigating to step', nextStepIndex);
 
       // Check bounds
       if (nextStepIndex < 0) {
@@ -221,7 +233,7 @@ export function TourOverlay() {
       showSkipButton={false}
       showProgress={false}
       disableScrolling={false}
-      disableOverlayClose={true}
+      disableOverlayClose={false}
       spotlightPadding={8}
       callback={handleJoyrideCallback}
       tooltipComponent={Tooltip}
