@@ -696,8 +696,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               key={mode}
               onClick={() => switchFilterMode(mode)}
               style={{
-                padding: '4px 10px',
-                borderRadius: 4,
+                minHeight: 'var(--touch-min)',
+                padding: '8px 12px',
+                borderRadius: 6,
                 border: 'none',
                 background: filterMode === mode ? 'rgba(245, 230, 200, 0.1)' : 'transparent',
                 color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'var(--text-disabled)',
@@ -1628,20 +1629,23 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
       )}
 
       {/* Tags row */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
         {tags.map(tag => (
           <span
             key={tag}
             onClick={() => isTagging && toggleTag(tag)}
             style={{
-              padding: '2px 7px',
-              borderRadius: 3,
+              minHeight: 'var(--touch-min)',
+              padding: '10px 12px',
+              borderRadius: 6,
               background: 'rgba(167, 139, 250, 0.12)',
               color: 'rgba(167, 139, 250, 0.75)',
-              fontSize: 9,
+              fontSize: 11,
               fontFamily: 'monospace',
               letterSpacing: '0.06em',
               cursor: isTagging ? 'pointer' : 'default',
+              display: 'inline-flex',
+              alignItems: 'center',
             }}
           >
             #{tag}{isTagging ? ' ×' : ''}
@@ -1653,11 +1657,16 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
             background: 'none',
             border: 'none',
             color: isTagging ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.2)',
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: 'monospace',
             cursor: 'pointer',
-            padding: '2px 4px',
+            minHeight: 'var(--touch-min)',
+            minWidth: 'var(--touch-min)',
+            padding: '10px 12px',
             letterSpacing: '0.05em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {isTagging ? 'done' : '#'}
@@ -1673,7 +1682,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           borderRadius: 8,
           border: '1px solid rgba(245, 230, 200, 0.07)',
         }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {/* Past user tags first (highlighted) */}
             {userPastTags.map(tag => {
               const selected = tags.includes(tag);
@@ -1683,8 +1692,9 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                   key={tag}
                   onClick={() => !disabled && toggleTag(tag)}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: 3,
+                    minHeight: 'var(--touch-min)',
+                    padding: '10px 12px',
+                    borderRadius: 6,
                     border: '1px solid rgba(167, 139, 250, 0.2)',
                     background: selected
                       ? 'rgba(167, 139, 250, 0.25)'
@@ -1694,7 +1704,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                       : disabled
                         ? 'rgba(245, 230, 200, 0.2)'
                         : 'rgba(167, 139, 250, 0.65)',
-                    fontSize: 9,
+                    fontSize: 11,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',
                     cursor: disabled ? 'default' : 'pointer',
@@ -1714,8 +1724,9 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                   key={tag}
                   onClick={() => !disabled && toggleTag(tag)}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: 3,
+                    minHeight: 'var(--touch-min)',
+                    padding: '10px 12px',
+                    borderRadius: 6,
                     border: isPhaseRelevant && !selected
                       ? '1px solid rgba(201, 168, 76, 0.35)'
                       : 'none',
@@ -1731,7 +1742,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                         : isPhaseRelevant
                           ? 'rgba(201, 168, 76, 0.85)'
                           : 'rgba(245, 230, 200, 0.45)',
-                    fontSize: 9,
+                    fontSize: 11,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',
                     cursor: disabled ? 'default' : 'pointer',

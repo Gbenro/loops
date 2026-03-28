@@ -293,23 +293,31 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         )}
 
         {/* 8-Phase Timeline */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          padding: '10px 0',
-          marginBottom: 16,
-        }}>
+        <div
+          role="img"
+          aria-label={`Lunar phase timeline showing ${lunarData.phase.name} as current phase`}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: '6px 0',
+            marginBottom: 16,
+          }}
+        >
           {allPhases.map((p) => {
             const isActive = p.key === lunarData.phase.key;
             return (
               <div
                 key={p.key}
+                aria-label={`${p.name}${isActive ? ' (current)' : ''}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 'var(--touch-min)',
+                  minHeight: 'var(--touch-min)',
                   opacity: isActive ? 1 : 0.3,
-                  transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                  transform: isActive ? 'scale(1.15)' : 'scale(1)',
                   transition: 'all 0.2s',
                 }}
               >

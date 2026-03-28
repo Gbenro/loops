@@ -1554,6 +1554,7 @@ function DetailPanel({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
+                    minHeight: 'var(--touch-min)',
                     padding: '10px 12px',
                     marginBottom: 6,
                     borderRadius: 8,
@@ -1563,8 +1564,8 @@ function DetailPanel({
                   }}
                 >
                   <div style={{
-                    width: 18,
-                    height: 18,
+                    width: 20,
+                    height: 20,
                     borderRadius: '50%',
                     border: `2px solid ${cp.done ? '#A78BFA' : 'rgba(245, 230, 200, 0.2)'}`,
                     background: cp.done ? '#A78BFA' : 'transparent',
@@ -1613,9 +1614,13 @@ function DetailPanel({
                   )}
                   <div
                     onClick={() => onToggleSubtask(subtask.id)}
-                    style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12, flexShrink: 0, cursor: 'pointer' }}
+                    style={{ minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', margin: '-10px', padding: '10px' }}
                   >
-                    {subtask.done && '✓'}
+                    <div
+                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12 }}
+                    >
+                      {subtask.done && '✓'}
+                    </div>
                   </div>
                   <span
                     onClick={() => onToggleSubtask(subtask.id)}
@@ -1625,7 +1630,8 @@ function DetailPanel({
                   </span>
                   <button
                     onClick={() => onDeleteSubtask(subtask.id)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', lineHeight: 1, flexShrink: 0 }}
+                    aria-label="Delete step"
+                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 16, cursor: 'pointer', minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                   >×</button>
                 </div>
               ))}
