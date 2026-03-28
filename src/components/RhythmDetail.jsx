@@ -328,7 +328,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
               textAlign: 'center',
               marginTop: 12,
             }}>
-              Outer ring = Intention &nbsp;•&nbsp; Inner ring = Observed
+              Inner ring = Intention &nbsp;•&nbsp; Outer ring = Observed
             </div>
           </div>
         </div>

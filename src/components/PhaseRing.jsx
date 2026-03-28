@@ -1,5 +1,5 @@
 // Cosmic Loops — PhaseRing
-// 8-segment radial chart: outer arc = intention, inner arc = observation
+// 8-segment radial chart: inner arc = intention, outer arc = observation
 // New Moon at top, clockwise.
 
 const PHASES = [
@@ -22,11 +22,11 @@ const LEVEL_STYLE = {
   ceremonial: { f: 1.00, o: 1.00 },
 };
 
-// Radial bands (inner ring = observation, outer ring = intention)
-const OBS_R_MIN  = 22;
-const OBS_R_MAX  = 44;
-const INT_R_MIN  = 50;
-const INT_R_MAX  = 76;
+// Radial bands (inner ring = intention, outer ring = observation)
+const INT_R_MIN  = 22;
+const INT_R_MAX  = 44;
+const OBS_R_MIN  = 50;
+const OBS_R_MAX  = 76;
 
 // Gap between segments in degrees (half on each side)
 const GAP_DEG = 3;
@@ -160,19 +160,7 @@ export function PhaseRing({
               />
             )}
 
-            {/* Observation arc (inner) */}
-            {obsLevel && obsLevel !== 'none' && (
-              <ArcSegment
-                cx={cx} cy={cy}
-                rMin={obsMin} rMax={obsMax}
-                startDeg={segStart} endDeg={segEnd}
-                level={obsLevel}
-                color={phase.accent}
-                isCeremonial={obsLevel === 'ceremonial'}
-              />
-            )}
-
-            {/* Intention arc (outer) */}
+            {/* Intention arc (inner) */}
             {intLevel && intLevel !== 'none' && (
               <ArcSegment
                 cx={cx} cy={cy}
@@ -181,6 +169,18 @@ export function PhaseRing({
                 level={intLevel}
                 color={phase.accent}
                 isCeremonial={intLevel === 'ceremonial'}
+              />
+            )}
+
+            {/* Observation arc (outer) */}
+            {obsLevel && obsLevel !== 'none' && (
+              <ArcSegment
+                cx={cx} cy={cy}
+                rMin={obsMin} rMax={obsMax}
+                startDeg={segStart} endDeg={segEnd}
+                level={obsLevel}
+                color={phase.accent}
+                isCeremonial={obsLevel === 'ceremonial'}
               />
             )}
 
