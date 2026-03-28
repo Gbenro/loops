@@ -424,6 +424,27 @@ function App() {
     }
   }, [loading]);
 
+  // Deep link support: open Phase Guide or App Guide via URL
+  // Examples: ?guide=phases, ?guide=app, #phases, #guide
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const guideParam = params.get('guide');
+    const hash = window.location.hash.replace('#', '');
+
+    if (guideParam === 'phases' || hash === 'phases' || hash === 'phase-guide') {
+      setTutorialMode('phases');
+      setShowTutorial(true);
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+    } else if (guideParam === 'app' || guideParam === 'guide' || hash === 'guide' || hash === 'app-guide') {
+      setTutorialMode('guide');
+      setShowTutorial(true);
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [loading]);
+
   // Detect precise location for accurate hemisphere + future moonrise/set
   useEffect(() => {
     detectLocation().then(async (loc) => {
