@@ -1,8 +1,29 @@
 # Luna Loops Accessibility Audit Report
 **Date:** 2026-03-28
-**Tool:** eslint-plugin-jsx-a11y (static analysis)
+**Tools:** eslint-plugin-jsx-a11y (static) + axe-core via Playwright (runtime)
 **Target:** WCAG 2.1 Level AA
 **Status:** Audit Complete
+
+## Runtime Testing (Playwright + axe-core)
+
+Visual testing completed with Playwright capturing screenshots across 3 viewports:
+- Desktop (1920x1080)
+- Tablet (768x1024)
+- Mobile (375x667)
+
+**Runtime Accessibility Results (axe-core):**
+| Tab | Violations | Passes |
+|-----|------------|--------|
+| Sky | 5 | 21 |
+| Loops | 5 | 19 |
+| Echoes | 5 | 19 |
+| Rhythm | 5 | 19 |
+
+Screenshots saved to: `tests/visual/screenshots/`
+
+---
+
+## Static Analysis Results
 
 ## Summary
 
