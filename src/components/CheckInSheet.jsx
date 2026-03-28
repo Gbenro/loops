@@ -22,11 +22,16 @@ const LEVELS = [
   { value: 'ceremonial', label: 'Ceremonial', desc: 'Practice elevated to ritual' },
 ];
 
-export function CheckInSheet({ phaseKey, rhythmName, existing = null, onSave, onClose }) {
+export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase = null, phaseDuration = null, onSave, onClose }) {
   const meta = PHASES_META[phaseKey] || { label: phaseKey, accent: 'rgba(245,230,200,0.6)' };
   const [level, setLevel]   = useState(existing?.engagement || null);
   const [note, setNote]     = useState(existing?.note || '');
   const [saving, setSaving] = useState(false);
+
+  // Format day context string
+  const dayContext = dayInPhase !== null && phaseDuration !== null
+    ? `Day ${Math.floor(dayInPhase) + 1} of ${Math.ceil(phaseDuration)}`
+    : null;
 
   const canSave = level !== null;
 
@@ -77,8 +82,12 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, onSave, on
             fontSize: 10, fontFamily: 'monospace',
             letterSpacing: '0.15em', color: meta.accent,
             opacity: 0.7, marginBottom: 6,
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            {meta.label.toUpperCase()}
+            <span>{meta.label.toUpperCase()}</span>
+            {dayContext && (
+              <span style={{ color: 'rgba(245,230,200,0.4)' }}>• {dayContext}</span>
+            )}
           </div>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
