@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, renderHook } from '@testing-library/react';
 import { OnboardingProvider, useOnboarding, TOUR_DEFINITIONS } from './OnboardingProvider.jsx';
 import { WelcomeModal } from './WelcomeModal.jsx';
+import { CeremonyPrompt, useCeremonyPrompt } from './CeremonyPrompt.jsx';
 
 // Test component to access context
 function TestConsumer({ onReady }) {
@@ -405,6 +406,196 @@ describe('Onboarding', () => {
 
       expect(screen.getByText('FIND THIS AGAIN')).toBeInTheDocument();
       expect(screen.getByText('Menu → About → How to use')).toBeInTheDocument();
+    });
+  });
+
+  describe('CeremonyPrompt', () => {
+    it('renders new moon ceremony prompt', () => {
+      const onAction = vi.fn();
+      const onDismiss = vi.fn();
+
+      render(<CeremonyPrompt type="new-moon" onAction={onAction} onDismiss={onDismiss} />);
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('The dark is here.')).toBeInTheDocument();
+      expect(screen.getByText(/This is the most interior moment/)).toBeInTheDocument();
+      expect(screen.getByText('Plant an intention')).toBeInTheDocument();
+      expect(screen.getByText('Not now')).toBeInTheDocument();
+    });
+
+    it('renders waning crescent ceremony prompt', () => {
+      const onAction = vi.fn();
+      const onDismiss = vi.fn();
+
+      render(<CeremonyPrompt type="waning-crescent" onAction={onAction} onDismiss={onDismiss} />);
+
+      expect(screen.getByText('The cycle is ending.')).toBeInTheDocument();
+      expect(screen.getByText(/What did this moon hold/)).toBeInTheDocument();
+      expect(screen.getByText('Review cycle')).toBeInTheDocument();
+      expect(screen.getByText('Let it pass')).toBeInTheDocument();
+    });
+
+    it('returns null for invalid type', () => {
+      const { container } = render(<CeremonyPrompt type="invalid" onAction={() => {}} onDismiss={() => {}} />);
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('has accessible dialog structure', () => {
+      render(<CeremonyPrompt type="new-moon" onAction={() => {}} onDismiss={() => {}} />);
+
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(dialog).toHaveAttribute('aria-labelledby', 'ceremony-title');
+    });
+
+    it('calls onAction when primary button clicked', () => {
+      const onAction = vi.fn();
+      const onDismiss = vi.fn();
+
+      render(<CeremonyPrompt type="new-moon" onAction={onAction} onDismiss={onDismiss} />);
+
+      fireEvent.click(screen.getByText('Plant an intention'));
+
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onDismiss).not.toHaveBeenCalled();
+    });
+
+    it('calls onDismiss when dismiss button clicked', () => {
+      const onAction = vi.fn();
+      const onDismiss = vi.fn();
+
+      render(<CeremonyPrompt type="new-moon" onAction={onAction} onDismiss={onDismiss} />);
+
+      fireEvent.click(screen.getByText('Not now'));
+
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+      expect(onAction).not.toHaveBeenCalled();
+    });
+
+    it('displays moon emoji for new moon', () => {
+      render(<CeremonyPrompt type="new-moon" onAction={() => {}} onDismiss={() => {}} />);
+      expect(screen.getByText('🌑')).toBeInTheDocument();
+    });
+
+    it('displays crescent emoji for waning crescent', () => {
+      render(<CeremonyPrompt type="waning-crescent" onAction={() => {}} onDismiss={() => {}} />);
+      expect(screen.getByText('🌘')).toBeInTheDocument();
+    });
+  });
+
+  describe('useCeremonyPrompt', () => {
+    it('returns null when no lunar data', () => {
+      const { result } = renderHook(() => useCeremonyPrompt(null));
+      expect(result.current.showCeremony).toBeNull();
+    });
+
+    it('does not show ceremony if onboarding not completed', () => {
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBeNull();
+    });
+
+    it('shows new moon ceremony when in new moon phase with no cycle loop', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBe('new-moon');
+    });
+
+    it('does not show new moon ceremony if cycle loop exists', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, true));
+      expect(result.current.showCeremony).toBeNull();
+    });
+
+    it('shows waning crescent ceremony at end of cycle', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+
+      const lunarData = {
+        phase: { key: 'waning-crescent' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, true));
+      expect(result.current.showCeremony).toBe('waning-crescent');
+    });
+
+    it('does not show ceremony if already shown for this cycle', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+      mockStorage['ceremonyNewMoonCycle'] = '2026-03-01';
+
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBeNull();
+    });
+
+    it('dismissCeremony marks ceremony as shown and clears state', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBe('new-moon');
+
+      act(() => {
+        result.current.dismissCeremony();
+      });
+
+      expect(result.current.showCeremony).toBeNull();
+      expect(mockStorage['ceremonyNewMoonCycle']).toBe('2026-03-01');
+    });
+
+    it('dismissCeremony marks waning crescent as shown', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+
+      const lunarData = {
+        phase: { key: 'waning-crescent' },
+        cycleStart: '2026-03-15',
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBe('waning-crescent');
+
+      act(() => {
+        result.current.dismissCeremony();
+      });
+
+      expect(mockStorage['ceremonyWaningCrescentCycle']).toBe('2026-03-15');
+    });
+
+    it('shows new ceremony in new cycle', () => {
+      mockStorage['onboardingCompleted'] = 'true';
+      mockStorage['ceremonyNewMoonCycle'] = '2026-02-01'; // Previous cycle
+
+      const lunarData = {
+        phase: { key: 'new' },
+        cycleStart: '2026-03-01', // New cycle
+      };
+
+      const { result } = renderHook(() => useCeremonyPrompt(lunarData, false));
+      expect(result.current.showCeremony).toBe('new-moon');
     });
   });
 });
