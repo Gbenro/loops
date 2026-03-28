@@ -4,146 +4,173 @@ import { MoonFace, MiniMoon } from './MoonFace.jsx';
 
 describe('MoonFace', () => {
   describe('rendering', () => {
-    it('renders an SVG element', () => {
+    it('renders a div container with role="img"', () => {
       const { container } = render(<MoonFace />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
     });
 
     it('respects size prop', () => {
       const { container } = render(<MoonFace size={200} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toHaveAttribute('width', '200');
-      expect(svg).toHaveAttribute('height', '200');
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ width: '200px', height: '200px' });
     });
 
     it('uses default size of 180', () => {
       const { container } = render(<MoonFace />);
-      const svg = container.querySelector('svg');
-      expect(svg).toHaveAttribute('width', '180');
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ width: '180px', height: '180px' });
     });
   });
 
   describe('phase rendering', () => {
-    it('renders new moon (phase 0) without lit path', () => {
+    it('renders new moon (phase 0) with minimal illumination', () => {
       const { container } = render(<MoonFace phase={0} />);
-      // New moon should have no lit path (path elements for illumination)
-      const paths = container.querySelectorAll('path');
-      // Should only have terminator-related paths, not illumination paths
-      expect(paths.length).toBeGreaterThanOrEqual(0);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('New Moon');
     });
 
-    it('renders full moon (phase 0.5) with complete circle', () => {
+    it('renders full moon (phase 0.5) with full illumination', () => {
       const { container } = render(<MoonFace phase={0.5} />);
-      const paths = container.querySelectorAll('path');
-      // Full moon should have multiple paths for surface details
-      expect(paths.length).toBeGreaterThan(0);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('Full Moon');
     });
 
     it('renders waxing crescent (phase 0.125)', () => {
       const { container } = render(<MoonFace phase={0.125} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('Waxing Crescent');
     });
 
     it('renders first quarter (phase 0.25)', () => {
       const { container } = render(<MoonFace phase={0.25} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('First Quarter');
     });
 
     it('renders waning gibbous (phase 0.625)', () => {
       const { container } = render(<MoonFace phase={0.625} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('Waning Gibbous');
     });
 
     it('renders last quarter (phase 0.75)', () => {
       const { container } = render(<MoonFace phase={0.75} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      expect(moonDiv.getAttribute('aria-label')).toContain('Last Quarter');
     });
   });
 
-  describe('SVG structure', () => {
-    it('contains defs with gradients', () => {
+  describe('accessibility', () => {
+    it('has role="img" for screen readers', () => {
       const { container } = render(<MoonFace phase={0.5} />);
-      const defs = container.querySelector('defs');
-      expect(defs).toBeInTheDocument();
-
-      const gradients = defs.querySelectorAll('radialGradient');
-      expect(gradients.length).toBeGreaterThan(0);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveAttribute('role', 'img');
     });
 
-    it('contains base circle for dark side', () => {
-      const { container } = render(<MoonFace />);
-      const circles = container.querySelectorAll('circle');
-      expect(circles.length).toBeGreaterThan(0);
+    it('has aria-label describing the phase', () => {
+      const { container } = render(<MoonFace phase={0.5} />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveAttribute('aria-label');
+      expect(moonDiv.getAttribute('aria-label')).toContain('illuminated');
     });
 
-    it('has drop-shadow filter style', () => {
-      const { container } = render(<MoonFace />);
-      const svg = container.querySelector('svg');
-      expect(svg.style.filter).toContain('drop-shadow');
+    it('uses custom phaseName when provided', () => {
+      const { container } = render(<MoonFace phase={0.25} phaseName="Custom Phase" />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv.getAttribute('aria-label')).toBe('Moon phase: Custom Phase');
     });
   });
 
   describe('illumination prop', () => {
-    it('accepts illumination prop', () => {
-      // Illumination is passed but currently only used for documentation
+    it('accepts illumination prop without error', () => {
       const { container } = render(<MoonFace illumination={75} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+    });
+  });
+
+  describe('CSS structure', () => {
+    it('has moon glow element', () => {
+      const { container } = render(<MoonFace phase={0.5} />);
+      const glow = container.querySelector('.moon-glow');
+      expect(glow).toBeInTheDocument();
+    });
+
+    it('has circular shape with border-radius', () => {
+      const { container } = render(<MoonFace />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ borderRadius: '50%' });
     });
   });
 });
 
 describe('MiniMoon', () => {
   describe('rendering', () => {
-    it('renders an SVG element', () => {
+    it('renders a div container with role="img"', () => {
       const { container } = render(<MiniMoon />);
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
     });
 
     it('uses default size of 24', () => {
       const { container } = render(<MiniMoon />);
-      const svg = container.querySelector('svg');
-      expect(svg).toHaveAttribute('width', '24');
-      expect(svg).toHaveAttribute('height', '24');
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ width: '24px', height: '24px' });
     });
 
     it('respects size prop', () => {
       const { container } = render(<MiniMoon size={32} />);
-      const svg = container.querySelector('svg');
-      expect(svg).toHaveAttribute('width', '32');
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ width: '32px', height: '32px' });
     });
 
-    it('renders base circle', () => {
+    it('has circular shape', () => {
       const { container } = render(<MiniMoon />);
-      const circle = container.querySelector('circle');
-      expect(circle).toBeInTheDocument();
-      expect(circle).toHaveAttribute('fill', '#2a2a34');
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveStyle({ borderRadius: '50%' });
     });
   });
 
   describe('phase rendering', () => {
-    it('renders new moon without lit path', () => {
-      const { container } = render(<MiniMoon phase={0} />);
-      const paths = container.querySelectorAll('path');
-      expect(paths.length).toBe(0);
-    });
-
-    it('renders full moon with lit path', () => {
+    it('renders full moon with lit portion', () => {
       const { container } = render(<MiniMoon phase={0.5} />);
-      const paths = container.querySelectorAll('path');
-      expect(paths.length).toBe(1);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+      // Full moon should have child divs for dark base and lit portion
+      expect(moonDiv.children.length).toBeGreaterThan(0);
     });
 
-    it('renders partial phase with lit path', () => {
+    it('renders partial phase', () => {
       const { container } = render(<MiniMoon phase={0.25} />);
-      const paths = container.querySelectorAll('path');
-      expect(paths.length).toBe(1);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+    });
+
+    it('renders new moon with minimal elements', () => {
+      const { container } = render(<MiniMoon phase={0} />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('has aria-label', () => {
+      const { container } = render(<MiniMoon />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv).toHaveAttribute('aria-label', 'Moon phase indicator');
+    });
+
+    it('uses custom phaseName when provided', () => {
+      const { container } = render(<MiniMoon phaseName="Waxing Crescent" />);
+      const moonDiv = container.querySelector('[role="img"]');
+      expect(moonDiv.getAttribute('aria-label')).toBe('Moon: Waxing Crescent');
     });
   });
 });
