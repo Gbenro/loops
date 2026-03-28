@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase.js';
 import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { LunaLogo } from './LunaLogo.jsx';
+import { useOnboarding } from './Onboarding/index.js';
 
 const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
@@ -31,6 +32,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
   // Encryption
   const { status: encStatus, setupEncryption, disableEncryption, lock } = useEncryption();
+
+  // Onboarding
+  const { resetOnboarding } = useOnboarding();
   const [encPassphrase, setEncPassphrase] = useState('');
   const [encConfirm, setEncConfirm] = useState('');
   const [encError, setEncError] = useState('');
@@ -966,7 +970,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {IS_V2 && (
                     <button
-                      onClick={() => { onOpenTutorial('guide'); onClose(); }}
+                      onClick={() => { resetOnboarding(); onClose(); }}
                       style={{
                         width: '100%', padding: '12px 16px',
                         borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',
