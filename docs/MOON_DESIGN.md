@@ -265,5 +265,29 @@ The texture approach also aligns with the app's cosmic authenticity: users are c
 
 ---
 
+## 8. Implementation Notes (Added 2026-03-28)
+
+**Status:** ✅ Implemented (commit f1a479b)
+
+The photorealistic texture approach was implemented with a warm golden color palette instead of the cooler gray tones originally proposed. This decision maintains visual harmony with Luna Loops' warm cream theme (#f5e6c8).
+
+**Actual implementation:**
+- Sepia(25%) + saturate(1.3) filter for warmth
+- Golden color overlay radial gradient
+- Warm outer glow (#FFD778, #FFC864)
+- Gold-tinted rim highlight and atmospheric edge
+- MiniMoon uses warm gold gradient (#f5d88a to #d4b060)
+
+**Design rationale:**
+While astronomically accurate moons are neutral gray, the warm golden treatment:
+1. Maintains consistency with the app's existing color language
+2. Evokes the emotional warmth users associate with moonlight
+3. Creates a more inviting, less clinical feel
+
+This is a valid creative interpretation that prioritizes brand cohesion over strict realism.
+
+---
+
 *Document created: 2026-03-28*
+*Last updated: 2026-03-28*
 *Author: UX Designer (LUN-25)*

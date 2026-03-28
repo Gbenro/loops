@@ -104,7 +104,7 @@ Design document for the interactive onboarding tutorial flow.
 
 **Step 3 — Observation Dots**
 > **The dots are not scores.**
-> Each phase, you note what happened — present, partial, absent. The dots are observations, not judgments.
+> Each day, you can note what happened — from none to ceremonial. The dots are observations, not judgments.
 
 **Step 4 — The PhaseRing**
 > **Two rings. Two truths.**
