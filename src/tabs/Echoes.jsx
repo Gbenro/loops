@@ -361,6 +361,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         alert('Could not access microphone: ' + error.message);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Stop recording
@@ -397,15 +398,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Cleanup on unmount
   useEffect(() => {
+    const timer = timerRef.current;
+    const recorder = mediaRecorderRef.current;
+    const player = audioPlayerRef.current;
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-        audioPlayerRef.current = null;
+      if (timer) clearInterval(timer);
+      if (recorder && isRecording) recorder.stop();
+      if (player) {
+        player.pause();
       }
     };
-  }, []); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch echoes on mount; decrypt encrypted texts if key is available
   useEffect(() => {

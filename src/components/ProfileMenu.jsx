@@ -46,6 +46,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     if (isOpen && user) {
       loadProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user]);
 
   const loadProfile = async () => {

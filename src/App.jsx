@@ -434,6 +434,7 @@ export default function App() {
         }
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Load generative phrases on mount

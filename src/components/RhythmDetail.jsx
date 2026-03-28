@@ -207,6 +207,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
     const obs = await getObservationsForInstance(inst.id, userId);
     setObservations(obs);
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rhythm.id, cycleStart, userId]);
 
   useEffect(() => { loadData(); }, [loadData]);

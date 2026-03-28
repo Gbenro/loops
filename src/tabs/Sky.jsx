@@ -23,7 +23,9 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
 
   // Get resonances using user's profile data if available
   const now = new Date();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memoize per userProfile, not per render
   const resonances = useMemo(() => getNatalResonance(now, userProfile), [userProfile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memoize per userProfile, not per render
   const resonanceSummary = useMemo(() => getResonanceSummary(now, userProfile), [userProfile]);
 
   const phaseContent = getPhaseContent(lunarData.phase.key);

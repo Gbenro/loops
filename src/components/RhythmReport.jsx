@@ -36,6 +36,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle })
     generateRhythmReport({ rhythm, instance, observations, cycleLoopTitle })
       .then(text => { setReflection(text); setLoading(false); })
       .catch(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Build maps for ring

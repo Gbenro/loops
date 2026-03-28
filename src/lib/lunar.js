@@ -180,6 +180,9 @@ export function getLunarData(date = new Date()) {
   const daysToFull = getDaysUntilFull(date);
   const daysToNew = getDaysUntilNew(date);
 
+  // Calculate cycle start (new moon that began this cycle)
+  const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
+
   // Find current phase bounds for timing calculations
   const currentPhase = PHASES.find(p => age >= p.start && age < p.end) || PHASES[0];
   const phaseDuration = currentPhase.end - currentPhase.start;
@@ -207,6 +210,7 @@ export function getLunarData(date = new Date()) {
   return {
     age,                           // Days into cycle (0-29.53)
     dayOfCycle: Math.floor(age) + 1, // Day 1-30
+    cycleStart,                    // ISO string of new moon that started this cycle
     phase,                         // { name, key, energy, isWaning, isNew, isFull }
     illumination,                  // 0-100%
     lunarMonth,                    // "Snow", "Wolf", etc.

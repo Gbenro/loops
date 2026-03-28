@@ -108,7 +108,7 @@ export async function saveLoop(loop, userId) {
   if (!userId) return loop;
 
   try {
-    const { data, error } = await supabase
+    const { data: _data, error } = await supabase
       .from('loops')
       .upsert({
         id: loop.id,
