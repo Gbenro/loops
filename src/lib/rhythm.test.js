@@ -249,14 +249,18 @@ describe('rhythm.js', () => {
       const stored = JSON.parse(mockStorage['cosmic_rhythm_observations_v1']);
       expect(stored).toHaveLength(1);
       expect(stored[0].engagement).toBe('engaged');
+      expect(stored[0].dateKey).toBeDefined(); // dateKey auto-populated
     });
 
-    it('replaces observation for same phase/instance', async () => {
+    it('replaces observation for same phase/instance/date', async () => {
+      const today = new Date().toISOString().slice(0, 10);
       const existingObs = {
         id: 'obs-1',
         cycleInstanceId: 'instance-1',
         phase: 'full',
         engagement: 'skipped',
+        loggedAt: new Date().toISOString(),
+        dateKey: today,
       };
       mockStorage['cosmic_rhythm_observations_v1'] = JSON.stringify([existingObs]);
 
@@ -266,6 +270,8 @@ describe('rhythm.js', () => {
         phase: 'full',
         engagement: 'engaged',
         note: 'Updated note',
+        loggedAt: new Date().toISOString(),
+        dateKey: today,
       };
 
       await saveObservation(newObs, null);
@@ -274,6 +280,35 @@ describe('rhythm.js', () => {
       expect(stored).toHaveLength(1);
       expect(stored[0].engagement).toBe('engaged');
       expect(stored[0].note).toBe('Updated note');
+    });
+
+    it('allows multiple observations for same phase on different days', async () => {
+      const existingObs = {
+        id: 'obs-1',
+        cycleInstanceId: 'instance-1',
+        phase: 'full',
+        engagement: 'light',
+        loggedAt: '2024-01-01T12:00:00.000Z',
+        dateKey: '2024-01-01',
+      };
+      mockStorage['cosmic_rhythm_observations_v1'] = JSON.stringify([existingObs]);
+
+      const newObs = {
+        id: 'obs-2',
+        cycleInstanceId: 'instance-1',
+        phase: 'full',
+        engagement: 'deep',
+        note: 'Day 2',
+        loggedAt: '2024-01-02T12:00:00.000Z',
+        dateKey: '2024-01-02',
+      };
+
+      await saveObservation(newObs, null);
+
+      const stored = JSON.parse(mockStorage['cosmic_rhythm_observations_v1']);
+      expect(stored).toHaveLength(2); // Both observations kept - different days
+      expect(stored[0].dateKey).toBe('2024-01-01');
+      expect(stored[1].dateKey).toBe('2024-01-02');
     });
   });
 

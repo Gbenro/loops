@@ -258,11 +258,12 @@ export async function getObservationsForInstance(instanceId, userId) {
     if (error) throw error;
 
     const server = data.map(rowToObservation);
-    const serverPhases = new Set(server.map(o => o.phase));
+    // Use composite key of phase + dateKey for dedup (allows multiple per phase, one per day)
+    const serverKeys = new Set(server.map(o => `${o.phase}:${o.dateKey || ''}`));
 
     const allLocal = getLocal(OBSERVATIONS_KEY);
     const otherLocal = allLocal.filter(o => o.cycleInstanceId !== instanceId);
-    const unsyncedThis = local.filter(o => !serverPhases.has(o.phase));
+    const unsyncedThis = local.filter(o => !serverKeys.has(`${o.phase}:${o.dateKey || ''}`));
     setLocal(OBSERVATIONS_KEY, [...otherLocal, ...server, ...unsyncedThis]);
     for (const obs of unsyncedThis) saveObservation(obs, userId);
 
@@ -274,10 +275,17 @@ export async function getObservationsForInstance(instanceId, userId) {
 }
 
 export async function saveObservation(obs, userId) {
-  // Enforce one per phase per instance — replace existing
+  // Ensure dateKey is set (for daily check-ins)
+  if (!obs.dateKey) {
+    obs.dateKey = new Date(obs.loggedAt).toISOString().slice(0, 10); // YYYY-MM-DD
+  }
+
+  // Enforce one per phase per day per instance — replace existing
   const all = getLocal(OBSERVATIONS_KEY);
   const idx = all.findIndex(
-    o => o.cycleInstanceId === obs.cycleInstanceId && o.phase === obs.phase
+    o => o.cycleInstanceId === obs.cycleInstanceId &&
+         o.phase === obs.phase &&
+         o.dateKey === obs.dateKey
   );
   if (idx >= 0) all[idx] = obs; else all.push(obs);
   setLocal(OBSERVATIONS_KEY, all);
@@ -294,8 +302,10 @@ export async function saveObservation(obs, userId) {
         engagement:        obs.engagement,
         note:              obs.note || null,
         logged_at:         obs.loggedAt,
+        date_key:          obs.dateKey,
+        day_in_phase:      obs.dayInPhase ?? null,
       },
-      { onConflict: 'cycle_instance_id,phase' }
+      { onConflict: 'cycle_instance_id,phase,date_key' }
     );
     if (error) throw error;
   } catch (e) {
@@ -313,6 +323,8 @@ function rowToObservation(row) {
     engagement:      row.engagement,
     note:            row.note,
     loggedAt:        row.logged_at,
+    dateKey:         row.date_key || null,
+    dayInPhase:      row.day_in_phase ?? null,
   };
 }
 
