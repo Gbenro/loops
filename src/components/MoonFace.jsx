@@ -138,7 +138,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         borderRadius: '50%',
       }}
     >
-      {/* Outer glow */}
+      {/* Outer glow - warm golden */}
       <div
         className="moon-glow"
         style={{
@@ -146,8 +146,8 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
           inset: -4,
           borderRadius: '50%',
           boxShadow: isNewMoon
-            ? '0 0 25px rgba(245, 230, 200, 0.08)'
-            : '0 0 35px rgba(245, 230, 200, 0.25), 0 0 60px rgba(245, 230, 200, 0.1)',
+            ? '0 0 25px rgba(255, 220, 150, 0.1)'
+            : '0 0 35px rgba(255, 215, 120, 0.35), 0 0 60px rgba(255, 200, 100, 0.15)',
           pointerEvents: 'none',
         }}
       />
@@ -172,7 +172,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         }}
       />
 
-      {/* Moon texture (lit portion) */}
+      {/* Moon texture (lit portion) - warm golden tint */}
       {!isNewMoon && (
         <div
           style={{
@@ -183,8 +183,22 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             clipPath: clipPath,
-            // Apply grayscale filter to match cooler moon appearance
-            filter: 'grayscale(20%) brightness(1.05) contrast(1.1)',
+            // Warm golden effect: sepia for warmth, saturate to enhance gold tones
+            filter: 'sepia(25%) saturate(1.3) brightness(1.1) contrast(1.05)',
+          }}
+        />
+      )}
+
+      {/* Golden color overlay for warm lit effect */}
+      {!isNewMoon && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
+            clipPath: clipPath,
+            pointerEvents: 'none',
           }}
         />
       )}
@@ -238,7 +252,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         />
       )}
 
-      {/* Thin rim highlight */}
+      {/* Thin rim highlight - golden tint */}
       <div
         style={{
           position: 'absolute',
@@ -246,18 +260,18 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
           borderRadius: '50%',
           boxShadow: isNewMoon
             ? 'inset 0 0 2px rgba(100, 120, 140, 0.15)'
-            : 'inset 0 0 1px rgba(255, 250, 240, 0.15)',
+            : 'inset 0 0 2px rgba(255, 220, 150, 0.2)',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Atmospheric edge glow */}
+      {/* Atmospheric edge glow - golden */}
       <div
         style={{
           position: 'absolute',
           inset: -1,
           borderRadius: '50%',
-          border: '1px solid rgba(245, 235, 220, 0.08)',
+          border: '1px solid rgba(255, 215, 140, 0.12)',
           pointerEvents: 'none',
         }}
       />
@@ -344,14 +358,14 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
         }}
       />
 
-      {/* Lit portion */}
+      {/* Lit portion - warm golden */}
       {!isNewMoon && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: '#d8d4cc',
+            background: 'linear-gradient(135deg, #f5d88a 0%, #e8c870 50%, #d4b060 100%)',
             clipPath: clipPath,
           }}
         />
