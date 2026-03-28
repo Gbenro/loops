@@ -6,6 +6,53 @@ import { useMemo } from 'react';
 // Import moon texture (NASA public domain - Clementine mission)
 const MOON_TEXTURE = '/moon-texture.jpg';
 
+// CSS keyframes for 3D movement effects (injected once)
+const ANIMATION_STYLES = `
+@keyframes moonGlowPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+@keyframes moonHighlightShimmer {
+  0%, 100% {
+    background-position: 30% 30%;
+    opacity: 0.08;
+  }
+  33% {
+    background-position: 35% 28%;
+    opacity: 0.12;
+  }
+  66% {
+    background-position: 28% 35%;
+    opacity: 0.06;
+  }
+}
+
+@keyframes moonSurfaceFloat {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(0.5px, -0.3px) rotate(0.1deg); }
+  50% { transform: translate(0, 0.5px) rotate(-0.05deg); }
+  75% { transform: translate(-0.3px, 0) rotate(0.05deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moon-glow, .moon-highlight, .moon-surface {
+    animation: none !important;
+  }
+}
+`;
+
+// Inject animation styles once
+if (typeof document !== 'undefined') {
+  const styleId = 'moon-face-animations';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = ANIMATION_STYLES;
+    document.head.appendChild(style);
+  }
+}
+
 export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 50, phaseName = null }) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
 
@@ -138,7 +185,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         borderRadius: '50%',
       }}
     >
-      {/* Outer glow - warm golden */}
+      {/* Outer glow - warm golden with breathing pulse */}
       <div
         className="moon-glow"
         style={{
@@ -149,6 +196,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             ? '0 0 25px rgba(255, 220, 150, 0.1)'
             : '0 0 35px rgba(255, 215, 120, 0.35), 0 0 60px rgba(255, 200, 100, 0.15)',
           pointerEvents: 'none',
+          animation: isNewMoon ? 'none' : 'moonGlowPulse 8s ease-in-out infinite',
         }}
       />
 
@@ -172,9 +220,10 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         }}
       />
 
-      {/* Moon texture (lit portion) - warm golden tint */}
+      {/* Moon texture (lit portion) - warm golden tint with subtle float */}
       {!isNewMoon && (
         <div
+          className="moon-surface"
           style={{
             position: 'absolute',
             inset: 0,
@@ -185,6 +234,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             clipPath: clipPath,
             // Warm golden effect: sepia for warmth, saturate to enhance gold tones
             filter: 'sepia(25%) saturate(1.3) brightness(1.1) contrast(1.05)',
+            animation: 'moonSurfaceFloat 12s ease-in-out infinite',
           }}
         />
       )}
@@ -238,16 +288,19 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
         />
       )}
 
-      {/* Subtle highlight (3D effect) */}
+      {/* Subtle highlight (3D effect) with shimmer animation */}
       {!isNewMoon && (
         <div
+          className="moon-highlight"
           style={{
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
             background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
+            backgroundSize: '200% 200%',
             clipPath: clipPath,
             pointerEvents: 'none',
+            animation: 'moonHighlightShimmer 10s ease-in-out infinite',
           }}
         />
       )}
