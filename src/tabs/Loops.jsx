@@ -25,6 +25,12 @@ const PHASE_CHECKPOINTS = [
   { phase: 'waning-crescent', name: 'Waning Crescent' },
 ];
 
+// Phase order for proper sequencing (8 lunar phases in cycle order)
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
+];
+
 export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const [loops, setLoops] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,7 +267,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       windowEnd: sourceLoop.type === 'phase'
         ? new Date(Date.now() + lunarData.phaseRemaining * 24 * 60 * 60 * 1000).toISOString()
         : null,
-      // Cycle loops get fresh phase checkpoints; phase loops start empty
+      // Cycle loops get fresh phase checkpoints; phase loops copy steps from source
       subtasks: isCycleLoop
         ? PHASE_CHECKPOINTS.map(cp => ({
             id: generateId('pc'),
@@ -270,7 +276,13 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             done: false,
             isPhaseCheckpoint: true,
           }))
-        : [],
+        : (sourceLoop.subtasks || [])
+            .filter(s => !s.isPhaseCheckpoint) // only copy regular steps, not phase checkpoints
+            .map(s => ({
+              ...s,
+              id: generateId('st'), // generate new ID
+              done: false,          // reset completion status
+            })),
       openedAt: new Date().toISOString(),
       closedAt: null,
       releasedAt: null,
@@ -483,12 +495,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       (l.status === 'closed' || l.status === 'released')
     )
     .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
-
-  // Phase order for proper sequencing
-  const PHASE_ORDER = [
-    'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-    'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
-  ];
 
   // Get unique phases from closed loops, sorted in lunar cycle order
   const uniquePhases = useMemo(() => {
@@ -1398,7 +1404,8 @@ function DetailPanel({
     : [];
   const regularSubtasks = loop.subtasks?.filter(s => !s.isPhaseCheckpoint) || [];
 
-  const lunarData = lunarDataProp || useMemo(() => getLunarData(), []);
+  const computedLunarData = useMemo(() => getLunarData(), []);
+  const lunarData = lunarDataProp || computedLunarData;
 
   // Load echoes linked to this loop
   useEffect(() => {
