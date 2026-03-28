@@ -381,27 +381,27 @@ Users are prompted to sign in when trying to record voice echoes. This is approp
 
 ## 7. Prioritized Implementation Roadmap
 
-### Phase 1: Critical Accessibility (1-2 days)
-1. [ ] Fix text contrast ratios (1.1)
-2. [ ] Add ARIA labels to navigation and key controls (1.2)
-3. [ ] Add focus indicators (1.3)
+### Phase 1: Critical Accessibility (1-2 days) ✅ COMPLETE
+1. [x] Fix text contrast ratios (1.1) — commit 20d90d3
+2. [x] Add ARIA labels to navigation and key controls (1.2) — commit 7e1babc
+3. [x] Add focus indicators (1.3) — commit 7e1babc
 
-### Phase 2: Touch & Mobile (1-2 days)
-4. [ ] Increase touch targets to 44px minimum (2.1)
-5. [ ] Add swipe-to-dismiss on bottom sheets (2.2)
-6. [ ] Fix fixed-position button overlap (2.3)
+### Phase 2: Touch & Mobile (1-2 days) — IN PROGRESS
+4. [x] Increase touch targets to 44px minimum (2.1) — commit bc3bd12
+5. [ ] Add swipe-to-dismiss on bottom sheets (2.2) — **pending**
+6. [ ] Fix fixed-position button overlap (2.3) — **pending**
 
-### Phase 3: Usability (2-3 days)
-7. [ ] Improve empty states with guidance (4.1)
-8. [ ] Enhance tutorial discoverability (4.2)
-9. [ ] Reduce Loops tab cognitive load (4.3)
-10. [ ] Improve voice recording feedback (4.4)
+### Phase 3: Usability (2-3 days) — PARTIAL
+7. [x] Improve empty states with guidance (4.1) — implemented via onboarding
+8. [x] Enhance tutorial discoverability (4.2) — commit d54f1c6 (react-joyride)
+9. [ ] Reduce Loops tab cognitive load (4.3) — **pending**
+10. [ ] Improve voice recording feedback (4.4) — **pending**
 
 ### Phase 4: Polish (1-2 days)
 11. [ ] Standardize border-radius values (3.1)
 12. [ ] Standardize spacing values (3.2)
 13. [ ] Fix font size inconsistencies (3.3)
-14. [ ] Improve first-time user flow (6.1)
+14. [x] Improve first-time user flow (6.1) — commit e11023f (phase ceremonies)
 
 ### Phase 5: Optimization (Optional)
 15. [ ] Extract inline styles for performance (5.1)
@@ -573,17 +573,17 @@ To implement consistent design tokens, add these CSS variables to `App.jsx`:
 
 ## 10. Summary of Engineering Tasks
 
-### Critical (P0) - Do First
-1. [ ] Fix text contrast ratios across all tabs
-2. [ ] Add ARIA labels to tab navigation
-3. [ ] Add ARIA labels to moon display and voice orb
-4. [ ] Add `:focus-visible` styles globally
+### Critical (P0) - Do First ✅ COMPLETE
+1. [x] Fix text contrast ratios across all tabs
+2. [x] Add ARIA labels to tab navigation
+3. [x] Add ARIA labels to moon display and voice orb
+4. [x] Add `:focus-visible` styles globally
 
-### High Priority (P1) - This Sprint
-5. [ ] Increase all touch targets to 44px minimum
-6. [ ] Add swipe-to-dismiss to all bottom sheets
-7. [ ] Improve empty state guidance with CTAs
-8. [ ] Add tutorial discoverability links
+### High Priority (P1) - This Sprint — IN PROGRESS
+5. [x] Increase all touch targets to 44px minimum
+6. [ ] Add swipe-to-dismiss to all bottom sheets — **pending**
+7. [x] Improve empty state guidance with CTAs
+8. [x] Add tutorial discoverability links
 
 ### Medium Priority (P2) - Next Sprint
 9. [ ] Standardize border-radius values
