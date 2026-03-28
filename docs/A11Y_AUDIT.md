@@ -2,20 +2,32 @@
 **Date:** 2026-03-28
 **Tool:** eslint-plugin-jsx-a11y (static analysis)
 **Target:** WCAG 2.1 Level AA
+**Status:** Audit Complete
 
 ## Summary
 
 | Severity | Count | Description |
 |----------|-------|-------------|
-| **Serious** | 46 | Click handlers without keyboard support |
-| **Moderate** | 9 | autoFocus usage reducing accessibility |
+| **Serious** | 30 | Click handlers without keyboard support |
+| **Serious** | 30 | Non-interactive elements with handlers (needs role) |
+| **Moderate** | 7 | autoFocus usage reducing accessibility |
 | **Serious** | 4 | Labels not associated with controls |
 | **Serious** | 1 | Media without captions |
-| **Total** | **60** | (excluding react-hooks false positives) |
+| **Total** | **72** | Across 13 files |
+
+### Files by Issue Count
+| File | Issues |
+|------|--------|
+| `src/tabs/Loops.jsx` | 21 |
+| `src/tabs/Echoes.jsx` | 10 |
+| `src/components/ProfileMenu.jsx` | 8 |
+| `src/tabs/Rhythm.jsx` | 5 |
+| `src/tabs/Sky.jsx` | 2 |
+| Others (8 files) | 26 |
 
 ## Violations by Category
 
-### 1. Click Events Without Keyboard Support (46 issues) - SERIOUS
+### 1. Click Events Without Keyboard Support (30 instances) - SERIOUS
 
 **Rule:** `jsx-a11y/click-events-have-key-events` + `jsx-a11y/no-static-element-interactions`
 
@@ -57,7 +69,7 @@ Non-interactive elements (`div`, `span`) with `onClick` handlers lack keyboard s
 >...</div>
 ```
 
-### 2. Improper autoFocus Usage (9 issues) - MODERATE
+### 2. Improper autoFocus Usage (7 issues) - MODERATE
 
 **Rule:** `jsx-a11y/no-autofocus`
 
@@ -69,7 +81,6 @@ Using `autoFocus` can:
 **Affected Files:**
 | File | Lines |
 |------|-------|
-| `src/App.jsx` | 78 |
 | `src/components/LoopCreationSheet.jsx` | 297, 397 |
 | `src/components/NewMoonRitual.jsx` | 116 |
 | `src/components/PhaseLoopSheet.jsx` | 129 |
@@ -142,15 +153,15 @@ Media elements (audio/video) without captions are inaccessible to deaf and hard-
 |----------|--------|--------|--------|
 | **P0** | Labels not associated (4) | High | Low |
 | **P0** | Media without captions (1) | High | Medium |
-| **P1** | Click handlers (46) | High | Medium |
-| **P2** | autoFocus removal (9) | Medium | Low |
+| **P1** | Click handlers (30) | High | Medium |
+| **P2** | autoFocus removal (7) | Medium | Low |
 
 ## Recommended Fix Order
 
 ### Phase 1 - Quick Wins (1-2 hours)
 1. Fix `ProfileMenu.jsx` label associations (4 fixes)
 2. Add captions track to video in `Loops.jsx` (1 fix)
-3. Remove/refactor autoFocus usage (9 fixes)
+3. Remove/refactor autoFocus usage (7 fixes)
 
 ### Phase 2 - Interactive Elements (4-6 hours)
 4. Convert clickable divs to buttons or add keyboard handlers
