@@ -21,7 +21,7 @@ import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
-import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt } from './components/Onboarding/index.js';
+import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt, useOnboarding } from './components/Onboarding/index.js';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -255,6 +255,12 @@ function App() {
   const [echoes, setEchoes] = useState([]);
 
   const { initFromProfile, status: encryptionStatus } = useEncryption();
+  const { registerTabSwitcher } = useOnboarding();
+
+  // Register tab switcher for onboarding tours
+  useEffect(() => {
+    registerTabSwitcher(setActiveTab);
+  }, [registerTabSwitcher, setActiveTab]);
 
   // Location state — seeded from cache immediately, then updated from GPS
   const [location, setLocation] = useState(() => getCachedLocation());

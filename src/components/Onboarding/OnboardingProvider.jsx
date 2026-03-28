@@ -120,6 +120,7 @@ export function OnboardingProvider({ children }) {
   const [toursCompleted, setToursCompleted] = useState({});
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [onSwitchTab, setOnSwitchTab] = useState(null); // Tab navigation callback
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -161,9 +162,13 @@ export function OnboardingProvider({ children }) {
   const startTour = useCallback((tourId) => {
     const tour = TOUR_DEFINITIONS[tourId];
     if (!tour) return;
+    // Navigate to the correct tab before starting the tour
+    if (onSwitchTab) {
+      onSwitchTab(tourId); // tourId matches tab id (sky, loops, echoes, rhythm)
+    }
     setActiveTour(tourId);
     setStepIndex(0);
-  }, []);
+  }, [onSwitchTab]);
 
   const endTour = useCallback((completed = false) => {
     if (activeTour && completed) {
@@ -204,6 +209,11 @@ export function OnboardingProvider({ children }) {
     return TOUR_DEFINITIONS[activeTour]?.steps || [];
   }, [activeTour]);
 
+  // Register tab navigation callback
+  const registerTabSwitcher = useCallback((switchFn) => {
+    setOnSwitchTab(() => switchFn);
+  }, []);
+
   const value = {
     // State
     showWelcome,
@@ -220,6 +230,7 @@ export function OnboardingProvider({ children }) {
     completeOnboarding,
     resetOnboarding,
     setStepIndex,
+    registerTabSwitcher, // Register tab navigation from App
 
     // Helpers
     isTourCompleted,
