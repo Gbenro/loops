@@ -772,7 +772,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Write Area */}
-      <div data-tutorial="echoes-write-area" style={{ padding: '0 20px 20px' }}>
+      <div data-tutorial="echoes-write-area" data-tour="echoes-write-area" style={{ padding: '0 20px 20px' }}>
         {isWriting ? (
           <div style={{
             background: 'rgba(245, 230, 200, 0.03)',
@@ -919,6 +919,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               {/* Voice orb */}
               <button
                 data-tutorial="echoes-voice-orb"
+                data-tour="echoes-voice-orb"
                 onClick={toggleRecording}
                 disabled={isTranscribing}
                 aria-label={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing audio' : 'Start voice recording'}

@@ -750,7 +750,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       }}>
         {/* Cycle Loop (pinned at top) */}
         {cycleLoop && (
-          <div data-tutorial="cycle-loop" style={{ marginBottom: 24 }}>
+          <div data-tutorial="cycle-loop" data-tour="cycle-loop" style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
@@ -775,7 +775,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
         {/* Phase Loops (Windowed) */}
         {phaseLoops.length > 0 && (
-          <div data-tutorial="phase-loops" style={{ marginBottom: 24 }}>
+          <div data-tutorial="phase-loops" data-tour="phase-loops" style={{ marginBottom: 24 }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -1104,6 +1104,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       }}>
         <button
           data-tutorial="add-loop-btn"
+          data-tour="add-loop-btn"
           onClick={() => setShowLoopSheet(true)}
           style={{
             width: '100%',

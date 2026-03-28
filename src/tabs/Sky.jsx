@@ -124,6 +124,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         {/* Tappable Moon */}
         <button
           data-tutorial="moon-display"
+          data-tour="moon-display"
           onClick={() => setSheetOpen(true)}
           aria-label={`${lunarData.phase.name}, ${lunarData.illumination}% illuminated. Tap to view cosmic details`}
           style={{
@@ -160,7 +161,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
       </div>
 
       {/* Phase Info */}
-      <div style={{
+      <div data-tour="phase-info" style={{
         padding: '0 24px 24px',
         textAlign: 'center',
       }}>
@@ -328,7 +329,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Phase Tide Bar */}
-        <div data-tutorial="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
+        <div data-tutorial="phase-tide-bar" data-tour="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
           <PhaseTideBar lunarData={lunarData} />
         </div>
 

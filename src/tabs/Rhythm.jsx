@@ -232,7 +232,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
 
       {/* New Moon prompts */}
       {newMoonPrompts.map(r => (
-        <div key={r.id} style={{
+        <div key={r.id} data-tour="rhythm-intention" style={{
           marginBottom: 12,
           padding: '14px 16px',
           background: 'rgba(245,230,200,0.04)',
@@ -303,7 +303,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div data-tour="rhythm-history" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rhythms.map(r => {
             const inst = instanceMap[r.id];
             const obsForRhythm = observationMap[r.id] || {};

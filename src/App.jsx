@@ -21,6 +21,7 @@ import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
+import { OnboardingProvider, WelcomeModal, TourOverlay } from './components/Onboarding/index.js';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -234,7 +235,7 @@ function BetaGate({ onSignOut }) {
   );
 }
 
-export default function App() {
+function App() {
   const [activeTab, setActiveTab] = useState('sky');
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -858,7 +859,20 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Interactive Onboarding */}
+      <WelcomeModal />
+      <TourOverlay />
       </div>
     </div>
+  );
+}
+
+// Wrap the app with OnboardingProvider
+export default function AppWithOnboarding() {
+  return (
+    <OnboardingProvider>
+      <App />
+    </OnboardingProvider>
   );
 }

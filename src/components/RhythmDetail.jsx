@@ -305,7 +305,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         </div>
 
         {/* Phase ring */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+        <div data-tour="phase-ring" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
           <div>
             <PhaseRing
               size={220}
@@ -336,6 +336,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         {/* Quick log prompt for current phase */}
         {currentPhaseKey && !observationMap[currentPhaseKey] && (
           <button
+            data-tour="rhythm-checkin"
             onClick={() => setCheckInPhase(currentPhaseKey)}
             style={{
               display: 'block', width: '100%',
