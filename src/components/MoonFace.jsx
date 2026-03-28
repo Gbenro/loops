@@ -1,8 +1,22 @@
 // Luna Loops - Moon Face SVG
 // Renders actual illuminated portion with realistic 3D surface texture
 
-export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 50 }) {
+export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 50, phaseName = null }) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
+
+  // Generate accessible description
+  const getPhaseDescription = () => {
+    if (phaseName) return `Moon phase: ${phaseName}`;
+    const pct = Math.round((phase <= 0.5 ? phase * 2 : (1 - phase) * 2) * 100);
+    if (phase < 0.02 || phase > 0.98) return 'New Moon, not illuminated';
+    if (phase > 0.47 && phase < 0.53) return 'Full Moon, fully illuminated';
+    if (phase < 0.25) return `Waxing Crescent Moon, ${pct}% illuminated`;
+    if (phase < 0.27) return `First Quarter Moon, 50% illuminated`;
+    if (phase < 0.5) return `Waxing Gibbous Moon, ${pct}% illuminated`;
+    if (phase < 0.75) return `Waning Gibbous Moon, ${pct}% illuminated`;
+    if (phase < 0.77) return `Last Quarter Moon, 50% illuminated`;
+    return `Waning Crescent Moon, ${pct}% illuminated`;
+  };
 
   const cx = size / 2;
   const cy = size / 2;
@@ -70,6 +84,8 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       style={{ filter: 'drop-shadow(0 0 35px rgba(245, 230, 200, 0.25))' }}
+      role="img"
+      aria-label={getPhaseDescription()}
     >
       <defs>
         {/* 3D sphere gradient - light source from upper left */}
@@ -394,14 +410,23 @@ function calculateMoonPath(cx, cy, r, phase) {
 }
 
 // Small moon for inline display
-export function MiniMoon({ size = 24, phase = 0 }) {
+export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 1;
   const litPath = calculateMoonPath(cx, cy, r, phase);
 
+  // Simplified accessible description for small display
+  const ariaLabel = phaseName ? `Moon: ${phaseName}` : 'Moon phase indicator';
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={ariaLabel}
+    >
       <circle cx={cx} cy={cy} r={r} fill="#2a2a34" />
       {litPath && <path d={litPath} fill="#f5e6c8" />}
     </svg>

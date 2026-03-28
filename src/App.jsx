@@ -608,6 +608,21 @@ export default function App() {
           font-family: inherit;
         }
 
+        /* Focus visible styles for keyboard navigation
+           Uses !important to override inline outline:none styles */
+        :focus-visible {
+          outline: 2px solid rgba(245,230,200,0.5) !important;
+          outline-offset: 2px;
+        }
+
+        /* Reset browser default focus for mouse/touch interactions */
+        button:focus:not(:focus-visible),
+        a:focus:not(:focus-visible),
+        input:focus:not(:focus-visible),
+        textarea:focus:not(:focus-visible) {
+          outline: none;
+        }
+
         input::placeholder, textarea::placeholder {
           color: var(--text-secondary);
           font-style: italic;
@@ -739,13 +754,17 @@ export default function App() {
       </div>
 
       {/* Bottom Navigation */}
-      <nav style={{
-        flexShrink: 0,
-        display: 'flex',
-        borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-        background: '#040810',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
+      <nav
+        role="navigation"
+        aria-label="Main navigation"
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+          background: '#040810',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        }}
+      >
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -753,6 +772,8 @@ export default function App() {
               key={tab.id}
               data-tutorial={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
+              aria-label={`${tab.label} tab`}
+              aria-current={isActive ? 'page' : undefined}
               style={{
                 flex: 1,
                 padding: '16px 0 12px',
@@ -790,6 +811,7 @@ export default function App() {
         {isAdmin && (
           <button
             onClick={() => setShowAdmin(true)}
+            aria-label="Admin dashboard"
             style={{
               padding: '16px 14px 12px',
               background: 'none', border: 'none',

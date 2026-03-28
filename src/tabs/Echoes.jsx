@@ -920,6 +920,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 data-tutorial="echoes-voice-orb"
                 onClick={toggleRecording}
                 disabled={isTranscribing}
+                aria-label={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing audio' : 'Start voice recording'}
+                aria-pressed={isRecording}
                 style={{
                   width: 36,
                   height: 36,

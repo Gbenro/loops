@@ -122,18 +122,23 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           flexShrink: 0,
         }}>
         {/* Tappable Moon */}
-        <div
+        <button
           data-tutorial="moon-display"
           onClick={() => setSheetOpen(true)}
+          aria-label={`${lunarData.phase.name}, ${lunarData.illumination}% illuminated. Tap to view cosmic details`}
           style={{
             cursor: 'pointer',
             position: 'relative',
+            background: 'none',
+            border: 'none',
+            padding: 0,
           }}
         >
           <MoonFace
             size={200}
             phase={lunarData.age / 29.53}
             illumination={lunarData.illumination}
+            phaseName={lunarData.phase.name}
           />
 
           {/* Tap hint */}
@@ -151,7 +156,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           }}>
             {phrasesLoading ? 'TAP TO GO DEEPER' : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Phase Info */}
