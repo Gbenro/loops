@@ -286,6 +286,20 @@ While astronomically accurate moons are neutral gray, the warm golden treatment:
 
 This is a valid creative interpretation that prioritizes brand cohesion over strict realism.
 
+### Animation Implementation (commit 55998d8)
+
+Subtle 3D movement animations were added to enhance the moon's liveliness:
+
+| Animation | Duration | Effect |
+|-----------|----------|--------|
+| moonGlowPulse | 8s | Breathing effect on outer glow (scale + opacity) |
+| moonSurfaceFloat | 12s | Subtle floating motion on texture (sub-pixel shifts) |
+| moonHighlightShimmer | 10s | Highlight position shift for light play |
+
+**Accessibility:** All animations respect `prefers-reduced-motion` media query.
+
+This aligns with the original design recommendation for subtle pulse animation (Section 3, "Subtle Animation").
+
 ---
 
 *Document created: 2026-03-28*
