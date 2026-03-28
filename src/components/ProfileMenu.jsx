@@ -978,7 +978,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }}
                     >
                       <span style={{ fontSize: 16 }}>◎</span>
-                      <span>App Guide</span>
+                      <span>How to Use</span>
                     </button>
                   )}
                   <button
