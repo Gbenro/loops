@@ -858,7 +858,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         )}
 
         {/* Closed / Released Loops */}
-        {allClosedLoops.length > 0 && (
+        {allClosedWithCycles.length > 0 && (
           <div>
             {/* Header with view mode toggle */}
             <div style={{
