@@ -194,13 +194,6 @@ export function TourOverlay() {
       return;
     }
 
-    // Handle errors - close tour gracefully
-    if (status === STATUS.ERROR) {
-      console.warn('[Tour] Error encountered, closing tour');
-      endTour(false);
-      return;
-    }
-
     // Handle step navigation (both after step completes and if target not found)
     if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
       // Calculate direction based on action
@@ -230,16 +223,9 @@ export function TourOverlay() {
       stepIndex={stepIndex}
       run={true}
       continuous={true}
-      showSkipButton={false}
-      showProgress={false}
-      disableScrolling={false}
-      disableOverlayClose={false}
       spotlightPadding={8}
-      callback={handleJoyrideCallback}
+      onEvent={handleJoyrideCallback}
       tooltipComponent={Tooltip}
-      floaterProps={{
-        disableAnimation: false,
-      }}
       styles={{
         options: {
           arrowColor: 'rgba(10, 15, 26, 0.97)',
