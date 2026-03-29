@@ -55,7 +55,7 @@ describe('Onboarding', () => {
       const skyTour = TOUR_DEFINITIONS.sky;
       expect(skyTour.id).toBe('sky');
       expect(skyTour.name).toBe('Sky Tour');
-      expect(skyTour.steps).toHaveLength(3);
+      expect(skyTour.steps).toHaveLength(4);
       expect(skyTour.steps[0]).toHaveProperty('target');
       expect(skyTour.steps[0]).toHaveProperty('title');
       expect(skyTour.steps[0]).toHaveProperty('content');
@@ -71,13 +71,13 @@ describe('Onboarding', () => {
     it('echoes tour has correct structure', () => {
       const echoesTour = TOUR_DEFINITIONS.echoes;
       expect(echoesTour.id).toBe('echoes');
-      expect(echoesTour.steps).toHaveLength(2);
+      expect(echoesTour.steps).toHaveLength(3);
     });
 
     it('rhythm tour has correct structure', () => {
       const rhythmTour = TOUR_DEFINITIONS.rhythm;
       expect(rhythmTour.id).toBe('rhythm');
-      expect(rhythmTour.steps).toHaveLength(4);
+      expect(rhythmTour.steps).toHaveLength(5);
     });
 
     it('all steps have data-tour targets', () => {
@@ -235,7 +235,7 @@ describe('Onboarding', () => {
       // Start sky tour
       fireEvent.click(screen.getByTestId('start-sky'));
 
-      expect(contextRef.getActiveTourSteps()).toHaveLength(3);
+      expect(contextRef.getActiveTourSteps()).toHaveLength(4);
       expect(contextRef.getActiveTourSteps()[0].title).toBe('This is now.');
     });
 

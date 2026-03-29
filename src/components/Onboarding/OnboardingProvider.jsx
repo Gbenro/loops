@@ -33,6 +33,12 @@ export const TOUR_DEFINITIONS = {
         placement: 'top',
       },
       {
+        target: '[data-tour="zodiac-transit"]',
+        title: 'The moon moves through the zodiac too.',
+        content: 'Every few days, it shifts signs. This adds another layer — not rules, just texture. A watery sign feels different from a fiery one.',
+        placement: 'top',
+      },
+      {
         target: '[data-tour="phase-tide-bar"]',
         title: 'Eight stations.',
         content: 'This row shows where you are in the cycle. The current phase is lit. Tap any phase to see what that part of the cycle holds.',
@@ -80,12 +86,24 @@ export const TOUR_DEFINITIONS = {
         content: 'The orb at the bottom records your voice. Speak what is true right now. It will be transcribed and saved.',
         placement: 'top',
       },
+      {
+        target: '[data-tour="echoes-tags"]',
+        title: 'Find what you left.',
+        content: 'Tags help you trace themes — grief, clarity, intention, body. Use the filters to see only echoes from specific phases or with certain tags.',
+        placement: 'top',
+      },
     ],
   },
   rhythm: {
     id: 'rhythm',
     name: 'Rhythm Tour',
     steps: [
+      {
+        target: '[data-tour="rhythm-what"]',
+        title: 'A rhythm is a named practice.',
+        content: 'Not a habit to track. Not a goal to hit. A practice you want to observe as it moves through the phases.',
+        placement: 'bottom',
+      },
       {
         target: '[data-tour="rhythm-intention"]',
         title: 'Intention is not a promise.',

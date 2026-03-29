@@ -228,7 +228,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
   );
 
   return (
-    <div style={{ padding: '20px 20px 100px' }}>
+    <div data-tour="rhythm-what" style={{ padding: '20px 20px 100px' }}>
 
       {/* New Moon prompts */}
       {newMoonPrompts.map(r => (

@@ -688,7 +688,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Filter Navigator */}
-      <div style={{ padding: '0 20px 14px' }}>
+      <div data-tour="echoes-tags" style={{ padding: '0 20px 14px' }}>
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
           {['day', 'phase', 'cycle', 'tag'].map(mode => (

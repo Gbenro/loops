@@ -177,7 +177,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Stats Line */}
-        <div style={{
+        <div data-tour="zodiac-transit" style={{
           fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
