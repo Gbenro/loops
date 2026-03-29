@@ -39,8 +39,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
-  const [closedViewMode, setClosedViewMode] = useState('cycle'); // 'all' | 'phase' | 'cycle'
-  const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current, 1 = previous, etc.
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent
+  const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current phase
   const justCreatedCycleRef = useRef(false); // prevent ritual re-showing after creation
 
   const lunarData = useMemo(() => getLunarData(), []);
@@ -54,10 +54,10 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const _isFullMoon = lunarData.phase.key === 'full'; // For future full moon features
   const _isWaningCrescent = lunarData.phase.key === 'waning-crescent'; // For release reminders
 
-  // Get current cycle loop (if exists)
+  // Get cycle loop for the selected cycle (if exists)
   const cycleLoop = useMemo(() =>
-    loops.find(l => l.type === 'cycle' && l.status === 'active'),
-    [loops]
+    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === (allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth)),
+    [loops, allUniqueCycles, selectedCycleIndex, lunarData.lunarMonth]
   );
 
   // Check if ritual should show
@@ -470,13 +470,13 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     }
   };
 
-  // Filter loops by type
+  // Filter loops by type, scoped to selected cycle
   const phaseLoops = sortByOrder(
-    loops.filter(l => l.type === 'phase' && l.status === 'active'),
+    loops.filter(l => l.type === 'phase' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
     activeLoopsOrder
   );
   const openLoops = sortByOrder(
-    loops.filter(l => l.type === 'open' && l.status === 'active'),
+    loops.filter(l => l.type === 'open' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
     activeLoopsOrder
   );
 
@@ -496,90 +496,82 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     )
     .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
 
-  // Get unique phases from closed loops, sorted in lunar cycle order
-  const uniquePhases = useMemo(() => {
-    const phaseMap = new Map();
-    // Current phase
-    phaseMap.set(lunarData.phase.key, { key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
+  // ─── Base cycle filter (all loops scoped to selected lunar month) ──────────
+  const allUniqueCycles = useMemo(() => {
+    const seen = new Set();
+    const cycles = [];
+    // Current cycle first
+    cycles.push(lunarData.lunarMonth);
+    seen.add(lunarData.lunarMonth);
+    // From all loops (active + closed)
+    for (const loop of loops) {
+      for (const m of [loop.lunarMonthOpened, loop.lunarMonthClosed]) {
+        if (m && !seen.has(m)) {
+          seen.add(m);
+          cycles.push(m);
+        }
+      }
+    }
+    return cycles;
+  }, [loops, lunarData.lunarMonth]);
 
-    // Phases from closed loops
-    for (const loop of allClosedLoops) {
+  const selectedCycleName = allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth;
+  const isCurrentCycle = selectedCycleName === lunarData.lunarMonth;
+  const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
+  const canCycleNext = selectedCycleIndex > 0;
+  const switchCycle = (direction) => {
+    setSelectedCycleIndex(i => {
+      const next = direction === 'prev' ? i + 1 : i - 1;
+      return Math.max(0, Math.min(next, allUniqueCycles.length - 1));
+    });
+    setClosedNavIndex(0);
+  };
+
+  // Get unique phases from closed loops within the selected cycle
+  const uniquePhases = useMemo(() => {
+    const cycleClosedLoops = allClosedLoops.filter(l => {
+      const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
+      return loopCycle === selectedCycleName;
+    });
+    const phaseMap = new Map();
+    if (isCurrentCycle) {
+      phaseMap.set(lunarData.phase.key, { key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
+    }
+    for (const loop of cycleClosedLoops) {
       const phaseKey = loop.phaseClosed;
       if (phaseKey && !phaseMap.has(phaseKey)) {
         phaseMap.set(phaseKey, { key: phaseKey, name: loop.phaseNameClosed || phaseKey, isCurrent: false });
       }
     }
-
-    // Sort by lunar cycle order
     return Array.from(phaseMap.values()).sort((a, b) => {
       const ai = PHASE_ORDER.indexOf(a.key);
       const bi = PHASE_ORDER.indexOf(b.key);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
-  }, [allClosedLoops, lunarData.phase.key, lunarData.phase.name]);
+  }, [allClosedLoops, selectedCycleName, isCurrentCycle, lunarData.phase.key, lunarData.phase.name]);
 
-  // Get unique cycles (lunar months) from all closed loops including cycle intentions
-  const uniqueCycles = useMemo(() => {
-    const seen = new Set();
-    const cycles = [];
-    // Add current cycle first
-    cycles.push({ name: lunarData.lunarMonth, isCurrent: true });
-    seen.add(lunarData.lunarMonth);
-
-    // Add previous cycles from all closed loops (by the cycle they were closed in)
-    for (const loop of allClosedWithCycles) {
-      const cycleName = loop.lunarMonthClosed || loop.lunarMonthOpened;
-      if (cycleName && !seen.has(cycleName)) {
-        seen.add(cycleName);
-        cycles.push({ name: cycleName, isCurrent: false });
-      }
-    }
-    return cycles;
-  }, [allClosedWithCycles, lunarData.lunarMonth]);
-
-  // Filter closed loops based on view mode and navigation
+  // Closed loops within selected cycle, filtered by phase navigation
   const closedLoops = useMemo(() => {
-    if (closedViewMode === 'phase') {
-      const targetPhase = uniquePhases[closedNavIndex];
-      if (!targetPhase) return [];
-      return allClosedLoops.filter(l => l.phaseClosed === targetPhase.key);
-    } else {
-      const targetCycle = uniqueCycles[closedNavIndex];
-      if (!targetCycle) return [];
-      return allClosedWithCycles.filter(l => {
-        const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
-        return loopCycle === targetCycle.name;
-      });
-    }
-  }, [allClosedLoops, allClosedWithCycles, closedViewMode, closedNavIndex, uniquePhases, uniqueCycles]);
+    // First scope to selected cycle
+    const cycleScoped = allClosedWithCycles.filter(l => {
+      const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
+      return loopCycle === selectedCycleName;
+    });
+    // Then filter by phase if phases exist
+    if (uniquePhases.length === 0) return cycleScoped;
+    const targetPhase = uniquePhases[closedNavIndex];
+    if (!targetPhase) return cycleScoped;
+    return cycleScoped.filter(l => l.phaseClosed === targetPhase.key || (l.type === 'cycle' && !l.phaseClosed));
+  }, [allClosedWithCycles, selectedCycleName, uniquePhases, closedNavIndex]);
 
-  // Navigation helpers
-  // Phase: natural cycle order (‹ = earlier, › = later in cycle)
-  // Cycle: newest-first (‹ = older cycle, › = newer cycle)
-  const isPhaseView = closedViewMode === 'phase';
-  const canNavPrev = isPhaseView ? closedNavIndex > 0 : closedNavIndex < uniqueCycles.length - 1;
-  const canNavNext = isPhaseView ? closedNavIndex < uniquePhases.length - 1 : closedNavIndex > 0;
-  const onNavPrev = () => setClosedNavIndex(i => isPhaseView ? i - 1 : i + 1);
-  const onNavNext = () => setClosedNavIndex(i => isPhaseView ? i + 1 : i - 1);
+  // Phase navigation within the selected cycle
+  const canNavPrev = closedNavIndex > 0;
+  const canNavNext = closedNavIndex < uniquePhases.length - 1;
+  const onNavPrev = () => setClosedNavIndex(i => i - 1);
+  const onNavNext = () => setClosedNavIndex(i => i + 1);
 
-  const currentNavLabel = closedViewMode === 'phase'
-    ? uniquePhases[closedNavIndex]?.name || ''
-    : `${uniqueCycles[closedNavIndex]?.name || ''} Moon`;
-
-  const isCurrentNav = closedViewMode === 'phase'
-    ? uniquePhases[closedNavIndex]?.isCurrent
-    : uniqueCycles[closedNavIndex]?.isCurrent;
-
-  // Switch view mode — phase defaults to current phase, cycle defaults to current
-  const switchViewMode = (mode) => {
-    setClosedViewMode(mode);
-    if (mode === 'phase') {
-      const idx = uniquePhases.findIndex(p => p.isCurrent);
-      setClosedNavIndex(idx >= 0 ? idx : 0);
-    } else {
-      setClosedNavIndex(0);
-    }
-  };
+  const currentNavLabel = uniquePhases[closedNavIndex]?.name || '';
+  const isCurrentNav = uniquePhases[closedNavIndex]?.isCurrent;
 
   // Use generated prompt or fallback
   const addButtonLabel = phrasesLoading ? '+ open a loop' : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
@@ -682,32 +674,67 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         )}
       </div>
 
-      {/* Lunar Cycle Progress */}
+      {/* Cycle Selector + Progress */}
       <div style={{
         padding: '12px 20px',
         borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
       }}>
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
           marginBottom: 8,
         }}>
-          <span style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            color: 'rgba(245, 230, 200, 0.4)',
-          }}>
-            {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()} CYCLE
-          </span>
-          <span style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            color: 'var(--text-secondary)',
-          }}>
-            DAY {lunarData.dayOfCycle} OF 29
-          </span>
+          <button
+            onClick={() => switchCycle('prev')}
+            disabled={!canCyclePrev}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCyclePrev ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ‹
+          </button>
+          <div style={{ textAlign: 'center', minWidth: 120 }}>
+            <div style={{
+              fontSize: 15,
+              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 600,
+            }}>
+              {getLunarMonthInfo(selectedCycleName, hemisphere).name}
+            </div>
+            {isCurrentCycle && (
+              <div style={{
+                fontSize: 8,
+                fontFamily: 'monospace',
+                color: 'rgba(167, 139, 250, 0.5)',
+                letterSpacing: '0.1em',
+                marginTop: 2,
+              }}>
+                CURRENT CYCLE · DAY {lunarData.dayOfCycle}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => switchCycle('next')}
+            disabled={!canCycleNext}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCycleNext ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ›
+          </button>
         </div>
         <div style={{
           height: 3,
@@ -857,56 +884,21 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           </div>
         )}
 
-        {/* Closed / Released Loops */}
-        {allClosedLoops.length > 0 && (
+        {/* Closed / Released Loops (within selected cycle) */}
+        {closedLoops.length > 0 && (
           <div>
-            {/* Header with view mode toggle */}
             <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              fontSize: 10,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              color: 'var(--text-disabled)',
               marginBottom: 12,
             }}>
-              <div style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                letterSpacing: '0.1em',
-                color: 'var(--text-disabled)',
-              }}>
-                COMPLETED
-              </div>
-              <div style={{
-                display: 'flex',
-                gap: 4,
-              }}>
-                {['phase', 'cycle'].map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => switchViewMode(mode)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      border: 'none',
-                      background: closedViewMode === mode
-                        ? 'rgba(245, 230, 200, 0.1)'
-                        : 'transparent',
-                      color: closedViewMode === mode
-                        ? 'rgba(245, 230, 200, 0.6)'
-                        : 'var(--text-disabled)',
-                      fontSize: 9,
-                      fontFamily: 'monospace',
-                      cursor: 'pointer',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+              COMPLETED
             </div>
 
-            {/* Navigation controls */}
-            <div style={{
+            {/* Phase navigation within cycle */}
+            {uniquePhases.length > 1 && <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -965,68 +957,38 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               >
                 ›
               </button>
-            </div>
+            </div>}
 
-            {/* Loops for selected phase/cycle */}
+            {/* Closed loops for selected cycle */}
             {closedLoops.length > 0 ? (
-              closedViewMode === 'cycle' ? (
-                <>
-                  {/* Cycle intention at top */}
-                  {closedLoops.filter(l => l.type === 'cycle').map(loop => (
-                    <div key={loop.id} style={{ marginBottom: 16 }}>
-                      <div style={{
-                        fontSize: 9,
-                        fontFamily: 'monospace',
-                        letterSpacing: '0.1em',
-                        color: 'rgba(245, 230, 200, 0.3)',
-                        marginBottom: 8,
-                      }}>
-                        CYCLE INTENTION
-                      </div>
-                      <LoopCard
-                        loop={loop}
-                        pct={100}
-                        closed
-                        released={loop.status === 'released'}
-                        onSelect={() => {
-                          setSelected(loop);
-                          setShowDetail(true);
-                        }}
-                        onReopen={() => reopenLoop(loop.id)}
-                      />
+              <>
+                {/* Cycle intention at top */}
+                {closedLoops.filter(l => l.type === 'cycle').map(loop => (
+                  <div key={loop.id} style={{ marginBottom: 16 }}>
+                    <div style={{
+                      fontSize: 9,
+                      fontFamily: 'monospace',
+                      letterSpacing: '0.1em',
+                      color: 'rgba(245, 230, 200, 0.3)',
+                      marginBottom: 8,
+                    }}>
+                      CYCLE INTENTION
                     </div>
-                  ))}
-                  {/* Phase loops grouped */}
-                  {closedLoops.filter(l => l.type !== 'cycle').length > 0 && (
-                    <div>
-                      <div style={{
-                        fontSize: 9,
-                        fontFamily: 'monospace',
-                        letterSpacing: '0.1em',
-                        color: 'rgba(245, 230, 200, 0.3)',
-                        marginBottom: 8,
-                      }}>
-                        PHASE LOOPS
-                      </div>
-                      {closedLoops.filter(l => l.type !== 'cycle').map(loop => (
-                        <LoopCard
-                          key={loop.id}
-                          loop={loop}
-                          pct={100}
-                          closed
-                          released={loop.status === 'released'}
-                          onSelect={() => {
-                            setSelected(loop);
-                            setShowDetail(true);
-                          }}
-                          onReopen={() => reopenLoop(loop.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                closedLoops.map(loop => (
+                    <LoopCard
+                      loop={loop}
+                      pct={100}
+                      closed
+                      released={loop.status === 'released'}
+                      onSelect={() => {
+                        setSelected(loop);
+                        setShowDetail(true);
+                      }}
+                      onReopen={() => reopenLoop(loop.id)}
+                    />
+                  </div>
+                ))}
+                {/* Phase/open loops */}
+                {closedLoops.filter(l => l.type !== 'cycle').map(loop => (
                   <LoopCard
                     key={loop.id}
                     loop={loop}
@@ -1039,8 +1001,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                     }}
                     onReopen={() => reopenLoop(loop.id)}
                   />
-                ))
-              )
+                ))}
+              </>
             ) : (
               <div style={{
                 textAlign: 'center',
@@ -1049,7 +1011,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                 fontSize: 12,
                 fontStyle: 'italic',
               }}>
-                No completed loops in this {closedViewMode}
+                No completed loops in this cycle
               </div>
             )}
           </div>
