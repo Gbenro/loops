@@ -7,6 +7,7 @@ import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPre
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { LunaLogo } from './LunaLogo.jsx';
 import { useOnboarding } from './Onboarding/index.js';
+import { seedAllData, clearAllData } from '../lib/seedData.js';
 
 const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
@@ -20,6 +21,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
 
   // Zodiac signs form
   const [sunSign, setSunSign] = useState('');
@@ -444,6 +447,82 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   color: 'rgba(245, 230, 200, 0.5)',
                 }}>
                   <p>Sign in to sync your data across devices</p>
+                </div>
+              )}
+
+              {/* Dev Tools - Test Data (dev mode only) */}
+              {import.meta.env.DEV && (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.5)',
+                    marginBottom: 12,
+                    letterSpacing: '0.1em',
+                  }}>
+                    DEV TOOLS
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSeeding(true);
+                      setSeedResult(null);
+                      try {
+                        const result = seedAllData({ cycleCount: 3, clearExisting: true });
+                        setSeedResult(`Loaded ${result.loops.length} loops, ${result.echoes.length} echoes, ${result.rhythms.length} rhythms`);
+                      } catch (err) {
+                        setSeedResult(`Error: ${err.message}`);
+                      }
+                      setSeeding(false);
+                    }}
+                    disabled={seeding}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(167, 139, 250, 0.3)',
+                      background: 'rgba(167, 139, 250, 0.08)',
+                      color: seeding ? 'rgba(167, 139, 250, 0.4)' : 'rgba(167, 139, 250, 0.8)',
+                      fontSize: 13,
+                      cursor: seeding ? 'wait' : 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {seeding ? 'Loading...' : 'Load Test Data (3 cycles)'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      clearAllData();
+                      setSeedResult('All test data cleared');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(245, 230, 200, 0.15)',
+                      background: 'rgba(245, 230, 200, 0.04)',
+                      color: 'rgba(245, 230, 200, 0.6)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Clear All Data
+                  </button>
+
+                  {seedResult && (
+                    <div style={{
+                      fontSize: 11,
+                      color: 'rgba(167, 139, 250, 0.6)',
+                      fontFamily: 'monospace',
+                      padding: '8px 12px',
+                      background: 'rgba(167, 139, 250, 0.06)',
+                      borderRadius: 8,
+                    }}>
+                      {seedResult}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
