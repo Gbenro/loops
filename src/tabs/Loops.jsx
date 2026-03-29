@@ -704,7 +704,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           <span style={{
             fontSize: 10,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.35)',
+            color: 'var(--text-secondary)',
           }}>
             DAY {lunarData.dayOfCycle} OF 29
           </span>
@@ -750,7 +750,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       }}>
         {/* Cycle Loop (pinned at top) */}
         {cycleLoop && (
-          <div data-tutorial="cycle-loop" style={{ marginBottom: 24 }}>
+          <div data-tutorial="cycle-loop" data-tour="cycle-loop" style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
@@ -775,7 +775,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
         {/* Phase Loops (Windowed) */}
         {phaseLoops.length > 0 && (
-          <div data-tutorial="phase-loops" style={{ marginBottom: 24 }}>
+          <div data-tutorial="phase-loops" data-tour="phase-loops" style={{ marginBottom: 24 }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -871,7 +871,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                 fontSize: 10,
                 fontFamily: 'monospace',
                 letterSpacing: '0.1em',
-                color: 'rgba(245, 230, 200, 0.25)',
+                color: 'var(--text-disabled)',
               }}>
                 COMPLETED
               </div>
@@ -892,7 +892,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                         : 'transparent',
                       color: closedViewMode === mode
                         ? 'rgba(245, 230, 200, 0.6)'
-                        : 'rgba(245, 230, 200, 0.25)',
+                        : 'var(--text-disabled)',
                       fontSize: 9,
                       fontFamily: 'monospace',
                       cursor: 'pointer',
@@ -1068,7 +1068,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                 ? resolvePhaseText('noLoopsMessage', lunarData.phase.key)
                 : (phrases.emptyStateGuidance || resolvePhaseText('noLoopsMessage', lunarData.phase.key))}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.25)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-disabled)' }}>
               {resolvePhaseText('noLoopsSubtext', lunarData.phase.key) || 'Open loops for regular tasks, or phase loops to align with the moon.'}
             </div>
           </div>
@@ -1104,6 +1104,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       }}>
         <button
           data-tutorial="add-loop-btn"
+          data-tour="add-loop-btn"
           onClick={() => setShowLoopSheet(true)}
           style={{
             width: '100%',
@@ -1274,12 +1275,12 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
           <button
             onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
             disabled={!canMoveUp}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'rgba(245, 230, 200, 0.35)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'var(--text-secondary)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
           >▲</button>
           <button
             onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
             disabled={!canMoveDown}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'rgba(245, 230, 200, 0.35)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'var(--text-secondary)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
           >▼</button>
         </div>
       )}
@@ -1554,6 +1555,7 @@ function DetailPanel({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
+                    minHeight: 'var(--touch-min)',
                     padding: '10px 12px',
                     marginBottom: 6,
                     borderRadius: 8,
@@ -1563,8 +1565,8 @@ function DetailPanel({
                   }}
                 >
                   <div style={{
-                    width: 18,
-                    height: 18,
+                    width: 20,
+                    height: 20,
                     borderRadius: '50%',
                     border: `2px solid ${cp.done ? '#A78BFA' : 'rgba(245, 230, 200, 0.2)'}`,
                     background: cp.done ? '#A78BFA' : 'transparent',
@@ -1588,7 +1590,7 @@ function DetailPanel({
           {/* Regular Steps — not shown for cycle loops */}
           {!isCycle && (regularSubtasks.length > 0 || isActive) && (
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)', marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 12 }}>
                 STEPS
               </div>
               {regularSubtasks.map((subtask, index) => (
@@ -1613,9 +1615,13 @@ function DetailPanel({
                   )}
                   <div
                     onClick={() => onToggleSubtask(subtask.id)}
-                    style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12, flexShrink: 0, cursor: 'pointer' }}
+                    style={{ minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', margin: '-10px', padding: '10px' }}
                   >
-                    {subtask.done && '✓'}
+                    <div
+                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12 }}
+                    >
+                      {subtask.done && '✓'}
+                    </div>
                   </div>
                   <span
                     onClick={() => onToggleSubtask(subtask.id)}
@@ -1625,7 +1631,8 @@ function DetailPanel({
                   </span>
                   <button
                     onClick={() => onDeleteSubtask(subtask.id)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', lineHeight: 1, flexShrink: 0 }}
+                    aria-label="Delete step"
+                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 16, cursor: 'pointer', minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                   >×</button>
                 </div>
               ))}
@@ -1651,7 +1658,7 @@ function DetailPanel({
           {/* Echoes */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)' }}>
+              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)' }}>
                 ECHOES{linkedEchoes.length > 0 ? ` (${linkedEchoes.length})` : ''}
               </div>
               {!showEchoInput && (
@@ -1729,7 +1736,7 @@ function DetailPanel({
 
           {/* Note */}
           <div style={{ borderTop: '1px solid rgba(245, 230, 200, 0.06)', paddingTop: 16, marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(245, 230, 200, 0.35)', marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 8 }}>
               NOTE
             </div>
             <textarea

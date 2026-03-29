@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase.js';
 import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { LunaLogo } from './LunaLogo.jsx';
+import { useOnboarding } from './Onboarding/index.js';
+import { seedAllData, clearAllData } from '../lib/seedData.js';
 
 const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
@@ -19,6 +21,10 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
+  const [devTapCount, setDevTapCount] = useState(0);
+  const [showDevTools, setShowDevTools] = useState(import.meta.env.DEV);
 
   // Zodiac signs form
   const [sunSign, setSunSign] = useState('');
@@ -31,6 +37,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
   // Encryption
   const { status: encStatus, setupEncryption, disableEncryption, lock } = useEncryption();
+
+  // Onboarding
+  const { resetOnboarding } = useOnboarding();
   const [encPassphrase, setEncPassphrase] = useState('');
   const [encConfirm, setEncConfirm] = useState('');
   const [encError, setEncError] = useState('');
@@ -46,6 +55,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     if (isOpen && user) {
       loadProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user]);
 
   const loadProfile = async () => {
@@ -258,11 +268,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           padding: '0 20px 16px',
           textAlign: 'center',
         }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 24,
-            color: '#f5e6c8',
-          }}>
+          <div
+            onClick={() => {
+              const next = devTapCount + 1;
+              setDevTapCount(next);
+              if (next >= 5 && !showDevTools) {
+                setShowDevTools(true);
+                setDevTapCount(0);
+              }
+            }}
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 24,
+              color: '#f5e6c8',
+              cursor: 'default',
+              userSelect: 'none',
+            }}
+          >
             Settings
           </div>
         </div>
@@ -439,6 +461,82 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   color: 'rgba(245, 230, 200, 0.5)',
                 }}>
                   <p>Sign in to sync your data across devices</p>
+                </div>
+              )}
+
+              {/* Dev Tools - Test Data (dev mode or tap 5x on Settings title) */}
+              {showDevTools && (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.5)',
+                    marginBottom: 12,
+                    letterSpacing: '0.1em',
+                  }}>
+                    DEV TOOLS
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSeeding(true);
+                      setSeedResult(null);
+                      try {
+                        const result = seedAllData({ cycleCount: 3, clearExisting: true });
+                        setSeedResult(`Loaded ${result.loops.length} loops, ${result.echoes.length} echoes, ${result.rhythms.length} rhythms`);
+                      } catch (err) {
+                        setSeedResult(`Error: ${err.message}`);
+                      }
+                      setSeeding(false);
+                    }}
+                    disabled={seeding}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(167, 139, 250, 0.3)',
+                      background: 'rgba(167, 139, 250, 0.08)',
+                      color: seeding ? 'rgba(167, 139, 250, 0.4)' : 'rgba(167, 139, 250, 0.8)',
+                      fontSize: 13,
+                      cursor: seeding ? 'wait' : 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {seeding ? 'Loading...' : 'Load Test Data (3 cycles)'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      clearAllData();
+                      setSeedResult('All test data cleared');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid rgba(245, 230, 200, 0.15)',
+                      background: 'rgba(245, 230, 200, 0.04)',
+                      color: 'rgba(245, 230, 200, 0.6)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    Clear All Data
+                  </button>
+
+                  {seedResult && (
+                    <div style={{
+                      fontSize: 11,
+                      color: 'rgba(167, 139, 250, 0.6)',
+                      fontFamily: 'monospace',
+                      padding: '8px 12px',
+                      background: 'rgba(167, 139, 250, 0.06)',
+                      borderRadius: 8,
+                    }}>
+                      {seedResult}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -965,7 +1063,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {IS_V2 && (
                     <button
-                      onClick={() => { onOpenTutorial('guide'); onClose(); }}
+                      onClick={() => { resetOnboarding(); onClose(); }}
                       style={{
                         width: '100%', padding: '12px 16px',
                         borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',
@@ -977,7 +1075,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }}
                     >
                       <span style={{ fontSize: 16 }}>◎</span>
-                      <span>App Guide</span>
+                      <span>How to Use</span>
                     </button>
                   )}
                   <button
@@ -1004,7 +1102,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   fontSize: 10,
                   fontFamily: 'monospace',
                   letterSpacing: '0.1em',
-                  color: 'rgba(245, 230, 200, 0.35)',
+                  color: 'var(--text-secondary)',
                   marginBottom: 10,
                 }}>
                   SHARE FEEDBACK
@@ -1091,7 +1189,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
         </div>
         <div style={{
           fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.35)',
+          color: 'var(--text-secondary)',
           marginTop: 2,
         }}>
           {sublabel}

@@ -7,7 +7,7 @@ const SCOPE_LABEL = { cycle: 'THIS CYCLE', ongoing: 'ONGOING' };
 
 const LEVEL_DOT = {
   none:       { color: 'rgba(245,230,200,0.12)', label: 'None' },
-  light:      { color: 'rgba(245,230,200,0.35)', label: 'Light' },
+  light:      { color: 'var(--text-secondary)', label: 'Light' },
   moderate:   { color: 'rgba(245,230,200,0.6)',  label: 'Moderate' },
   deep:       { color: 'rgba(245,230,200,0.85)', label: 'Deep' },
   ceremonial: { color: '#fefcbf',               label: 'Ceremonial' },
@@ -116,7 +116,7 @@ export function RhythmCard({
           ) : currentObservation ? (
             <LevelPill level={currentObservation} accent={phaseAccent} />
           ) : (
-            <span style={{ fontSize: 11, color: 'rgba(245,230,200,0.25)' }}>No check-in yet</span>
+            <span style={{ fontSize: 11, color: 'var(--text-disabled)' }}>No check-in yet</span>
           )}
         </div>
       </div>

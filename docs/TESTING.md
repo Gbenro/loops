@@ -1,5 +1,85 @@
 # Testing Standards for Luna Loops
 
+## Demo Mode — Using Test Data to Explore the App
+
+Load realistic sample data to see how the app works across a full lunar cycle. This is useful for demos, onboarding new team members, or QA testing.
+
+### Loading Test Data
+
+**Option A — URL parameter (works anywhere)**
+Add `?seed=true` to the URL:
+```
+http://localhost:5173/?seed=true       # dev
+https://v2.lunaloop.app/?seed=true     # production
+```
+Refresh after the URL cleans itself to see the data.
+
+**Option B — In-app Settings panel**
+1. Open Settings (gear icon, top-right)
+2. In dev mode the **DEV TOOLS** section is visible at the bottom of the Account tab
+3. In production: tap the "Settings" title **5 times** to unlock DEV TOOLS
+4. Tap **Load Test Data (3 cycles)** — or **Clear All Data** to reset
+
+**Option C — Browser console**
+```js
+window.seedData.seedAll()    // generate 3 cycles of data
+window.seedData.clearAll()   // wipe everything
+```
+
+### What Gets Generated
+
+| Data type   | Count per run | Description |
+|-------------|---------------|-------------|
+| Loops       | 9–12          | Mix of cycle-long and phase-scoped intentions with subtasks and tags |
+| Echoes      | 24–45         | Reflections spread across moon phases with phase-appropriate text |
+| Rhythms     | 2–4           | Named practices (e.g. "Morning meditation") with ongoing/cycle scope |
+| Instances   | 4–8           | Per-cycle rhythm tracking with whole or per-phase intentions |
+| Observations| 14–40         | Daily check-ins at various engagement levels |
+
+### Walkthrough: Exploring Each Tab
+
+After loading test data, here's what to look at in each tab:
+
+#### Sky Tab
+- The **moon face** shows the current real-time lunar phase with photorealistic texture
+- **Phase name** and **lunar month** displayed below
+- Swipe or scroll to see the **phase timeline** showing all 8 phases of the current cycle
+- **Zodiac transit** info shows which sign the moon is currently in
+
+#### Loops Tab
+- **Active loops** appear at the top — these are in-progress intentions
+- Tap a loop to see its **subtasks**, **tags**, and **phase context** (when it was opened)
+- **Closed/released loops** from past cycles are visible via the filter toggles
+- Try the **filter modes** at the top to switch between active, closed, and all views
+- Each loop shows the **moon phase** it was created in and its color tag
+
+#### Echoes Tab
+- Reflections are **grouped by moon phase** — notice how the text matches the phase energy
+- **New Moon** echoes talk about planting seeds; **Full Moon** echoes talk about illumination
+- Use the **filter buttons** to view by phase type (waxing/waning) or tag
+- Tap an echo to see its full lunar context (phase, zodiac, day of cycle, illumination %)
+
+#### Rhythm Tab
+- **Active rhythms** show named practices with their scope (ongoing or this-cycle)
+- Tap a rhythm to see its **cycle instance** — the intention set for this lunar cycle
+- The **observation grid** shows daily check-ins across phases
+- Engagement levels range from "none" to "ceremonial" — the colors indicate depth of practice
+- Past cycle instances show completed observation patterns
+
+### Tips for Demo Presentations
+
+1. **Start fresh**: Use "Clear All Data" first, then load test data for a clean demo
+2. **Show the onboarding**: Clear `localStorage` completely (`localStorage.clear()`) to trigger the welcome modal and guided tours
+3. **Combine with seed**: Load test data first, then clear only onboarding state to show the tours with populated content:
+   ```js
+   window.seedData.seedAll()
+   localStorage.removeItem('onboardingCompleted')
+   localStorage.removeItem('toursCompleted')
+   ```
+4. **Ceremony prompts**: These appear at New Moon and Waning Crescent phases based on real lunar timing — you may or may not see them depending on the current date
+
+---
+
 This document outlines the testing standards and practices for the Luna Loops application.
 
 ## Testing Stack

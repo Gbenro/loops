@@ -66,7 +66,7 @@ export function PrivacyNotice({ onAck }) {
           <div style={{
             fontSize: 11,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.35)',
+            color: 'var(--text-secondary)',
             letterSpacing: '0.08em',
           }}>
             HOW YOUR DATA IS HANDLED
@@ -78,7 +78,7 @@ export function PrivacyNotice({ onAck }) {
             <div key={point.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
               <div style={{
                 fontSize: 16,
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 marginTop: 1,
                 flexShrink: 0,
                 width: 20,
@@ -355,7 +355,7 @@ export function AuthModal({ onClose, onSuccess }) {
             style={{
               background: 'none',
               border: 'none',
-              color: 'rgba(245, 230, 200, 0.25)',
+              color: 'var(--text-disabled)',
               fontSize: 11,
               cursor: 'pointer',
               fontFamily: 'monospace',

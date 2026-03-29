@@ -110,8 +110,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const [expandedId, setExpandedId] = useState(null);
   const [source, setSource] = useState('text'); // 'text' | 'voice'
 
-  // Filter state
-  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'phase' | 'cycle'
+  // Filter state — cycle is always the base filter
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent cycle
+  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'phase' | 'tag'
   const [filterNavIndex, setFilterNavIndex] = useState(0); // 0 = most recent
 
   // Voice state (Whisper-based)
@@ -139,23 +140,36 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Derive sorted unique values for navigation
+  // Derive all unique cycles from all echoes (base filter)
+  const allUniqueCycles = useMemo(() => {
+    const cycles = [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))];
+    // Sort with current cycle first, then reverse chronological by first appearance
+    const currentCycle = lunarData.lunarMonth;
+    const currentFirst = cycles.filter(c => c === currentCycle);
+    const rest = cycles.filter(c => c !== currentCycle);
+    return [...currentFirst, ...rest];
+  }, [echoes, lunarData.lunarMonth]);
+
+  // Echoes scoped to the selected cycle
+  const cycleFilteredEchoes = useMemo(() => {
+    if (allUniqueCycles.length === 0) return echoes;
+    const targetCycle = allUniqueCycles[selectedCycleIndex];
+    return echoes.filter(e => e.lunarMonth === targetCycle);
+  }, [echoes, allUniqueCycles, selectedCycleIndex]);
+
+  // Derive sorted unique values within the selected cycle
   const uniqueDays = useMemo(() =>
-    [...new Set(echoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
-  [echoes]);
+    [...new Set(cycleFilteredEchoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
+  [cycleFilteredEchoes]);
 
   const uniquePhases = useMemo(() =>
-    PHASE_ORDER.filter(p => echoes.some(e => e.phase === p)),
-  [echoes]);
-
-  const uniqueCycles = useMemo(() =>
-    [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))].sort((a, b) => b - a),
-  [echoes]);
+    PHASE_ORDER.filter(p => cycleFilteredEchoes.some(e => e.phase === p)),
+  [cycleFilteredEchoes]);
 
   const uniqueTags = useMemo(() => {
-    const all = echoes.flatMap(e => e.tags || []);
+    const all = cycleFilteredEchoes.flatMap(e => e.tags || []);
     return [...new Set(all)].sort();
-  }, [echoes]);
+  }, [cycleFilteredEchoes]);
 
   const switchFilterMode = (mode) => {
     setFilterMode(mode);
@@ -167,14 +181,22 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     }
   };
 
-  // Nav list and bounds
+  // Reset secondary filter when base cycle changes
+  const switchCycle = (direction) => {
+    setSelectedCycleIndex(i => {
+      const next = direction === 'prev' ? i + 1 : i - 1;
+      return Math.max(0, Math.min(next, allUniqueCycles.length - 1));
+    });
+    setFilterNavIndex(0);
+  };
+
+  // Nav list and bounds for secondary filter (within selected cycle)
   // Phase navigates in natural cycle order (‹ = earlier, › = later)
-  // Day/cycle navigate newest-first (‹ = older, › = newer)
+  // Day navigate newest-first (‹ = older, › = newer)
   // Tag navigates alphabetically (‹ = prev, › = next)
   const navList = filterMode === 'day' ? uniqueDays
     : filterMode === 'phase' ? uniquePhases
-    : filterMode === 'tag' ? uniqueTags
-    : uniqueCycles;
+    : uniqueTags;
   const isPhaseMode = filterMode === 'phase';
   const isTagMode = filterMode === 'tag';
   const canNavPrev = (isPhaseMode || isTagMode) ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
@@ -182,7 +204,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const onNavPrev = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i - 1 : i + 1);
   const onNavNext = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i + 1 : i - 1);
 
-  // Current nav label
+  // Current nav label (secondary filter)
   const todayStr = localDateStr(new Date().toISOString());
   const navLabel = (() => {
     if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
@@ -190,33 +212,35 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       const p = uniquePhases[filterNavIndex];
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
-    if (filterMode === 'tag') {
-      const t = uniqueTags[filterNavIndex];
-      return t ? `# ${t}` : '';
-    }
-    const c = uniqueCycles[filterNavIndex];
-    return c != null ? getLunarMonthInfo(c, hemisphere).name : '';
+    const t = uniqueTags[filterNavIndex];
+    return t ? `# ${t}` : '';
   })();
 
   const isCurrentNav = filterMode === 'day'
     ? uniqueDays[filterNavIndex] === todayStr
     : filterMode === 'phase'
       ? uniquePhases[filterNavIndex] === lunarData.phase.key
-      : filterMode === 'tag'
-        ? false
-        : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
+      : false;
 
-  // Filtered echoes
+  // Cycle selector labels
+  const selectedCycleName = allUniqueCycles.length > 0
+    ? getLunarMonthInfo(allUniqueCycles[selectedCycleIndex], hemisphere).name
+    : '';
+  const isCurrentCycle = allUniqueCycles.length > 0 && allUniqueCycles[selectedCycleIndex] === lunarData.lunarMonth;
+  const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
+  const canCycleNext = selectedCycleIndex > 0;
+
+  // Filtered echoes — secondary filter applied within the selected cycle
   const filteredEchoes = useMemo(() => {
-    if (navList.length === 0) return echoes;
+    if (navList.length === 0) return cycleFilteredEchoes;
     const target = navList[filterNavIndex];
-    return echoes.filter(e => {
+    return cycleFilteredEchoes.filter(e => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
       if (filterMode === 'tag') return (e.tags || []).includes(target);
-      return e.lunarMonth === target;
+      return true;
     });
-  }, [echoes, filterMode, filterNavIndex, navList]);
+  }, [cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
@@ -230,7 +254,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (queueIndex >= audioQueue.length) setQueueIndex(0);
   }, [audioQueue]); // eslint-disable-line
 
-  // Stop queue and reset when filter changes
+  // Stop queue and reset when filter changes (including base cycle)
   useEffect(() => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -239,7 +263,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setPlayingId(null);
     setQueuePlaying(false);
     setQueueIndex(0);
-  }, [filterMode, filterNavIndex]);
+  }, [filterMode, filterNavIndex, selectedCycleIndex]);
 
   // Preload Whisper model in background
   useEffect(() => {
@@ -361,6 +385,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         alert('Could not access microphone: ' + error.message);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Stop recording
@@ -397,15 +422,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Cleanup on unmount
   useEffect(() => {
+    const timer = timerRef.current;
+    const recorder = mediaRecorderRef.current;
+    const player = audioPlayerRef.current;
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-        audioPlayerRef.current = null;
+      if (timer) clearInterval(timer);
+      if (recorder && isRecording) recorder.stop();
+      if (player) {
+        player.pause();
       }
     };
-  }, []); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch echoes on mount; decrypt encrypted texts if key is available
   useEffect(() => {
@@ -684,19 +712,79 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Filter Navigator */}
-      <div style={{ padding: '0 20px 14px' }}>
-        {/* Mode toggle */}
+      <div data-tour="echoes-tags" style={{ padding: '0 20px 14px' }}>
+        {/* Base cycle selector */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          marginBottom: 12,
+        }}>
+          <button
+            onClick={() => switchCycle('prev')}
+            disabled={!canCyclePrev}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCyclePrev ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ‹
+          </button>
+          <div style={{ textAlign: 'center', minWidth: 120 }}>
+            <div style={{
+              fontSize: 15,
+              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 600,
+            }}>
+              {selectedCycleName || 'No Cycles'}
+            </div>
+            {isCurrentCycle && (
+              <div style={{
+                fontSize: 8,
+                fontFamily: 'monospace',
+                color: 'rgba(167, 139, 250, 0.5)',
+                letterSpacing: '0.1em',
+                marginTop: 2,
+              }}>
+                CURRENT CYCLE
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => switchCycle('next')}
+            disabled={!canCycleNext}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCycleNext ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ›
+          </button>
+        </div>
+
+        {/* Secondary filter mode toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
-          {['day', 'phase', 'cycle', 'tag'].map(mode => (
+          {['day', 'phase', 'tag'].map(mode => (
             <button
               key={mode}
               onClick={() => switchFilterMode(mode)}
               style={{
-                padding: '4px 10px',
-                borderRadius: 4,
+                minHeight: 'var(--touch-min)',
+                padding: '8px 12px',
+                borderRadius: 6,
                 border: 'none',
                 background: filterMode === mode ? 'rgba(245, 230, 200, 0.1)' : 'transparent',
-                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.25)',
+                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'var(--text-disabled)',
                 fontSize: 9,
                 fontFamily: 'monospace',
                 cursor: 'pointer',
@@ -708,7 +796,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           ))}
         </div>
 
-        {/* Arrow navigation */}
+        {/* Secondary arrow navigation */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -767,7 +855,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Write Area */}
-      <div data-tutorial="echoes-write-area" style={{ padding: '0 20px 20px' }}>
+      <div data-tutorial="echoes-write-area" data-tour="echoes-write-area" style={{ padding: '0 20px 20px' }}>
         {isWriting ? (
           <div style={{
             background: 'rgba(245, 230, 200, 0.03)',
@@ -888,7 +976,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               <div style={{
                 fontSize: 10,
                 fontFamily: 'monospace',
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -914,8 +1002,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               {/* Voice orb */}
               <button
                 data-tutorial="echoes-voice-orb"
+                data-tour="echoes-voice-orb"
                 onClick={toggleRecording}
                 disabled={isTranscribing}
+                aria-label={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing audio' : 'Start voice recording'}
+                aria-pressed={isRecording}
                 style={{
                   width: 36,
                   height: 36,
@@ -1136,7 +1227,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 fontFamily: 'monospace',
                 fontSize: 9,
                 letterSpacing: '0.12em',
-                color: 'rgba(245, 230, 200, 0.35)',
+                color: 'var(--text-secondary)',
                 marginBottom: 6,
               }}>
                 {queuePlaying || queueIndex > 0
@@ -1367,7 +1458,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   <div style={{
                     fontSize: 11, fontFamily: 'monospace',
                     letterSpacing: '0.08em',
-                    color: 'rgba(245, 230, 200, 0.35)',
+                    color: 'var(--text-secondary)',
                   }}>
                     {audioQueue.length} VOICE {audioQueue.length === 1 ? 'ECHO' : 'ECHOES'} · PLAY ALL
                   </div>
@@ -1379,7 +1470,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 onClick={() => setQueueExpanded(true)}
                 style={{
                   background: 'none', border: 'none',
-                  color: 'rgba(245, 230, 200, 0.25)',
+                  color: 'var(--text-disabled)',
                   fontSize: 14, cursor: 'pointer',
                   padding: '4px',
                   flexShrink: 0,
@@ -1610,7 +1701,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 marginLeft: 6,
                 fontSize: 11,
                 fontFamily: "'DM Sans', sans-serif",
-                color: 'rgba(245,230,200,0.35)',
+                color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 letterSpacing: '0.04em',
               }}
@@ -1622,20 +1713,23 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
       )}
 
       {/* Tags row */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
         {tags.map(tag => (
           <span
             key={tag}
             onClick={() => isTagging && toggleTag(tag)}
             style={{
-              padding: '2px 7px',
-              borderRadius: 3,
+              minHeight: 'var(--touch-min)',
+              padding: '10px 12px',
+              borderRadius: 6,
               background: 'rgba(167, 139, 250, 0.12)',
               color: 'rgba(167, 139, 250, 0.75)',
-              fontSize: 9,
+              fontSize: 11,
               fontFamily: 'monospace',
               letterSpacing: '0.06em',
               cursor: isTagging ? 'pointer' : 'default',
+              display: 'inline-flex',
+              alignItems: 'center',
             }}
           >
             #{tag}{isTagging ? ' ×' : ''}
@@ -1647,11 +1741,16 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
             background: 'none',
             border: 'none',
             color: isTagging ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.2)',
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: 'monospace',
             cursor: 'pointer',
-            padding: '2px 4px',
+            minHeight: 'var(--touch-min)',
+            minWidth: 'var(--touch-min)',
+            padding: '10px 12px',
             letterSpacing: '0.05em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {isTagging ? 'done' : '#'}
@@ -1667,7 +1766,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           borderRadius: 8,
           border: '1px solid rgba(245, 230, 200, 0.07)',
         }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {/* Past user tags first (highlighted) */}
             {userPastTags.map(tag => {
               const selected = tags.includes(tag);
@@ -1677,8 +1776,9 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                   key={tag}
                   onClick={() => !disabled && toggleTag(tag)}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: 3,
+                    minHeight: 'var(--touch-min)',
+                    padding: '10px 12px',
+                    borderRadius: 6,
                     border: '1px solid rgba(167, 139, 250, 0.2)',
                     background: selected
                       ? 'rgba(167, 139, 250, 0.25)'
@@ -1688,7 +1788,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                       : disabled
                         ? 'rgba(245, 230, 200, 0.2)'
                         : 'rgba(167, 139, 250, 0.65)',
-                    fontSize: 9,
+                    fontSize: 11,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',
                     cursor: disabled ? 'default' : 'pointer',
@@ -1708,8 +1808,9 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                   key={tag}
                   onClick={() => !disabled && toggleTag(tag)}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: 3,
+                    minHeight: 'var(--touch-min)',
+                    padding: '10px 12px',
+                    borderRadius: 6,
                     border: isPhaseRelevant && !selected
                       ? '1px solid rgba(201, 168, 76, 0.35)'
                       : 'none',
@@ -1725,7 +1826,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                         : isPhaseRelevant
                           ? 'rgba(201, 168, 76, 0.85)'
                           : 'rgba(245, 230, 200, 0.45)',
-                    fontSize: 9,
+                    fontSize: 11,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',
                     cursor: disabled ? 'default' : 'pointer',

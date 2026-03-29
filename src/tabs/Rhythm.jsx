@@ -83,7 +83,7 @@ function CreateSheet({ onSave, onClose }) {
 
         {/* Scope */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.12em', color: 'rgba(245,230,200,0.3)', marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.12em', color: 'var(--text-tertiary)', marginBottom: 10 }}>
             SCOPE
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -100,7 +100,7 @@ function CreateSheet({ onSave, onClose }) {
                 <div style={{ fontSize: 13, color: scope === v ? '#f5e6c8' : 'rgba(245,230,200,0.5)', marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
                   {l}
                 </div>
-                <div style={{ fontSize: 10, color: 'rgba(245,230,200,0.3)', fontFamily: 'monospace' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
                   {sub}
                 </div>
               </button>
@@ -115,7 +115,7 @@ function CreateSheet({ onSave, onClose }) {
             width: '100%', padding: '14px', borderRadius: 12,
             background: canSave ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.03)',
             border: canSave ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
-            color: canSave ? '#f5e6c8' : 'rgba(245,230,200,0.25)',
+            color: canSave ? '#f5e6c8' : 'var(--text-disabled)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
           }}
@@ -228,18 +228,18 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
   );
 
   return (
-    <div style={{ padding: '20px 20px 100px' }}>
+    <div data-tour="rhythm-what" style={{ padding: '20px 20px 100px' }}>
 
       {/* New Moon prompts */}
       {newMoonPrompts.map(r => (
-        <div key={r.id} style={{
+        <div key={r.id} data-tour="rhythm-intention" style={{
           marginBottom: 12,
           padding: '14px 16px',
           background: 'rgba(245,230,200,0.04)',
           border: '1px solid rgba(245,230,200,0.1)',
           borderRadius: 12,
         }}>
-          <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.35)', marginBottom: 6, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
             NEW MOON · {r.name.toUpperCase()}
           </div>
           <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.6)', marginBottom: 12, lineHeight: 1.5 }}>
@@ -298,12 +298,12 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
           }}>
             {resolvePhaseText('noRhythmsMessage', currentPhaseKey)}
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.25)', lineHeight: 1.65, maxWidth: 260, margin: '0 auto' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-disabled)', lineHeight: 1.65, maxWidth: 260, margin: '0 auto' }}>
             {resolvePhaseText('noRhythmsSubtext', currentPhaseKey)}
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div data-tour="rhythm-history" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rhythms.map(r => {
             const inst = instanceMap[r.id];
             const obsForRhythm = observationMap[r.id] || {};

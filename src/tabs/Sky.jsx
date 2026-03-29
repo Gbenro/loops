@@ -23,7 +23,9 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
 
   // Get resonances using user's profile data if available
   const now = new Date();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memoize per userProfile, not per render
   const resonances = useMemo(() => getNatalResonance(now, userProfile), [userProfile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memoize per userProfile, not per render
   const resonanceSummary = useMemo(() => getResonanceSummary(now, userProfile), [userProfile]);
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -120,18 +122,24 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           flexShrink: 0,
         }}>
         {/* Tappable Moon */}
-        <div
+        <button
           data-tutorial="moon-display"
+          data-tour="moon-display"
           onClick={() => setSheetOpen(true)}
+          aria-label={`${lunarData.phase.name}, ${lunarData.illumination}% illuminated. Tap to view cosmic details`}
           style={{
             cursor: 'pointer',
             position: 'relative',
+            background: 'none',
+            border: 'none',
+            padding: 0,
           }}
         >
           <MoonFace
             size={200}
             phase={lunarData.age / 29.53}
             illumination={lunarData.illumination}
+            phaseName={lunarData.phase.name}
           />
 
           {/* Tap hint */}
@@ -143,17 +151,17 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontSize: 'var(--font-xs)',
             fontFamily: 'monospace',
             letterSpacing: '0.15em',
-            color: 'rgba(245, 230, 200, 0.25)',
+            color: 'var(--text-disabled)',
             whiteSpace: 'nowrap',
             animation: 'breathe 3s ease-in-out infinite',
           }}>
             {phrasesLoading ? 'TAP TO GO DEEPER' : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Phase Info */}
-      <div style={{
+      <div data-tour="phase-info" style={{
         padding: '0 24px 24px',
         textAlign: 'center',
       }}>
@@ -169,7 +177,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Stats Line */}
-        <div style={{
+        <div data-tour="zodiac-transit" style={{
           fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
@@ -184,7 +192,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.08em',
-          color: 'rgba(245, 230, 200, 0.35)',
+          color: 'var(--text-secondary)',
           marginBottom: 24,
         }}>
           DAY {lunarData.dayOfCycle} OF 29 · {lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}
@@ -286,23 +294,31 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         )}
 
         {/* 8-Phase Timeline */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          padding: '10px 0',
-          marginBottom: 16,
-        }}>
+        <div
+          role="img"
+          aria-label={`Lunar phase timeline showing ${lunarData.phase.name} as current phase`}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: '6px 0',
+            marginBottom: 16,
+          }}
+        >
           {allPhases.map((p) => {
             const isActive = p.key === lunarData.phase.key;
             return (
               <div
                 key={p.key}
+                aria-label={`${p.name}${isActive ? ' (current)' : ''}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 'var(--touch-min)',
+                  minHeight: 'var(--touch-min)',
                   opacity: isActive ? 1 : 0.3,
-                  transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                  transform: isActive ? 'scale(1.15)' : 'scale(1)',
                   transition: 'all 0.2s',
                 }}
               >
@@ -313,7 +329,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Phase Tide Bar */}
-        <div data-tutorial="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
+        <div data-tutorial="phase-tide-bar" data-tour="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
           <PhaseTideBar lunarData={lunarData} />
         </div>
 

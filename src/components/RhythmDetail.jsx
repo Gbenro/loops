@@ -188,6 +188,8 @@ function IntentionSetter({ instance, onSave, onClose }) {
 export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
   const currentPhaseKey = lunarData?.phase?.key || null;
   const cycleStart      = lunarData?.cycleStart  || null;
+  const dayInPhase      = lunarData?.phase?.dayInPhase ?? 0;
+  const phaseDuration   = lunarData?.phase?.phaseDuration ?? 0;
 
   const [instance, setInstance]         = useState(null);
   const [observations, setObservations] = useState([]);
@@ -207,6 +209,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
     const obs = await getObservationsForInstance(inst.id, userId);
     setObservations(obs);
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rhythm.id, cycleStart, userId]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -223,17 +226,22 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
 
   const handleCheckIn = async ({ phase, engagement, note }) => {
     if (!instance) return;
+    const loggedAt = new Date().toISOString();
+    const dateKey = loggedAt.slice(0, 10); // YYYY-MM-DD
     const obs = {
       id:              crypto.randomUUID(),
       cycleInstanceId: instance.id,
       phase,
       engagement,
-      note:    note || null,
-      loggedAt: new Date().toISOString(),
+      note:       note || null,
+      loggedAt,
+      dateKey,
+      dayInPhase: phase === currentPhaseKey ? Math.floor(dayInPhase) + 1 : null,
     };
     await saveObservation(obs, userId);
     setObservations(prev => {
-      const filtered = prev.filter(o => o.phase !== phase);
+      // Remove existing observation for same phase + date (daily dedup)
+      const filtered = prev.filter(o => !(o.phase === phase && o.dateKey === dateKey));
       return [...filtered, obs];
     });
   };
@@ -285,6 +293,17 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
           }}>
             {rhythm.name}
           </div>
+          {/* Day in phase context */}
+          {currentPhaseKey && phaseDuration > 0 && (
+            <div style={{
+              fontSize: 11, fontFamily: 'monospace',
+              color: 'rgba(245,230,200,0.4)',
+              letterSpacing: '0.08em',
+              marginBottom: 8,
+            }}>
+              Day {Math.floor(dayInPhase) + 1} of {Math.ceil(phaseDuration)} in {PHASES_ORDERED.find(p => p.key === currentPhaseKey)?.label || currentPhaseKey}
+            </div>
+          )}
           <button
             onClick={() => instance && setShowIntention(true)}
             style={{
@@ -304,93 +323,181 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         </div>
 
         {/* Phase ring */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-          <PhaseRing
-            size={220}
-            intention={intentionMap}
-            observation={observationMap}
-            currentPhaseKey={currentPhaseKey}
-            pastPhaseKeys={pastPhaseKeys}
-            showLabels={true}
-            onPhaseClick={phaseKey => {
-              // Allow logging for current phase or recently missed phases
-              if (loggablePhases.includes(phaseKey) || observationMap[phaseKey]) {
-                setCheckInPhase(phaseKey);
-              }
-            }}
-          />
-        </div>
-
-        {/* Quick log prompt for current phase */}
-        {currentPhaseKey && !observationMap[currentPhaseKey] && (
-          <button
-            onClick={() => setCheckInPhase(currentPhaseKey)}
-            style={{
-              display: 'block', width: '100%',
-              padding: '14px 16px', borderRadius: 12,
-              background: 'rgba(245,230,200,0.04)',
-              border: '1px solid rgba(245,230,200,0.1)',
-              color: 'rgba(245,230,200,0.6)', fontSize: 13,
-              cursor: 'pointer', marginBottom: 24,
-              fontFamily: "'DM Sans', sans-serif",
-              textAlign: 'center',
-            }}
-          >
-            Log {PHASES_ORDERED.find(p => p.key === currentPhaseKey)?.label || currentPhaseKey} check-in
-          </button>
-        )}
-
-        {/* Check-in log */}
-        {observations.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
+        <div data-tour="phase-ring" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+          <div>
+            <PhaseRing
+              size={220}
+              intention={intentionMap}
+              observation={observationMap}
+              currentPhaseKey={currentPhaseKey}
+              pastPhaseKeys={pastPhaseKeys}
+              showLabels={true}
+              onPhaseClick={phaseKey => {
+                // Allow logging for current phase or recently missed phases
+                if (loggablePhases.includes(phaseKey) || observationMap[phaseKey]) {
+                  setCheckInPhase(phaseKey);
+                }
+              }}
+            />
             <div style={{
-              fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
-              color: 'rgba(245,230,200,0.25)', marginBottom: 12,
+              fontFamily: 'monospace',
+              fontSize: 9,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              marginTop: 12,
             }}>
-              THIS CYCLE
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {ALL_PHASE_KEYS
-                .filter(k => observationMap[k])
-                .map(k => {
-                  const obs = observations.find(o => o.phase === k);
-                  const ph = PHASES_ORDERED.find(p => p.key === k);
-                  return (
-                    <button
-                      key={k}
-                      onClick={() => setCheckInPhase(k)}
-                      style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 12,
-                        padding: '12px 0',
-                        borderBottom: '1px solid rgba(245,230,200,0.05)',
-                        background: 'none', border: 'none',
-                        cursor: 'pointer', textAlign: 'left',
-                      }}
-                    >
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph.accent, marginTop: 5, flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: obs.note ? 3 : 0 }}>
-                          <span style={{ fontSize: 12, color: 'rgba(245,230,200,0.5)' }}>{ph.label}</span>
-                          <span style={{
-                            fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                            color: obs.engagement === 'ceremonial' ? '#fefcbf' : 'rgba(245,230,200,0.4)',
-                          }}>
-                            {obs.engagement.toUpperCase()}
-                          </span>
-                        </div>
-                        {obs.note && (
-                          <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.35)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                            &ldquo;{obs.note}&rdquo;
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              }
+              Inner ring = Intention &nbsp;•&nbsp; Outer ring = Observed
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Quick log prompt for today */}
+        {(() => {
+          const todayKey = new Date().toISOString().slice(0, 10);
+          const hasTodayCheckIn = observations.some(o => o.phase === currentPhaseKey && o.dateKey === todayKey);
+          if (!currentPhaseKey || hasTodayCheckIn) return null;
+          return (
+            <button
+              data-tour="rhythm-checkin"
+              onClick={() => setCheckInPhase(currentPhaseKey)}
+              style={{
+                display: 'block', width: '100%',
+                padding: '14px 16px', borderRadius: 12,
+                background: 'rgba(245,230,200,0.04)',
+                border: '1px solid rgba(245,230,200,0.1)',
+                color: 'rgba(245,230,200,0.6)', fontSize: 13,
+                cursor: 'pointer', marginBottom: 24,
+                fontFamily: "'DM Sans', sans-serif",
+                textAlign: 'center',
+              }}
+            >
+              Log today&apos;s check-in
+            </button>
+          );
+        })()}
+
+        {/* Check-in log - grouped by phase, showing daily entries */}
+        {observations.length > 0 && (() => {
+          // Group observations by phase
+          const phaseGroups = {};
+          for (const obs of observations) {
+            if (!phaseGroups[obs.phase]) phaseGroups[obs.phase] = [];
+            phaseGroups[obs.phase].push(obs);
+          }
+          // Sort within each phase by date (most recent first)
+          for (const phase of Object.keys(phaseGroups)) {
+            phaseGroups[phase].sort((a, b) => (b.dateKey || '').localeCompare(a.dateKey || ''));
+          }
+
+          // Current phase observations first, then others in phase order
+          const currentPhaseObs = currentPhaseKey && phaseGroups[currentPhaseKey] ? phaseGroups[currentPhaseKey] : [];
+          const otherPhases = ALL_PHASE_KEYS.filter(k => k !== currentPhaseKey && phaseGroups[k]);
+
+          return (
+            <div style={{ marginBottom: 24 }}>
+              {/* Current phase daily check-ins */}
+              {currentPhaseObs.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
+                    color: 'var(--text-disabled)', marginBottom: 12,
+                  }}>
+                    THIS PHASE
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 20 }}>
+                    {currentPhaseObs.map(obs => {
+                      const ph = PHASES_ORDERED.find(p => p.key === obs.phase);
+                      const dayLabel = obs.dayInPhase ? `Day ${obs.dayInPhase}` : obs.dateKey || '';
+                      return (
+                        <button
+                          key={obs.id || `${obs.phase}-${obs.dateKey}`}
+                          onClick={() => setCheckInPhase(obs.phase)}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12,
+                            padding: '12px 0',
+                            borderBottom: '1px solid rgba(245,230,200,0.05)',
+                            background: 'none', border: 'none',
+                            cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: obs.note ? 3 : 0 }}>
+                              <span style={{ fontSize: 12, color: 'rgba(245,230,200,0.5)' }}>{dayLabel}</span>
+                              <span style={{
+                                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
+                                color: obs.engagement === 'ceremonial' ? '#fefcbf' : 'rgba(245,230,200,0.4)',
+                              }}>
+                                {obs.engagement.toUpperCase()}
+                              </span>
+                            </div>
+                            {obs.note && (
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                                &ldquo;{obs.note}&rdquo;
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Earlier phases */}
+              {otherPhases.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
+                    color: 'var(--text-disabled)', marginBottom: 12,
+                  }}>
+                    EARLIER PHASES
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {otherPhases.map(k => {
+                      const phaseObs = phaseGroups[k];
+                      const ph = PHASES_ORDERED.find(p => p.key === k);
+                      // Show summary for earlier phases (count of check-ins)
+                      const latestObs = phaseObs[0];
+                      const checkInCount = phaseObs.length;
+                      return (
+                        <button
+                          key={k}
+                          onClick={() => setCheckInPhase(k)}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12,
+                            padding: '12px 0',
+                            borderBottom: '1px solid rgba(245,230,200,0.05)',
+                            background: 'none', border: 'none',
+                            cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: latestObs.note ? 3 : 0 }}>
+                              <span style={{ fontSize: 12, color: 'rgba(245,230,200,0.5)' }}>{ph?.label || k}</span>
+                              <span style={{
+                                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
+                                color: 'rgba(245,230,200,0.4)',
+                              }}>
+                                {checkInCount > 1 ? `${checkInCount} check-ins` : latestObs.engagement.toUpperCase()}
+                              </span>
+                            </div>
+                            {latestObs.note && checkInCount === 1 && (
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                                &ldquo;{latestObs.note}&rdquo;
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Sheets */}
@@ -398,7 +505,9 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         <CheckInSheet
           phaseKey={checkInPhase}
           rhythmName={rhythm.name}
-          existing={observations.find(o => o.phase === checkInPhase) || null}
+          existing={observations.find(o => o.phase === checkInPhase && o.dateKey === new Date().toISOString().slice(0, 10)) || null}
+          dayInPhase={checkInPhase === currentPhaseKey ? dayInPhase : null}
+          phaseDuration={checkInPhase === currentPhaseKey ? phaseDuration : null}
           onSave={handleCheckIn}
           onClose={() => setCheckInPhase(null)}
         />

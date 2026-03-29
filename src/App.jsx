@@ -21,6 +21,7 @@ import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
+import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt, useOnboarding } from './components/Onboarding/index.js';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -65,7 +66,7 @@ function UnlockModal({ verifyToken, userId }) {
           }}>Encrypted content</div>
           <div style={{
             fontSize: 11, fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.35)', letterSpacing: '0.08em',
+            color: 'var(--text-secondary)', letterSpacing: '0.08em',
           }}>ENTER PASSPHRASE TO DECRYPT</div>
         </div>
         <form onSubmit={handleUnlock}>
@@ -234,7 +235,7 @@ function BetaGate({ onSignOut }) {
   );
 }
 
-export default function App() {
+function App() {
   const [activeTab, setActiveTab] = useState('sky');
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -254,6 +255,12 @@ export default function App() {
   const [echoes, setEchoes] = useState([]);
 
   const { initFromProfile, status: encryptionStatus } = useEncryption();
+  const { registerTabSwitcher } = useOnboarding();
+
+  // Register tab switcher for onboarding tours
+  useEffect(() => {
+    registerTabSwitcher(setActiveTab);
+  }, [registerTabSwitcher, setActiveTab]);
 
   // Location state — seeded from cache immediately, then updated from GPS
   const [location, setLocation] = useState(() => getCachedLocation());
@@ -266,6 +273,19 @@ export default function App() {
     || location?.hemisphere
     || 'north';
   const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
+
+  // Check if user has an active cycle loop for the current cycle
+  const hasActiveCycleLoop = useMemo(() => {
+    if (!loops.length || !lunarData?.cycleStart) return false;
+    return loops.some(loop =>
+      loop.scope === 'cycle' &&
+      loop.status !== 'released' &&
+      loop.cycleStart === lunarData.cycleStart
+    );
+  }, [loops, lunarData?.cycleStart]);
+
+  // Phase-specific ceremony prompts (New Moon / Waning Crescent)
+  const { showCeremony, dismissCeremony } = useCeremonyPrompt(lunarData, hasActiveCycleLoop);
 
   // Fetch loops and echoes for phase summaries
   const refreshLoopsAndEchoes = useCallback(async () => {
@@ -410,6 +430,27 @@ export default function App() {
     }
   }, [loading]);
 
+  // Deep link support: open Phase Guide or App Guide via URL
+  // Examples: ?guide=phases, ?guide=app, #phases, #guide
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const guideParam = params.get('guide');
+    const hash = window.location.hash.replace('#', '');
+
+    if (guideParam === 'phases' || hash === 'phases' || hash === 'phase-guide') {
+      setTutorialMode('phases');
+      setShowTutorial(true);
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+    } else if (guideParam === 'app' || guideParam === 'guide' || hash === 'guide' || hash === 'app-guide') {
+      setTutorialMode('guide');
+      setShowTutorial(true);
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [loading]);
+
   // Detect precise location for accurate hemisphere + future moonrise/set
   useEffect(() => {
     detectLocation().then(async (loc) => {
@@ -434,6 +475,7 @@ export default function App() {
         }
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Load generative phrases on mount
@@ -564,6 +606,15 @@ export default function App() {
           --font-xl: 22px;
           --font-2xl: 28px;
           --font-3xl: 32px;
+
+          /* Text colors - WCAG AA compliant contrast ratios */
+          --text-primary: #f5e6c8;
+          --text-secondary: rgba(245,230,200,0.55);    /* was 0.35, ~4.5:1 contrast */
+          --text-tertiary: rgba(245,230,200,0.45);     /* was 0.3, ~3.8:1 contrast */
+          --text-disabled: rgba(245,230,200,0.38);     /* was 0.25, ~3.0:1 contrast */
+
+          /* Touch targets - minimum 44px for accessibility */
+          --touch-min: 44px;
         }
 
         /* Larger fonts on desktop for better readability */
@@ -601,8 +652,23 @@ export default function App() {
           font-family: inherit;
         }
 
+        /* Focus visible styles for keyboard navigation
+           Uses !important to override inline outline:none styles */
+        :focus-visible {
+          outline: 2px solid rgba(245,230,200,0.5) !important;
+          outline-offset: 2px;
+        }
+
+        /* Reset browser default focus for mouse/touch interactions */
+        button:focus:not(:focus-visible),
+        a:focus:not(:focus-visible),
+        input:focus:not(:focus-visible),
+        textarea:focus:not(:focus-visible) {
+          outline: none;
+        }
+
         input::placeholder, textarea::placeholder {
-          color: rgba(245, 230, 200, 0.35);
+          color: var(--text-secondary);
           font-style: italic;
         }
 
@@ -624,6 +690,22 @@ export default function App() {
         @keyframes fadeIn {
           0% { opacity: 0; transform: translateY(10px); }
           100% { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes moonPulse {
+          0%, 100% { filter: drop-shadow(0 0 35px rgba(245, 230, 200, 0.25)); }
+          50% { filter: drop-shadow(0 0 45px rgba(245, 230, 200, 0.35)); }
+        }
+
+        /* Moon glow animation - respects reduced motion preference */
+        .moon-glow {
+          animation: moonPulse 8s ease-in-out infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .moon-glow {
+            animation: none;
+          }
         }
 
         ::-webkit-scrollbar {
@@ -732,13 +814,17 @@ export default function App() {
       </div>
 
       {/* Bottom Navigation */}
-      <nav style={{
-        flexShrink: 0,
-        display: 'flex',
-        borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-        background: '#040810',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
+      <nav
+        role="navigation"
+        aria-label="Main navigation"
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+          background: '#040810',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        }}
+      >
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -746,6 +832,8 @@ export default function App() {
               key={tab.id}
               data-tutorial={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
+              aria-label={`${tab.label} tab`}
+              aria-current={isActive ? 'page' : undefined}
               style={{
                 flex: 1,
                 padding: '16px 0 12px',
@@ -780,21 +868,10 @@ export default function App() {
             </button>
           );
         })}
-        {/* Version badge — only shown on V2 */}
-        {IS_V2 && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 10px',
-            color: 'rgba(167,139,250,0.35)',
-            fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.1em',
-            userSelect: 'none',
-          }}>
-            V2
-          </div>
-        )}
         {isAdmin && (
           <button
             onClick={() => setShowAdmin(true)}
+            aria-label="Admin dashboard"
             style={{
               padding: '16px 14px 12px',
               background: 'none', border: 'none',
@@ -822,7 +899,38 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Interactive Onboarding */}
+      <WelcomeModal />
+      <TourOverlay />
+
+      {/* Phase Ceremony Prompts */}
+      {showCeremony && (
+        <CeremonyPrompt
+          type={showCeremony}
+          onAction={() => {
+            dismissCeremony();
+            if (showCeremony === 'new-moon') {
+              // Navigate to Loops tab to plant intention
+              setActiveTab('loops');
+            } else if (showCeremony === 'waning-crescent') {
+              // Navigate to Echoes tab for cycle review
+              setActiveTab('echoes');
+            }
+          }}
+          onDismiss={dismissCeremony}
+        />
+      )}
       </div>
     </div>
+  );
+}
+
+// Wrap the app with OnboardingProvider
+export default function AppWithOnboarding() {
+  return (
+    <OnboardingProvider>
+      <App />
+    </OnboardingProvider>
   );
 }

@@ -221,6 +221,7 @@ describe('lunar.js', () => {
       // Check all expected properties exist
       expect(data).toHaveProperty('age');
       expect(data).toHaveProperty('dayOfCycle');
+      expect(data).toHaveProperty('cycleStart');
       expect(data).toHaveProperty('phase');
       expect(data).toHaveProperty('illumination');
       expect(data).toHaveProperty('lunarMonth');
@@ -239,6 +240,18 @@ describe('lunar.js', () => {
       expect(data).toHaveProperty('nextPhaseDuration');
       expect(data).toHaveProperty('approachingThreshold');
       expect(data).toHaveProperty('isNewCycleApproaching');
+    });
+
+    it('cycleStart is a valid ISO date string in the past', () => {
+      const now = new Date();
+      const data = getLunarData(now);
+      const cycleStartDate = new Date(data.cycleStart);
+
+      expect(typeof data.cycleStart).toBe('string');
+      expect(cycleStartDate.getTime()).toBeLessThanOrEqual(now.getTime());
+      // Cycle start should be within 30 days
+      const daysDiff = (now.getTime() - cycleStartDate.getTime()) / (24 * 60 * 60 * 1000);
+      expect(daysDiff).toBeLessThan(30);
     });
 
     it('dayOfCycle is between 1 and 30', () => {

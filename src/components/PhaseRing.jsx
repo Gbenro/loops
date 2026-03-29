@@ -1,5 +1,5 @@
 // Cosmic Loops — PhaseRing
-// 8-segment radial chart: outer arc = intention, inner arc = observation
+// 8-segment radial chart: inner arc = intention, outer arc = observation
 // New Moon at top, clockwise.
 
 const PHASES = [
@@ -22,11 +22,11 @@ const LEVEL_STYLE = {
   ceremonial: { f: 1.00, o: 1.00 },
 };
 
-// Radial bands (inner ring = observation, outer ring = intention)
-const OBS_R_MIN  = 22;
-const OBS_R_MAX  = 44;
-const INT_R_MIN  = 50;
-const INT_R_MAX  = 76;
+// Radial bands (inner ring = intention, outer ring = observation)
+const INT_R_MIN  = 22;
+const INT_R_MAX  = 44;
+const OBS_R_MIN  = 50;
+const OBS_R_MAX  = 76;
 
 // Gap between segments in degrees (half on each side)
 const GAP_DEG = 3;
@@ -81,6 +81,32 @@ function ArcSegment({ cx, cy, rMin, rMax, startDeg, endDeg, level, color, isCere
   );
 }
 
+// Generate screen-reader description of the ring state
+function generateAccessibleDescription(intention, observation, currentPhaseKey) {
+  const parts = [];
+
+  if (currentPhaseKey) {
+    const currentPhase = PHASES.find(p => p.key === currentPhaseKey);
+    parts.push(`Current phase: ${currentPhase?.key.replace('-', ' ') || currentPhaseKey}`);
+  }
+
+  const intentionCount = Object.values(intention).filter(v => v && v !== 'none').length;
+  const observationCount = Object.values(observation).filter(v => v && v !== 'none').length;
+
+  if (intentionCount > 0) {
+    parts.push(`${intentionCount} phase${intentionCount > 1 ? 's' : ''} with intention set`);
+  }
+  if (observationCount > 0) {
+    parts.push(`${observationCount} phase${observationCount > 1 ? 's' : ''} observed`);
+  }
+
+  if (parts.length === 0) {
+    return 'Lunar cycle visualization with 8 phases. Inner ring shows intention, outer ring shows observation.';
+  }
+
+  return parts.join('. ') + '.';
+}
+
 export function PhaseRing({
   size = 180,
   intention = {},      // { phaseKey: level }  (from wholeIntention or phaseIntentions)
@@ -101,12 +127,16 @@ export function PhaseRing({
   const intMax = INT_R_MAX * scale;
   const labelR = (INT_R_MAX + 10) * scale;
 
+  const accessibleDescription = generateAccessibleDescription(intention, observation, currentPhaseKey);
+
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
       width={size}
       height={size}
       style={{ display: 'block', overflow: 'visible' }}
+      role="img"
+      aria-label={accessibleDescription}
     >
       <defs>
         <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -160,19 +190,7 @@ export function PhaseRing({
               />
             )}
 
-            {/* Observation arc (inner) */}
-            {obsLevel && obsLevel !== 'none' && (
-              <ArcSegment
-                cx={cx} cy={cy}
-                rMin={obsMin} rMax={obsMax}
-                startDeg={segStart} endDeg={segEnd}
-                level={obsLevel}
-                color={phase.accent}
-                isCeremonial={obsLevel === 'ceremonial'}
-              />
-            )}
-
-            {/* Intention arc (outer) */}
+            {/* Intention arc (inner) */}
             {intLevel && intLevel !== 'none' && (
               <ArcSegment
                 cx={cx} cy={cy}
@@ -181,6 +199,18 @@ export function PhaseRing({
                 level={intLevel}
                 color={phase.accent}
                 isCeremonial={intLevel === 'ceremonial'}
+              />
+            )}
+
+            {/* Observation arc (outer) */}
+            {obsLevel && obsLevel !== 'none' && (
+              <ArcSegment
+                cx={cx} cy={cy}
+                rMin={obsMin} rMax={obsMax}
+                startDeg={segStart} endDeg={segEnd}
+                level={obsLevel}
+                color={phase.accent}
+                isCeremonial={obsLevel === 'ceremonial'}
               />
             )}
 
