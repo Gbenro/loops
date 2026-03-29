@@ -23,6 +23,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
+  const [devTapCount, setDevTapCount] = useState(0);
+  const [showDevTools, setShowDevTools] = useState(import.meta.env.DEV);
 
   // Zodiac signs form
   const [sunSign, setSunSign] = useState('');
@@ -266,11 +268,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           padding: '0 20px 16px',
           textAlign: 'center',
         }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 24,
-            color: '#f5e6c8',
-          }}>
+          <div
+            onClick={() => {
+              const next = devTapCount + 1;
+              setDevTapCount(next);
+              if (next >= 5 && !showDevTools) {
+                setShowDevTools(true);
+                setDevTapCount(0);
+              }
+            }}
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 24,
+              color: '#f5e6c8',
+              cursor: 'default',
+              userSelect: 'none',
+            }}
+          >
             Settings
           </div>
         </div>
@@ -450,8 +464,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 </div>
               )}
 
-              {/* Dev Tools - Test Data (dev mode only) */}
-              {import.meta.env.DEV && (
+              {/* Dev Tools - Test Data (dev mode or tap 5x on Settings title) */}
+              {showDevTools && (
                 <div style={{ marginTop: 24 }}>
                   <div style={{
                     fontSize: 10,
