@@ -110,8 +110,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const [expandedId, setExpandedId] = useState(null);
   const [source, setSource] = useState('text'); // 'text' | 'voice'
 
-  // Filter state
-  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'phase' | 'cycle'
+  // Filter state — cycle is always the base filter
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent cycle
+  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'phase' | 'tag'
   const [filterNavIndex, setFilterNavIndex] = useState(0); // 0 = most recent
 
   // Voice state (Whisper-based)
@@ -139,23 +140,36 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
-  // Derive sorted unique values for navigation
+  // Derive all unique cycles from all echoes (base filter)
+  const allUniqueCycles = useMemo(() => {
+    const cycles = [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))];
+    // Sort with current cycle first, then reverse chronological by first appearance
+    const currentCycle = lunarData.lunarMonth;
+    const currentFirst = cycles.filter(c => c === currentCycle);
+    const rest = cycles.filter(c => c !== currentCycle);
+    return [...currentFirst, ...rest];
+  }, [echoes, lunarData.lunarMonth]);
+
+  // Echoes scoped to the selected cycle
+  const cycleFilteredEchoes = useMemo(() => {
+    if (allUniqueCycles.length === 0) return echoes;
+    const targetCycle = allUniqueCycles[selectedCycleIndex];
+    return echoes.filter(e => e.lunarMonth === targetCycle);
+  }, [echoes, allUniqueCycles, selectedCycleIndex]);
+
+  // Derive sorted unique values within the selected cycle
   const uniqueDays = useMemo(() =>
-    [...new Set(echoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
-  [echoes]);
+    [...new Set(cycleFilteredEchoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
+  [cycleFilteredEchoes]);
 
   const uniquePhases = useMemo(() =>
-    PHASE_ORDER.filter(p => echoes.some(e => e.phase === p)),
-  [echoes]);
-
-  const uniqueCycles = useMemo(() =>
-    [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))].sort((a, b) => b - a),
-  [echoes]);
+    PHASE_ORDER.filter(p => cycleFilteredEchoes.some(e => e.phase === p)),
+  [cycleFilteredEchoes]);
 
   const uniqueTags = useMemo(() => {
-    const all = echoes.flatMap(e => e.tags || []);
+    const all = cycleFilteredEchoes.flatMap(e => e.tags || []);
     return [...new Set(all)].sort();
-  }, [echoes]);
+  }, [cycleFilteredEchoes]);
 
   const switchFilterMode = (mode) => {
     setFilterMode(mode);
@@ -167,14 +181,22 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     }
   };
 
-  // Nav list and bounds
+  // Reset secondary filter when base cycle changes
+  const switchCycle = (direction) => {
+    setSelectedCycleIndex(i => {
+      const next = direction === 'prev' ? i + 1 : i - 1;
+      return Math.max(0, Math.min(next, allUniqueCycles.length - 1));
+    });
+    setFilterNavIndex(0);
+  };
+
+  // Nav list and bounds for secondary filter (within selected cycle)
   // Phase navigates in natural cycle order (‹ = earlier, › = later)
-  // Day/cycle navigate newest-first (‹ = older, › = newer)
+  // Day navigate newest-first (‹ = older, › = newer)
   // Tag navigates alphabetically (‹ = prev, › = next)
   const navList = filterMode === 'day' ? uniqueDays
     : filterMode === 'phase' ? uniquePhases
-    : filterMode === 'tag' ? uniqueTags
-    : uniqueCycles;
+    : uniqueTags;
   const isPhaseMode = filterMode === 'phase';
   const isTagMode = filterMode === 'tag';
   const canNavPrev = (isPhaseMode || isTagMode) ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
@@ -182,7 +204,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const onNavPrev = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i - 1 : i + 1);
   const onNavNext = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i + 1 : i - 1);
 
-  // Current nav label
+  // Current nav label (secondary filter)
   const todayStr = localDateStr(new Date().toISOString());
   const navLabel = (() => {
     if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
@@ -190,33 +212,35 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       const p = uniquePhases[filterNavIndex];
       return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
     }
-    if (filterMode === 'tag') {
-      const t = uniqueTags[filterNavIndex];
-      return t ? `# ${t}` : '';
-    }
-    const c = uniqueCycles[filterNavIndex];
-    return c != null ? getLunarMonthInfo(c, hemisphere).name : '';
+    const t = uniqueTags[filterNavIndex];
+    return t ? `# ${t}` : '';
   })();
 
   const isCurrentNav = filterMode === 'day'
     ? uniqueDays[filterNavIndex] === todayStr
     : filterMode === 'phase'
       ? uniquePhases[filterNavIndex] === lunarData.phase.key
-      : filterMode === 'tag'
-        ? false
-        : uniqueCycles[filterNavIndex] === lunarData.lunarMonth;
+      : false;
 
-  // Filtered echoes
+  // Cycle selector labels
+  const selectedCycleName = allUniqueCycles.length > 0
+    ? getLunarMonthInfo(allUniqueCycles[selectedCycleIndex], hemisphere).name
+    : '';
+  const isCurrentCycle = allUniqueCycles.length > 0 && allUniqueCycles[selectedCycleIndex] === lunarData.lunarMonth;
+  const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
+  const canCycleNext = selectedCycleIndex > 0;
+
+  // Filtered echoes — secondary filter applied within the selected cycle
   const filteredEchoes = useMemo(() => {
-    if (navList.length === 0) return echoes;
+    if (navList.length === 0) return cycleFilteredEchoes;
     const target = navList[filterNavIndex];
-    return echoes.filter(e => {
+    return cycleFilteredEchoes.filter(e => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
       if (filterMode === 'tag') return (e.tags || []).includes(target);
-      return e.lunarMonth === target;
+      return true;
     });
-  }, [echoes, filterMode, filterNavIndex, navList]);
+  }, [cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
@@ -230,7 +254,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (queueIndex >= audioQueue.length) setQueueIndex(0);
   }, [audioQueue]); // eslint-disable-line
 
-  // Stop queue and reset when filter changes
+  // Stop queue and reset when filter changes (including base cycle)
   useEffect(() => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -239,7 +263,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setPlayingId(null);
     setQueuePlaying(false);
     setQueueIndex(0);
-  }, [filterMode, filterNavIndex]);
+  }, [filterMode, filterNavIndex, selectedCycleIndex]);
 
   // Preload Whisper model in background
   useEffect(() => {
@@ -689,9 +713,68 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
       {/* Filter Navigator */}
       <div data-tour="echoes-tags" style={{ padding: '0 20px 14px' }}>
-        {/* Mode toggle */}
+        {/* Base cycle selector */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          marginBottom: 12,
+        }}>
+          <button
+            onClick={() => switchCycle('prev')}
+            disabled={!canCyclePrev}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCyclePrev ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ‹
+          </button>
+          <div style={{ textAlign: 'center', minWidth: 120 }}>
+            <div style={{
+              fontSize: 15,
+              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 600,
+            }}>
+              {selectedCycleName || 'No Cycles'}
+            </div>
+            {isCurrentCycle && (
+              <div style={{
+                fontSize: 8,
+                fontFamily: 'monospace',
+                color: 'rgba(167, 139, 250, 0.5)',
+                letterSpacing: '0.1em',
+                marginTop: 2,
+              }}>
+                CURRENT CYCLE
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => switchCycle('next')}
+            disabled={!canCycleNext}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              fontSize: 16,
+              cursor: canCycleNext ? 'pointer' : 'default',
+              padding: '4px 8px',
+            }}
+          >
+            ›
+          </button>
+        </div>
+
+        {/* Secondary filter mode toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
-          {['day', 'phase', 'cycle', 'tag'].map(mode => (
+          {['day', 'phase', 'tag'].map(mode => (
             <button
               key={mode}
               onClick={() => switchFilterMode(mode)}
@@ -713,7 +796,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           ))}
         </div>
 
-        {/* Arrow navigation */}
+        {/* Secondary arrow navigation */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
