@@ -2,7 +2,7 @@
 // Main cosmic view with moon, phase info, and deep sheet
 
 import { useState, useMemo } from 'react';
-import { MoonFace } from '../components/MoonFace.jsx';
+import { MoonFace, MiniMoon } from '../components/MoonFace.jsx';
 import { StarField } from '../components/StarField.jsx';
 import { DeepCosmicSheet } from '../components/DeepCosmicSheet.jsx';
 import { PhaseTideBar } from '../components/PhaseTideBar.jsx';
@@ -304,7 +304,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             marginBottom: 16,
           }}
         >
-          {allPhases.map((p) => {
+          {allPhases.map((p, i) => {
             const isActive = p.key === lunarData.phase.key;
             return (
               <div
@@ -322,7 +322,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
                   transition: 'all 0.2s',
                 }}
               >
-                <span style={{ fontSize: 20 }}>{p.emoji}</span>
+                <MiniMoon size={20} phase={i / 8} phaseName={p.name} />
               </div>
             );
           })}
