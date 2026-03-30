@@ -245,7 +245,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
           <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.6)', marginBottom: 12, lineHeight: 1.5 }}>
             {resolvePhaseText('rhythmContinuePrompt', 'new')}
           </div>
-          <div data-tour="rhythm-intention-actions" style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => handleContinueIntention(r)}
               style={{
@@ -277,14 +277,13 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
       {/* Waning Crescent reports */}
       {isWaningCrescent && rhythms
         .filter(r => (reportData[r.id]?.length || 0) > 0)
-        .map((r, rIndex) => (
+        .map(r => (
           <RhythmReport
             key={r.id}
             rhythm={r}
             instance={instanceMap[r.id]}
             observations={reportData[r.id] || []}
             cycleLoopTitle={cycleLoop?.title || null}
-            tourId={rIndex === 0 ? 'rhythm-cycle-report' : undefined}
           />
         ))
       }
@@ -305,7 +304,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
         </div>
       ) : (
         <div data-tour="rhythm-history" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {rhythms.map((r, rIndex) => {
+          {rhythms.map(r => {
             const inst = instanceMap[r.id];
             const obsForRhythm = observationMap[r.id] || {};
             const currentObs = currentPhaseKey ? obsForRhythm[currentPhaseKey] || null : null;
@@ -325,7 +324,6 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
                 currentIntention={currentInt}
                 phaseAccent={phaseAccent}
                 onClick={() => setSelectedRhythm(r)}
-                tourId={rIndex === 0 ? 'rhythm-card' : undefined}
               />
             );
           })}
@@ -334,7 +332,6 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
 
       {/* Add button */}
       <button
-        data-tour="rhythm-add-btn"
         onClick={() => {
           if (!userId) return; // auth guard handled by parent
           setShowCreate(true);

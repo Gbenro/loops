@@ -831,7 +831,6 @@ function App() {
             <button
               key={tab.id}
               data-tutorial={`tab-${tab.id}`}
-              data-tour={`tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               aria-label={`${tab.label} tab`}
               aria-current={isActive ? 'page' : undefined}

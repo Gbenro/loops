@@ -113,7 +113,7 @@ function findQuietestPhase(observations) {
   return restPhase ? restPhase.phase : null;
 }
 
-export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, tourId }) {
+export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle }) {
   const [reflection, setReflection] = useState(null);
   const [loading, setLoading]       = useState(false);
   const [tried, setTried]           = useState(false);
@@ -155,7 +155,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
   const quietestPhase = findQuietestPhase(observations);
 
   return (
-    <div data-tour={tourId} style={{
+    <div style={{
       background: 'rgba(245,230,200,0.025)',
       border: '1px solid rgba(245,230,200,0.1)',
       borderRadius: 16, overflow: 'hidden',

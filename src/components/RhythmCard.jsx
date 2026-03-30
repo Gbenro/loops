@@ -44,7 +44,6 @@ export function RhythmCard({
   currentIntention = null,     // intended level for current phase
   phaseAccent = 'rgba(245,230,200,0.6)',
   onClick,
-  tourId,
 }) {
   // Build intention/observation maps for thumbnail
   const intentionMap = {};
@@ -62,7 +61,6 @@ export function RhythmCard({
 
   return (
     <button
-      data-tour={tourId}
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 16,

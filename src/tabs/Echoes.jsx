@@ -714,7 +714,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       {/* Filter Navigator */}
       <div data-tour="echoes-tags" style={{ padding: '0 20px 14px' }}>
         {/* Base cycle selector */}
-        <div data-tour="echoes-cycle-nav" style={{
+        <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -773,7 +773,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         </div>
 
         {/* Secondary filter mode toggle */}
-        <div data-tour="echoes-filter-modes" style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
           {['day', 'phase', 'tag'].map(mode => (
             <button
               key={mode}
@@ -866,7 +866,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           }}>
             {/* Recording indicator */}
             {isRecording && (
-              <div data-tour="echoes-recording-state" style={{
+              <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
@@ -966,7 +966,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             />
 
             {/* Cosmic stamp with phase type */}
-            <div data-tutorial="echo-stamp" data-tour="echoes-phase-stamp" style={{
+            <div data-tutorial="echo-stamp" style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -1063,7 +1063,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             )}
 
             {/* Actions */}
-            <div data-tour="echoes-save-controls" style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={cancelWriting}
                 style={{
@@ -1155,7 +1155,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             {filterMode === 'tag' ? `No echoes tagged "${navList[filterNavIndex]}".` : `No echoes in this ${filterMode}.`}
           </div>
         ) : (
-          filteredEchoes.map((echo, echoIndex) => (
+          filteredEchoes.map(echo => (
             <EchoCard
               key={echo.id}
               echo={echo}
@@ -1170,7 +1170,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
-              tourId={echoIndex === 0 ? 'echoes-card' : undefined}
               onDownloadAudio={async () => {
                 const blob = await getAudio(echo.audio_path);
                 if (!blob) return;
@@ -1514,7 +1513,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [], tourId }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [] }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
   const cardRef = useRef(null);
@@ -1581,7 +1580,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   };
 
   return (
-    <div ref={cardRef} data-tour={tourId} style={{
+    <div ref={cardRef} style={{
       background: 'rgba(245, 230, 200, 0.025)',
       border: '1px solid rgba(245, 230, 200, 0.06)',
       borderRadius: 12,

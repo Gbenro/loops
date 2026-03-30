@@ -162,7 +162,6 @@ export function TourOverlay() {
     content: step.content,
     title: step.title,
     placement: step.placement || 'auto',
-    isFixed: step.isFixed || false,
     disableBeacon: true,
     spotlightClicks: false,
     styles: {
