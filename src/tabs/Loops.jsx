@@ -536,13 +536,15 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       return loopCycle === selectedCycleName;
     });
     const phaseMap = new Map();
-    if (isCurrentCycle) {
-      phaseMap.set(lunarData.phase.key, { key: lunarData.phase.key, name: lunarData.phase.name, isCurrent: true });
-    }
     for (const loop of cycleClosedLoops) {
       const phaseKey = loop.phaseClosed;
       if (phaseKey && !phaseMap.has(phaseKey)) {
-        phaseMap.set(phaseKey, { key: phaseKey, name: loop.phaseNameClosed || phaseKey, isCurrent: false });
+        const isCurrent = isCurrentCycle && phaseKey === lunarData.phase.key;
+        phaseMap.set(phaseKey, {
+          key: phaseKey,
+          name: isCurrent ? lunarData.phase.name : (loop.phaseNameClosed || phaseKey),
+          isCurrent,
+        });
       }
     }
     return Array.from(phaseMap.values()).sort((a, b) => {
