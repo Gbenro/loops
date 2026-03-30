@@ -14,17 +14,7 @@ import {
   getObservationsForInstance,
 } from '../lib/rhythm.js';
 import { resolvePhaseText } from '../lib/phaseText.js';
-
-const PHASE_ACCENTS = {
-  'new':             'rgba(245,230,200,0.75)',
-  'waxing-crescent': '#74c69d',
-  'first-quarter':   '#f6ad55',
-  'waxing-gibbous':  '#81e6d9',
-  'full':            '#fefcbf',
-  'waning-gibbous':  '#b794f4',
-  'last-quarter':    '#f687b3',
-  'waning-crescent': '#718096',
-};
+import { PHASE_ACCENT_COLORS as PHASE_ACCENTS } from '../data/phaseColors.js';
 
 const ALL_PHASE_KEYS = ['new','waxing-crescent','first-quarter','waxing-gibbous','full','waning-gibbous','last-quarter','waning-crescent'];
 
