@@ -4,6 +4,12 @@
 
 import { useMemo } from 'react';
 import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
+import { MiniMoon } from './MoonFace.jsx';
+
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+];
 import { generatePhaseSummary, savePhaseSummary } from '../lib/storage.js';
 
 // Phase closing summaries - pulled from phaseContent.js tide data for contextual awareness
@@ -110,7 +116,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           gap: 8,
           marginBottom: 10,
         }}>
-          <span style={{ fontSize: 16 }}>{currentPhaseContent.symbol}</span>
+          <MiniMoon size={16} phase={PHASE_ORDER.indexOf(phase.key) / 8} phaseName={phase.name} />
           <span style={{
             fontSize: 9,
             fontFamily: 'monospace',
@@ -279,16 +285,15 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           gap: 10,
           marginBottom: 10,
         }}>
-          <span style={{
-            fontSize: 28,
+          <div style={{
             filter: isImminent
               ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
               : isNextThreshold
                 ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
                 : 'none',
           }}>
-            {nextSymbol}
-          </span>
+            <MiniMoon size={28} phase={(PHASE_ORDER.indexOf(phase.key) + 1) % 8 / 8} phaseName={nextPhase} />
+          </div>
           <div>
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",

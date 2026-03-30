@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Ring } from '../components/Ring.jsx';
+import { MiniMoon } from '../components/MoonFace.jsx';
 import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
 import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
 import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId, saveEcho, getEchoes } from '../lib/storage.js';
@@ -640,7 +641,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           gap: 10,
           marginBottom: 8,
         }}>
-          <span style={{ fontSize: 18 }}>{getPhaseEmoji(lunarData.phase.key)}</span>
+          <MiniMoon size={18} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} />
           <span style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 16,
@@ -1545,8 +1546,9 @@ function DetailPanel({
                   }}>
                     {cp.done && '✓'}
                   </div>
-                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.5)' }}>
-                    {getPhaseEmoji(cp.phase)} {cp.text}
+                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MiniMoon size={14} phase={PHASE_ORDER.indexOf(cp.phase) / 8} phaseName={cp.text} />
+                    {cp.text}
                   </span>
                 </div>
               ))}
