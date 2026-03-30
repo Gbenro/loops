@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
+import { MoonFace } from './MoonFace.jsx';
 
 const FALLBACK_QUESTION = 'What wants to be born through me this cycle?';
 
@@ -64,12 +65,11 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
 
       {/* Moon glyph */}
       <div style={{
-        fontSize: 72,
         marginBottom: 16,
         filter: 'drop-shadow(0 0 30px rgba(245,230,200,0.15))',
         animation: 'breathe 4s ease-in-out infinite',
       }}>
-        🌑
+        <MoonFace size={120} phase={0} illumination={0} phaseName="New Moon" />
       </div>
 
       {/* Label */}
