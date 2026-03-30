@@ -332,12 +332,11 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
   );
 }
 
-// Small moon for inline display (simplified version)
+// Small moon for inline display — a microcosm of MoonFace
 export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
-  // Simplified accessible description for small display
   const ariaLabel = phaseName ? `Moon: ${phaseName}` : 'Moon phase indicator';
+  const useTexture = size >= 32;
 
-  // Calculate simple clip path for small moon
   const clipPath = useMemo(() => {
     let p = phase % 1;
     if (p < 0) p += 1;
@@ -399,6 +398,10 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
         width: size,
         height: size,
         borderRadius: '50%',
+        // Warm glow matching main moon palette
+        boxShadow: isNewMoon
+          ? '0 0 4px rgba(245,230,200,0.05)'
+          : '0 0 6px rgba(245,230,200,0.25), 0 0 12px rgba(245,210,150,0.1)',
       }}
     >
       {/* Dark base */}
@@ -407,11 +410,11 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          background: '#2a2a34',
+          background: '#12121a',
         }}
       />
 
-      {/* Lit portion - warm golden */}
+      {/* Lit portion - warm golden gradient (fallback for all sizes) */}
       {!isNewMoon && (
         <div
           style={{
@@ -420,6 +423,51 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
             borderRadius: '50%',
             background: 'linear-gradient(135deg, #f5d88a 0%, #e8c870 50%, #d4b060 100%)',
             clipPath: clipPath,
+          }}
+        />
+      )}
+
+      {/* NASA texture overlay for sizes >= 32px */}
+      {!isNewMoon && useTexture && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            backgroundImage: `url(${MOON_TEXTURE})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            clipPath: clipPath,
+            filter: 'sepia(25%) saturate(1.3) brightness(1.1) contrast(1.05)',
+            opacity: 0.85,
+          }}
+        />
+      )}
+
+      {/* Limb darkening - radial gradient for 3D spherical appearance */}
+      {!isNewMoon && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 35% 35%, transparent 0%, transparent 55%, rgba(0,0,0,0.25) 100%)',
+            clipPath: clipPath,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Subtle highlight */}
+      {!isNewMoon && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, transparent 50%)',
+            clipPath: clipPath,
+            pointerEvents: 'none',
           }}
         />
       )}
