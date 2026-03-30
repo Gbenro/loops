@@ -54,12 +54,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const _isFullMoon = lunarData.phase.key === 'full'; // For future full moon features
   const _isWaningCrescent = lunarData.phase.key === 'waning-crescent'; // For release reminders
 
-  // Get cycle loop for the selected cycle (if exists)
-  const cycleLoop = useMemo(() =>
-    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === (allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth)),
-    [loops, allUniqueCycles, selectedCycleIndex, lunarData.lunarMonth]
-  );
-
   // Check if ritual should show
   // Tutorial action listener
   useEffect(() => {
@@ -69,16 +63,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     window.addEventListener('luna-tutorial-action', handler);
     return () => window.removeEventListener('luna-tutorial-action', handler);
   }, []);
-
-  useEffect(() => {
-    if (isNewMoon && !cycleLoop && !loading) {
-      if (justCreatedCycleRef.current) return; // just set intention this session
-      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
-        return;
-      }
-      setShowRitual(true);
-    }
-  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
 
   // Fetch loops on mount; decrypt encrypted titles if key is available
   useEffect(() => {
@@ -516,6 +500,24 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   }, [loops, lunarData.lunarMonth]);
 
   const selectedCycleName = allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth;
+
+  // Get cycle loop for the selected cycle (if exists)
+  // Must be defined after allUniqueCycles and selectedCycleName
+  const cycleLoop = useMemo(() =>
+    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
+    [loops, selectedCycleName]
+  );
+
+  useEffect(() => {
+    if (isNewMoon && !cycleLoop && !loading) {
+      if (justCreatedCycleRef.current) return; // just set intention this session
+      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
+        return;
+      }
+      setShowRitual(true);
+    }
+  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
+
   const isCurrentCycle = selectedCycleName === lunarData.lunarMonth;
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
