@@ -54,12 +54,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const _isFullMoon = lunarData.phase.key === 'full'; // For future full moon features
   const _isWaningCrescent = lunarData.phase.key === 'waning-crescent'; // For release reminders
 
-  // Get cycle loop for the selected cycle (if exists)
-  const cycleLoop = useMemo(() =>
-    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === (allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth)),
-    [loops, allUniqueCycles, selectedCycleIndex, lunarData.lunarMonth]
-  );
-
   // Check if ritual should show
   // Tutorial action listener
   useEffect(() => {
@@ -69,16 +63,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     window.addEventListener('luna-tutorial-action', handler);
     return () => window.removeEventListener('luna-tutorial-action', handler);
   }, []);
-
-  useEffect(() => {
-    if (isNewMoon && !cycleLoop && !loading) {
-      if (justCreatedCycleRef.current) return; // just set intention this session
-      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
-        return;
-      }
-      setShowRitual(true);
-    }
-  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
 
   // Fetch loops on mount; decrypt encrypted titles if key is available
   useEffect(() => {
@@ -516,6 +500,24 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   }, [loops, lunarData.lunarMonth]);
 
   const selectedCycleName = allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth;
+
+  // Get cycle loop for the selected cycle (if exists)
+  // Must be defined after allUniqueCycles and selectedCycleName
+  const cycleLoop = useMemo(() =>
+    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
+    [loops, selectedCycleName]
+  );
+
+  useEffect(() => {
+    if (isNewMoon && !cycleLoop && !loading) {
+      if (justCreatedCycleRef.current) return; // just set intention this session
+      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
+        return;
+      }
+      setShowRitual(true);
+    }
+  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
+
   const isCurrentCycle = selectedCycleName === lunarData.lunarMonth;
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
@@ -846,6 +848,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                   setShowDetail(true);
                 }}
                 onClose={() => closeLoop(loop.id)}
+                tourId={i === 0 ? 'loop-card' : undefined}
               />
             ))}
           </div>
@@ -853,7 +856,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
         {/* Open Loops (No Window) */}
         {openLoops.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
+          <div data-tour="open-loops" style={{ marginBottom: 24 }}>
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
@@ -879,6 +882,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                   setShowDetail(true);
                 }}
                 onClose={() => closeLoop(loop.id)}
+                tourId={i === 0 && phaseLoops.length === 0 ? 'loop-card' : undefined}
               />
             ))}
           </div>
@@ -886,7 +890,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
         {/* Closed / Released Loops (within selected cycle) */}
         {closedLoops.length > 0 && (
-          <div>
+          <div data-tour="closed-loops">
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
@@ -898,7 +902,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             </div>
 
             {/* Phase navigation within cycle */}
-            {uniquePhases.length > 1 && <div style={{
+            {uniquePhases.length > 1 && <div data-tour="closed-loops-nav" style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1192,7 +1196,7 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
 
 // ─── Loop Card ───────────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
+function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown, tourId }) {
   const isOpen = loop.type === 'open';
   const isPhase = loop.type === 'phase';
   const isCycle = loop.type === 'cycle';
@@ -1213,6 +1217,7 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
 
   return (
     <div
+      data-tour={tourId}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -1551,7 +1556,7 @@ function DetailPanel({
 
           {/* Regular Steps — not shown for cycle loops */}
           {!isCycle && (regularSubtasks.length > 0 || isActive) && (
-            <div style={{ marginBottom: 24 }}>
+            <div data-tour="loop-subtasks" style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 12 }}>
                 STEPS
               </div>
@@ -1713,7 +1718,7 @@ function DetailPanel({
         </div>
 
         {/* Actions */}
-        <div style={{ padding: '16px 20px 24px', borderTop: '1px solid rgba(245, 230, 200, 0.08)', display: 'flex', gap: 10 }}>
+        <div data-tour="loop-actions" style={{ padding: '16px 20px 24px', borderTop: '1px solid rgba(245, 230, 200, 0.08)', display: 'flex', gap: 10 }}>
           {!isCycle && (
             <button
               onClick={onDelete}
