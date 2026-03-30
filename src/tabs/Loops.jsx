@@ -454,6 +454,27 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     }
   };
 
+  // ─── Base cycle filter (all loops scoped to selected lunar month) ──────────
+  const allUniqueCycles = useMemo(() => {
+    const seen = new Set();
+    const cycles = [];
+    // Current cycle first
+    cycles.push(lunarData.lunarMonth);
+    seen.add(lunarData.lunarMonth);
+    // From all loops (active + closed)
+    for (const loop of loops) {
+      for (const m of [loop.lunarMonthOpened, loop.lunarMonthClosed]) {
+        if (m && !seen.has(m)) {
+          seen.add(m);
+          cycles.push(m);
+        }
+      }
+    }
+    return cycles;
+  }, [loops, lunarData.lunarMonth]);
+
+  const selectedCycleName = allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth;
+
   // Filter loops by type, scoped to selected cycle
   const phaseLoops = sortByOrder(
     loops.filter(l => l.type === 'phase' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
@@ -479,27 +500,6 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       (l.status === 'closed' || l.status === 'released')
     )
     .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
-
-  // ─── Base cycle filter (all loops scoped to selected lunar month) ──────────
-  const allUniqueCycles = useMemo(() => {
-    const seen = new Set();
-    const cycles = [];
-    // Current cycle first
-    cycles.push(lunarData.lunarMonth);
-    seen.add(lunarData.lunarMonth);
-    // From all loops (active + closed)
-    for (const loop of loops) {
-      for (const m of [loop.lunarMonthOpened, loop.lunarMonthClosed]) {
-        if (m && !seen.has(m)) {
-          seen.add(m);
-          cycles.push(m);
-        }
-      }
-    }
-    return cycles;
-  }, [loops, lunarData.lunarMonth]);
-
-  const selectedCycleName = allUniqueCycles[selectedCycleIndex] || lunarData.lunarMonth;
 
   // Get cycle loop for the selected cycle (if exists)
   // Must be defined after allUniqueCycles and selectedCycleName
