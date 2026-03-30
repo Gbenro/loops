@@ -84,6 +84,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           {timeStr} · {dateStr.toUpperCase()}
         </div>
         <button
+          data-tour="sky-profile-menu"
           onClick={() => user ? setMenuOpen(true) : onSignIn()}
           style={{
             background: 'none',
@@ -351,7 +352,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         </div>
 
         {/* Phase Transition Card (< 24h before shift) */}
-        <div data-tutorial="phase-transition-card" style={{ display: 'contents' }}>
+        <div data-tutorial="phase-transition-card" data-tour="sky-phase-transition" style={{ display: 'contents' }}>
         {lunarData.isApproaching && !transitionDismissed && (
           <PhaseTransitionCard
             lunarData={lunarData}
@@ -369,6 +370,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         {resonanceSummary.hasResonance && (
           <div
             data-tutorial="your-sky"
+            data-tour="sky-transit-card"
             onClick={() => setSheetOpen(true)}
             style={{
               padding: '14px 18px',
@@ -411,6 +413,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
 
         {/* Go Deeper Button */}
         <button
+          data-tour="sky-go-deeper"
           onClick={() => setSheetOpen(true)}
           style={{
             width: '100%',
