@@ -1054,7 +1054,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               cursor: 'pointer',
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🌑</div>
+            <div style={{ marginBottom: 16 }}><MiniMoon size={48} phase={0} phaseName="New Moon" /></div>
             <div style={{
               fontSize: 16,
               fontFamily: "'Cormorant Garamond', serif",
