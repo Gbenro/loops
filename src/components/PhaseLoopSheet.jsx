@@ -2,7 +2,12 @@
 // Phase-specific prompts for creating phase loops
 
 import { useState } from 'react';
-import { getPhaseEmoji } from '../lib/lunar.js';
+import { MiniMoon } from './MoonFace.jsx';
+
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+];
 
 const PHASE_PROMPTS = {
   'New Moon': 'What seed are you planting?',
@@ -25,7 +30,6 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
   const [color, setColor] = useState(COLORS[0]);
 
   const prompt = PHASE_PROMPTS[lunarData.phase.name] || 'What loop are you opening?';
-  const phaseEmoji = getPhaseEmoji(lunarData.phase.key);
 
   const handleCreate = () => {
     if (!title.trim()) return;
@@ -89,7 +93,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
           gap: 12,
           marginBottom: 8,
         }}>
-          <span style={{ fontSize: 24 }}>{phaseEmoji}</span>
+          <MiniMoon size={24} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} />
           <span style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 20,
