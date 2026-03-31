@@ -2,8 +2,13 @@
 // Unified sheet for creating Open or Windowed (Phase) loops
 
 import { useState } from 'react';
-import { getPhaseEmoji } from '../lib/lunar.js';
 import { resolvePhaseText } from '../lib/phaseText.js';
+import { MiniMoon } from './MoonFace.jsx';
+
+const PHASE_ORDER = [
+  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
+  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+];
 
 const PHASE_PROMPTS = {
   'new': 'What seed are you planting?',
@@ -30,7 +35,6 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
   const [color, setColor] = useState(COLORS[0]);
   const [isCreating, setIsCreating] = useState(false);
 
-  const phaseEmoji = getPhaseEmoji(lunarData.phase.key);
   const phasePrompt = PHASE_PROMPTS[lunarData.phase.key] || 'What loop are you opening?';
   const remainingDays = lunarData.phaseRemaining?.toFixed(1) || '~3';
 
@@ -200,7 +204,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 gap: 14,
                 marginBottom: 10,
               }}>
-                <span style={{ fontSize: 24 }}>{phaseEmoji}</span>
+                <MiniMoon size={24} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} />
                 <span style={{
                   fontFamily: "'Cormorant Garamond', serif",
                   fontSize: 'var(--font-xl)',
