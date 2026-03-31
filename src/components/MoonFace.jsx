@@ -332,7 +332,7 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
   );
 }
 
-// Small moon for inline display (simplified version)
+// Small moon for inline display — a true miniature of MoonFace
 export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
   // Simplified accessible description for small display
   const ariaLabel = phaseName ? `Moon: ${phaseName}` : 'Moon phase indicator';
@@ -347,7 +347,7 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
 
     const isWaning = p > 0.5;
     const bulge = Math.cos(p * 2 * Math.PI);
-    const steps = 16;
+    const steps = 32;
     let pathPoints = [];
 
     const points = [];
@@ -388,7 +388,24 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
     return `polygon(${pathPoints.join(', ')})`;
   }, [phase]);
 
+  const terminatorGradient = useMemo(() => {
+    let p = phase % 1;
+    if (p < 0) p += 1;
+
+    if (p < 0.02 || p > 0.98 || (p > 0.47 && p < 0.53)) {
+      return null;
+    }
+
+    const isWaning = p > 0.5;
+    const bulge = Math.cos(p * 2 * Math.PI);
+    const terminatorCenter = isWaning ? 50 - bulge * 25 : 50 + bulge * 25;
+    const direction = isWaning ? 'to left' : 'to right';
+
+    return { direction, position: terminatorCenter };
+  }, [phase]);
+
   const isNewMoon = phase < 0.02 || phase > 0.98;
+  const glowScale = size / 180;
 
   return (
     <div
@@ -401,7 +418,22 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
         borderRadius: '50%',
       }}
     >
-      {/* Dark base */}
+      {/* Outer glow - warm golden with breathing pulse */}
+      <div
+        className="moon-glow"
+        style={{
+          position: 'absolute',
+          inset: -(size * 4 / 180),
+          borderRadius: '50%',
+          boxShadow: isNewMoon
+            ? `0 0 ${Math.round(25 * glowScale)}px rgba(255, 220, 150, 0.1)`
+            : `0 0 ${Math.round(35 * glowScale)}px rgba(255, 215, 120, 0.35), 0 0 ${Math.round(60 * glowScale)}px rgba(255, 200, 100, 0.15)`,
+          pointerEvents: 'none',
+          animation: isNewMoon ? 'none' : 'moonGlowPulse 8s ease-in-out infinite',
+        }}
+      />
+
+      {/* Dark base (shadow side) */}
       <div
         style={{
           position: 'absolute',
@@ -411,18 +443,123 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
         }}
       />
 
-      {/* Lit portion - warm golden */}
+      {/* Earthshine on dark side */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '50%',
+          background: 'rgba(100, 120, 140, 0.04)',
+        }}
+      />
+
+      {/* Moon texture (lit portion) - warm golden tint with subtle float */}
+      {!isNewMoon && (
+        <div
+          className="moon-surface"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            backgroundImage: `url(${MOON_TEXTURE})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            clipPath: clipPath,
+            filter: 'sepia(25%) saturate(1.3) brightness(1.1) contrast(1.05)',
+            animation: 'moonSurfaceFloat 12s ease-in-out infinite',
+          }}
+        />
+      )}
+
+      {/* Golden color overlay for warm lit effect */}
       {!isNewMoon && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #f5d88a 0%, #e8c870 50%, #d4b060 100%)',
+            background: 'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
             clipPath: clipPath,
+            pointerEvents: 'none',
           }}
         />
       )}
+
+      {/* Terminator softening gradient */}
+      {terminatorGradient && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: `linear-gradient(${terminatorGradient.direction},
+              transparent 0%,
+              transparent 30%,
+              rgba(18, 18, 26, 0.15) 40%,
+              rgba(18, 18, 26, 0.35) 50%,
+              transparent 60%,
+              transparent 100%
+            )`,
+            clipPath: clipPath,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Limb darkening (3D spherical appearance) */}
+      {!isNewMoon && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%)',
+            clipPath: clipPath,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Subtle highlight (3D effect) with shimmer animation */}
+      {!isNewMoon && (
+        <div
+          className="moon-highlight"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
+            backgroundSize: '200% 200%',
+            clipPath: clipPath,
+            pointerEvents: 'none',
+            animation: 'moonHighlightShimmer 10s ease-in-out infinite',
+          }}
+        />
+      )}
+
+      {/* Thin rim highlight - golden tint */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '50%',
+          boxShadow: isNewMoon
+            ? 'inset 0 0 2px rgba(100, 120, 140, 0.15)'
+            : 'inset 0 0 2px rgba(255, 220, 150, 0.2)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Atmospheric edge glow - golden */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: -1,
+          borderRadius: '50%',
+          border: '1px solid rgba(255, 215, 140, 0.12)',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   );
 }
