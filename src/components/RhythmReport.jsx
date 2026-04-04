@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { PhaseRing } from './PhaseRing.jsx';
 import { generateRhythmReport } from '../lib/rhythm.js';
-import { PHASE_LABELS as PHASE_NAMES, PHASE_KEYS } from '../lib/phases.js';
+import { PHASE_LABELS as PHASE_NAMES, PHASE_KEYS, SCOPE_LABELS } from '../lib/phases.js';
 
 const LEVEL_BADGE = {
   none:       'rgba(245,230,200,0.2)',
@@ -158,7 +158,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
           letterSpacing: '0.15em', color: 'var(--text-tertiary)',
           marginBottom: 6,
         }}>
-          CYCLE COMPLETE · {rhythm.scope === 'ongoing' ? 'ONGOING' : 'THIS CYCLE'}
+          CYCLE COMPLETE · {SCOPE_LABELS[rhythm.scope] || rhythm.scope.toUpperCase()}
         </div>
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",

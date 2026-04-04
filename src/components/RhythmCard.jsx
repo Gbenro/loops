@@ -2,15 +2,14 @@
 // List card for a single Rhythm on the main Rhythm tab
 
 import { PhaseRingThumb } from './PhaseRing.jsx';
-
-const SCOPE_LABEL = { cycle: 'THIS CYCLE', ongoing: 'ONGOING' };
+import { SCOPE_LABELS, ENGAGEMENT_LABEL } from '../lib/phases.js';
 
 const LEVEL_DOT = {
-  none:       { color: 'rgba(245,230,200,0.12)', label: 'None' },
-  light:      { color: 'var(--text-secondary)', label: 'Light' },
-  moderate:   { color: 'rgba(245,230,200,0.6)',  label: 'Moderate' },
-  deep:       { color: 'rgba(245,230,200,0.85)', label: 'Deep' },
-  ceremonial: { color: '#fefcbf',               label: 'Ceremonial' },
+  none:       { color: 'rgba(245,230,200,0.12)' },
+  light:      { color: 'var(--text-secondary)' },
+  moderate:   { color: 'rgba(245,230,200,0.6)' },
+  deep:       { color: 'rgba(245,230,200,0.85)' },
+  ceremonial: { color: '#fefcbf' },
 };
 
 function LevelPill({ level, accent }) {
@@ -29,7 +28,7 @@ function LevelPill({ level, accent }) {
         boxShadow: level === 'ceremonial' ? `0 0 4px ${accent}` : 'none',
       }} />
       <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(245,230,200,0.4)', letterSpacing: '0.08em' }}>
-        {dot.label.toUpperCase()}
+        {(ENGAGEMENT_LABEL[level] || level).toUpperCase()}
       </span>
     </div>
   );
@@ -103,7 +102,7 @@ export function RhythmCard({
               : '1px solid rgba(245,230,200,0.08)',
             flexShrink: 0,
           }}>
-            {SCOPE_LABEL[rhythm.scope]}
+            {SCOPE_LABELS[rhythm.scope]}
           </div>
         </div>
 

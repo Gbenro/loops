@@ -2,20 +2,12 @@
 // Bottom sheet for logging engagement for a phase
 
 import { useState } from 'react';
-import { PHASE_LABELS, PHASE_ACCENTS } from '../lib/phases.js';
+import { PHASE_LABELS, PHASE_ACCENTS, ENGAGEMENT_LEVELS } from '../lib/phases.js';
 
 // Build phase meta from shared constants
 const PHASES_META = Object.fromEntries(
   Object.keys(PHASE_LABELS).map(key => [key, { label: PHASE_LABELS[key], accent: PHASE_ACCENTS[key] }])
 );
-
-const LEVELS = [
-  { value: 'none',       label: 'None',       desc: 'Deliberate rest from the practice' },
-  { value: 'light',      label: 'Light',      desc: 'Brief or low-effort engagement' },
-  { value: 'moderate',   label: 'Moderate',   desc: 'Meaningful but not full engagement' },
-  { value: 'deep',       label: 'Deep',       desc: 'Full, sustained engagement' },
-  { value: 'ceremonial', label: 'Ceremonial', desc: 'Practice elevated to ritual' },
-];
 
 export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase = null, phaseDuration = null, onSave, onClose }) {
   const meta = PHASES_META[phaseKey] || { label: phaseKey, accent: 'rgba(245,230,200,0.6)' };
@@ -99,7 +91,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
 
         {/* Level selector */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-          {LEVELS.map(l => {
+          {ENGAGEMENT_LEVELS.map(l => {
             const isSelected = level === l.value;
             return (
               <button

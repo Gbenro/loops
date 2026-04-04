@@ -11,14 +11,9 @@ import {
   getObservationsForInstance,
   saveObservation,
 } from '../lib/rhythm.js';
-import { PHASES_ORDERED, PHASE_KEYS as ALL_PHASE_KEYS } from '../lib/phases.js';
+import { PHASES_ORDERED, PHASE_KEYS as ALL_PHASE_KEYS, ENGAGEMENT_LEVELS, ENGAGEMENT_LABEL, SCOPE_LABELS } from '../lib/phases.js';
 
-const LEVELS = ['none','light','moderate','deep','ceremonial'];
-
-const LEVEL_LABEL = {
-  none: 'None', light: 'Light', moderate: 'Moderate',
-  deep: 'Deep', ceremonial: 'Ceremonial',
-};
+const LEVELS = ENGAGEMENT_LEVELS.map(l => l.value);
 
 // ── Intention setter ──────────────────────────────────────────────────────────
 
@@ -97,7 +92,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
-                {LEVEL_LABEL[lv]}
+                {ENGAGEMENT_LABEL[lv]}
               </button>
             ))}
           </div>
@@ -268,7 +263,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
           ← Back
         </button>
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'rgba(245,230,200,0.3)', letterSpacing: '0.08em' }}>
-          {rhythm.scope === 'ongoing' ? 'ONGOING' : 'THIS CYCLE'}
+          {SCOPE_LABELS[rhythm.scope] || rhythm.scope.toUpperCase()}
         </div>
       </div>
 
@@ -417,7 +412,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
                                 color: obs.engagement === 'ceremonial' ? '#fefcbf' : 'rgba(245,230,200,0.4)',
                               }}>
-                                {obs.engagement.toUpperCase()}
+                                {(ENGAGEMENT_LABEL[obs.engagement] || obs.engagement).toUpperCase()}
                               </span>
                             </div>
                             {obs.note && (
@@ -469,7 +464,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
                                 color: 'rgba(245,230,200,0.4)',
                               }}>
-                                {checkInCount > 1 ? `${checkInCount} check-ins` : latestObs.engagement.toUpperCase()}
+                                {checkInCount > 1 ? `${checkInCount} check-ins` : (ENGAGEMENT_LABEL[latestObs.engagement] || latestObs.engagement).toUpperCase()}
                               </span>
                             </div>
                             {latestObs.note && checkInCount === 1 && (

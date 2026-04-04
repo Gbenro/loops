@@ -40,3 +40,24 @@ export const PHASES_ORDERED = PHASE_KEYS.map(key => ({
   label:  PHASE_LABELS[key],
   accent: PHASE_ACCENTS[key],
 }));
+
+// Engagement level definitions — single source of truth.
+// `desc` is shown in CheckInSheet when the level is selected.
+export const ENGAGEMENT_LEVELS = [
+  { value: 'none',       label: 'None',       desc: 'Deliberate rest from the practice' },
+  { value: 'light',      label: 'Light',      desc: 'Brief or low-effort engagement' },
+  { value: 'moderate',   label: 'Moderate',   desc: 'Meaningful but not full engagement' },
+  { value: 'deep',       label: 'Deep',       desc: 'Full, sustained engagement' },
+  { value: 'ceremonial', label: 'Ceremonial', desc: 'Practice elevated to ritual' },
+];
+
+// Keyed label map for quick lookup by value string.
+export const ENGAGEMENT_LABEL = Object.fromEntries(
+  ENGAGEMENT_LEVELS.map(l => [l.value, l.label])
+);
+
+// Scope labels — shared across RhythmCard, RhythmDetail, and RhythmReport.
+export const SCOPE_LABELS = {
+  cycle:   'THIS CYCLE',
+  ongoing: 'ONGOING',
+};
