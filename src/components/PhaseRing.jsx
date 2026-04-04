@@ -2,17 +2,17 @@
 // 8-segment radial chart: inner arc = intention, outer arc = observation
 // New Moon at top, clockwise.
 
-import { PHASE_ACCENT_COLORS } from '../data/phaseColors.js';
+import { PHASE_ACCENTS } from '../lib/phases.js';
 
 const PHASES = [
-  { key: 'new',             label: 'NM',  accent: PHASE_ACCENT_COLORS['new'] },
-  { key: 'waxing-crescent', label: 'WxC', accent: PHASE_ACCENT_COLORS['waxing-crescent'] },
-  { key: 'first-quarter',   label: 'FQ',  accent: PHASE_ACCENT_COLORS['first-quarter'] },
-  { key: 'waxing-gibbous',  label: 'WxG', accent: PHASE_ACCENT_COLORS['waxing-gibbous'] },
-  { key: 'full',            label: 'FM',  accent: PHASE_ACCENT_COLORS['full'] },
-  { key: 'waning-gibbous',  label: 'WnG', accent: PHASE_ACCENT_COLORS['waning-gibbous'] },
-  { key: 'last-quarter',    label: 'LQ',  accent: PHASE_ACCENT_COLORS['last-quarter'] },
-  { key: 'waning-crescent', label: 'WnC', accent: PHASE_ACCENT_COLORS['waning-crescent'] },
+  { key: 'new',             label: 'NM',  accent: PHASE_ACCENTS['new'] },
+  { key: 'waxing-crescent', label: 'WxC', accent: PHASE_ACCENTS['waxing-crescent'] },
+  { key: 'first-quarter',   label: 'FQ',  accent: PHASE_ACCENTS['first-quarter'] },
+  { key: 'waxing-gibbous',  label: 'WxG', accent: PHASE_ACCENTS['waxing-gibbous'] },
+  { key: 'full',            label: 'FM',  accent: PHASE_ACCENTS['full'] },
+  { key: 'waning-gibbous',  label: 'WnG', accent: PHASE_ACCENTS['waning-gibbous'] },
+  { key: 'last-quarter',    label: 'LQ',  accent: PHASE_ACCENTS['last-quarter'] },
+  { key: 'waning-crescent', label: 'WnC', accent: PHASE_ACCENTS['waning-crescent'] },
 ];
 
 // Engagement level → { fraction, opacity }

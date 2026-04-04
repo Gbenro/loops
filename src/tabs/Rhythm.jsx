@@ -14,9 +14,7 @@ import {
   getObservationsForInstance,
 } from '../lib/rhythm.js';
 import { resolvePhaseText } from '../lib/phaseText.js';
-import { PHASE_ACCENT_COLORS as PHASE_ACCENTS } from '../data/phaseColors.js';
-
-const ALL_PHASE_KEYS = ['new','waxing-crescent','first-quarter','waxing-gibbous','full','waning-gibbous','last-quarter','waning-crescent'];
+import { PHASE_ACCENTS, PHASE_KEYS as ALL_PHASE_KEYS } from '../lib/phases.js';
 
 // ── Create sheet ──────────────────────────────────────────────────────────────
 
