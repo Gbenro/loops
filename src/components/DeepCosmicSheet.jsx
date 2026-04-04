@@ -8,6 +8,7 @@ import { getZodiacInfo, pickForToday as pickZodiac } from '../data/zodiacMeaning
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getAllPhases } from '../lib/lunar.js';
 import { getSolarThresholds } from '../lib/solar.js';
+import { PHASE_KEYS } from '../lib/phases.js';
 
 const BASE_SECTIONS = [
   { id: 'phase', label: 'Phase', icon: '☽' },
@@ -212,9 +213,11 @@ export function DeepCosmicSheet({
 
 // ─── Phase Section ─────────────────────────────────────────────────────────
 
-function PhaseSection({ phase: _phase, content, tideKey, generatedText, phrasesLoading }) {
+function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }) {
   // Use AI-generated text if available, then tide-aware fallback, then static phase description
   const deepText = generatedText || pickForToday(content.deepTides?.[tideKey]) || content.deep;
+  const phaseIndex = PHASE_KEYS.indexOf(phase.key);
+  const phaseFraction = phaseIndex >= 0 ? phaseIndex / 8 : 0;
 
   return (
     <div>
@@ -224,8 +227,12 @@ function PhaseSection({ phase: _phase, content, tideKey, generatedText, phrasesL
         fontWeight: 600,
         color: '#f5e6c8',
         marginBottom: 8,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
       }}>
-        {content.symbol} {content.title}
+        <MiniMoon size={28} phase={phaseFraction} phaseName={content.title} />
+        {content.title}
       </h2>
 
       <div style={{
