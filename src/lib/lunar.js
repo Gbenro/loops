@@ -21,13 +21,17 @@ const PHASE_DURATION = {
   flow: 5.55,      // days - sustained, unfolding
 };
 
+// Full moon peak: illumination = 100% at age = SYNODIC/2 = ~14.7653 days.
+// Boundary is derived from SYNODIC/2 so the math stays consistent.
+const FULL_MOON_PEAK = SYNODIC / 2; // ~14.7653
+
 // Phase name constants with next phase info
 const PHASES = [
   { name: 'New Moon', key: 'new', start: 0, end: 1.85, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
   { name: 'Waxing Crescent', key: 'waxing-crescent', start: 1.85, end: 7.38, next: 'First Quarter', nextKey: 'first-quarter' },
   { name: 'First Quarter', key: 'first-quarter', start: 7.38, end: 9.22, next: 'Waxing Gibbous', nextKey: 'waxing-gibbous' },
-  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: 14.77, next: 'Full Moon', nextKey: 'full' },
-  { name: 'Full Moon', key: 'full', start: 14.77, end: 16.61, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
+  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: FULL_MOON_PEAK, next: 'Full Moon', nextKey: 'full' },
+  { name: 'Full Moon', key: 'full', start: FULL_MOON_PEAK, end: 16.61, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
   { name: 'Waning Gibbous', key: 'waning-gibbous', start: 16.61, end: 22.15, next: 'Last Quarter', nextKey: 'last-quarter' },
   { name: 'Last Quarter', key: 'last-quarter', start: 22.15, end: 23.99, next: 'Waning Crescent', nextKey: 'waning-crescent' },
   { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53, next: 'New Moon', nextKey: 'new' },
@@ -128,8 +132,8 @@ const LUNAR_MONTH_BY_CALENDAR = [
 export function getLunarMonthName(date = new Date()) {
   const age = getMoonAge(date);
   // Find the date of the full moon in this cycle
-  // Full moon is at age ~14.76 days (half of synodic month)
-  const daysToFull = 14.76 - age;
+  // Full moon is at age SYNODIC/2 days (half of synodic month)
+  const daysToFull = FULL_MOON_PEAK - age;
   const fullMoonDate = new Date(date.getTime() + daysToFull * 24 * 60 * 60 * 1000);
   // Use the calendar month of the full moon
   const month = fullMoonDate.getMonth();
