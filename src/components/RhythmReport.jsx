@@ -4,17 +4,7 @@
 import { useState, useEffect } from 'react';
 import { PhaseRing } from './PhaseRing.jsx';
 import { generateRhythmReport } from '../lib/rhythm.js';
-
-const PHASE_NAMES = {
-  'new':             'New Moon',
-  'waxing-crescent': 'Waxing Crescent',
-  'first-quarter':   'First Quarter',
-  'waxing-gibbous':  'Waxing Gibbous',
-  'full':            'Full Moon',
-  'waning-gibbous':  'Waning Gibbous',
-  'last-quarter':    'Last Quarter',
-  'waning-crescent': 'Waning Crescent',
-};
+import { PHASE_LABELS as PHASE_NAMES, PHASE_KEYS } from '../lib/phases.js';
 
 const LEVEL_BADGE = {
   none:       'rgba(245,230,200,0.2)',
@@ -24,11 +14,8 @@ const LEVEL_BADGE = {
   ceremonial: '#fefcbf',
 };
 
-// Phase order for pattern analysis
-const PHASE_ORDER = [
-  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
-];
+// Phase order for pattern analysis (same as PHASE_KEYS — aliased for clarity)
+const PHASE_ORDER = PHASE_KEYS;
 
 const WAXING_PHASES = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'];
 const WANING_PHASES = ['full', 'waning-gibbous', 'last-quarter', 'waning-crescent'];
@@ -113,7 +100,7 @@ function findQuietestPhase(observations) {
   return restPhase ? restPhase.phase : null;
 }
 
-export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, tourId }) {
+export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, tourId, currentPhaseKey = 'waning-crescent' }) {
   const [reflection, setReflection] = useState(null);
   const [loading, setLoading]       = useState(false);
   const [tried, setTried]           = useState(false);
@@ -131,7 +118,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
   // Build maps for ring
   const intentionMap = {};
   if (instance.intentionType === 'whole' && instance.wholeIntention) {
-    for (const k of Object.keys(PHASE_NAMES)) intentionMap[k] = instance.wholeIntention;
+    for (const k of PHASE_KEYS) intentionMap[k] = instance.wholeIntention;
   } else if (instance.intentionType === 'phase') {
     Object.assign(intentionMap, instance.phaseIntentions || {});
   }
@@ -139,7 +126,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
   const observationMap = {};
   for (const o of observations) observationMap[o.phase] = o.engagement;
 
-  const allPhaseKeys = Object.keys(PHASE_NAMES);
+  const currentPhaseIndex = PHASE_KEYS.indexOf(currentPhaseKey);
   const highestPhase = observations.reduce((best, o) => {
     const order = ['light','moderate','deep','ceremonial'];
     const bi = order.indexOf(best?.engagement);
@@ -187,8 +174,8 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
           size={200}
           intention={intentionMap}
           observation={observationMap}
-          currentPhaseKey="waning-crescent"
-          pastPhaseKeys={allPhaseKeys.filter(k => k !== 'waning-crescent')}
+          currentPhaseKey={currentPhaseKey}
+          pastPhaseKeys={currentPhaseIndex > 0 ? PHASE_KEYS.slice(0, currentPhaseIndex) : []}
           showLabels={true}
         />
       </div>

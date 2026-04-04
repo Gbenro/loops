@@ -246,7 +246,7 @@ export function getPhaseEmoji(key) {
     'last-quarter': '🌗',
     'waning-crescent': '🌘',
   };
-  return emojis[key] || '🌙';
+  return emojis[key] || '🌑';
 }
 
 // Get all 8 phases for timeline display

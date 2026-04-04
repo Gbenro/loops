@@ -11,19 +11,7 @@ import {
   getObservationsForInstance,
   saveObservation,
 } from '../lib/rhythm.js';
-
-const PHASES_ORDERED = [
-  { key: 'new',             label: 'New Moon',        accent: 'rgba(245,230,200,0.75)' },
-  { key: 'waxing-crescent', label: 'Waxing Crescent', accent: '#74c69d' },
-  { key: 'first-quarter',   label: 'First Quarter',   accent: '#f6ad55' },
-  { key: 'waxing-gibbous',  label: 'Waxing Gibbous',  accent: '#81e6d9' },
-  { key: 'full',            label: 'Full Moon',        accent: '#fefcbf' },
-  { key: 'waning-gibbous',  label: 'Waning Gibbous',  accent: '#b794f4' },
-  { key: 'last-quarter',    label: 'Last Quarter',     accent: '#f687b3' },
-  { key: 'waning-crescent', label: 'Waning Crescent',  accent: '#718096' },
-];
-
-const ALL_PHASE_KEYS = PHASES_ORDERED.map(p => p.key);
+import { PHASES_ORDERED, PHASE_KEYS as ALL_PHASE_KEYS } from '../lib/phases.js';
 
 const LEVELS = ['none','light','moderate','deep','ceremonial'];
 
@@ -197,8 +185,9 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
   const [showIntention, setShowIntention] = useState(false);
   const [loading, setLoading]           = useState(true);
 
-  const pastPhaseKeys = currentPhaseKey
-    ? ALL_PHASE_KEYS.slice(0, ALL_PHASE_KEYS.indexOf(currentPhaseKey))
+  const currentPhaseIndex = currentPhaseKey ? ALL_PHASE_KEYS.indexOf(currentPhaseKey) : -1;
+  const pastPhaseKeys = currentPhaseIndex > 0
+    ? ALL_PHASE_KEYS.slice(0, currentPhaseIndex)
     : [];
 
   const loadData = useCallback(async () => {

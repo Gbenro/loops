@@ -2,17 +2,12 @@
 // Bottom sheet for logging engagement for a phase
 
 import { useState } from 'react';
+import { PHASE_LABELS, PHASE_ACCENTS } from '../lib/phases.js';
 
-const PHASES_META = {
-  'new':             { label: 'New Moon',       accent: 'rgba(245,230,200,0.75)' },
-  'waxing-crescent': { label: 'Waxing Crescent', accent: '#74c69d' },
-  'first-quarter':   { label: 'First Quarter',   accent: '#f6ad55' },
-  'waxing-gibbous':  { label: 'Waxing Gibbous',  accent: '#81e6d9' },
-  'full':            { label: 'Full Moon',        accent: '#fefcbf' },
-  'waning-gibbous':  { label: 'Waning Gibbous',  accent: '#b794f4' },
-  'last-quarter':    { label: 'Last Quarter',     accent: '#f687b3' },
-  'waning-crescent': { label: 'Waning Crescent',  accent: '#718096' },
-};
+// Build phase meta from shared constants
+const PHASES_META = Object.fromEntries(
+  Object.keys(PHASE_LABELS).map(key => [key, { label: PHASE_LABELS[key], accent: PHASE_ACCENTS[key] }])
+);
 
 const LEVELS = [
   { value: 'none',       label: 'None',       desc: 'Deliberate rest from the practice' },

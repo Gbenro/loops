@@ -132,8 +132,9 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
   const cycleStart      = lunarData?.cycleStart  || null;
   const isWaningCrescent = currentPhaseKey === 'waning-crescent';
 
-  const pastPhaseKeys = currentPhaseKey
-    ? ALL_PHASE_KEYS.slice(0, ALL_PHASE_KEYS.indexOf(currentPhaseKey))
+  const currentPhaseIndex = currentPhaseKey ? ALL_PHASE_KEYS.indexOf(currentPhaseKey) : -1;
+  const pastPhaseKeys = currentPhaseIndex > 0
+    ? ALL_PHASE_KEYS.slice(0, currentPhaseIndex)
     : [];
 
   const phaseAccent = PHASE_ACCENTS[currentPhaseKey] || 'rgba(245,230,200,0.6)';
@@ -275,6 +276,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
             observations={reportData[r.id] || []}
             cycleLoopTitle={cycleLoop?.title || null}
             tourId={rIndex === 0 ? 'rhythm-cycle-report' : undefined}
+            currentPhaseKey={currentPhaseKey}
           />
         ))
       }
