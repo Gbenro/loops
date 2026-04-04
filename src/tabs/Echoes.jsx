@@ -1753,7 +1753,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
       )}
 
       {/* Tags row */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center', maxHeight: 80, overflowY: 'auto' }}>
         {tags.map(tag => (
           <span
             key={tag}
@@ -1806,7 +1806,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           borderRadius: 8,
           border: '1px solid rgba(245, 230, 200, 0.07)',
         }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, maxHeight: 130, overflowY: 'auto' }}>
             {/* Past user tags first (highlighted) */}
             {userPastTags.map(tag => {
               const selected = tags.includes(tag);
