@@ -1,6 +1,8 @@
 // Luna Loops - Lunar Calculations
 // Pure JS Julian Date mathematics (no external library)
 
+import { phaseContent } from '../data/phaseContent';
+
 const SYNODIC = 29.53058867; // Average synodic month in days
 const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
 
@@ -37,18 +39,6 @@ const PHASES = [
   { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53, next: 'New Moon', nextKey: 'new' },
 ];
 
-// Phase energy content
-const PHASE_ENERGY = {
-  'new': 'Seed',
-  'waxing-crescent': 'Build',
-  'first-quarter': 'Decide',
-  'waxing-gibbous': 'Refine',
-  'full': 'Illuminate',
-  'waning-gibbous': 'Share',
-  'last-quarter': 'Release',
-  'waning-crescent': 'Rest',
-};
-
 // Convert JavaScript Date to Julian Date
 export function toJulianDate(date) {
   return date.getTime() / 86400000 + 2440587.5;
@@ -83,7 +73,7 @@ export function getPhaseInfo(age) {
       return {
         name: phase.name,
         key: phase.key,
-        energy: PHASE_ENERGY[phase.key],
+        energy: phaseContent[phase.key].energy,
         isWaning: phase.key.includes('waning') || phase.key === 'last-quarter',
         isNew: phase.key === 'new',
         isFull: phase.key === 'full',
@@ -100,7 +90,7 @@ export function getPhaseInfo(age) {
   return {
     name: 'New Moon',
     key: 'new',
-    energy: 'Seed',
+    energy: phaseContent['new'].energy,
     isWaning: false,
     isNew: true,
     isFull: false,
@@ -198,7 +188,7 @@ export function getLunarData(date = new Date()) {
   const nextPhase = currentPhase.next;
   const nextKey = currentPhase.nextKey;
   const nextSymbol = getPhaseEmoji(nextKey);
-  const nextEnergy = PHASE_ENERGY[nextKey];
+  const nextEnergy = phaseContent[nextKey].energy;
   const nextPhaseType = PHASE_TYPE[nextKey];
   const nextPhaseDuration = PHASE_DURATION[nextPhaseType];
 
@@ -239,18 +229,9 @@ export function getLunarData(date = new Date()) {
 }
 
 // Phase emoji — used for notifications and data only. In-app UI uses MiniMoon component instead.
+// Reads from phaseContent.symbol — single source of truth for emoji mapping.
 export function getPhaseEmoji(key) {
-  const emojis = {
-    'new': '🌑',
-    'waxing-crescent': '🌒',
-    'first-quarter': '🌓',
-    'waxing-gibbous': '🌔',
-    'full': '🌕',
-    'waning-gibbous': '🌖',
-    'last-quarter': '🌗',
-    'waning-crescent': '🌘',
-  };
-  return emojis[key] || '🌙';
+  return phaseContent[key]?.symbol || '🌙';
 }
 
 // Get all 8 phases for timeline display
@@ -259,6 +240,6 @@ export function getAllPhases() {
     name: p.name,
     key: p.key,
     emoji: getPhaseEmoji(p.key),
-    energy: PHASE_ENERGY[p.key],
+    energy: phaseContent[p.key].energy,
   }));
 }
