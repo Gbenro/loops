@@ -238,7 +238,7 @@ export function getLunarData(date = new Date()) {
   };
 }
 
-// Phase emoji for display
+// Phase emoji — used for notifications and data only. In-app UI uses MiniMoon component instead.
 export function getPhaseEmoji(key) {
   const emojis = {
     'new': '🌑',

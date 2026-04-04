@@ -8,7 +8,7 @@ import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
 import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
 import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId, saveEcho, getEchoes } from '../lib/storage.js';
 import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
-import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
+import { getLunarData } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText } from '../lib/phaseText.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
@@ -1767,8 +1767,8 @@ function DetailPanel({
                   <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.7)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
                   </div>
-                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginTop: 6, display: 'flex', gap: 8 }}>
-                    <span>{getPhaseEmoji(echo.phase)} {echo.phaseName}</span>
+                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echo.phase) / 8} phaseName={echo.phaseName} /> {echo.phaseName}</span>
                     {echo.audio_path && <span>· 🎙</span>}
                   </div>
                 </div>
@@ -1838,8 +1838,8 @@ function DetailPanel({
             style={{ width: '100%', maxWidth: 520, background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
-            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginBottom: 12, display: 'flex', gap: 8 }}>
-              <span>{getPhaseEmoji(echoModal.phase)} {echoModal.phaseName}</span>
+            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echoModal.phase) / 8} phaseName={echoModal.phaseName} /> {echoModal.phaseName}</span>
               <span>· {echoModal.zodiac}</span>
               <span>· day {echoModal.dayOfCycle}</span>
             </div>
