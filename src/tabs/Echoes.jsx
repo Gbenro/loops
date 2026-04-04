@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
 import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, updateEchoTags, generateId } from '../lib/storage.js';
-import { getLunarData, getPhaseEmoji } from '../lib/lunar.js';
+import { getLunarData } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
@@ -206,11 +206,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Current nav label (secondary filter)
   const todayStr = localDateStr(new Date().toISOString());
+  const navPhaseKey = filterMode === 'phase' ? (uniquePhases[filterNavIndex] || null) : null;
   const navLabel = (() => {
     if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
     if (filterMode === 'phase') {
       const p = uniquePhases[filterNavIndex];
-      return p ? `${getPhaseEmoji(p)} ${p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : '';
+      return p ? p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
     }
     const t = uniqueTags[filterNavIndex];
     return t ? `# ${t}` : '';
@@ -707,7 +708,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           letterSpacing: '0.1em',
           color: 'rgba(245, 230, 200, 0.4)',
         }}>
-          {getPhaseEmoji(lunarData.phase.key)} {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MiniMoon size={14} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} /> {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}</span>
         </div>
       </div>
 
@@ -822,7 +823,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               fontSize: 13,
               color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
               fontFamily: "'Cormorant Garamond', serif",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
             }}>
+              {navPhaseKey && <MiniMoon size={14} phase={PHASE_ORDER.indexOf(navPhaseKey) / 8} phaseName={navLabel} />}
               {navLabel}
             </div>
             {isCurrentNav && (
@@ -981,7 +987,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 alignItems: 'center',
                 gap: 6,
               }}>
-                <span>{getPhaseEmoji(lunarData.phase.key)} {lunarData.phase.name}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MiniMoon size={14} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} /> {lunarData.phase.name}</span>
                 <span style={{
                   padding: '1px 4px',
                   borderRadius: 3,
@@ -1594,7 +1600,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
         gap: 10,
         marginBottom: 12,
       }}>
-        <MiniMoon size={20} phase={phaseNum} />
+        <MiniMoon size={20} phase={phaseNum} phaseName={echo.phaseName} />
         <div style={{
           flex: 1,
           fontSize: 9,
