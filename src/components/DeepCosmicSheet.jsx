@@ -2,8 +2,7 @@
 // Bottom modal with 6 sections of cosmic wisdom
 
 import { useState } from 'react';
-// MiniMoon available for future use
-// import { MiniMoon } from './MoonFace.jsx';
+import { MiniMoon } from './MoonFace.jsx';
 import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo, pickForToday as pickZodiac } from '../data/zodiacMeanings.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
@@ -358,7 +357,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         padding: '16px 0',
         marginBottom: 16,
       }}>
-        {allPhases.map((p, _i) => {
+        {allPhases.map((p, i) => {
           const isActive = p.key === lunarData.phase.key;
           return (
             <div
@@ -373,7 +372,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
                 transition: 'all 0.2s',
               }}
             >
-              <span style={{ fontSize: 20 }}>{p.emoji}</span>
+              <MiniMoon size={20} phase={i / 8} phaseName={p.name} />
               {isActive && (
                 <div style={{
                   width: 4,
