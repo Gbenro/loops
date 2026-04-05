@@ -42,6 +42,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent
   const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current phase
+  const [cycleExpanded, setCycleExpanded] = useState(false);
+  const [closedNavExpanded, setClosedNavExpanded] = useState(false);
   const justCreatedCycleRef = useRef(false); // prevent ritual re-showing after creation
 
   const lunarData = useMemo(() => getLunarData(), []);
@@ -681,78 +683,117 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
       {/* Cycle Selector + Progress */}
       <div style={{
-        padding: '12px 20px',
+        padding: '0 20px',
         borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
       }}>
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCycleExpanded(e => !e)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            padding: '10px 0',
+            cursor: 'pointer',
+            minHeight: 44,
+          }}
+        >
+          <span style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: 'rgba(245, 230, 200, 0.5)',
+          }}>
+            {getLunarMonthInfo(selectedCycleName, hemisphere).name}
+            {isCurrentCycle ? ` · Day ${lunarData.dayOfCycle}` : ''}
+          </span>
+          <span style={{
+            fontSize: 14,
+            color: 'rgba(245, 230, 200, 0.3)',
+            transform: cycleExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            lineHeight: 1,
+          }}>⌄</span>
+        </button>
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          marginBottom: 8,
-        }}>
-          <button
-            onClick={() => switchCycle('prev')}
-            disabled={!canCyclePrev}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-              fontSize: 16,
-              cursor: canCyclePrev ? 'pointer' : 'default',
-              padding: '4px 8px',
-            }}
-          >
-            ‹
-          </button>
-          <div style={{ textAlign: 'center', minWidth: 120 }}>
-            <div style={{
-              fontSize: 15,
-              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 600,
-            }}>
-              {getLunarMonthInfo(selectedCycleName, hemisphere).name}
-            </div>
-            {isCurrentCycle && (
-              <div style={{
-                fontSize: 8,
-                fontFamily: 'monospace',
-                color: 'rgba(167, 139, 250, 0.5)',
-                letterSpacing: '0.1em',
-                marginTop: 2,
-              }}>
-                CURRENT CYCLE · DAY {lunarData.dayOfCycle}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => switchCycle('next')}
-            disabled={!canCycleNext}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-              fontSize: 16,
-              cursor: canCycleNext ? 'pointer' : 'default',
-              padding: '4px 8px',
-            }}
-          >
-            ›
-          </button>
-        </div>
-        <div style={{
-          height: 3,
-          borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.08)',
           overflow: 'hidden',
+          maxHeight: cycleExpanded ? 200 : 0,
+          transition: 'max-height 0.25s ease',
         }}>
           <div style={{
-            width: `${(lunarData.age / 29.53) * 100}%`,
-            height: '100%',
-            background: 'rgba(245, 230, 200, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            marginBottom: 8,
+          }}>
+            <button
+              onClick={() => switchCycle('prev')}
+              disabled={!canCyclePrev}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                fontSize: 16,
+                cursor: canCyclePrev ? 'pointer' : 'default',
+                padding: '4px 8px',
+              }}
+            >
+              ‹
+            </button>
+            <div style={{ textAlign: 'center', minWidth: 120 }}>
+              <div style={{
+                fontSize: 15,
+                color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+                fontFamily: "'Cormorant Garamond', serif",
+                fontWeight: 600,
+              }}>
+                {getLunarMonthInfo(selectedCycleName, hemisphere).name}
+              </div>
+              {isCurrentCycle && (
+                <div style={{
+                  fontSize: 8,
+                  fontFamily: 'monospace',
+                  color: 'rgba(167, 139, 250, 0.5)',
+                  letterSpacing: '0.1em',
+                  marginTop: 2,
+                }}>
+                  CURRENT CYCLE · DAY {lunarData.dayOfCycle}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => switchCycle('next')}
+              disabled={!canCycleNext}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                fontSize: 16,
+                cursor: canCycleNext ? 'pointer' : 'default',
+                padding: '4px 8px',
+              }}
+            >
+              ›
+            </button>
+          </div>
+          <div style={{
+            height: 3,
             borderRadius: 2,
-          }} />
+            background: 'rgba(245, 230, 200, 0.08)',
+            overflow: 'hidden',
+            marginBottom: 12,
+          }}>
+            <div style={{
+              width: `${(lunarData.age / 29.53) * 100}%`,
+              height: '100%',
+              background: 'rgba(245, 230, 200, 0.4)',
+              borderRadius: 2,
+            }} />
+          </div>
         </div>
       </div>
 
@@ -903,65 +944,101 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             </div>
 
             {/* Phase navigation within cycle */}
-            {uniquePhases.length > 1 && <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 16,
-              marginBottom: 16,
-              padding: '10px 0',
-            }}>
+            {uniquePhases.length > 1 && <div data-tour="closed-loops-nav">
               <button
-                onClick={onNavPrev}
-                disabled={!canNavPrev}
+                onClick={() => setClosedNavExpanded(e => !e)}
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
                   background: 'none',
                   border: 'none',
-                  color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                  fontSize: 16,
-                  cursor: canNavPrev ? 'pointer' : 'default',
-                  padding: '4px 8px',
+                  padding: '8px 0',
+                  cursor: 'pointer',
+                  minHeight: 44,
                 }}
               >
-                ‹
+                <span style={{
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.08em',
+                  color: 'rgba(245, 230, 200, 0.5)',
+                }}>{currentNavLabel}</span>
+                <span style={{
+                  fontSize: 14,
+                  color: 'rgba(245, 230, 200, 0.3)',
+                  transform: closedNavExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  lineHeight: 1,
+                }}>⌄</span>
               </button>
               <div style={{
-                textAlign: 'center',
-                minWidth: 140,
+                overflow: 'hidden',
+                maxHeight: closedNavExpanded ? 120 : 0,
+                transition: 'max-height 0.25s ease',
               }}>
                 <div style={{
-                  fontSize: 13,
-                  color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
-                  fontFamily: "'Cormorant Garamond', serif",
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 16,
+                  marginBottom: 16,
+                  padding: '6px 0',
                 }}>
-                  {currentNavLabel}
-                </div>
-                {isCurrentNav && (
+                  <button
+                    onClick={onNavPrev}
+                    disabled={!canNavPrev}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                      fontSize: 16,
+                      cursor: canNavPrev ? 'pointer' : 'default',
+                      padding: '4px 8px',
+                    }}
+                  >
+                    ‹
+                  </button>
                   <div style={{
-                    fontSize: 8,
-                    fontFamily: 'monospace',
-                    color: 'rgba(167, 139, 250, 0.5)',
-                    letterSpacing: '0.1em',
-                    marginTop: 2,
+                    textAlign: 'center',
+                    minWidth: 140,
                   }}>
-                    CURRENT
+                    <div style={{
+                      fontSize: 13,
+                      color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+                      fontFamily: "'Cormorant Garamond', serif",
+                    }}>
+                      {currentNavLabel}
+                    </div>
+                    {isCurrentNav && (
+                      <div style={{
+                        fontSize: 8,
+                        fontFamily: 'monospace',
+                        color: 'rgba(167, 139, 250, 0.5)',
+                        letterSpacing: '0.1em',
+                        marginTop: 2,
+                      }}>
+                        CURRENT
+                      </div>
+                    )}
                   </div>
-                )}
+                  <button
+                    onClick={onNavNext}
+                    disabled={!canNavNext}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                      fontSize: 16,
+                      cursor: canNavNext ? 'pointer' : 'default',
+                      padding: '4px 8px',
+                    }}
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={onNavNext}
-                disabled={!canNavNext}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
-                  fontSize: 16,
-                  cursor: canNavNext ? 'pointer' : 'default',
-                  padding: '4px 8px',
-                }}
-              >
-                ›
-              </button>
             </div>}
 
             {/* Closed loops for selected cycle */}

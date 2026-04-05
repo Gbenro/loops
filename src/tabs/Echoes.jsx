@@ -129,6 +129,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const wakeLockRef = useRef(null);
 
   // Queue player
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [queueExpanded, setQueueExpanded] = useState(false);
   const [queueIndex, setQueueIndex] = useState(0);
   const [queuePlaying, setQueuePlaying] = useState(false);
@@ -713,7 +714,45 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Filter Navigator */}
-      <div data-tour="echoes-tags" style={{ padding: '0 20px 14px' }}>
+      <div data-tour="echoes-tags" style={{ padding: '0 20px 0' }}>
+        {/* Collapse toggle bar */}
+        <button
+          onClick={() => setFiltersExpanded(f => !f)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            padding: '10px 0 10px',
+            cursor: 'pointer',
+            minHeight: 44,
+          }}
+        >
+          <span style={{
+            fontSize: 11,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: 'rgba(245, 230, 200, 0.5)',
+          }}>
+            {selectedCycleName || 'No Cycles'}{navLabel ? ` · ${navLabel}` : ''}
+          </span>
+          <span style={{
+            fontSize: 14,
+            color: 'rgba(245, 230, 200, 0.3)',
+            transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            lineHeight: 1,
+          }}>⌄</span>
+        </button>
+      </div>
+      <div data-tour="echoes-tags-expanded" style={{
+        overflow: 'hidden',
+        maxHeight: filtersExpanded ? 300 : 0,
+        transition: 'max-height 0.25s ease',
+        padding: filtersExpanded ? '0 20px 14px' : '0 20px 0',
+      }}>
         {/* Base cycle selector */}
         <div style={{
           display: 'flex',
