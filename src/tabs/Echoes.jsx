@@ -167,10 +167,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     PHASE_ORDER.filter(p => cycleFilteredEchoes.some(e => e.phase === p)),
   [cycleFilteredEchoes]);
 
+  // Tags are global — search across all cycles, not just the selected one
   const uniqueTags = useMemo(() => {
-    const all = cycleFilteredEchoes.flatMap(e => e.tags || []);
+    const all = echoes.flatMap(e => e.tags || []);
     return [...new Set(all)].sort();
-  }, [cycleFilteredEchoes]);
+  }, [echoes]);
 
   const switchFilterMode = (mode) => {
     setFilterMode(mode);
@@ -232,17 +233,20 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
 
-  // Filtered echoes — secondary filter applied within the selected cycle
+  // Filtered echoes — day/phase are cycle-scoped; tag searches the full database
   const filteredEchoes = useMemo(() => {
     if (navList.length === 0) return cycleFilteredEchoes;
     const target = navList[filterNavIndex];
+    if (filterMode === 'tag') {
+      // Tag filter is global — not restricted to the selected cycle
+      return echoes.filter(e => (e.tags || []).includes(target));
+    }
     return cycleFilteredEchoes.filter(e => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
-      if (filterMode === 'tag') return (e.tags || []).includes(target);
       return true;
     });
-  }, [cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
+  }, [echoes, cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
