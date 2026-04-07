@@ -364,7 +364,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               gap: 12,
               marginBottom: 8,
             }}>
-              <span style={{ fontSize: 24 }}>{phaseEmoji}</span>
+              <MiniMoon size={24} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} />
               <span style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 20,
