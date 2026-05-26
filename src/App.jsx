@@ -22,6 +22,9 @@ import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
 import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt, useOnboarding } from './components/Onboarding/index.js';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
+import { ThemeProvider } from './lib/ThemeContext.jsx';
+import { ThemeToggle } from './components/ThemeToggle.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -55,14 +58,14 @@ function UnlockModal({ verifyToken, userId }) {
       <div style={{
         width: '100%', maxWidth: 320,
         background: '#0a0f18',
-        border: '1px solid rgba(245, 230, 200, 0.1)',
+        border: '1px solid var(--color-border-light)',
         borderRadius: 16, padding: 28,
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>◎</div>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 20, color: '#f5e6c8', marginBottom: 6,
+            fontSize: 20, color: 'var(--color-text)', marginBottom: 6,
           }}>Encrypted content</div>
           <div style={{
             fontSize: 11, fontFamily: 'monospace',
@@ -79,9 +82,9 @@ function UnlockModal({ verifyToken, userId }) {
             required
             style={{
               width: '100%', padding: '12px 14px', marginBottom: 12,
-              background: 'rgba(245, 230, 200, 0.03)',
-              border: '1px solid rgba(245, 230, 200, 0.1)',
-              borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none',
+              background: 'var(--color-input-bg)',
+              border: '1px solid var(--color-border-light)',
+              borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none',
             }}
           />
           {error && (
@@ -94,9 +97,9 @@ function UnlockModal({ verifyToken, userId }) {
           )}
           <button type="submit" disabled={loading} style={{
             width: '100%', padding: '12px',
-            background: 'rgba(245, 230, 200, 0.08)',
-            border: '1px solid rgba(245, 230, 200, 0.15)',
-            borderRadius: 8, color: '#f5e6c8', fontSize: 13,
+            background: 'var(--color-input-hover)',
+            border: '1px solid var(--color-border-mid)',
+            borderRadius: 8, color: 'var(--color-text)', fontSize: 13,
             cursor: loading ? 'wait' : 'pointer',
           }}>
             {loading ? '...' : 'Unlock'}
@@ -161,11 +164,11 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
         <div style={{ flex: 1 }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 16, color: '#f5e6c8', marginBottom: 4,
+            fontSize: 16, color: 'var(--color-text)', marginBottom: 4,
           }}>
             {title}
           </div>
-          <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', lineHeight: 1.5, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-focus)', lineHeight: 1.5, marginBottom: 12 }}>
             {body}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -187,8 +190,8 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
               style={{
                 padding: '8px 16px', borderRadius: 8,
                 background: 'transparent',
-                border: '1px solid rgba(245, 230, 200, 0.1)',
-                color: 'rgba(245, 230, 200, 0.4)', fontSize: 12, cursor: 'pointer',
+                border: '1px solid var(--color-border-light)',
+                color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer',
               }}
             >
               Not now
@@ -203,14 +206,14 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
 function BetaGate({ onSignOut }) {
   return (
     <div style={{
-      height: '100dvh', background: '#040810',
+      height: '100dvh', background: 'var(--color-bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 32, flexDirection: 'column', textAlign: 'center',
     }}>
       <LunaLogo variant="icon" width={64} style={{ marginBottom: 20 }} />
       <div style={{
         fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 26, color: '#f5e6c8', marginBottom: 12,
+        fontSize: 26, color: 'var(--color-text)', marginBottom: 12,
       }}>
         Luna Loops v2
       </div>
@@ -551,7 +554,7 @@ function App() {
     return (
       <div style={{
         height: '100dvh',
-        background: '#040810',
+        background: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -564,7 +567,7 @@ function App() {
   // Beta gate: user is signed in but not on the allowlist
   if (user && accessStatus === 'denied') {
     return (
-      <div style={{ minHeight: '100dvh', background: '#040810', display: 'flex', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 520 }}>
           <BetaGate onSignOut={handleSignOut} />
         </div>
@@ -575,7 +578,7 @@ function App() {
   return (
     <div style={{
       minHeight: '100dvh',
-      background: '#040810',
+      background: 'var(--color-bg)',
       display: 'flex',
       justifyContent: 'center',
     }}>
@@ -584,8 +587,8 @@ function App() {
         width: '100%',
         maxWidth: 520,
         height: '100dvh',
-        background: '#040810',
-        color: '#f5e6c8',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text)',
         fontFamily: "'DM Sans', sans-serif",
         display: 'flex',
         flexDirection: 'column',
@@ -607,14 +610,31 @@ function App() {
           --font-2xl: 28px;
           --font-3xl: 32px;
 
-          /* Text colors - WCAG AA compliant contrast ratios */
-          --text-primary: #f5e6c8;
-          --text-secondary: rgba(245,230,200,0.55);    /* was 0.35, ~4.5:1 contrast */
-          --text-tertiary: rgba(245,230,200,0.45);     /* was 0.3, ~3.8:1 contrast */
-          --text-disabled: rgba(245,230,200,0.38);     /* was 0.25, ~3.0:1 contrast */
-
           /* Touch targets - minimum 44px for accessibility */
           --touch-min: 44px;
+
+          /* Theme color tokens — set by ThemeContext.jsx at runtime */
+          --color-bg: #040810;
+          --color-surface: #080d1a;
+          --color-text: #f5e6c8;
+          --color-text-dim: rgba(245, 230, 200, 0.55);
+          --color-text-muted: rgba(245, 230, 200, 0.4);
+          --color-text-faint: rgba(245, 230, 200, 0.26);
+          --color-border: rgba(245, 230, 200, 0.06);
+          --color-border-light: rgba(245, 230, 200, 0.1);
+          --color-border-mid: rgba(245, 230, 200, 0.15);
+          --color-accent: #c4b5fd;
+          --color-accent-bg: rgba(167, 139, 250, 0.2);
+          --color-glow: rgba(245, 230, 200, 0.25);
+          --color-input-bg: rgba(245, 230, 200, 0.03);
+          --color-input-hover: rgba(245, 230, 200, 0.08);
+          --color-focus: rgba(245, 230, 200, 0.5);
+
+          /* Legacy aliases — kept for any components still referencing them */
+          --text-primary: var(--color-text);
+          --text-secondary: var(--color-text-dim);
+          --text-tertiary: var(--color-text-muted);
+          --text-disabled: var(--color-text-faint);
         }
 
         /* Larger fonts on desktop for better readability */
@@ -644,8 +664,9 @@ function App() {
           margin: 0;
           padding: 0;
           overscroll-behavior: none;
-          background: #040810;
-          color: #f5e6c8;
+          background: var(--color-bg);
+          color: var(--color-text);
+          transition: background 0.2s ease, color 0.2s ease;
         }
 
         input, textarea, button {
@@ -655,7 +676,7 @@ function App() {
         /* Focus visible styles for keyboard navigation
            Uses !important to override inline outline:none styles */
         :focus-visible {
-          outline: 2px solid rgba(245,230,200,0.5) !important;
+          outline: 2px solid var(--color-focus) !important;
           outline-offset: 2px;
         }
 
@@ -693,16 +714,18 @@ function App() {
         }
 
         @keyframes moonPulse {
-          0%, 100% { filter: drop-shadow(0 0 35px rgba(245, 230, 200, 0.25)); }
-          50% { filter: drop-shadow(0 0 45px rgba(245, 230, 200, 0.35)); }
+          0%, 100% { filter: drop-shadow(0 0 35px var(--color-glow)); }
+          50% { filter: drop-shadow(0 0 45px var(--color-focus)); }
         }
 
-        /* Moon glow animation - respects reduced motion preference */
-        .moon-glow {
-          animation: moonPulse 8s ease-in-out infinite;
-        }
-
+        /* Reduced motion — disable all non-essential animations */
         @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
           .moon-glow {
             animation: none;
           }
@@ -717,7 +740,7 @@ function App() {
         }
 
         ::-webkit-scrollbar-thumb {
-          background: rgba(245, 230, 200, 0.15);
+          background: var(--color-border-mid);
           border-radius: 2px;
         }
 
@@ -764,8 +787,35 @@ function App() {
         />
       )}
 
+      {/* Skip Navigation Link */}
+      <a
+        href="#main-content"
+        style={{
+          position: 'absolute',
+          top: '-100px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '12px 24px',
+          background: 'var(--color-text)',
+          color: 'var(--color-bg)',
+          borderRadius: 8,
+          fontSize: 14,
+          fontWeight: 500,
+          zIndex: 9999,
+          textDecoration: 'none',
+          transition: 'top 0.2s ease',
+        }}
+        onFocus={(e) => e.target.style.top = '12px'}
+        onBlur={(e) => e.target.style.top = '-100px'}
+      >
+        Skip to main content
+      </a>
+
       {/* Tab Content */}
-      <div style={{
+      <div
+        id="main-content"
+        role="main"
+        style={{
         flex: 1,
         minHeight: 0,
         overflow: 'auto',
@@ -820,8 +870,8 @@ function App() {
         style={{
           flexShrink: 0,
           display: 'flex',
-          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
-          background: '#040810',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-bg)',
           paddingBottom: 'env(safe-area-inset-bottom, 0)',
         }}
       >
@@ -840,7 +890,7 @@ function App() {
                 padding: '16px 0 12px',
                 background: 'none',
                 border: 'none',
-                color: isActive ? '#f5e6c8' : 'rgba(245, 230, 200, 0.26)',
+                color: isActive ? 'var(--color-text)' : 'var(--color-text-faint)',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -886,6 +936,9 @@ function App() {
             <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>ADMIN</span>
           </button>
         )}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px' }}>
+          <ThemeToggle />
+        </div>
       </nav>
 
       {/* Tutorial — shown once to all users, re-openable from settings */}
@@ -927,11 +980,15 @@ function App() {
   );
 }
 
-// Wrap the app with OnboardingProvider
+// Wrap the app with ThemeProvider, OnboardingProvider, and ErrorBoundary
 export default function AppWithOnboarding() {
   return (
-    <OnboardingProvider>
-      <App />
-    </OnboardingProvider>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <OnboardingProvider>
+          <App />
+        </OnboardingProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
