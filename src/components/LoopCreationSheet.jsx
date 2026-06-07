@@ -118,7 +118,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
           width: 36,
           height: 4,
           borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.2)',
+          background: 'var(--color-border-mid)',
           margin: '0 auto 24px',
         }} />
 
@@ -128,7 +128,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 'var(--font-2xl)',
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               textAlign: 'center',
               marginBottom: 10,
             }}>
@@ -137,7 +137,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
             <div style={{
               fontSize: 'var(--font-sm)',
               fontFamily: 'monospace',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
               textAlign: 'center',
               marginBottom: 32,
             }}>
@@ -168,14 +168,14 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 <span style={{
                   fontFamily: "'Cormorant Garamond', serif",
                   fontSize: 'var(--font-xl)',
-                  color: '#f5e6c8',
+                  color: 'var(--color-text)',
                 }}>
                   Open Loop
                 </span>
               </div>
               <div style={{
                 fontSize: 'var(--font-md)',
-                color: 'rgba(245, 230, 200, 0.5)',
+                color: 'var(--color-focus)',
                 lineHeight: 1.6,
                 paddingLeft: 38,
               }}>
@@ -208,7 +208,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 <span style={{
                   fontFamily: "'Cormorant Garamond', serif",
                   fontSize: 'var(--font-xl)',
-                  color: '#f5e6c8',
+                  color: 'var(--color-text)',
                 }}>
                   Phase Loop
                 </span>
@@ -225,7 +225,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               </div>
               <div style={{
                 fontSize: 'var(--font-md)',
-                color: 'rgba(245, 230, 200, 0.5)',
+                color: 'var(--color-focus)',
                 lineHeight: 1.6,
                 paddingLeft: 38,
               }}>
@@ -243,7 +243,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 borderRadius: 12,
                 border: '1px solid rgba(245, 230, 200, 0.1)',
                 background: 'transparent',
-                color: 'rgba(245, 230, 200, 0.4)',
+                color: 'var(--color-text-muted)',
                 fontSize: 'var(--font-md)',
                 cursor: 'pointer',
                 marginTop: 10,
@@ -268,7 +268,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               <span style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 20,
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
               }}>
                 Open Loop
               </span>
@@ -289,7 +289,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 18,
               fontStyle: 'italic',
-              color: 'rgba(245, 230, 200, 0.7)',
+              color: 'var(--color-text)',
               textAlign: 'center',
               marginBottom: 24,
               lineHeight: 1.5,
@@ -308,7 +308,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 borderRadius: 12,
                 border: '1px solid rgba(148, 163, 184, 0.15)',
                 background: 'rgba(148, 163, 184, 0.03)',
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 fontSize: 16,
                 fontFamily: "'Cormorant Garamond', serif",
                 outline: 'none',
@@ -326,7 +326,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                   borderRadius: 12,
                   border: '1px solid rgba(245, 230, 200, 0.12)',
                   background: 'transparent',
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                   fontSize: 13,
                   cursor: 'pointer',
                 }}
@@ -341,8 +341,8 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                   padding: '14px',
                   borderRadius: 12,
                   border: 'none',
-                  background: (title.trim() && !isCreating) ? OPEN_LOOP_COLOR : 'rgba(245, 230, 200, 0.08)',
-                  color: (title.trim() && !isCreating) ? '#040810' : 'rgba(245, 230, 200, 0.3)',
+                  background: (title.trim() && !isCreating) ? OPEN_LOOP_COLOR : 'var(--color-input-hover)',
+                  color: (title.trim() && !isCreating) ? 'var(--color-bg)' : 'var(--color-text-muted)',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: (title.trim() && !isCreating) ? 'pointer' : 'default',
@@ -368,7 +368,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               <span style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 20,
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
               }}>
                 {lunarData.phase.name}
               </span>
@@ -389,7 +389,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 18,
               fontStyle: 'italic',
-              color: 'rgba(245, 230, 200, 0.7)',
+              color: 'var(--color-text)',
               textAlign: 'center',
               marginBottom: 24,
               lineHeight: 1.5,
@@ -408,7 +408,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                 borderRadius: 12,
                 border: '1px solid rgba(167, 139, 250, 0.15)',
                 background: 'rgba(167, 139, 250, 0.03)',
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 fontSize: 16,
                 fontFamily: "'Cormorant Garamond', serif",
                 outline: 'none',
@@ -453,7 +453,7 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                   borderRadius: 12,
                   border: '1px solid rgba(245, 230, 200, 0.12)',
                   background: 'transparent',
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                   fontSize: 13,
                   cursor: 'pointer',
                 }}
@@ -468,8 +468,8 @@ export function LoopCreationSheet({ lunarData, cycleLoopId, onClose, onCreate })
                   padding: '14px',
                   borderRadius: 12,
                   border: 'none',
-                  background: (title.trim() && !isCreating) ? color : 'rgba(245, 230, 200, 0.08)',
-                  color: (title.trim() && !isCreating) ? '#040810' : 'rgba(245, 230, 200, 0.3)',
+                  background: (title.trim() && !isCreating) ? color : 'var(--color-input-hover)',
+                  color: (title.trim() && !isCreating) ? 'var(--color-bg)' : 'var(--color-text-muted)',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: (title.trim() && !isCreating) ? 'pointer' : 'default',

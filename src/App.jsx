@@ -24,7 +24,6 @@ import { LunaLogo } from './components/LunaLogo.jsx';
 import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt, useOnboarding } from './components/Onboarding/index.js';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { ThemeProvider } from './lib/ThemeContext.jsx';
-import { ThemeToggle } from './components/ThemeToggle.jsx';
 
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
@@ -936,9 +935,6 @@ function App() {
             <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>ADMIN</span>
           </button>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px' }}>
-          <ThemeToggle />
-        </div>
       </nav>
 
       {/* Tutorial — shown once to all users, re-openable from settings */}

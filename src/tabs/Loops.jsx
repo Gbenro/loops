@@ -590,8 +590,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#040810',
-        color: 'rgba(245, 230, 200, 0.4)',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-muted)',
         fontSize: 18,
       }}>
         ◯
@@ -604,7 +604,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#040810',
+      background: 'var(--color-bg)',
     }}>
       {/* New Moon Ritual */}
       {showRitual && (
@@ -634,7 +634,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       {/* Cosmic Guidance Banner */}
       <div style={{
         padding: '16px 20px',
-        background: 'rgba(245, 230, 200, 0.03)',
+        background: 'var(--color-input-bg)',
         borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
       }}>
         <div style={{
@@ -647,14 +647,14 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           <span style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 16,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
           }}>
             {lunarData.phase.name}
           </span>
           <span style={{
             fontSize: 10,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.4)',
+            color: 'var(--color-text-muted)',
             marginLeft: 'auto',
           }}>
             {phaseContent.energy.toUpperCase()}
@@ -663,7 +663,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         {phrasesLoading ? (
           <div style={{
             height: 18,
-            background: 'rgba(245, 230, 200, 0.1)',
+            background: 'var(--color-border-light)',
             borderRadius: 4,
             opacity: 0.3,
           }} />
@@ -671,7 +671,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           <div style={{
             fontSize: 13,
             fontStyle: 'italic',
-            color: 'rgba(245, 230, 200, 0.6)',
+            color: 'var(--color-text-dim)',
             lineHeight: 1.5,
             opacity: 1,
             transition: 'opacity 0.4s ease',
@@ -705,14 +705,14 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             fontSize: 11,
             fontFamily: 'monospace',
             letterSpacing: '0.08em',
-            color: 'rgba(245, 230, 200, 0.5)',
+            color: 'var(--color-focus)',
           }}>
             {getLunarMonthInfo(selectedCycleName, hemisphere).name}
             {isCurrentCycle ? ` · Day ${lunarData.dayOfCycle}` : ''}
           </span>
           <span style={{
             fontSize: 14,
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             transform: cycleExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.2s ease',
             lineHeight: 1,
@@ -736,7 +736,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               style={{
                 background: 'none',
                 border: 'none',
-                color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                color: canCyclePrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
                 fontSize: 16,
                 cursor: canCyclePrev ? 'pointer' : 'default',
                 padding: '4px 8px',
@@ -747,7 +747,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             <div style={{ textAlign: 'center', minWidth: 120 }}>
               <div style={{
                 fontSize: 15,
-                color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+                color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
                 fontFamily: "'Cormorant Garamond', serif",
                 fontWeight: 600,
               }}>
@@ -771,7 +771,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               style={{
                 background: 'none',
                 border: 'none',
-                color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                color: canCycleNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
                 fontSize: 16,
                 cursor: canCycleNext ? 'pointer' : 'default',
                 padding: '4px 8px',
@@ -783,14 +783,14 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           <div style={{
             height: 3,
             borderRadius: 2,
-            background: 'rgba(245, 230, 200, 0.08)',
+            background: 'var(--color-input-hover)',
             overflow: 'hidden',
             marginBottom: 12,
           }}>
             <div style={{
               width: `${(lunarData.age / 29.53) * 100}%`,
               height: '100%',
-              background: 'rgba(245, 230, 200, 0.4)',
+              background: 'var(--color-text-muted)',
               borderRadius: 2,
             }} />
           </div>
@@ -965,11 +965,11 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                   fontSize: 11,
                   fontFamily: 'monospace',
                   letterSpacing: '0.08em',
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                 }}>{currentNavLabel}</span>
                 <span style={{
                   fontSize: 14,
-                  color: 'rgba(245, 230, 200, 0.3)',
+                  color: 'var(--color-text-muted)',
                   transform: closedNavExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                   transition: 'transform 0.2s ease',
                   lineHeight: 1,
@@ -994,7 +994,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                      color: canNavPrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
                       fontSize: 16,
                       cursor: canNavPrev ? 'pointer' : 'default',
                       padding: '4px 8px',
@@ -1008,7 +1008,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                   }}>
                     <div style={{
                       fontSize: 13,
-                      color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+                      color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
                       fontFamily: "'Cormorant Garamond', serif",
                     }}>
                       {currentNavLabel}
@@ -1031,7 +1031,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+                      color: canNavNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
                       fontSize: 16,
                       cursor: canNavNext ? 'pointer' : 'default',
                       padding: '4px 8px',
@@ -1053,7 +1053,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                       fontSize: 9,
                       fontFamily: 'monospace',
                       letterSpacing: '0.1em',
-                      color: 'rgba(245, 230, 200, 0.3)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 8,
                     }}>
                       CYCLE INTENTION
@@ -1091,7 +1091,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               <div style={{
                 textAlign: 'center',
                 padding: '24px',
-                color: 'rgba(245, 230, 200, 0.3)',
+                color: 'var(--color-text-muted)',
                 fontSize: 12,
                 fontStyle: 'italic',
               }}>
@@ -1106,7 +1106,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
           }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>◯</div>
             <div style={{ fontSize: 14, fontStyle: 'italic', marginBottom: 8 }}>
@@ -1127,7 +1127,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             style={{
               textAlign: 'center',
               padding: '60px 20px',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
             }}
           >
@@ -1156,9 +1156,9 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             width: '100%',
             padding: '14px 20px',
             borderRadius: 12,
-            background: 'rgba(245, 230, 200, 0.06)',
+            background: 'var(--color-border)',
             border: '1px solid rgba(245, 230, 200, 0.12)',
-            color: 'rgba(245, 230, 200, 0.7)',
+            color: 'var(--color-text)',
             fontSize: 13,
             cursor: 'pointer',
           }}
@@ -1243,7 +1243,7 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 18,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             lineHeight: 1.4,
             marginBottom: 8,
           }}>
@@ -1261,8 +1261,8 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
             <span style={{
               padding: '2px 6px',
               borderRadius: 4,
-              background: 'rgba(245, 230, 200, 0.06)',
-              color: 'rgba(245, 230, 200, 0.6)',
+              background: 'var(--color-border)',
+              color: 'var(--color-text-dim)',
             }}>
               ☽ CYCLE
             </span>
@@ -1306,7 +1306,7 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
         background: isOpen
           ? 'rgba(148, 163, 184, 0.03)'
           : 'rgba(245, 230, 200, 0.025)',
-        border: `1px solid ${isOpen ? 'rgba(148, 163, 184, 0.08)' : 'rgba(245, 230, 200, 0.06)'}`,
+        border: `1px solid ${isOpen ? 'rgba(148, 163, 184, 0.08)' : 'var(--color-border)'}`,
         borderLeft: !closed ? `3px solid ${isOngoing ? '#34D399' : isPaused ? 'rgba(251, 191, 36, 0.45)' : 'transparent'}` : undefined,
         borderRadius: 12,
         marginBottom: 10,
@@ -1322,19 +1322,19 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
           <button
             onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
             disabled={!canMoveUp}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'var(--text-secondary)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'var(--text-secondary)' : 'var(--color-border-light)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
           >▲</button>
           <button
             onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
             disabled={!canMoveDown}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'var(--text-secondary)' : 'rgba(245, 230, 200, 0.1)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
+            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'var(--text-secondary)' : 'var(--color-border-light)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
           >▼</button>
         </div>
       )}
 
       <Ring
         pct={pct}
-        color={isAutoReleased ? 'rgba(251, 191, 36, 0.5)' : released ? 'rgba(245, 230, 200, 0.3)' : (loop.color || '#A78BFA')}
+        color={isAutoReleased ? 'rgba(251, 191, 36, 0.5)' : released ? 'var(--color-text-muted)' : (loop.color || '#A78BFA')}
         size={40}
         stroke={3}
         variant={isCycle ? 'cycle' : 'default'}
@@ -1344,19 +1344,19 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 16,
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           marginBottom: 4,
           textDecoration: closed ? 'line-through' : 'none',
           opacity: closed ? 0.6 : 1,
         }}>
           {loop.title}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
           {/* Phase badge */}
           <span style={{
             padding: '2px 6px', borderRadius: 4,
-            background: isCycle ? 'rgba(245, 230, 200, 0.08)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
-            color: isCycle ? 'rgba(245, 230, 200, 0.7)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
+            background: isCycle ? 'var(--color-input-hover)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
+            color: isCycle ? 'var(--color-text)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
           }}>
             {isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
@@ -1399,10 +1399,10 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
         onClick={(e) => { e.stopPropagation(); closed ? onReopen?.() : onClose?.(); }}
         style={{
           width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-          border: `2px solid ${closed ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`,
+          border: `2px solid ${closed ? '#34D399' : 'var(--color-border-mid)'}`,
           background: closed ? '#34D399' : 'transparent',
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: closed ? '#040810' : 'transparent', fontSize: 14,
+          color: closed ? 'var(--color-bg)' : 'transparent', fontSize: 14,
         }}
       >
         {closed && '✓'}
@@ -1550,7 +1550,7 @@ function DetailPanel({
       }}>
         {/* Header */}
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(245, 230, 200, 0.08)' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Ring
               pct={pct}
@@ -1558,13 +1558,13 @@ function DetailPanel({
               size={56}
               stroke={4}
             >
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#f5e6c8' }}>{pct}%</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{pct}%</span>
             </Ring>
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#f5e6c8', marginBottom: 4 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: 'var(--color-text)', marginBottom: 4 }}>
                 {loop.title}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.4)' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
                 <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
                 {isCycle && loop.cycleNumber > 1 && (
                   <><span>·</span><span style={{ color: 'rgba(167, 139, 250, 0.6)' }}>#{loop.cycleNumber}</span></>
@@ -1607,7 +1607,7 @@ function DetailPanel({
                     marginBottom: 6,
                     borderRadius: 8,
                     background: cp.done ? 'rgba(167, 139, 250, 0.08)' : 'rgba(245, 230, 200, 0.02)',
-                    border: `1px solid ${cp.done ? 'rgba(167, 139, 250, 0.2)' : 'rgba(245, 230, 200, 0.06)'}`,
+                    border: `1px solid ${cp.done ? 'rgba(167, 139, 250, 0.2)' : 'var(--color-border)'}`,
                     cursor: 'pointer',
                   }}
                 >
@@ -1615,18 +1615,18 @@ function DetailPanel({
                     width: 20,
                     height: 20,
                     borderRadius: '50%',
-                    border: `2px solid ${cp.done ? '#A78BFA' : 'rgba(245, 230, 200, 0.2)'}`,
+                    border: `2px solid ${cp.done ? '#A78BFA' : 'var(--color-border-mid)'}`,
                     background: cp.done ? '#A78BFA' : 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                     fontSize: 10,
-                    color: cp.done ? '#040810' : 'transparent',
+                    color: cp.done ? 'var(--color-bg)' : 'transparent',
                   }}>
                     {cp.done && '✓'}
                   </div>
-                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-focus)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <MiniMoon size={14} phase={PHASE_ORDER.indexOf(cp.phase) / 8} phaseName={cp.text} />
                     {cp.text}
                   </span>
@@ -1652,12 +1652,12 @@ function DetailPanel({
                       <button
                         onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'up'); }}
                         disabled={index === 0}
-                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === 0 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)', cursor: index === 0 ? 'default' : 'pointer', fontSize: 10 }}
+                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === 0 ? 'var(--color-border-mid)' : 'var(--color-text-muted)', cursor: index === 0 ? 'default' : 'pointer', fontSize: 10 }}
                       >▲</button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'down'); }}
                         disabled={index === regularSubtasks.length - 1}
-                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === regularSubtasks.length - 1 ? 'rgba(245, 230, 200, 0.15)' : 'rgba(245, 230, 200, 0.4)', cursor: index === regularSubtasks.length - 1 ? 'default' : 'pointer', fontSize: 10 }}
+                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === regularSubtasks.length - 1 ? 'var(--color-border-mid)' : 'var(--color-text-muted)', cursor: index === regularSubtasks.length - 1 ? 'default' : 'pointer', fontSize: 10 }}
                       >▼</button>
                     </div>
                   )}
@@ -1666,14 +1666,14 @@ function DetailPanel({
                     style={{ minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', margin: '-10px', padding: '10px' }}
                   >
                     <div
-                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'rgba(245, 230, 200, 0.2)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? '#040810' : 'transparent', fontSize: 12 }}
+                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'var(--color-border-mid)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? 'var(--color-bg)' : 'transparent', fontSize: 12 }}
                     >
                       {subtask.done && '✓'}
                     </div>
                   </div>
                   <span
                     onClick={() => onToggleSubtask(subtask.id)}
-                    style={{ flex: 1, color: subtask.done ? 'rgba(245, 230, 200, 0.4)' : '#f5e6c8', textDecoration: subtask.done ? 'line-through' : 'none', fontSize: 14, cursor: 'pointer' }}
+                    style={{ flex: 1, color: subtask.done ? 'var(--color-text-muted)' : 'var(--color-text)', textDecoration: subtask.done ? 'line-through' : 'none', fontSize: 14, cursor: 'pointer' }}
                   >
                     {subtask.text}
                   </span>
@@ -1691,12 +1691,12 @@ function DetailPanel({
                     onChange={e => setNewSubtask(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
                     placeholder="Add a step..."
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.1)', background: 'rgba(245, 230, 200, 0.03)', color: '#f5e6c8', fontSize: 13, outline: 'none' }}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.1)', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, outline: 'none' }}
                   />
                   <button
                     onClick={handleAddSubtask}
                     disabled={!newSubtask.trim()}
-                    style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: newSubtask.trim() ? 'rgba(245, 230, 200, 0.1)' : 'rgba(245, 230, 200, 0.03)', color: newSubtask.trim() ? '#f5e6c8' : 'rgba(245, 230, 200, 0.3)', fontSize: 13, cursor: newSubtask.trim() ? 'pointer' : 'default' }}
+                    style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: newSubtask.trim() ? 'var(--color-border-light)' : 'var(--color-input-bg)', color: newSubtask.trim() ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: 13, cursor: newSubtask.trim() ? 'pointer' : 'default' }}
                   >Add</button>
                 </div>
               )}
@@ -1712,7 +1712,7 @@ function DetailPanel({
               {!showEchoInput && (
                 <button
                   onClick={() => setShowEchoInput(true)}
-                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
                 >
                   + ADD ECHO
                 </button>
@@ -1721,7 +1721,7 @@ function DetailPanel({
 
             {/* Echo input form */}
             {showEchoInput && (
-              <div style={{ background: 'rgba(245, 230, 200, 0.03)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+              <div style={{ background: 'var(--color-input-bg)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
                 <textarea
                   value={newEchoText}
                   onChange={e => setNewEchoText(e.target.value)}
@@ -1738,19 +1738,19 @@ function DetailPanel({
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.5)' : 'rgba(245, 230, 200, 0.15)'}`, background: isRecording ? 'rgba(252, 129, 129, 0.1)' : 'transparent', color: isRecording ? 'rgba(252, 129, 129, 0.9)' : 'rgba(245, 230, 200, 0.5)', fontSize: 11, cursor: 'pointer' }}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.5)' : 'var(--color-border-mid)'}`, background: isRecording ? 'rgba(252, 129, 129, 0.1)' : 'transparent', color: isRecording ? 'rgba(252, 129, 129, 0.9)' : 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
                     >
                       {isRecording ? '◼ Stop' : '🎙 Record'}
                     </button>
                     <button
                       onClick={() => { setShowEchoInput(false); setNewEchoText(''); setEchoAudioBlob(null); if (isRecording) stopRecording(); }}
-                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: 'rgba(245, 230, 200, 0.3)', fontSize: 11, cursor: 'pointer' }}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--color-text-muted)', fontSize: 11, cursor: 'pointer' }}
                     >Cancel</button>
                   </div>
                   <button
                     onClick={submitEcho}
                     disabled={!newEchoText.trim() && !echoAudioBlob}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: (newEchoText.trim() || echoAudioBlob) ? 'rgba(245, 230, 200, 0.1)' : 'rgba(245, 230, 200, 0.03)', color: (newEchoText.trim() || echoAudioBlob) ? '#f5e6c8' : 'rgba(245, 230, 200, 0.3)', fontSize: 12, cursor: (newEchoText.trim() || echoAudioBlob) ? 'pointer' : 'default' }}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: (newEchoText.trim() || echoAudioBlob) ? 'var(--color-border-light)' : 'var(--color-input-bg)', color: (newEchoText.trim() || echoAudioBlob) ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: 12, cursor: (newEchoText.trim() || echoAudioBlob) ? 'pointer' : 'default' }}
                   >Save Echo</button>
                 </div>
               </div>
@@ -1764,10 +1764,10 @@ function DetailPanel({
                   onClick={() => setEchoModal(echo)}
                   style={{ padding: '12px 14px', background: 'rgba(245, 230, 200, 0.02)', border: '1px solid rgba(245, 230, 200, 0.06)', borderRadius: 8, marginBottom: 8, cursor: 'pointer' }}
                 >
-                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.7)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
                   </div>
-                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echo.phase) / 8} phaseName={echo.phaseName} /> {echo.phaseName}</span>
                     {echo.audio_path && <span>· 🎙</span>}
                   </div>
@@ -1775,7 +1775,7 @@ function DetailPanel({
               ))
             ) : (
               !showEchoInput && (
-                <div style={{ fontSize: 12, fontStyle: 'italic', color: 'rgba(245, 230, 200, 0.2)', textAlign: 'center', padding: '12px 0' }}>
+                <div style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--color-border-mid)', textAlign: 'center', padding: '12px 0' }}>
                   No echoes yet
                 </div>
               )
@@ -1793,7 +1793,7 @@ function DetailPanel({
               onBlur={() => onUpdateNote(noteText.trim() || null)}
               placeholder="A note to yourself... (saves when you stop writing)"
               rows={3}
-              style={{ width: '100%', background: 'rgba(245, 230, 200, 0.03)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 8, padding: '10px 12px', color: 'rgba(245, 230, 200, 0.8)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: 'var(--color-input-bg)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 8, padding: '10px 12px', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
         </div>
@@ -1809,7 +1809,7 @@ function DetailPanel({
           {isActive && (
             <button
               onClick={onReleaseLoop}
-              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 11, cursor: 'pointer' }}
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
             >Release</button>
           )}
           {(isClosed || isReleased) && (
@@ -1820,7 +1820,7 @@ function DetailPanel({
           )}
           <button
             onClick={isActive ? onCloseLoop : onReopenLoop}
-            style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', background: isActive ? '#34D399' : 'rgba(245, 230, 200, 0.1)', color: isActive ? '#040810' : '#f5e6c8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', background: isActive ? '#34D399' : 'var(--color-border-light)', color: isActive ? 'var(--color-bg)' : 'var(--color-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             {isActive ? 'Close Loop' : (isReleased ? 'Reopen' : 'Reopen Loop')}
           </button>
@@ -1837,8 +1837,8 @@ function DetailPanel({
             onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 520, background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245, 230, 200, 0.2)', margin: '0 auto 20px' }} />
-            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245, 230, 200, 0.3)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
+            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echoModal.phase) / 8} phaseName={echoModal.phaseName} /> {echoModal.phaseName}</span>
               <span>· {echoModal.zodiac}</span>
               <span>· day {echoModal.dayOfCycle}</span>
@@ -1852,11 +1852,11 @@ function DetailPanel({
               <audio controls src={modalAudioUrl} style={{ width: '100%', marginTop: 12 }} />
             )}
             {echoModal.audio_path && !modalAudioUrl && (
-              <div style={{ fontSize: 11, color: 'rgba(245, 230, 200, 0.3)', fontStyle: 'italic' }}>Loading audio...</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Loading audio...</div>
             )}
             <button
               onClick={() => setEchoModal(null)}
-              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'rgba(245, 230, 200, 0.5)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
+              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
             >Close</button>
           </div>
         </div>

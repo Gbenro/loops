@@ -66,7 +66,7 @@ export function PhaseTideBar({ lunarData }) {
     if (isImminent) return 'rgba(252, 180, 80, 0.9)';
     if (isApproaching) return 'rgba(252, 200, 120, 0.7)';
     return isThreshold
-      ? 'rgba(245, 230, 200, 0.6)'  // brighter for threshold
+      ? 'var(--color-text-dim)'  // brighter for threshold
       : 'rgba(201, 168, 76, 0.5)';   // amber for flow
   }, [isApproaching, isImminent, isThreshold]);
 
@@ -91,7 +91,7 @@ export function PhaseTideBar({ lunarData }) {
     <div style={{
       padding: '14px 20px',
       background: isThreshold
-        ? 'rgba(245, 230, 200, 0.04)'
+        ? 'var(--color-input-bg)'
         : 'rgba(201, 168, 76, 0.03)',
       borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
     }}>
@@ -107,11 +107,11 @@ export function PhaseTideBar({ lunarData }) {
           fontFamily: 'monospace',
           letterSpacing: '0.12em',
           color: isThreshold
-            ? 'rgba(245, 230, 200, 0.7)'
+            ? 'var(--color-text)'
             : 'rgba(201, 168, 76, 0.8)',
           padding: '3px 8px',
           background: isThreshold
-            ? 'rgba(245, 230, 200, 0.08)'
+            ? 'var(--color-input-hover)'
             : 'rgba(201, 168, 76, 0.1)',
           borderRadius: 4,
           fontWeight: isThreshold ? 600 : 400,
@@ -135,7 +135,7 @@ export function PhaseTideBar({ lunarData }) {
         fontSize: 10,
         fontFamily: "'Cormorant Garamond', serif",
         fontStyle: 'italic',
-        color: 'rgba(245, 230, 200, 0.4)',
+        color: 'var(--color-text-muted)',
         marginBottom: 10,
       }}>
         {subLabel}
@@ -146,7 +146,7 @@ export function PhaseTideBar({ lunarData }) {
         position: 'relative',
         height: 3,
         borderRadius: 2,
-        background: 'rgba(245, 230, 200, 0.08)',
+        background: 'var(--color-input-hover)',
         marginBottom: 10,
       }}>
         {/* Tick marks */}
@@ -159,7 +159,7 @@ export function PhaseTideBar({ lunarData }) {
               top: -2,
               width: 1,
               height: 7,
-              background: 'rgba(245, 230, 200, 0.1)',
+              background: 'var(--color-border-light)',
             }}
           />
         ))}
@@ -218,7 +218,7 @@ export function PhaseTideBar({ lunarData }) {
           letterSpacing: '0.1em',
           color: isApproaching
             ? 'rgba(252, 200, 120, 0.6)'
-            : 'rgba(245, 230, 200, 0.3)',
+            : 'var(--color-text-muted)',
         }}>
           {nextSymbol} {nextPhase?.toUpperCase()} →
         </span>

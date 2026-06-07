@@ -77,7 +77,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
         fontSize: 10,
         fontFamily: 'monospace',
         letterSpacing: '0.2em',
-        color: 'rgba(245, 230, 200, 0.4)',
+        color: 'var(--color-text-muted)',
         marginBottom: 40,
       }}>
         NEW MOON · {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()}
@@ -89,7 +89,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           width: '80%',
           maxWidth: 280,
           height: 32,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 40,
@@ -99,7 +99,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 24,
           fontStyle: 'italic',
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           textAlign: 'center',
           lineHeight: 1.5,
           marginBottom: 40,
@@ -124,7 +124,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           background: 'transparent',
           border: 'none',
           borderBottom: '1px solid rgba(245, 230, 200, 0.1)',
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           fontSize: 18,
           fontFamily: "'Cormorant Garamond', serif",
           lineHeight: 1.6,
@@ -143,14 +143,14 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           marginTop: 40,
           padding: '16px 40px',
           background: intention.trim()
-            ? 'rgba(245, 230, 200, 0.08)'
+            ? 'var(--color-input-hover)'
             : 'transparent',
           border: `1px solid ${intention.trim()
-            ? 'rgba(245, 230, 200, 0.2)'
-            : 'rgba(245, 230, 200, 0.08)'}`,
+            ? 'var(--color-border-mid)'
+            : 'var(--color-input-hover)'}`,
           borderRadius: 30,
           color: intention.trim()
-            ? '#f5e6c8'
+            ? 'var(--color-text)'
             : 'rgba(245, 230, 200, 0.25)',
           fontSize: 12,
           fontFamily: 'monospace',
@@ -170,7 +170,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           padding: '10px 20px',
           background: 'none',
           border: 'none',
-          color: 'rgba(245, 230, 200, 0.2)',
+          color: 'var(--color-border-mid)',
           fontSize: 10,
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
@@ -191,7 +191,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           fontFamily: "'Cormorant Garamond', serif",
           fontStyle: 'italic',
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.5)',
+          color: 'var(--color-focus)',
           lineHeight: 1.6,
         }}>
           The New Moon lasts until day {Math.ceil(1.85 - lunarData.age + 1)}. You can return.

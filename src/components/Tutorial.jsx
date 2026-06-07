@@ -151,7 +151,7 @@ const PHASE_DATA_ORIGINAL = [
     title: 'Waxing Crescent',
     plantStage: 'The Sprout',
     age: 3.7,
-    accent: '#74c69d',
+    accent: '#C9A84C',
     type: 'Flow',
     duration: '~5.55 days',
     illumination: '~25%',
@@ -167,7 +167,7 @@ const PHASE_DATA_ORIGINAL = [
     title: 'First Quarter',
     plantStage: 'The Stem',
     age: 7.38,
-    accent: '#f6ad55',
+    accent: '#F5E6C8',
     type: 'Threshold',
     duration: '~1.85 days',
     illumination: '50%',
@@ -286,7 +286,7 @@ const PHASE_DATA_V2 = [
     title: 'Waxing Crescent',
     plantStage: 'The First Light of Possibility',
     age: 3.7,
-    accent: '#74c69d',
+    accent: '#C9A84C',
     type: 'Flow',
     duration: '~5.55 days',
     illumination: '~25%',
@@ -302,7 +302,7 @@ const PHASE_DATA_V2 = [
     title: 'First Quarter',
     plantStage: 'Choosing the Path',
     age: 7.38,
-    accent: '#f6ad55',
+    accent: '#F5E6C8',
     type: 'Threshold',
     duration: '~1.85 days',
     illumination: '50%',
@@ -617,7 +617,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 32, fontWeight: 300,
-            color: '#f5e6c8', marginBottom: 20,
+            color: 'var(--color-text)', marginBottom: 20,
             textAlign: 'center', lineHeight: 1.2,
           }}>
             {step?.title}
@@ -639,7 +639,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
                   borderRadius: 24,
                   background: 'rgba(245,230,200,0.1)',
                   border: '1px solid rgba(245,230,200,0.2)',
-                  color: '#f5e6c8', fontSize: 15,
+                  color: 'var(--color-text)', fontSize: 15,
                   fontFamily: "'DM Sans', sans-serif",
                   cursor: 'pointer', letterSpacing: '0.05em',
                 }}
@@ -678,7 +678,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
                 borderRadius: 24,
                 background: 'rgba(245,230,200,0.1)',
                 border: '1px solid rgba(245,230,200,0.2)',
-                color: '#f5e6c8', fontSize: 15,
+                color: 'var(--color-text)', fontSize: 15,
                 fontFamily: "'DM Sans', sans-serif",
                 cursor: 'pointer',
               }}
@@ -721,7 +721,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 22, fontWeight: 300,
-            color: '#f5e6c8', marginBottom: 10,
+            color: 'var(--color-text)', marginBottom: 10,
           }}>
             {step?.title}
           </div>
@@ -782,7 +782,7 @@ function GuideMode({ step, guideStep, totalSteps, spotlightRect, isFullScreen, i
               style={{
                 padding: '8px 16px', borderRadius: 8, border: 'none',
                 background: 'rgba(245,230,200,0.1)',
-                color: '#f5e6c8', fontSize: 13, cursor: 'pointer',
+                color: 'var(--color-text)', fontSize: 13, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
               }}
             >
@@ -806,7 +806,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1001,
-        background: '#040810',
+        background: 'var(--color-bg)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '60px 32px 40px',
@@ -830,7 +830,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 32, fontWeight: 300,
-          color: '#f5e6c8', marginBottom: 16,
+          color: 'var(--color-text)', marginBottom: 16,
           textAlign: 'center', lineHeight: 1.2,
         }}>
           The eight phases
@@ -850,7 +850,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
             padding: '14px 32px', borderRadius: 24,
             background: 'rgba(245,230,200,0.1)',
             border: '1px solid rgba(245,230,200,0.2)',
-            color: '#f5e6c8', fontSize: 15,
+            color: 'var(--color-text)', fontSize: 15,
             fontFamily: "'DM Sans', sans-serif",
             cursor: 'pointer', letterSpacing: '0.05em',
           }}
@@ -864,7 +864,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1001,
-      background: '#040810',
+      background: 'var(--color-bg)',
       display: 'flex', flexDirection: 'column',
       paddingTop: 56, // below top bar
       overflow: 'hidden',
@@ -953,7 +953,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
             style={{
               padding: '10px 20px', borderRadius: 10, border: 'none',
               background: 'rgba(245,230,200,0.1)',
-              color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
+              color: 'var(--color-text)', fontSize: 14, cursor: 'pointer',
             }}
           >
             Next ›
@@ -964,7 +964,7 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
             style={{
               padding: '10px 20px', borderRadius: 10, border: 'none',
               background: 'rgba(245,230,200,0.1)',
-              color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
+              color: 'var(--color-text)', fontSize: 14, cursor: 'pointer',
             }}
           >
             Enter the app ✦
@@ -1158,7 +1158,7 @@ function NewMoonCard({ phase }) {
 // ─── Plant Illustration ───────────────────────────────────────────────────────
 
 function PlantIllustration({ phaseKey, accent }) {
-  const c = accent || '#f5e6c8';
+  const c = accent || 'var(--color-text)';
   const s = (op) => `${c}${Math.round(op * 255).toString(16).padStart(2, '0')}`;
 
   const groundLine = (y) => (
@@ -1374,7 +1374,7 @@ function PlantIllustration({ phaseKey, accent }) {
 
 function PhaseCard({ phase, moonAge }) {
   const isThreshold = phase.type === 'Threshold';
-  const typeColor = isThreshold ? '#f6ad55' : '#74c69d';
+  const typeColor = isThreshold ? '#F5E6C8' : '#C9A84C';
 
   return (
     <div style={{ paddingTop: 0, animation: 'tutSlideUp 0.35s ease' }}>
@@ -1429,8 +1429,8 @@ function PhaseCard({ phase, moonAge }) {
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '4px 12px', borderRadius: 20,
-          background: isThreshold ? 'rgba(246,173,85,0.1)' : 'rgba(116,198,157,0.1)',
-          border: `1px solid ${isThreshold ? 'rgba(246,173,85,0.25)' : 'rgba(116,198,157,0.25)'}`,
+          background: isThreshold ? 'rgba(245,230,200,0.1)' : 'rgba(201,168,76,0.1)',
+          border: `1px solid ${isThreshold ? 'rgba(245,230,200,0.25)' : 'rgba(201,168,76,0.25)'}`,
           color: typeColor, fontSize: 10,
           fontFamily: 'monospace', letterSpacing: '0.1em',
         }}>

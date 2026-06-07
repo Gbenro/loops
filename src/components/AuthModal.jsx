@@ -58,7 +58,7 @@ export function PrivacyNotice({ onAck }) {
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 22,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             marginBottom: 6,
           }}>
             Before you begin
@@ -112,10 +112,10 @@ export function PrivacyNotice({ onAck }) {
           style={{
             width: '100%',
             padding: '14px',
-            background: 'rgba(245, 230, 200, 0.08)',
+            background: 'var(--color-input-hover)',
             border: '1px solid rgba(245, 230, 200, 0.2)',
             borderRadius: 8,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             fontSize: 13,
             fontWeight: 500,
             cursor: 'pointer',
@@ -197,14 +197,14 @@ export function AuthModal({ onClose, onSuccess }) {
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 22,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
           }}>
             {mode === 'signin' ? 'Welcome Back' : 'Join the Cosmos'}
           </div>
           <div style={{
             fontSize: 11,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.4)',
+            color: 'var(--color-text-muted)',
             marginTop: 6,
           }}>
             {mode === 'signin' ? 'SIGN IN TO SYNC' : 'CREATE YOUR ACCOUNT'}
@@ -222,7 +222,7 @@ export function AuthModal({ onClose, onSuccess }) {
             background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(245, 230, 200, 0.15)',
             borderRadius: 8,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             fontSize: 14,
             fontWeight: 500,
             cursor: oauthLoading ? 'wait' : 'pointer',
@@ -249,14 +249,14 @@ export function AuthModal({ onClose, onSuccess }) {
           gap: 10,
           marginBottom: 20,
         }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(245, 230, 200, 0.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--color-input-hover)' }} />
           <span style={{
             fontSize: 10,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             letterSpacing: '0.1em',
           }}>OR</span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(245, 230, 200, 0.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--color-input-hover)' }} />
         </div>
 
         {/* Email/password form */}
@@ -271,10 +271,10 @@ export function AuthModal({ onClose, onSuccess }) {
               width: '100%',
               padding: '12px 14px',
               marginBottom: 10,
-              background: 'rgba(245, 230, 200, 0.03)',
+              background: 'var(--color-input-bg)',
               border: '1px solid rgba(245, 230, 200, 0.1)',
               borderRadius: 8,
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               fontSize: 14,
               outline: 'none',
             }}
@@ -290,10 +290,10 @@ export function AuthModal({ onClose, onSuccess }) {
               width: '100%',
               padding: '12px 14px',
               marginBottom: 14,
-              background: 'rgba(245, 230, 200, 0.03)',
+              background: 'var(--color-input-bg)',
               border: '1px solid rgba(245, 230, 200, 0.1)',
               borderRadius: 8,
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               fontSize: 14,
               outline: 'none',
             }}
@@ -319,10 +319,10 @@ export function AuthModal({ onClose, onSuccess }) {
             style={{
               width: '100%',
               padding: '12px',
-              background: loading ? 'rgba(245, 230, 200, 0.04)' : 'rgba(245, 230, 200, 0.08)',
+              background: loading ? 'var(--color-input-bg)' : 'var(--color-input-hover)',
               border: '1px solid rgba(245, 230, 200, 0.15)',
               borderRadius: 8,
-              color: 'rgba(245, 230, 200, 0.8)',
+              color: 'var(--color-text)',
               fontSize: 13,
               cursor: loading ? 'wait' : 'pointer',
               marginBottom: 14,
@@ -339,7 +339,7 @@ export function AuthModal({ onClose, onSuccess }) {
             style={{
               background: 'none',
               border: 'none',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
               fontSize: 12,
               cursor: 'pointer',
             }}

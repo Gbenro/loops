@@ -107,7 +107,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
             <div>
               <div style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 22, color: '#f5e6c8', marginBottom: 4,
+                fontSize: 22, color: 'var(--color-text)', marginBottom: 4,
               }}>
                 Mission Control
               </div>
@@ -154,7 +154,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
             { label: 'FEEDBACK', value: totalFeedback },
           ].map(s => (
             <div key={s.label} style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, color: '#f5e6c8', lineHeight: 1 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, color: 'var(--color-text)', lineHeight: 1 }}>
                 {s.value}
               </div>
               <div style={{ fontSize: 8, fontFamily: 'monospace', color: 'var(--text-secondary)', letterSpacing: '0.1em', marginTop: 4 }}>
@@ -203,7 +203,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                       borderRadius: 10,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, color: '#f5e6c8' }}>
+                        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, color: 'var(--color-text)' }}>
                           {u.email}
                         </div>
                         <span style={{
@@ -251,7 +251,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                         width: '100%', padding: '10px 12px', marginBottom: 8,
                         background: 'rgba(245,230,200,0.03)',
                         border: '1px solid rgba(245,230,200,0.1)',
-                        borderRadius: 8, color: '#f5e6c8', fontSize: 13, outline: 'none',
+                        borderRadius: 8, color: 'var(--color-text)', fontSize: 13, outline: 'none',
                         boxSizing: 'border-box',
                       }}
                     />
@@ -264,7 +264,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                         width: '100%', padding: '10px 12px', marginBottom: 10,
                         background: 'rgba(245,230,200,0.03)',
                         border: '1px solid rgba(245,230,200,0.1)',
-                        borderRadius: 8, color: '#f5e6c8', fontSize: 13, outline: 'none',
+                        borderRadius: 8, color: 'var(--color-text)', fontSize: 13, outline: 'none',
                         boxSizing: 'border-box',
                       }}
                     />
@@ -301,7 +301,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                         borderRadius: 8,
                       }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, color: '#f5e6c8', marginBottom: 2 }}>{entry.email}</div>
+                          <div style={{ fontSize: 13, color: 'var(--color-text)', marginBottom: 2 }}>{entry.email}</div>
                           {entry.note && (
                             <div style={{ fontSize: 10, color: 'rgba(245,230,200,0.4)' }}>{entry.note}</div>
                           )}

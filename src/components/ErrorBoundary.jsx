@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component {
       return (
         <div style={{
           minHeight: '100vh',
-          background: '#040810',
+          background: 'var(--color-bg)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -33,13 +33,13 @@ export class ErrorBoundary extends Component {
             <div style={{ fontSize: 48, marginBottom: 16 }}>☽</div>
             <h1 style={{
               fontSize: 24,
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               marginBottom: 12,
               fontWeight: 400,
             }}>Something went wrong</h1>
             <p style={{
               fontSize: 14,
-              color: 'rgba(245, 230, 200, 0.6)',
+              color: 'var(--color-text-dim)',
               marginBottom: 24,
               lineHeight: 1.5,
             }}>
@@ -49,10 +49,10 @@ export class ErrorBoundary extends Component {
               onClick={() => window.location.reload()}
               style={{
                 padding: '12px 24px',
-                background: 'rgba(245, 230, 200, 0.08)',
+                background: 'var(--color-input-hover)',
                 border: '1px solid rgba(245, 230, 200, 0.15)',
                 borderRadius: 8,
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 fontSize: 14,
                 cursor: 'pointer',
                 fontFamily: 'inherit',

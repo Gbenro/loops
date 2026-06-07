@@ -8,6 +8,7 @@ import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { LunaLogo } from './LunaLogo.jsx';
 import { useOnboarding } from './Onboarding/index.js';
 import { seedAllData, clearAllData } from '../lib/seedData.js';
+import { ThemeToggle } from './ThemeToggle.jsx';
 
 const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
 
@@ -238,7 +239,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         width: '100%',
         maxWidth: 520,
         maxHeight: '80vh',
-        background: '#0a0a12',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         display: 'flex',
@@ -259,7 +260,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             width: 36,
             height: 4,
             borderRadius: 2,
-            background: 'rgba(245, 230, 200, 0.2)',
+            background: 'var(--color-border-mid)',
           }} />
         </div>
 
@@ -280,7 +281,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 24,
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               cursor: 'default',
               userSelect: 'none',
             }}
@@ -312,11 +313,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 borderRadius: 10,
                 border: 'none',
                 background: activeSection === s.id
-                  ? 'rgba(245, 230, 200, 0.12)'
-                  : 'rgba(245, 230, 200, 0.04)',
+                  ? 'var(--color-border-mid)'
+                  : 'var(--color-input-bg)',
                 color: activeSection === s.id
-                  ? '#f5e6c8'
-                  : 'rgba(245, 230, 200, 0.4)',
+                  ? 'var(--color-text)'
+                  : 'var(--color-text-muted)',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -351,21 +352,21 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <div style={{
                     padding: 16,
                     borderRadius: 12,
-                    background: 'rgba(245, 230, 200, 0.04)',
+                    background: 'var(--color-input-bg)',
                     border: '1px solid rgba(245, 230, 200, 0.08)',
                     marginBottom: 16,
                   }}>
                     <div style={{
                       fontSize: 10,
                       fontFamily: 'monospace',
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 6,
                     }}>
                       SIGNED IN AS
                     </div>
                     <div style={{
                       fontSize: 14,
-                      color: '#f5e6c8',
+                      color: 'var(--color-text)',
                       wordBreak: 'break-all',
                     }}>
                       {user.email}
@@ -395,7 +396,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <div style={{
                     fontSize: 10,
                     fontFamily: 'monospace',
-                    color: 'rgba(245, 230, 200, 0.4)',
+                    color: 'var(--color-text-muted)',
                     marginBottom: 12,
                     letterSpacing: '0.1em',
                   }}>
@@ -410,8 +411,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       padding: 14,
                       borderRadius: 10,
                       border: '1px solid rgba(245, 230, 200, 0.15)',
-                      background: 'rgba(245, 230, 200, 0.04)',
-                      color: exporting ? 'rgba(245, 230, 200, 0.4)' : 'rgba(245, 230, 200, 0.7)',
+                      background: 'var(--color-input-bg)',
+                      color: exporting ? 'var(--color-text-muted)' : 'var(--color-text)',
                       fontSize: 13,
                       cursor: exporting ? 'wait' : 'pointer',
                       marginBottom: 10,
@@ -458,7 +459,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{
                   textAlign: 'center',
                   padding: 24,
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                 }}>
                   <p>Sign in to sync your data across devices</p>
                 </div>
@@ -515,8 +516,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       padding: 14,
                       borderRadius: 10,
                       border: '1px solid rgba(245, 230, 200, 0.15)',
-                      background: 'rgba(245, 230, 200, 0.04)',
-                      color: 'rgba(245, 230, 200, 0.6)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-dim)',
                       fontSize: 13,
                       cursor: 'pointer',
                       marginBottom: 10,
@@ -547,7 +548,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             <div>
               <div style={{
                 fontSize: 13,
-                color: 'rgba(245, 230, 200, 0.6)',
+                color: 'var(--color-text-dim)',
                 marginBottom: 20,
                 lineHeight: 1.6,
               }}>
@@ -558,7 +559,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{
                   textAlign: 'center',
                   padding: 24,
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                   fontStyle: 'italic',
                 }}>
                   Sign in to save your zodiac signs
@@ -567,7 +568,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{
                   textAlign: 'center',
                   padding: 24,
-                  color: 'rgba(245, 230, 200, 0.4)',
+                  color: 'var(--color-text-muted)',
                 }}>
                   Loading...
                 </div>
@@ -586,7 +587,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <div style={{
                     fontSize: 11,
                     fontFamily: "'Cormorant Garamond', serif",
-                    color: 'rgba(245, 230, 200, 0.4)',
+                    color: 'var(--color-text-muted)',
                     marginBottom: 16,
                     fontStyle: 'italic',
                   }}>
@@ -607,7 +608,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       display: 'block',
                       fontSize: 10,
                       fontFamily: 'monospace',
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 6,
                     }}>
                       ☉ SUN SIGN (your core identity)
@@ -620,8 +621,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         padding: 12,
                         borderRadius: 8,
                         border: '1px solid rgba(245, 230, 200, 0.15)',
-                        background: 'rgba(245, 230, 200, 0.03)',
-                        color: '#f5e6c8',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-text)',
                         fontSize: 14,
                       }}
                     >
@@ -638,7 +639,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       display: 'block',
                       fontSize: 10,
                       fontFamily: 'monospace',
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 6,
                     }}>
                       ☽ MOON SIGN (your emotional nature)
@@ -651,8 +652,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         padding: 12,
                         borderRadius: 8,
                         border: '1px solid rgba(245, 230, 200, 0.15)',
-                        background: 'rgba(245, 230, 200, 0.03)',
-                        color: '#f5e6c8',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-text)',
                         fontSize: 14,
                       }}
                     >
@@ -669,7 +670,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       display: 'block',
                       fontSize: 10,
                       fontFamily: 'monospace',
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 6,
                     }}>
                       ↑ RISING SIGN (optional · how others see you)
@@ -682,8 +683,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         padding: 12,
                         borderRadius: 8,
                         border: '1px solid rgba(245, 230, 200, 0.15)',
-                        background: 'rgba(245, 230, 200, 0.03)',
-                        color: '#f5e6c8',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-text)',
                         fontSize: 14,
                       }}
                     >
@@ -710,7 +711,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       display: 'block',
                       fontSize: 10,
                       fontFamily: 'monospace',
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                       marginBottom: 6,
                     }}>
                       🌍 HEMISPHERE (for accurate seasons)
@@ -723,8 +724,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         padding: 12,
                         borderRadius: 8,
                         border: '1px solid rgba(245, 230, 200, 0.15)',
-                        background: 'rgba(245, 230, 200, 0.03)',
-                        color: '#f5e6c8',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-text)',
                         fontSize: 14,
                       }}
                     >
@@ -742,10 +743,10 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       borderRadius: 10,
                       border: 'none',
                       background: saving
-                        ? 'rgba(245, 230, 200, 0.1)'
+                        ? 'var(--color-border-light)'
                         : 'rgba(167, 139, 250, 0.2)',
                       color: saving
-                        ? 'rgba(245, 230, 200, 0.4)'
+                        ? 'var(--color-text-muted)'
                         : '#A78BFA',
                       fontSize: 13,
                       fontWeight: 500,
@@ -762,7 +763,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* Privacy / Encryption Section */}
           {activeSection === 'privacy' && (
             <div>
-              <div style={{ fontSize: 13, color: 'rgba(245, 230, 200, 0.6)', marginBottom: 20, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13, color: 'var(--color-text-dim)', marginBottom: 20, lineHeight: 1.6 }}>
                 End-to-end encryption protects your loops and echoes. Only your passphrase can decrypt them — even we can&apos;t read them.
               </div>
 
@@ -773,14 +774,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   ? 'rgba(52, 211, 153, 0.08)'
                   : encStatus === 'locked'
                   ? 'rgba(245, 200, 100, 0.08)'
-                  : 'rgba(245, 230, 200, 0.04)',
+                  : 'var(--color-input-bg)',
                 border: `1px solid ${encStatus === 'unlocked'
                   ? 'rgba(52, 211, 153, 0.2)'
                   : encStatus === 'locked'
                   ? 'rgba(245, 200, 100, 0.2)'
-                  : 'rgba(245, 230, 200, 0.08)'}`,
+                  : 'var(--color-input-hover)'}`,
               }}>
-                <div style={{ fontSize: 12, color: encStatus === 'unlocked' ? 'rgba(52, 211, 153, 0.9)' : encStatus === 'locked' ? 'rgba(245, 200, 100, 0.9)' : 'rgba(245, 230, 200, 0.5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 12, color: encStatus === 'unlocked' ? 'rgba(52, 211, 153, 0.9)' : encStatus === 'locked' ? 'rgba(245, 200, 100, 0.9)' : 'var(--color-focus)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>●</span>
                   <span>{encStatus === 'unlocked' ? 'Encryption active — content is decrypted this session' : encStatus === 'locked' ? 'Encryption enabled — locked this session' : 'Encryption not enabled'}</span>
                 </div>
@@ -789,7 +790,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {/* Setup form (disabled state) */}
               {encStatus === 'disabled' && user && (
                 <div>
-                  <div style={{ fontSize: 12, color: 'rgba(245, 230, 200, 0.5)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You&apos;ll need it every time you open the app.</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-focus)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You&apos;ll need it every time you open the app.</div>
                   <div style={{ padding: '10px 12px', marginBottom: 12, background: 'rgba(252, 129, 129, 0.08)', border: '1px solid rgba(252, 129, 129, 0.2)', borderRadius: 8, fontSize: 12, color: 'rgba(252, 129, 129, 0.8)', lineHeight: 1.6 }}>
                     If you forget your passphrase, your encrypted content cannot be recovered — not by you, not by us. There is no reset. Write it down somewhere safe.
                   </div>
@@ -798,14 +799,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     placeholder="Passphrase"
                     value={encPassphrase}
                     onChange={e => { setEncPassphrase(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
                   />
                   <input
                     type="password"
                     placeholder="Confirm passphrase"
                     value={encConfirm}
                     onChange={e => { setEncConfirm(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: '#f5e6c8', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
                   />
                   {encError && <div style={{ padding: '8px 12px', marginBottom: 12, background: 'rgba(252,129,129,0.1)', border: '1px solid rgba(252,129,129,0.3)', borderRadius: 6, color: 'rgba(252,129,129,0.9)', fontSize: 12 }}>{encError}</div>}
                   <button
@@ -823,7 +824,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }
                       setEncLoading(false);
                     }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'rgba(245,230,200,0.08)', color: '#f5e6c8', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'rgba(245,230,200,0.08)', color: 'var(--color-text)', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
                   >
                     {encLoading ? 'Setting up...' : 'Enable encryption'}
                   </button>
@@ -865,7 +866,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             <div>
               <div style={{
                 fontSize: 13,
-                color: 'rgba(245, 230, 200, 0.6)',
+                color: 'var(--color-text-dim)',
                 marginBottom: 20,
                 lineHeight: 1.6,
               }}>
@@ -878,10 +879,10 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 borderRadius: 12,
                 background: notifPrefs.enabled
                   ? 'rgba(52, 211, 153, 0.08)'
-                  : 'rgba(245, 230, 200, 0.04)',
+                  : 'var(--color-input-bg)',
                 border: `1px solid ${notifPrefs.enabled
                   ? 'rgba(52, 211, 153, 0.2)'
-                  : 'rgba(245, 230, 200, 0.08)'}`,
+                  : 'var(--color-input-hover)'}`,
                 marginBottom: 16,
               }}>
                 <div style={{
@@ -892,14 +893,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <div>
                     <div style={{
                       fontSize: 14,
-                      color: '#f5e6c8',
+                      color: 'var(--color-text)',
                       marginBottom: 4,
                     }}>
                       Enable Notifications
                     </div>
                     <div style={{
                       fontSize: 11,
-                      color: 'rgba(245, 230, 200, 0.4)',
+                      color: 'var(--color-text-muted)',
                     }}>
                       {canNotify() ? 'Notifications allowed' : 'Permission needed'}
                     </div>
@@ -936,7 +937,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       border: 'none',
                       background: notifPrefs.enabled
                         ? 'rgba(52, 211, 153, 0.4)'
-                        : 'rgba(245, 230, 200, 0.15)',
+                        : 'var(--color-border-mid)',
                       cursor: 'pointer',
                       position: 'relative',
                     }}
@@ -945,7 +946,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       width: 22,
                       height: 22,
                       borderRadius: 11,
-                      background: notifPrefs.enabled ? '#34D399' : 'rgba(245, 230, 200, 0.5)',
+                      background: notifPrefs.enabled ? '#34D399' : 'var(--color-focus)',
                       position: 'absolute',
                       top: 3,
                       left: notifPrefs.enabled ? 25 : 3,
@@ -961,7 +962,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <div style={{
                     fontSize: 10,
                     fontFamily: 'monospace',
-                    color: 'rgba(245, 230, 200, 0.4)',
+                    color: 'var(--color-text-muted)',
                     marginBottom: 12,
                     letterSpacing: '0.1em',
                   }}>
@@ -1019,15 +1020,34 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{
                   fontSize: 11,
                   fontFamily: 'monospace',
-                  color: 'rgba(245, 230, 200, 0.4)',
+                  color: 'var(--color-text-muted)',
                 }}>
                   v1.0.0
                 </div>
               </div>
 
+              {/* Theme Toggle */}
+              <div style={{
+                marginBottom: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <div style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: 'var(--color-text-muted)',
+                }}>
+                  THEME
+                </div>
+                <ThemeToggle />
+              </div>
+
               <div style={{
                 fontSize: 13,
-                color: 'rgba(245, 230, 200, 0.6)',
+                color: 'var(--color-text-dim)',
                 lineHeight: 1.8,
                 textAlign: 'center',
               }}>
@@ -1041,13 +1061,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 marginTop: 24,
                 padding: 16,
                 borderRadius: 12,
-                background: 'rgba(245, 230, 200, 0.03)',
+                background: 'var(--color-input-bg)',
                 border: '1px solid rgba(245, 230, 200, 0.06)',
               }}>
                 <div style={{
                   fontSize: 10,
                   fontFamily: 'monospace',
-                  color: 'rgba(245, 230, 200, 0.3)',
+                  color: 'var(--color-text-muted)',
                   textAlign: 'center',
                 }}>
                   DATA STORED LOCALLY + CLOUD (WHEN SIGNED IN)
@@ -1114,11 +1134,11 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   rows={4}
                   style={{
                     width: '100%',
-                    background: 'rgba(245, 230, 200, 0.03)',
+                    background: 'var(--color-input-bg)',
                     border: '1px solid rgba(245, 230, 200, 0.1)',
                     borderRadius: 10,
                     padding: '12px 14px',
-                    color: '#f5e6c8',
+                    color: 'var(--color-text)',
                     fontSize: 13,
                     fontFamily: "'Cormorant Garamond', serif",
                     lineHeight: 1.6,
@@ -1139,13 +1159,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     background: feedbackSent
                       ? 'rgba(52, 211, 153, 0.1)'
                       : feedbackText.trim()
-                        ? 'rgba(245, 230, 200, 0.08)'
+                        ? 'var(--color-input-hover)'
                         : 'transparent',
                     color: feedbackSent
                       ? 'rgba(52, 211, 153, 0.9)'
                       : feedbackText.trim()
-                        ? '#f5e6c8'
-                        : 'rgba(245, 230, 200, 0.3)',
+                        ? 'var(--color-text)'
+                        : 'var(--color-text-muted)',
                     fontSize: 12,
                     fontFamily: 'monospace',
                     cursor: feedbackText.trim() && !feedbackSending ? 'pointer' : 'default',
@@ -1183,7 +1203,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
       <div>
         <div style={{
           fontSize: 13,
-          color: 'rgba(245, 230, 200, 0.8)',
+          color: 'var(--color-text)',
         }}>
           {label}
         </div>
@@ -1204,7 +1224,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
           border: 'none',
           background: checked
             ? 'rgba(167, 139, 250, 0.4)'
-            : 'rgba(245, 230, 200, 0.1)',
+            : 'var(--color-border-light)',
           cursor: 'pointer',
           position: 'relative',
         }}
@@ -1213,7 +1233,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
           width: 18,
           height: 18,
           borderRadius: 9,
-          background: checked ? '#A78BFA' : 'rgba(245, 230, 200, 0.4)',
+          background: checked ? '#A78BFA' : 'var(--color-text-muted)',
           position: 'absolute',
           top: 3,
           left: checked ? 23 : 3,

@@ -49,6 +49,8 @@ export function LunaLogo({ variant = 'icon', width, className, style }) {
         width={w} height={h}
         className={className}
         style={style}
+        role="img"
+        aria-label="Luna Loops logo"
       >
         {defs}
         {icon(90, 90, 30, 3.5)}
@@ -66,6 +68,8 @@ export function LunaLogo({ variant = 'icon', width, className, style }) {
       width={w} height={h}
       className={className}
       style={style}
+      role="img"
+      aria-label="Luna Loops logo"
     >
       {defs}
       <g transform="translate(0, -42)">

@@ -91,7 +91,7 @@ export function DeepCosmicSheet({
             width: 36,
             height: 4,
             borderRadius: 2,
-            background: 'rgba(245, 230, 200, 0.2)',
+            background: 'var(--color-border-mid)',
           }} />
         </div>
 
@@ -112,11 +112,11 @@ export function DeepCosmicSheet({
                 borderRadius: 20,
                 border: 'none',
                 background: activeSection === s.id
-                  ? 'rgba(245, 230, 200, 0.15)'
-                  : 'rgba(245, 230, 200, 0.05)',
+                  ? 'var(--color-border-mid)'
+                  : 'var(--color-input-bg)',
                 color: activeSection === s.id
-                  ? '#f5e6c8'
-                  : 'rgba(245, 230, 200, 0.4)',
+                  ? 'var(--color-text)'
+                  : 'var(--color-text-muted)',
                 fontSize: 11,
                 fontFamily: 'monospace',
                 letterSpacing: '0.05em',
@@ -225,7 +225,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 8,
         display: 'flex',
         alignItems: 'center',
@@ -237,7 +237,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
 
       <div style={{
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
         letterSpacing: '0.1em',
         marginBottom: 24,
@@ -248,7 +248,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
       {phrasesLoading ? (
         <div style={{
           height: 60,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -272,10 +272,10 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
           <span key={kw} style={{
             padding: '6px 12px',
             borderRadius: 16,
-            background: 'rgba(245, 230, 200, 0.08)',
+            background: 'var(--color-input-hover)',
             border: '1px solid rgba(245, 230, 200, 0.1)',
             fontSize: 11,
-            color: 'rgba(245, 230, 200, 0.7)',
+            color: 'var(--color-text)',
             fontFamily: 'monospace',
           }}>
             {kw}
@@ -287,12 +287,12 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
       <div style={{
         padding: 20,
         borderRadius: 12,
-        background: 'rgba(245, 230, 200, 0.04)',
+        background: 'var(--color-input-bg)',
         border: '1px solid rgba(245, 230, 200, 0.08)',
       }}>
         <div style={{
           fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
           fontFamily: 'monospace',
           marginBottom: 8,
         }}>
@@ -302,7 +302,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 18,
           fontStyle: 'italic',
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
         }}>
           &ldquo;{content.asks}&rdquo;
         </div>
@@ -323,7 +323,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 8,
       }}>
         {monthInfo.name}
@@ -331,7 +331,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
 
       <div style={{
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
         marginBottom: 24,
       }}>
@@ -341,7 +341,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
       {phrasesLoading ? (
         <div style={{
           height: 60,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -385,7 +385,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
                   width: 4,
                   height: 4,
                   borderRadius: '50%',
-                  background: '#f5e6c8',
+                  background: 'var(--color-text)',
                 }} />
               )}
             </div>
@@ -397,13 +397,13 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
       <div style={{
         height: 4,
         borderRadius: 2,
-        background: 'rgba(245, 230, 200, 0.1)',
+        background: 'var(--color-border-light)',
         overflow: 'hidden',
       }}>
         <div style={{
           width: `${(lunarData.age / 29.53) * 100}%`,
           height: '100%',
-          background: '#f5e6c8',
+          background: 'var(--color-text)',
           borderRadius: 2,
         }} />
       </div>
@@ -413,7 +413,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         justifyContent: 'space-between',
         marginTop: 12,
         fontSize: 10,
-        color: 'rgba(245, 230, 200, 0.4)',
+        color: 'var(--color-text-muted)',
         fontFamily: 'monospace',
       }}>
         <span>{lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}</span>
@@ -434,7 +434,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 8,
       }}>
         {info.symbol} Moon in {zodiac.sign}
@@ -442,7 +442,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
 
       <div style={{
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
         marginBottom: 24,
       }}>
@@ -452,7 +452,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
       {phrasesLoading ? (
         <div style={{
           height: 60,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -490,12 +490,12 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
         <div style={{
           padding: 20,
           borderRadius: 12,
-          background: 'rgba(245, 230, 200, 0.04)',
+          background: 'var(--color-input-bg)',
           border: '1px solid rgba(245, 230, 200, 0.08)',
         }}>
           <div style={{
             fontSize: 10,
-            color: 'rgba(245, 230, 200, 0.4)',
+            color: 'var(--color-text-muted)',
             fontFamily: 'monospace',
             marginBottom: 8,
           }}>
@@ -504,7 +504,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
           <div style={{
             fontSize: 14,
             lineHeight: 1.7,
-            color: 'rgba(245, 230, 200, 0.8)',
+            color: 'var(--color-text)',
           }}>
             {pickZodiac(info.moonIn)}
           </div>
@@ -526,7 +526,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 8,
       }}>
         {solarData.season.name}
@@ -534,7 +534,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
 
       <div style={{
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
         marginBottom: 24,
       }}>
@@ -545,7 +545,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
       {phrasesLoading ? (
         <div style={{
           height: 40,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -566,13 +566,13 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
       <div style={{
         padding: 20,
         borderRadius: 12,
-        background: 'rgba(245, 230, 200, 0.04)',
+        background: 'var(--color-input-bg)',
         border: '1px solid rgba(245, 230, 200, 0.08)',
         marginBottom: 24,
       }}>
         <div style={{
           fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
           fontFamily: 'monospace',
           marginBottom: 8,
         }}>
@@ -581,14 +581,14 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 20,
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           marginBottom: 8,
         }}>
           {solarData.season.nextEvent}
         </div>
         <div style={{
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.7)',
+          color: 'var(--color-text)',
           fontStyle: 'italic',
         }}>
           {solarData.season.meaning}
@@ -599,7 +599,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
       <div style={{
         height: 4,
         borderRadius: 2,
-        background: 'rgba(245, 230, 200, 0.1)',
+        background: 'var(--color-border-light)',
         overflow: 'hidden',
       }}>
         <div style={{
@@ -613,7 +613,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
         textAlign: 'center',
         marginTop: 8,
         fontSize: 10,
-        color: 'rgba(245, 230, 200, 0.4)',
+        color: 'var(--color-text-muted)',
         fontFamily: 'monospace',
       }}>
         {solarData.season.progress}% THROUGH {solarData.season.name.toUpperCase()}
@@ -637,7 +637,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 24,
       }}>
         The Weave
@@ -661,7 +661,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
       }}>
         <div style={{
           fontSize: 10,
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
           fontFamily: 'monospace',
           marginBottom: 12,
         }}>
@@ -670,7 +670,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
         {phrasesLoading ? (
           <div style={{
             height: 80,
-            background: 'rgba(245, 230, 200, 0.1)',
+            background: 'var(--color-border-light)',
             borderRadius: 4,
             opacity: 0.3,
           }} />
@@ -691,7 +691,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
         display: 'flex',
         gap: 16,
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
       }}>
         <div>{lunarData.daysToNew}D TO NEW MOON</div>
@@ -706,10 +706,10 @@ function Pill({ children }) {
     <span style={{
       padding: '6px 14px',
       borderRadius: 20,
-      background: 'rgba(245, 230, 200, 0.08)',
+      background: 'var(--color-input-hover)',
       border: '1px solid rgba(245, 230, 200, 0.12)',
       fontSize: 12,
-      color: '#f5e6c8',
+      color: 'var(--color-text)',
     }}>
       {children}
     </span>
@@ -785,7 +785,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 16,
       }}>
         Your Sky
@@ -795,7 +795,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
       {phrasesLoading ? (
         <div style={{
           height: 40,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -820,7 +820,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
             style={{
               padding: 16,
               borderRadius: 12,
-              background: 'rgba(245, 230, 200, 0.04)',
+              background: 'var(--color-input-bg)',
               border: '1px solid rgba(245, 230, 200, 0.08)',
             }}
           >
@@ -834,13 +834,13 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
               <span style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 18,
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
               }}>
                 {p.sign} {p.label}
               </span>
               <span style={{
                 fontSize: 10,
-                color: 'rgba(245, 230, 200, 0.4)',
+                color: 'var(--color-text-muted)',
                 fontFamily: 'monospace',
                 marginLeft: 'auto',
               }}>
@@ -850,7 +850,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
             <p style={{
               fontSize: 13,
               lineHeight: 1.6,
-              color: 'rgba(245, 230, 200, 0.7)',
+              color: 'var(--color-text)',
               margin: 0,
             }}>
               {PLACEMENT_DESCRIPTIONS[p.key]?.[p.sign] || 'Your cosmic placement.'}
@@ -862,7 +862,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
       {/* Active Resonances */}
       <div style={{
         fontSize: 10,
-        color: 'rgba(245, 230, 200, 0.4)',
+        color: 'var(--color-text-muted)',
         fontFamily: 'monospace',
         marginBottom: 12,
       }}>
@@ -872,7 +872,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
       {resonances.length === 0 ? (
         <p style={{
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.6)',
+          color: 'var(--color-text-dim)',
           fontStyle: 'italic',
         }}>
           A quiet cosmic day. The sky makes no strong aspects to your chart.
@@ -887,10 +887,10 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
                 borderRadius: 12,
                 background: r.strength === 'HIGH'
                   ? 'rgba(167, 139, 250, 0.1)'
-                  : 'rgba(245, 230, 200, 0.04)',
+                  : 'var(--color-input-bg)',
                 border: `1px solid ${r.strength === 'HIGH'
                   ? 'rgba(167, 139, 250, 0.25)'
-                  : 'rgba(245, 230, 200, 0.08)'}`,
+                  : 'var(--color-input-hover)'}`,
               }}
             >
               {r.strength === 'HIGH' && (
@@ -906,7 +906,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
               <div style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: 16,
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 marginBottom: 4,
               }}>
                 {r.description}
@@ -957,7 +957,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
         fontFamily: "'Cormorant Garamond', serif",
         fontSize: 28,
         fontWeight: 600,
-        color: '#f5e6c8',
+        color: 'var(--color-text)',
         marginBottom: 8,
       }}>
         Background Arcs
@@ -965,7 +965,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
 
       <div style={{
         fontSize: 11,
-        color: 'rgba(245, 230, 200, 0.5)',
+        color: 'var(--color-focus)',
         fontFamily: 'monospace',
         marginBottom: 16,
       }}>
@@ -976,7 +976,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
       {phrasesLoading ? (
         <div style={{
           height: 40,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           borderRadius: 4,
           opacity: 0.3,
           marginBottom: 24,
@@ -1031,7 +1031,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
         <div style={{
           height: 3,
           borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-border-light)',
           overflow: 'hidden',
           marginBottom: 14,
         }}>
@@ -1064,7 +1064,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
                   background: isCurrent
                     ? 'rgba(251, 191, 36, 0.15)'
                     : isPassed
-                      ? 'rgba(245, 230, 200, 0.08)'
+                      ? 'var(--color-input-hover)'
                       : 'transparent',
                   border: isNext
                     ? '1px dashed rgba(251, 191, 36, 0.4)'
@@ -1072,7 +1072,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
                   color: isCurrent
                     ? '#FBBF24'
                     : isPassed
-                      ? 'rgba(245, 230, 200, 0.5)'
+                      ? 'var(--color-focus)'
                       : 'rgba(245, 230, 200, 0.25)',
                 }}
               >

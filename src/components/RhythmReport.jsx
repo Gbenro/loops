@@ -162,7 +162,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
         </div>
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 20, fontWeight: 300, color: '#f5e6c8',
+          fontSize: 20, fontWeight: 300, color: 'var(--color-text)',
         }}>
           {rhythm.name}
         </div>

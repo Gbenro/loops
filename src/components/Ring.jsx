@@ -49,7 +49,7 @@ export function Ring({
           cy={size/2}
           r={r}
           fill="none"
-          stroke={isCycle ? 'rgba(245, 230, 200, 0.12)' : 'rgba(245, 230, 200, 0.08)'}
+          stroke={isCycle ? 'rgba(245, 230, 200, 0.12)' : 'var(--color-input-hover)'}
           strokeWidth={stroke}
           strokeDasharray={isCycle ? '2 4' : 'none'}  // Dotted for cycle
         />

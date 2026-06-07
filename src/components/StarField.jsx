@@ -65,7 +65,7 @@ export function ShootingStar({ active = false }) {
         width: 2,
         height: 2,
         borderRadius: '50%',
-        background: '#f5e6c8',
+        background: 'var(--color-text)',
         boxShadow: '-30px 0 15px 1px rgba(245, 230, 200, 0.3)',
         animation: 'shooting 1s ease-in-out forwards',
       }}

@@ -88,17 +88,17 @@ export function RhythmCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 18, fontWeight: 300, color: '#f5e6c8',
+            fontSize: 18, fontWeight: 300, color: 'var(--color-text)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {rhythm.name}
           </div>
           <div style={{
             fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.12em',
-            color: rhythm.scope === 'ongoing' ? '#74c69d' : 'rgba(245,230,200,0.3)',
+            color: rhythm.scope === 'ongoing' ? '#C9A84C' : 'rgba(245,230,200,0.3)',
             padding: '2px 6px', borderRadius: 4,
             border: rhythm.scope === 'ongoing'
-              ? '1px solid rgba(116,198,157,0.2)'
+              ? '1px solid rgba(201,168,76,0.2)'
               : '1px solid rgba(245,230,200,0.08)',
             flexShrink: 0,
           }}>

@@ -48,7 +48,7 @@ function CreateSheet({ onSave, onClose }) {
       }}>
         <div style={{ width: 36, height: 3, borderRadius: 2, background: 'rgba(245,230,200,0.15)', margin: '0 auto 20px' }} />
 
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: '#f5e6c8', marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: 'var(--color-text)', marginBottom: 20 }}>
           New rhythm
         </div>
 
@@ -63,7 +63,7 @@ function CreateSheet({ onSave, onClose }) {
             width: '100%', padding: '13px 14px', marginBottom: 16,
             background: 'rgba(245,230,200,0.04)',
             border: '1px solid rgba(245,230,200,0.1)',
-            borderRadius: 10, color: '#f5e6c8', fontSize: 15, outline: 'none',
+            borderRadius: 10, color: 'var(--color-text)', fontSize: 15, outline: 'none',
             fontFamily: "'DM Sans', sans-serif",
             boxSizing: 'border-box',
           }}
@@ -85,7 +85,7 @@ function CreateSheet({ onSave, onClose }) {
                   border: scope === v ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.06)',
                 }}
               >
-                <div style={{ fontSize: 13, color: scope === v ? '#f5e6c8' : 'rgba(245,230,200,0.5)', marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ fontSize: 13, color: scope === v ? 'var(--color-text)' : 'rgba(245,230,200,0.5)', marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
                   {l}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
@@ -103,7 +103,7 @@ function CreateSheet({ onSave, onClose }) {
             width: '100%', padding: '14px', borderRadius: 12,
             background: canSave ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.03)',
             border: canSave ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
-            color: canSave ? '#f5e6c8' : 'var(--text-disabled)',
+            color: canSave ? 'var(--color-text)' : 'var(--text-disabled)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
           }}

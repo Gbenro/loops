@@ -53,7 +53,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
       }}>
         <div style={{ width: 36, height: 3, borderRadius: 2, background: 'rgba(245,230,200,0.15)', margin: '0 auto 20px' }} />
 
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: '#f5e6c8', marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: 'var(--color-text)', marginBottom: 20 }}>
           Set intention
         </div>
 
@@ -66,7 +66,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
               style={{
                 flex: 1, padding: '9px 4px', borderRadius: 8,
                 background: mode === v ? 'rgba(245,230,200,0.1)' : 'rgba(245,230,200,0.03)',
-                color: mode === v ? '#f5e6c8' : 'rgba(245,230,200,0.35)',
+                color: mode === v ? 'var(--color-text)' : 'rgba(245,230,200,0.35)',
                 fontSize: 11, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
                 border: mode === v ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
@@ -86,7 +86,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
                 style={{
                   padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
                   background: whole === lv ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.02)',
-                  color: whole === lv ? '#f5e6c8' : 'rgba(245,230,200,0.5)',
+                  color: whole === lv ? 'var(--color-text)' : 'rgba(245,230,200,0.5)',
                   fontSize: 14, textAlign: 'left',
                   border: whole === lv ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.06)',
                   fontFamily: "'DM Sans', sans-serif",
@@ -155,7 +155,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
             width: '100%', padding: '14px', borderRadius: 12,
             background: 'rgba(245,230,200,0.08)',
             border: '1px solid rgba(245,230,200,0.15)',
-            color: '#f5e6c8', fontSize: 14, cursor: 'pointer',
+            color: 'var(--color-text)', fontSize: 14, cursor: 'pointer',
             fontFamily: "'DM Sans', sans-serif",
           }}
         >
@@ -241,13 +241,13 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
     : [];
 
   if (loading) return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: '#040810', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: 'rgba(245,230,200,0.3)', fontSize: 13 }}>Loading…</div>
     </div>
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: '#040810', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'var(--color-bg)', overflowY: 'auto' }}>
       {/* Nav */}
       <div style={{
         position: 'sticky', top: 0,
@@ -272,7 +272,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         <div style={{ padding: '16px 0 24px' }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 28, fontWeight: 300, color: '#f5e6c8',
+            fontSize: 28, fontWeight: 300, color: 'var(--color-text)',
             marginBottom: 8,
           }}>
             {rhythm.name}

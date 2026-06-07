@@ -78,7 +78,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
           </div>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 22, fontWeight: 300, color: '#f5e6c8',
+            fontSize: 22, fontWeight: 300, color: 'var(--color-text)',
           }}>
             {rhythmName}
           </div>
@@ -120,7 +120,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
                 }} />
                 <div>
                   <div style={{
-                    fontSize: 14, color: isSelected ? '#f5e6c8' : 'rgba(245,230,200,0.6)',
+                    fontSize: 14, color: isSelected ? 'var(--color-text)' : 'rgba(245,230,200,0.6)',
                     fontWeight: isSelected ? 500 : 400,
                   }}>
                     {l.label}
@@ -146,7 +146,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
             width: '100%', padding: '12px 14px',
             background: 'rgba(245,230,200,0.03)',
             border: '1px solid rgba(245,230,200,0.08)',
-            borderRadius: 10, color: '#f5e6c8',
+            borderRadius: 10, color: 'var(--color-text)',
             fontSize: 13, resize: 'none', outline: 'none',
             fontFamily: "'DM Sans', sans-serif",
             boxSizing: 'border-box',
@@ -162,7 +162,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
             width: '100%', padding: '14px',
             borderRadius: 12,
             background: canSave ? `${meta.accent}22` : 'rgba(245,230,200,0.05)',
-            color: canSave ? '#f5e6c8' : 'var(--text-disabled)',
+            color: canSave ? 'var(--color-text)' : 'var(--text-disabled)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
             border: canSave ? `1px solid ${meta.accent}33` : '1px solid rgba(245,230,200,0.05)',

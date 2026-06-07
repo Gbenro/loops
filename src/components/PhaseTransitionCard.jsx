@@ -106,7 +106,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
       <div style={{
         padding: '14px 16px',
         borderRadius: '14px 14px 0 0',
-        background: 'rgba(245, 230, 200, 0.03)',
+        background: 'var(--color-input-bg)',
         border: '1px solid rgba(245, 230, 200, 0.08)',
         borderBottom: 'none',
       }}>
@@ -121,7 +121,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             fontSize: 9,
             fontFamily: 'monospace',
             letterSpacing: '0.1em',
-            color: 'rgba(245, 230, 200, 0.5)',
+            color: 'var(--color-focus)',
           }}>
             {phase.name.toUpperCase()} CLOSING
           </span>
@@ -131,7 +131,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 13,
           fontStyle: 'italic',
-          color: 'rgba(245, 230, 200, 0.6)',
+          color: 'var(--color-text-dim)',
           lineHeight: 1.5,
           marginBottom: hasActivity ? 12 : 0,
         }}>
@@ -148,9 +148,9 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
               <span style={{
                 fontSize: 10,
                 fontFamily: 'monospace',
-                color: 'rgba(245, 230, 200, 0.5)',
+                color: 'var(--color-focus)',
                 padding: '4px 8px',
-                background: 'rgba(245, 230, 200, 0.05)',
+                background: 'var(--color-input-bg)',
                 borderRadius: 4,
               }}>
                 {phaseSummary.stats.echoCount} echo{phaseSummary.stats.echoCount !== 1 ? 'es' : ''}
@@ -188,7 +188,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             {phaseSummary.echoes.slice(0, 2).map((echo) => (
               <div key={echo.id} style={{
                 fontSize: 11,
-                color: 'rgba(245, 230, 200, 0.5)',
+                color: 'var(--color-focus)',
                 fontStyle: 'italic',
                 marginBottom: 4,
                 overflow: 'hidden',
@@ -201,7 +201,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             {phaseSummary.echoes.length > 2 && (
               <div style={{
                 fontSize: 9,
-                color: 'rgba(245, 230, 200, 0.3)',
+                color: 'var(--color-text-muted)',
                 fontFamily: 'monospace',
               }}>
                 +{phaseSummary.echoes.length - 2} more
@@ -218,7 +218,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
         background: isImminent
           ? 'rgba(252, 180, 80, 0.08)'
           : isNextThreshold
-            ? 'rgba(245, 230, 200, 0.05)'
+            ? 'var(--color-input-bg)'
             : 'rgba(201, 168, 76, 0.04)',
         border: `1px solid ${isImminent
           ? 'rgba(252, 180, 80, 0.2)'
@@ -236,7 +236,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             right: 12,
             background: 'none',
             border: 'none',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             fontSize: 16,
             cursor: 'pointer',
             padding: 4,
@@ -258,7 +258,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             letterSpacing: '0.12em',
             color: isImminent
               ? 'rgba(252, 180, 80, 0.9)'
-              : 'rgba(245, 230, 200, 0.4)',
+              : 'var(--color-text-muted)',
           }}>
             {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
           </span>
@@ -269,10 +269,10 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             padding: '2px 6px',
             borderRadius: 3,
             background: isNextThreshold
-              ? 'rgba(245, 230, 200, 0.1)'
+              ? 'var(--color-border-light)'
               : 'rgba(201, 168, 76, 0.12)',
             color: isNextThreshold
-              ? 'rgba(245, 230, 200, 0.6)'
+              ? 'var(--color-text-dim)'
               : 'rgba(201, 168, 76, 0.8)',
           }}>
             {isNextThreshold ? 'THRESHOLD' : 'FLOW'}
@@ -298,7 +298,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 18,
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
             }}>
               {nextPhase}
             </div>
@@ -306,7 +306,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
               fontSize: 9,
               fontFamily: 'monospace',
               letterSpacing: '0.1em',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
             }}>
               {nextEnergy?.toUpperCase()} · {nextPhaseDuration} DAYS
             </div>
@@ -329,7 +329,7 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 14,
           fontStyle: 'italic',
-          color: 'rgba(245, 230, 200, 0.7)',
+          color: 'var(--color-text)',
           lineHeight: 1.6,
           marginBottom: 14,
         }}>
@@ -342,9 +342,9 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
             width: '100%',
             padding: '10px',
             borderRadius: 8,
-            background: 'rgba(245, 230, 200, 0.04)',
+            background: 'var(--color-input-bg)',
             border: '1px dashed rgba(245, 230, 200, 0.1)',
-            color: 'rgba(245, 230, 200, 0.4)',
+            color: 'var(--color-text-muted)',
             fontSize: 10,
             fontFamily: 'monospace',
             letterSpacing: '0.08em',

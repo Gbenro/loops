@@ -81,7 +81,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
           width: 36,
           height: 4,
           borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.2)',
+          background: 'var(--color-border-mid)',
           margin: '0 auto 24px',
         }} />
 
@@ -97,7 +97,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
           <span style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 20,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
           }}>
             {lunarData.phase.name}
           </span>
@@ -109,7 +109,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
           fontSize: 10,
           fontFamily: 'monospace',
           letterSpacing: '0.15em',
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
           marginBottom: 28,
         }}>
           {lunarData.phase.energy?.toUpperCase() || 'PHASE LOOP'}
@@ -120,7 +120,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 18,
           fontStyle: 'italic',
-          color: 'rgba(245, 230, 200, 0.7)',
+          color: 'var(--color-text)',
           textAlign: 'center',
           marginBottom: 24,
           lineHeight: 1.5,
@@ -139,8 +139,8 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
             padding: '16px',
             borderRadius: 12,
             border: '1px solid rgba(245, 230, 200, 0.12)',
-            background: 'rgba(245, 230, 200, 0.03)',
-            color: '#f5e6c8',
+            background: 'var(--color-input-bg)',
+            color: 'var(--color-text)',
             fontSize: 16,
             fontFamily: "'Cormorant Garamond', serif",
             outline: 'none',
@@ -186,7 +186,7 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
               borderRadius: 12,
               border: '1px solid rgba(245, 230, 200, 0.12)',
               background: 'transparent',
-              color: 'rgba(245, 230, 200, 0.5)',
+              color: 'var(--color-focus)',
               fontSize: 13,
               cursor: 'pointer',
             }}
@@ -201,8 +201,8 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
               padding: '14px',
               borderRadius: 12,
               border: 'none',
-              background: title.trim() ? color : 'rgba(245, 230, 200, 0.08)',
-              color: title.trim() ? '#040810' : 'rgba(245, 230, 200, 0.3)',
+              background: title.trim() ? color : 'var(--color-input-hover)',
+              color: title.trim() ? 'var(--color-bg)' : 'var(--color-text-muted)',
               fontSize: 13,
               fontWeight: 600,
               cursor: title.trim() ? 'pointer' : 'default',

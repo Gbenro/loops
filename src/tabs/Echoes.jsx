@@ -678,8 +678,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#040810',
-        color: 'rgba(245, 230, 200, 0.4)',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-muted)',
         fontSize: 18,
       }}>
         〜
@@ -692,7 +692,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#040810',
+      background: 'var(--color-bg)',
     }}>
       {/* Header */}
       <div style={{
@@ -702,7 +702,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         <div style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 26,
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           marginBottom: 8,
         }}>
           Echoes
@@ -711,7 +711,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           fontSize: 10,
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MiniMoon size={14} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} /> {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}</span>
         </div>
@@ -738,13 +738,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             fontSize: 11,
             fontFamily: 'monospace',
             letterSpacing: '0.08em',
-            color: 'rgba(245, 230, 200, 0.5)',
+            color: 'var(--color-focus)',
           }}>
             {selectedCycleName || 'No Cycles'}{navLabel ? ` · ${navLabel}` : ''}
           </span>
           <span style={{
             fontSize: 14,
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.2s ease',
             lineHeight: 1,
@@ -771,7 +771,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             style={{
               background: 'none',
               border: 'none',
-              color: canCyclePrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              color: canCyclePrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
               fontSize: 16,
               cursor: canCyclePrev ? 'pointer' : 'default',
               padding: '4px 8px',
@@ -782,7 +782,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           <div style={{ textAlign: 'center', minWidth: 120 }}>
             <div style={{
               fontSize: 15,
-              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'rgba(245, 230, 200, 0.8)',
+              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
               fontFamily: "'Cormorant Garamond', serif",
               fontWeight: 600,
             }}>
@@ -806,7 +806,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             style={{
               background: 'none',
               border: 'none',
-              color: canCycleNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              color: canCycleNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
               fontSize: 16,
               cursor: canCycleNext ? 'pointer' : 'default',
               padding: '4px 8px',
@@ -827,8 +827,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 padding: '8px 12px',
                 borderRadius: 6,
                 border: 'none',
-                background: filterMode === mode ? 'rgba(245, 230, 200, 0.1)' : 'transparent',
-                color: filterMode === mode ? 'rgba(245, 230, 200, 0.6)' : 'var(--text-disabled)',
+                background: filterMode === mode ? 'var(--color-border-light)' : 'transparent',
+                color: filterMode === mode ? 'var(--color-text-dim)' : 'var(--text-disabled)',
                 fontSize: 9,
                 fontFamily: 'monospace',
                 cursor: 'pointer',
@@ -853,7 +853,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             style={{
               background: 'none',
               border: 'none',
-              color: canNavPrev ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              color: canNavPrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
               fontSize: 16,
               cursor: canNavPrev ? 'pointer' : 'default',
               padding: '4px 8px',
@@ -864,7 +864,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           <div style={{ textAlign: 'center', minWidth: 140 }}>
             <div style={{
               fontSize: 13,
-              color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'rgba(245, 230, 200, 0.7)',
+              color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
               fontFamily: "'Cormorant Garamond', serif",
               display: 'flex',
               alignItems: 'center',
@@ -892,7 +892,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             style={{
               background: 'none',
               border: 'none',
-              color: canNavNext ? 'rgba(245, 230, 200, 0.5)' : 'rgba(245, 230, 200, 0.15)',
+              color: canNavNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
               fontSize: 16,
               cursor: canNavNext ? 'pointer' : 'default',
               padding: '4px 8px',
@@ -907,8 +907,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       <div data-tutorial="echoes-write-area" data-tour="echoes-write-area" style={{ padding: '0 20px 20px' }}>
         {isWriting ? (
           <div style={{
-            background: 'rgba(245, 230, 200, 0.03)',
-            border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.3)' : isTranscribing ? 'rgba(167, 139, 250, 0.3)' : 'rgba(245, 230, 200, 0.1)'}`,
+            background: 'var(--color-input-bg)',
+            border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.3)' : isTranscribing ? 'rgba(167, 139, 250, 0.3)' : 'var(--color-border-light)'}`,
             borderRadius: 12,
             padding: 16,
             transition: 'border-color 0.3s',
@@ -1006,7 +1006,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 fontSize: 15,
                 fontFamily: "'Cormorant Garamond', serif",
                 lineHeight: 1.7,
@@ -1035,10 +1035,10 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   padding: '1px 4px',
                   borderRadius: 3,
                   background: lunarData.phase.isThreshold
-                    ? 'rgba(245, 230, 200, 0.08)'
+                    ? 'var(--color-input-hover)'
                     : 'rgba(201, 168, 76, 0.1)',
                   color: lunarData.phase.isThreshold
-                    ? 'rgba(245, 230, 200, 0.5)'
+                    ? 'var(--color-focus)'
                     : 'rgba(201, 168, 76, 0.7)',
                   fontSize: 7,
                   letterSpacing: '0.05em',
@@ -1065,12 +1065,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     ? 'rgba(252, 129, 129, 0.2)'
                     : isTranscribing
                       ? 'rgba(167, 139, 250, 0.2)'
-                      : 'rgba(245, 230, 200, 0.08)',
+                      : 'var(--color-input-hover)',
                   color: isRecording
                     ? '#FC8181'
                     : isTranscribing
                       ? '#A78BFA'
-                      : 'rgba(245, 230, 200, 0.5)',
+                      : 'var(--color-focus)',
                   cursor: isTranscribing ? 'wait' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -1121,7 +1121,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   borderRadius: 8,
                   background: 'transparent',
                   border: '1px solid rgba(245, 230, 200, 0.15)',
-                  color: 'rgba(245, 230, 200, 0.5)',
+                  color: 'var(--color-focus)',
                   fontSize: 12,
                   cursor: 'pointer',
                 }}
@@ -1136,12 +1136,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   padding: '12px',
                   borderRadius: 8,
                   background: (currentText.trim() && !isRecording && !isTranscribing)
-                    ? 'rgba(245, 230, 200, 0.1)'
-                    : 'rgba(245, 230, 200, 0.03)',
+                    ? 'var(--color-border-light)'
+                    : 'var(--color-input-bg)',
                   border: '1px solid rgba(245, 230, 200, 0.2)',
                   color: (currentText.trim() && !isRecording && !isTranscribing)
-                    ? '#f5e6c8'
-                    : 'rgba(245, 230, 200, 0.3)',
+                    ? 'var(--color-text)'
+                    : 'var(--color-text-muted)',
                   fontSize: 12,
                   cursor: (currentText.trim() && !isRecording && !isTranscribing) ? 'pointer' : 'default',
                 }}
@@ -1160,9 +1160,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               width: '100%',
               padding: '20px',
               borderRadius: 12,
-              background: 'rgba(245, 230, 200, 0.03)',
+              background: 'var(--color-input-bg)',
               border: '1px dashed rgba(245, 230, 200, 0.15)',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
               fontSize: 14,
               fontFamily: "'Cormorant Garamond', serif",
               fontStyle: 'italic',
@@ -1185,7 +1185,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           <div style={{
             textAlign: 'center',
             padding: '40px 20px',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             fontSize: 14,
             fontStyle: 'italic',
           }}>
@@ -1197,7 +1197,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           <div style={{
             textAlign: 'center',
             padding: '40px 20px',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             fontSize: 13,
             fontStyle: 'italic',
           }}>
@@ -1267,7 +1267,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               >
                 <div style={{
                   width: 32, height: 3, borderRadius: 2,
-                  background: 'rgba(245, 230, 200, 0.2)',
+                  background: 'var(--color-border-mid)',
                 }} />
               </div>
 
@@ -1301,7 +1301,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                       fontFamily: "'Cormorant Garamond', serif",
                       fontSize: 13,
                       fontStyle: 'italic',
-                      color: 'rgba(245, 230, 200, 0.6)',
+                      color: 'var(--color-text-dim)',
                       marginBottom: 4,
                       padding: '0 20px',
                       whiteSpace: 'nowrap',
@@ -1342,7 +1342,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   disabled={queueIndex === 0}
                   style={{
                     background: 'none', border: 'none',
-                    color: queueIndex > 0 ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.2)',
+                    color: queueIndex > 0 ? 'var(--color-text-dim)' : 'var(--color-border-mid)',
                     fontSize: 20, cursor: queueIndex > 0 ? 'pointer' : 'default',
                     padding: '4px 8px',
                   }}
@@ -1366,8 +1366,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     width: 48, height: 48,
                     borderRadius: '50%',
                     border: '1px solid rgba(245, 230, 200, 0.2)',
-                    background: 'rgba(245, 230, 200, 0.08)',
-                    color: '#f5e6c8',
+                    background: 'var(--color-input-hover)',
+                    color: 'var(--color-text)',
                     fontSize: 18,
                     cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1381,7 +1381,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   disabled={queueIndex >= audioQueue.length - 1}
                   style={{
                     background: 'none', border: 'none',
-                    color: queueIndex < audioQueue.length - 1 ? 'rgba(245, 230, 200, 0.6)' : 'rgba(245, 230, 200, 0.2)',
+                    color: queueIndex < audioQueue.length - 1 ? 'var(--color-text-dim)' : 'var(--color-border-mid)',
                     fontSize: 20,
                     cursor: queueIndex < audioQueue.length - 1 ? 'pointer' : 'default',
                     padding: '4px 8px',
@@ -1401,7 +1401,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 <div style={{
                   fontSize: 9, fontFamily: 'monospace',
                   letterSpacing: '0.08em',
-                  color: 'rgba(245, 230, 200, 0.3)',
+                  color: 'var(--color-text-muted)',
                 }}>
                   {audioDuration != null ? formatTime(Math.round(audioDuration)) : ''}
                 </div>
@@ -1415,7 +1415,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     background: 'none', border: 'none',
                     fontSize: 9, fontFamily: 'monospace',
                     letterSpacing: '0.08em',
-                    color: queueReversed ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.3)',
+                    color: queueReversed ? 'rgba(167, 139, 250, 0.7)' : 'var(--color-text-muted)',
                     cursor: 'pointer',
                     padding: '2px 4px',
                   }}
@@ -1451,8 +1451,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   width: 32, height: 32,
                   borderRadius: '50%',
                   border: '1px solid rgba(245, 230, 200, 0.15)',
-                  background: queuePlaying ? 'rgba(167, 139, 250, 0.15)' : 'rgba(245, 230, 200, 0.06)',
-                  color: queuePlaying ? '#A78BFA' : 'rgba(245, 230, 200, 0.6)',
+                  background: queuePlaying ? 'rgba(167, 139, 250, 0.15)' : 'var(--color-border)',
+                  color: queuePlaying ? '#A78BFA' : 'var(--color-text-dim)',
                   fontSize: 12,
                   cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1483,7 +1483,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                           fontSize: 12,
                           fontFamily: "'Cormorant Garamond', serif",
                           fontStyle: 'italic',
-                          color: 'rgba(245, 230, 200, 0.7)',
+                          color: 'var(--color-text)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -1650,7 +1650,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           fontSize: 9,
           fontFamily: 'monospace',
           letterSpacing: '0.08em',
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -1675,7 +1675,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           style={{
             background: 'none',
             border: 'none',
-            color: 'rgba(245, 230, 200, 0.3)',
+            color: 'var(--color-text-muted)',
             cursor: 'pointer',
             fontSize: 14,
             padding: '4px 8px',
@@ -1695,11 +1695,11 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
             style={{
               width: '100%',
               minHeight: 80,
-              background: 'rgba(245, 230, 200, 0.04)',
+              background: 'var(--color-input-bg)',
               border: '1px solid rgba(245, 230, 200, 0.15)',
               borderRadius: 8,
               padding: '10px 12px',
-              color: '#f5e6c8',
+              color: 'var(--color-text)',
               fontSize: 15,
               fontFamily: "'Cormorant Garamond', serif",
               lineHeight: 1.76,
@@ -1716,7 +1716,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               }}
               style={{
                 background: 'none', border: '1px solid rgba(245, 230, 200, 0.2)',
-                borderRadius: 6, color: 'rgba(245, 230, 200, 0.7)',
+                borderRadius: 6, color: 'var(--color-text)',
                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
                 cursor: 'pointer', padding: '4px 10px',
               }}
@@ -1727,7 +1727,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               onClick={() => { setEditText(echo.text || ''); setIsEditing(false); }}
               style={{
                 background: 'none', border: 'none',
-                color: 'rgba(245, 230, 200, 0.3)',
+                color: 'var(--color-text-muted)',
                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
                 cursor: 'pointer', padding: '4px 8px',
               }}
@@ -1790,7 +1790,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           style={{
             background: 'none',
             border: 'none',
-            color: isTagging ? 'rgba(167, 139, 250, 0.7)' : 'rgba(245, 230, 200, 0.2)',
+            color: isTagging ? 'rgba(167, 139, 250, 0.7)' : 'var(--color-border-mid)',
             fontSize: 12,
             fontFamily: 'monospace',
             cursor: 'pointer',
@@ -1812,7 +1812,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
         <div style={{
           marginTop: 8,
           padding: '10px 12px',
-          background: 'rgba(245, 230, 200, 0.03)',
+          background: 'var(--color-input-bg)',
           borderRadius: 8,
           border: '1px solid rgba(245, 230, 200, 0.07)',
         }}>
@@ -1836,7 +1836,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                     color: selected
                       ? 'rgba(167, 139, 250, 0.9)'
                       : disabled
-                        ? 'rgba(245, 230, 200, 0.2)'
+                        ? 'var(--color-border-mid)'
                         : 'rgba(167, 139, 250, 0.65)',
                     fontSize: 11,
                     fontFamily: 'monospace',
@@ -1868,11 +1868,11 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                       ? 'rgba(167, 139, 250, 0.25)'
                       : isPhaseRelevant
                         ? 'rgba(201, 168, 76, 0.12)'
-                        : 'rgba(245, 230, 200, 0.05)',
+                        : 'var(--color-input-bg)',
                     color: selected
                       ? 'rgba(167, 139, 250, 0.9)'
                       : disabled
-                        ? 'rgba(245, 230, 200, 0.2)'
+                        ? 'var(--color-border-mid)'
                         : isPhaseRelevant
                           ? 'rgba(201, 168, 76, 0.85)'
                           : 'rgba(245, 230, 200, 0.45)',
@@ -1896,11 +1896,11 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               disabled={atMax}
               style={{
                 flex: 1,
-                background: 'rgba(245, 230, 200, 0.04)',
+                background: 'var(--color-input-bg)',
                 border: '1px solid rgba(245, 230, 200, 0.1)',
                 borderRadius: 4,
                 padding: '4px 8px',
-                color: '#f5e6c8',
+                color: 'var(--color-text)',
                 fontSize: 11,
                 fontFamily: 'monospace',
                 outline: 'none',
@@ -1913,7 +1913,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 background: 'none',
                 border: '1px solid rgba(245, 230, 200, 0.1)',
                 borderRadius: 4,
-                color: 'rgba(245, 230, 200, 0.5)',
+                color: 'var(--color-focus)',
                 fontSize: 11,
                 fontFamily: 'monospace',
                 padding: '4px 8px',
@@ -1941,7 +1941,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
             <div style={{
               fontSize: 10,
               fontFamily: 'monospace',
-              color: 'rgba(245, 230, 200, 0.3)',
+              color: 'var(--color-text-muted)',
             }}>
               {new Date(echo.createdAt).toLocaleDateString('en-US', {
                 weekday: 'short',
@@ -1990,7 +1990,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'rgba(245, 230, 200, 0.4)',
+                  color: 'var(--color-text-muted)',
                   fontSize: 14,
                   cursor: 'pointer',
                   padding: '4px 8px',
@@ -2004,7 +2004,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: copied ? 'rgba(134, 239, 172, 0.8)' : 'rgba(245, 230, 200, 0.4)',
+                  color: copied ? 'rgba(134, 239, 172, 0.8)' : 'var(--color-text-muted)',
                   fontSize: 14,
                   cursor: 'pointer',
                   padding: '4px 8px',

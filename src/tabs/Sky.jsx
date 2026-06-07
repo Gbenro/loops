@@ -54,7 +54,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#040810',
+      background: 'var(--color-bg)',
       position: 'relative',
     }}>
       <StarField count={50} />
@@ -79,7 +79,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           fontSize: 'var(--font-xs)',
           fontFamily: 'monospace',
           letterSpacing: '0.12em',
-          color: 'rgba(245, 230, 200, 0.4)',
+          color: 'var(--color-text-muted)',
         }}>
           {timeStr} · {dateStr.toUpperCase()}
         </div>
@@ -94,7 +94,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontSize: 'var(--font-xs)',
             fontFamily: 'monospace',
             letterSpacing: '0.08em',
-            color: user ? 'rgba(52, 211, 153, 0.7)' : 'rgba(245, 230, 200, 0.4)',
+            color: user ? 'rgba(52, 211, 153, 0.7)' : 'var(--color-text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -171,7 +171,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 'var(--font-3xl)',
           fontWeight: 600,
-          color: '#f5e6c8',
+          color: 'var(--color-text)',
           marginBottom: 10,
         }}>
           {phaseContent.title}
@@ -182,7 +182,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           fontSize: 'var(--font-sm)',
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
-          color: 'rgba(245, 230, 200, 0.5)',
+          color: 'var(--color-focus)',
           marginBottom: 10,
         }}>
           {lunarData.illumination}% · {getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name.toUpperCase()} · MOON IN {lunarData.zodiac.sign.toUpperCase()}
@@ -204,10 +204,10 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           padding: '18px 22px',
           borderRadius: 14,
           background: lunarData.phase.isThreshold
-            ? 'rgba(245, 230, 200, 0.05)'
+            ? 'var(--color-input-bg)'
             : 'rgba(201, 168, 76, 0.04)',
           border: `1px solid ${lunarData.phase.isThreshold
-            ? 'rgba(245, 230, 200, 0.1)'
+            ? 'var(--color-border-light)'
             : 'rgba(201, 168, 76, 0.12)'}`,
           marginBottom: 24,
         }}>
@@ -221,7 +221,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               fontSize: 'var(--font-sm)',
               fontFamily: 'monospace',
               letterSpacing: '0.12em',
-              color: 'rgba(245, 230, 200, 0.5)',
+              color: 'var(--color-focus)',
             }}>
               {phrasesLoading ? phaseContent.energy.toUpperCase() : phrases.energyDescription.toUpperCase()}
             </span>
@@ -232,10 +232,10 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               padding: '3px 8px',
               borderRadius: 4,
               background: lunarData.phase.isThreshold
-                ? 'rgba(245, 230, 200, 0.08)'
+                ? 'var(--color-input-hover)'
                 : 'rgba(201, 168, 76, 0.1)',
               color: lunarData.phase.isThreshold
-                ? 'rgba(245, 230, 200, 0.5)'
+                ? 'var(--color-focus)'
                 : 'rgba(201, 168, 76, 0.7)',
             }}>
               {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
@@ -246,7 +246,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 'var(--font-md)',
             color: lunarData.phase.isThreshold
-              ? 'rgba(245, 230, 200, 0.6)'
+              ? 'var(--color-text-dim)'
               : 'rgba(201, 168, 76, 0.65)',
             marginBottom: 10,
             lineHeight: 1.5,
@@ -256,7 +256,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           {phrasesLoading ? (
             <div style={{
               height: 24,
-              background: 'rgba(245, 230, 200, 0.1)',
+              background: 'var(--color-border-light)',
               borderRadius: 4,
               opacity: 0.3,
               animation: 'breathe 2s ease-in-out infinite',
@@ -338,14 +338,14 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
         <div style={{
           height: 3,
           borderRadius: 2,
-          background: 'rgba(245, 230, 200, 0.08)',
+          background: 'var(--color-input-hover)',
           overflow: 'hidden',
           marginBottom: 20,
         }}>
           <div style={{
             width: `${(lunarData.age / 29.53) * 100}%`,
             height: '100%',
-            background: 'rgba(245, 230, 200, 0.5)',
+            background: 'var(--color-focus)',
             borderRadius: 2,
             transition: 'width 0.5s ease',
           }} />
@@ -402,7 +402,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
                 fontFamily: "'Cormorant Garamond', serif",
                 fontStyle: 'italic',
                 fontSize: 'var(--font-md)',
-                color: 'rgba(245, 230, 200, 0.6)',
+                color: 'var(--color-text-dim)',
                 lineHeight: 1.5,
               }}>
                 {resonanceSummary.strongest.invitation}
@@ -419,9 +419,9 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             width: '100%',
             padding: '16px 24px',
             borderRadius: 14,
-            background: 'rgba(245, 230, 200, 0.06)',
+            background: 'var(--color-border)',
             border: '1px solid rgba(245, 230, 200, 0.12)',
-            color: 'rgba(245, 230, 200, 0.7)',
+            color: 'var(--color-text)',
             fontSize: 'var(--font-sm)',
             fontFamily: 'monospace',
             letterSpacing: '0.1em',
