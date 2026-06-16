@@ -1120,7 +1120,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   padding: '12px',
                   borderRadius: 8,
                   background: 'transparent',
-                  border: '1px solid rgba(245, 230, 200, 0.15)',
+                  border: '1px solid var(--color-border-mid)',
                   color: 'var(--color-focus)',
                   fontSize: 12,
                   cursor: 'pointer',
@@ -1138,7 +1138,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   background: (currentText.trim() && !isRecording && !isTranscribing)
                     ? 'var(--color-border-light)'
                     : 'var(--color-input-bg)',
-                  border: '1px solid rgba(245, 230, 200, 0.2)',
+                  border: '1px solid var(--color-border-mid)',
                   color: (currentText.trim() && !isRecording && !isTranscribing)
                     ? 'var(--color-text)'
                     : 'var(--color-text-muted)',
@@ -1161,7 +1161,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               padding: '20px',
               borderRadius: 12,
               background: 'var(--color-input-bg)',
-              border: '1px dashed rgba(245, 230, 200, 0.15)',
+              border: '1px dashed var(--color-border-mid)',
               color: 'var(--color-text-muted)',
               fontSize: 14,
               fontFamily: "'Cormorant Garamond', serif",
@@ -1248,8 +1248,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           bottom: 0,
           left: 0,
           right: 0,
-          background: 'rgba(10, 8, 20, 0.97)',
-          borderTop: '1px solid rgba(245, 230, 200, 0.08)',
+          background: 'var(--color-surface)',
+          borderTop: '1px solid var(--color-border-light)',
           backdropFilter: 'blur(12px)',
           zIndex: 20,
           transition: 'all 0.25s ease',
@@ -1365,7 +1365,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   style={{
                     width: 48, height: 48,
                     borderRadius: '50%',
-                    border: '1px solid rgba(245, 230, 200, 0.2)',
+                    border: '1px solid var(--color-border-mid)',
                     background: 'var(--color-input-hover)',
                     color: 'var(--color-text)',
                     fontSize: 18,
@@ -1450,7 +1450,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 style={{
                   width: 32, height: 32,
                   borderRadius: '50%',
-                  border: '1px solid rgba(245, 230, 200, 0.15)',
+                  border: '1px solid var(--color-border-mid)',
                   background: queuePlaying ? 'rgba(167, 139, 250, 0.15)' : 'var(--color-border)',
                   color: queuePlaying ? '#A78BFA' : 'var(--color-text-dim)',
                   fontSize: 12,
@@ -1544,8 +1544,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           50% { box-shadow: 0 0 25px rgba(252, 129, 129, 0.5); }
         }
         @keyframes voiceIdle {
-          0%, 100% { opacity: 0.5; box-shadow: 0 0 0px rgba(245, 230, 200, 0); }
-          50% { opacity: 0.85; box-shadow: 0 0 10px rgba(245, 230, 200, 0.12); }
+          0%, 100% { opacity: 0.5; box-shadow: 0 0 0px transparent; }
+          50% { opacity: 0.85; box-shadow: 0 0 10px var(--color-glow); }
         }
         @keyframes ripple {
           0% { transform: scale(1); opacity: 0.5; }
@@ -1631,8 +1631,8 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
 
   return (
     <div ref={cardRef} data-tour={tourId} style={{
-      background: 'rgba(245, 230, 200, 0.025)',
-      border: '1px solid rgba(245, 230, 200, 0.06)',
+      background: 'var(--color-input-bg)',
+      border: '1px solid var(--color-border)',
       borderRadius: 12,
       padding: 16,
       marginBottom: 12,
@@ -1696,7 +1696,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               width: '100%',
               minHeight: 80,
               background: 'var(--color-input-bg)',
-              border: '1px solid rgba(245, 230, 200, 0.15)',
+              border: '1px solid var(--color-border-mid)',
               borderRadius: 8,
               padding: '10px 12px',
               color: 'var(--color-text)',
@@ -1715,7 +1715,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 setIsEditing(false);
               }}
               style={{
-                background: 'none', border: '1px solid rgba(245, 230, 200, 0.2)',
+                background: 'none', border: '1px solid var(--color-border-mid)',
                 borderRadius: 6, color: 'var(--color-text)',
                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
                 cursor: 'pointer', padding: '4px 10px',
@@ -1741,7 +1741,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: 15,
           lineHeight: 1.76,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
         }}>
           {displayText}
           {isLong && (
@@ -1814,7 +1814,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           padding: '10px 12px',
           background: 'var(--color-input-bg)',
           borderRadius: 8,
-          border: '1px solid rgba(245, 230, 200, 0.07)',
+          border: '1px solid var(--color-border-light)',
         }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, maxHeight: 130, overflowY: 'auto' }}>
             {/* Past user tags first (highlighted) */}
@@ -1875,7 +1875,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                         ? 'var(--color-border-mid)'
                         : isPhaseRelevant
                           ? 'rgba(201, 168, 76, 0.85)'
-                          : 'rgba(245, 230, 200, 0.45)',
+                          : 'var(--color-text-muted)',
                     fontSize: 11,
                     fontFamily: 'monospace',
                     letterSpacing: '0.05em',
@@ -1897,7 +1897,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               style={{
                 flex: 1,
                 background: 'var(--color-input-bg)',
-                border: '1px solid rgba(245, 230, 200, 0.1)',
+                border: '1px solid var(--color-border-light)',
                 borderRadius: 4,
                 padding: '4px 8px',
                 color: 'var(--color-text)',
@@ -1911,7 +1911,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               disabled={atMax || !customTagInput.trim()}
               style={{
                 background: 'none',
-                border: '1px solid rgba(245, 230, 200, 0.1)',
+                border: '1px solid var(--color-border-light)',
                 borderRadius: 4,
                 color: 'var(--color-focus)',
                 fontSize: 11,
@@ -1931,7 +1931,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
         <div style={{
           marginTop: 16,
           paddingTop: 12,
-          borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+          borderTop: '1px solid var(--color-border-light)',
         }}>
           <div style={{
             display: 'flex',

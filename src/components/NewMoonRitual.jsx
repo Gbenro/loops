@@ -34,7 +34,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
       position: 'fixed',
       inset: 0,
       zIndex: 200,
-      background: '#020408',
+      background: 'var(--color-bg)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -59,14 +59,14 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
         transform: 'translateX(-50%)',
         width: 300,
         height: 300,
-        background: 'radial-gradient(circle, rgba(245,230,200,0.06) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, var(--color-input-bg) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
       {/* Moon glyph */}
       <div style={{
         marginBottom: 16,
-        filter: 'drop-shadow(0 0 30px rgba(245,230,200,0.15))',
+        filter: 'drop-shadow(0 0 30px var(--color-glow))',
         animation: 'breathe 4s ease-in-out infinite',
       }}>
         <MoonFace size={120} phase={0} illumination={0} phaseName="New Moon" />
@@ -123,7 +123,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           padding: 20,
           background: 'transparent',
           border: 'none',
-          borderBottom: '1px solid rgba(245, 230, 200, 0.1)',
+          borderBottom: '1px solid var(--color-border-light)',
           color: 'var(--color-text)',
           fontSize: 18,
           fontFamily: "'Cormorant Garamond', serif",
@@ -151,7 +151,7 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
           borderRadius: 30,
           color: intention.trim()
             ? 'var(--color-text)'
-            : 'rgba(245, 230, 200, 0.25)',
+            : 'var(--color-text-muted)',
           fontSize: 12,
           fontFamily: 'monospace',
           letterSpacing: '0.15em',

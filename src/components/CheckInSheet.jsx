@@ -51,7 +51,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
       <div style={{
         position: 'relative',
         width: '100%', maxWidth: 520,
-        background: '#070b14',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
         padding: '24px 20px 40px',
         animation: 'slideUp 0.25s ease-out',
@@ -59,7 +59,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
         {/* Handle */}
         <div style={{
           width: 36, height: 3, borderRadius: 2,
-          background: 'rgba(245,230,200,0.15)',
+          background: 'var(--color-border-mid)',
           margin: '0 auto 20px',
         }} />
 
@@ -73,7 +73,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
           }}>
             <span>{meta.label.toUpperCase()}</span>
             {dayContext && (
-              <span style={{ color: 'rgba(245,230,200,0.4)' }}>• {dayContext}</span>
+              <span style={{ color: 'var(--color-text-muted)' }}>• {dayContext}</span>
             )}
           </div>
           <div style={{
@@ -83,7 +83,7 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
             {rhythmName}
           </div>
           {existing && (
-            <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.3)', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
               Updating existing check-in
             </div>
           )}
@@ -102,10 +102,10 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
                   padding: '12px 16px', borderRadius: 10,
                   border: isSelected
                     ? `1px solid ${meta.accent}55`
-                    : '1px solid rgba(245,230,200,0.07)',
+                    : '1px solid var(--color-border)',
                   background: isSelected
                     ? `${meta.accent}12`
-                    : 'rgba(245,230,200,0.02)',
+                    : 'var(--color-input-bg)',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.15s ease',
@@ -114,19 +114,19 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
               >
                 <div style={{
                   width: 8, height: 8, borderRadius: '50%',
-                  background: isSelected ? meta.accent : 'rgba(245,230,200,0.15)',
+                  background: isSelected ? meta.accent : 'var(--color-border-mid)',
                   flexShrink: 0,
                   transition: 'background 0.15s ease',
                 }} />
                 <div>
                   <div style={{
-                    fontSize: 14, color: isSelected ? 'var(--color-text)' : 'rgba(245,230,200,0.6)',
+                    fontSize: 14, color: isSelected ? 'var(--color-text)' : 'var(--color-text-dim)',
                     fontWeight: isSelected ? 500 : 400,
                   }}>
                     {l.label}
                   </div>
                   {isSelected && (
-                    <div style={{ fontSize: 11, color: 'rgba(245,230,200,0.4)', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                       {l.desc}
                     </div>
                   )}
@@ -144,8 +144,8 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
           rows={2}
           style={{
             width: '100%', padding: '12px 14px',
-            background: 'rgba(245,230,200,0.03)',
-            border: '1px solid rgba(245,230,200,0.08)',
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border-light)',
             borderRadius: 10, color: 'var(--color-text)',
             fontSize: 13, resize: 'none', outline: 'none',
             fontFamily: "'DM Sans', sans-serif",
@@ -161,11 +161,11 @@ export function CheckInSheet({ phaseKey, rhythmName, existing = null, dayInPhase
           style={{
             width: '100%', padding: '14px',
             borderRadius: 12,
-            background: canSave ? `${meta.accent}22` : 'rgba(245,230,200,0.05)',
-            color: canSave ? 'var(--color-text)' : 'var(--text-disabled)',
+            background: canSave ? `${meta.accent}22` : 'var(--color-input-bg)',
+            color: canSave ? 'var(--color-text)' : 'var(--color-text-muted)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
-            border: canSave ? `1px solid ${meta.accent}33` : '1px solid rgba(245,230,200,0.05)',
+            border: canSave ? `1px solid ${meta.accent}33` : '1px solid var(--color-border)',
           }}
         >
           {saving ? 'Saving…' : 'Log check-in'}

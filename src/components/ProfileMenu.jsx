@@ -353,7 +353,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     padding: 16,
                     borderRadius: 12,
                     background: 'var(--color-input-bg)',
-                    border: '1px solid rgba(245, 230, 200, 0.08)',
+                    border: '1px solid var(--color-border-light)',
                     marginBottom: 16,
                   }}>
                     <div style={{
@@ -410,7 +410,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       width: '100%',
                       padding: 14,
                       borderRadius: 10,
-                      border: '1px solid rgba(245, 230, 200, 0.15)',
+                      border: '1px solid var(--color-border-mid)',
                       background: 'var(--color-input-bg)',
                       color: exporting ? 'var(--color-text-muted)' : 'var(--color-text)',
                       fontSize: 13,
@@ -515,7 +515,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       width: '100%',
                       padding: 14,
                       borderRadius: 10,
-                      border: '1px solid rgba(245, 230, 200, 0.15)',
+                      border: '1px solid var(--color-border-mid)',
                       background: 'var(--color-input-bg)',
                       color: 'var(--color-text-dim)',
                       fontSize: 13,
@@ -620,7 +620,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         width: '100%',
                         padding: 12,
                         borderRadius: 8,
-                        border: '1px solid rgba(245, 230, 200, 0.15)',
+                        border: '1px solid var(--color-border-mid)',
                         background: 'var(--color-input-bg)',
                         color: 'var(--color-text)',
                         fontSize: 14,
@@ -651,7 +651,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         width: '100%',
                         padding: 12,
                         borderRadius: 8,
-                        border: '1px solid rgba(245, 230, 200, 0.15)',
+                        border: '1px solid var(--color-border-mid)',
                         background: 'var(--color-input-bg)',
                         color: 'var(--color-text)',
                         fontSize: 14,
@@ -682,7 +682,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         width: '100%',
                         padding: 12,
                         borderRadius: 8,
-                        border: '1px solid rgba(245, 230, 200, 0.15)',
+                        border: '1px solid var(--color-border-mid)',
                         background: 'var(--color-input-bg)',
                         color: 'var(--color-text)',
                         fontSize: 14,
@@ -723,7 +723,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                         width: '100%',
                         padding: 12,
                         borderRadius: 8,
-                        border: '1px solid rgba(245, 230, 200, 0.15)',
+                        border: '1px solid var(--color-border-mid)',
                         background: 'var(--color-input-bg)',
                         color: 'var(--color-text)',
                         fontSize: 14,
@@ -799,14 +799,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     placeholder="Passphrase"
                     value={encPassphrase}
                     onChange={e => { setEncPassphrase(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
                   />
                   <input
                     type="password"
                     placeholder="Confirm passphrase"
                     value={encConfirm}
                     onChange={e => { setEncConfirm(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'rgba(245,230,200,0.03)', border: '1px solid rgba(245,230,200,0.1)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
+                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
                   />
                   {encError && <div style={{ padding: '8px 12px', marginBottom: 12, background: 'rgba(252,129,129,0.1)', border: '1px solid rgba(252,129,129,0.3)', borderRadius: 6, color: 'rgba(252,129,129,0.9)', fontSize: 12 }}>{encError}</div>}
                   <button
@@ -824,7 +824,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }
                       setEncLoading(false);
                     }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'rgba(245,230,200,0.08)', color: 'var(--color-text)', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
                   >
                     {encLoading ? 'Setting up...' : 'Enable encryption'}
                   </button>
@@ -836,7 +836,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <button
                     onClick={() => { lock(); onClose(); }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)', background: 'rgba(245,230,200,0.04)', color: 'rgba(245,230,200,0.7)', fontSize: 13, cursor: 'pointer' }}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid var(--color-border-light)', background: 'var(--color-input-bg)', color: 'var(--color-text-dim)', fontSize: 13, cursor: 'pointer' }}
                   >
                     Lock session
                   </button>
@@ -854,7 +854,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
               {/* Locked state */}
               {encStatus === 'locked' && (
-                <div style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)', lineHeight: 1.7 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.7 }}>
                   Your content is encrypted. Re-open the app to be prompted for your passphrase, or close and reopen this menu.
                 </div>
               )}
@@ -1062,7 +1062,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 padding: 16,
                 borderRadius: 12,
                 background: 'var(--color-input-bg)',
-                border: '1px solid rgba(245, 230, 200, 0.06)',
+                border: '1px solid var(--color-border-light)',
               }}>
                 <div style={{
                   fontSize: 10,
@@ -1086,9 +1086,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       onClick={() => { resetOnboarding(); onClose(); }}
                       style={{
                         width: '100%', padding: '12px 16px',
-                        borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',
-                        background: 'rgba(245,230,200,0.04)',
-                        color: 'rgba(245,230,200,0.7)',
+                        borderRadius: 10, border: '1px solid var(--color-border-light)',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-text-dim)',
                         fontSize: 13, cursor: 'pointer',
                         fontFamily: "'DM Sans', sans-serif",
                         display: 'flex', alignItems: 'center', gap: 10,
@@ -1102,9 +1102,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     onClick={() => { onOpenTutorial('phases'); onClose(); }}
                     style={{
                       width: '100%', padding: '12px 16px',
-                      borderRadius: 10, border: '1px solid rgba(245,230,200,0.1)',
-                      background: 'rgba(245,230,200,0.04)',
-                      color: 'rgba(245,230,200,0.7)',
+                      borderRadius: 10, border: '1px solid var(--color-border-light)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-dim)',
                       fontSize: 13, cursor: 'pointer',
                       fontFamily: "'DM Sans', sans-serif",
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -1135,7 +1135,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   style={{
                     width: '100%',
                     background: 'var(--color-input-bg)',
-                    border: '1px solid rgba(245, 230, 200, 0.1)',
+                    border: '1px solid var(--color-border-light)',
                     borderRadius: 10,
                     padding: '12px 14px',
                     color: 'var(--color-text)',
@@ -1155,7 +1155,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     marginTop: 10,
                     padding: '12px',
                     borderRadius: 10,
-                    border: '1px solid rgba(245, 230, 200, 0.15)',
+                    border: '1px solid var(--color-border-mid)',
                     background: feedbackSent
                       ? 'rgba(52, 211, 153, 0.1)'
                       : feedbackText.trim()
@@ -1198,7 +1198,7 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
       justifyContent: 'space-between',
       alignItems: 'center',
       padding: '12px 0',
-      borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
+      borderBottom: '1px solid var(--color-border-light)',
     }}>
       <div>
         <div style={{

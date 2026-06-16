@@ -27,7 +27,7 @@ export function WelcomeModal() {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(4, 8, 16, 0.97)',
+        background: 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -51,8 +51,8 @@ export function WelcomeModal() {
         style={{
           width: '100%',
           maxWidth: 360,
-          background: '#0a0f18',
-          border: '1px solid rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
           borderRadius: 20,
           padding: '40px 28px 32px',
           textAlign: 'center',
@@ -71,7 +71,7 @@ export function WelcomeModal() {
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 26,
             fontWeight: 400,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             marginBottom: 16,
             lineHeight: 1.3,
           }}
@@ -83,7 +83,7 @@ export function WelcomeModal() {
         <p
           style={{
             fontSize: 14,
-            color: 'rgba(245, 230, 200, 0.65)',
+            color: 'var(--color-text-dim)',
             lineHeight: 1.7,
             marginBottom: 12,
           }}
@@ -94,7 +94,7 @@ export function WelcomeModal() {
         <p
           style={{
             fontSize: 13,
-            color: 'rgba(245, 230, 200, 0.5)',
+            color: 'var(--color-text-muted)',
             lineHeight: 1.7,
             marginBottom: 32,
           }}
@@ -109,9 +109,9 @@ export function WelcomeModal() {
             style={{
               padding: '14px 24px',
               borderRadius: 12,
-              background: 'rgba(245, 230, 200, 0.1)',
-              border: '1px solid rgba(245, 230, 200, 0.2)',
-              color: '#f5e6c8',
+              background: 'var(--color-input-bg)',
+              border: '1px solid var(--color-border-mid)',
+              color: 'var(--color-text)',
               fontSize: 15,
               fontFamily: "'DM Sans', sans-serif",
               cursor: 'pointer',
@@ -128,7 +128,7 @@ export function WelcomeModal() {
               borderRadius: 12,
               background: 'transparent',
               border: 'none',
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
               fontSize: 13,
               fontFamily: "'DM Sans', sans-serif",
               cursor: 'pointer',
@@ -144,8 +144,8 @@ export function WelcomeModal() {
             marginTop: 28,
             padding: '12px 16px',
             borderRadius: 10,
-            background: 'rgba(245, 230, 200, 0.03)',
-            border: '1px solid rgba(245, 230, 200, 0.06)',
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border-light)',
           }}
         >
           <div
@@ -153,7 +153,7 @@ export function WelcomeModal() {
               fontSize: 9,
               fontFamily: 'monospace',
               letterSpacing: '0.15em',
-              color: 'rgba(245, 230, 200, 0.3)',
+              color: 'var(--color-text-faint)',
               marginBottom: 6,
             }}
           >
@@ -162,7 +162,7 @@ export function WelcomeModal() {
           <div
             style={{
               fontSize: 11,
-              color: 'rgba(245, 230, 200, 0.4)',
+              color: 'var(--color-text-muted)',
             }}
           >
             Menu → About → How to use

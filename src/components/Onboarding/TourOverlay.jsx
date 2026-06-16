@@ -21,8 +21,8 @@ function Tooltip({
     <div
       {...tooltipProps}
       style={{
-        background: 'rgba(10, 15, 26, 0.97)',
-        border: '1px solid rgba(245, 230, 200, 0.12)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
         borderRadius: 16,
         padding: 20,
         maxWidth: 320,
@@ -45,7 +45,7 @@ function Tooltip({
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 20,
             fontWeight: 400,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             marginBottom: 10,
           }}
         >
@@ -57,7 +57,7 @@ function Tooltip({
       <div
         style={{
           fontSize: 13,
-          color: 'rgba(245, 230, 200, 0.65)',
+          color: 'var(--color-text-dim)',
           lineHeight: 1.65,
           marginBottom: 16,
         }}
@@ -81,8 +81,8 @@ function Tooltip({
               padding: '8px 14px',
               borderRadius: 8,
               border: 'none',
-              background: 'rgba(245, 230, 200, 0.06)',
-              color: 'rgba(245, 230, 200, 0.5)',
+              background: 'var(--color-input-bg)',
+              color: 'var(--color-text-muted)',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
@@ -98,7 +98,7 @@ function Tooltip({
           style={{
             fontSize: 9,
             fontFamily: 'monospace',
-            color: 'rgba(245, 230, 200, 0.25)',
+            color: 'var(--color-text-faint)',
             letterSpacing: '0.1em',
           }}
         >
@@ -113,8 +113,8 @@ function Tooltip({
               padding: '8px 16px',
               borderRadius: 8,
               border: 'none',
-              background: 'rgba(245, 230, 200, 0.1)',
-              color: '#f5e6c8',
+              background: 'var(--color-input-hover)',
+              color: 'var(--color-text)',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
@@ -134,7 +134,7 @@ function Tooltip({
           right: 10,
           background: 'none',
           border: 'none',
-          color: 'rgba(245, 230, 200, 0.3)',
+          color: 'var(--color-text-muted)',
           fontSize: 18,
           cursor: 'pointer',
           padding: '4px 8px',
@@ -229,11 +229,11 @@ export function TourOverlay() {
       tooltipComponent={Tooltip}
       styles={{
         options: {
-          arrowColor: 'rgba(10, 15, 26, 0.97)',
-          backgroundColor: 'rgba(10, 15, 26, 0.97)',
-          overlayColor: 'rgba(4, 8, 16, 0.85)',
-          primaryColor: 'rgba(245, 230, 200, 0.1)',
-          textColor: '#f5e6c8',
+          arrowColor: 'var(--color-surface)',
+          backgroundColor: 'var(--color-surface)',
+          overlayColor: 'rgba(0, 0, 0, 0.7)',
+          primaryColor: 'var(--color-focus)',
+          textColor: 'var(--color-text)',
           zIndex: 1050,
         },
         spotlight: {

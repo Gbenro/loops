@@ -38,7 +38,7 @@ export function PrivacyNotice({ onAck }) {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(4, 8, 16, 0.97)',
+      background: 'rgba(0, 0, 0, 0.7)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -48,8 +48,8 @@ export function PrivacyNotice({ onAck }) {
       <div style={{
         width: '100%',
         maxWidth: 340,
-        background: '#0a0f18',
-        border: '1px solid rgba(245, 230, 200, 0.1)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
         borderRadius: 16,
         padding: 28,
       }}>
@@ -89,7 +89,7 @@ export function PrivacyNotice({ onAck }) {
               <div>
                 <div style={{
                   fontSize: 13,
-                  color: 'rgba(245, 230, 200, 0.85)',
+                  color: 'var(--color-text-dim)',
                   fontWeight: 500,
                   marginBottom: 3,
                 }}>
@@ -97,7 +97,7 @@ export function PrivacyNotice({ onAck }) {
                 </div>
                 <div style={{
                   fontSize: 12,
-                  color: 'rgba(245, 230, 200, 0.45)',
+                  color: 'var(--color-text-muted)',
                   lineHeight: 1.6,
                 }}>
                   {point.body}
@@ -113,7 +113,7 @@ export function PrivacyNotice({ onAck }) {
             width: '100%',
             padding: '14px',
             background: 'var(--color-input-hover)',
-            border: '1px solid rgba(245, 230, 200, 0.2)',
+            border: '1px solid var(--color-border-mid)',
             borderRadius: 8,
             color: 'var(--color-text)',
             fontSize: 13,
@@ -176,7 +176,7 @@ export function AuthModal({ onClose, onSuccess }) {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(4, 8, 16, 0.95)',
+      background: 'rgba(0, 0, 0, 0.7)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -186,8 +186,8 @@ export function AuthModal({ onClose, onSuccess }) {
       <div style={{
         width: '100%',
         maxWidth: 340,
-        background: '#0a0f18',
-        border: '1px solid rgba(245, 230, 200, 0.1)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
         borderRadius: 16,
         padding: 24,
       }}>
@@ -219,8 +219,8 @@ export function AuthModal({ onClose, onSuccess }) {
             width: '100%',
             padding: '13px 16px',
             marginBottom: 20,
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(245, 230, 200, 0.15)',
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border-mid)',
             borderRadius: 8,
             color: 'var(--color-text)',
             fontSize: 14,
@@ -272,7 +272,7 @@ export function AuthModal({ onClose, onSuccess }) {
               padding: '12px 14px',
               marginBottom: 10,
               background: 'var(--color-input-bg)',
-              border: '1px solid rgba(245, 230, 200, 0.1)',
+              border: '1px solid var(--color-border-light)',
               borderRadius: 8,
               color: 'var(--color-text)',
               fontSize: 14,
@@ -291,7 +291,7 @@ export function AuthModal({ onClose, onSuccess }) {
               padding: '12px 14px',
               marginBottom: 14,
               background: 'var(--color-input-bg)',
-              border: '1px solid rgba(245, 230, 200, 0.1)',
+              border: '1px solid var(--color-border-light)',
               borderRadius: 8,
               color: 'var(--color-text)',
               fontSize: 14,
@@ -320,7 +320,7 @@ export function AuthModal({ onClose, onSuccess }) {
               width: '100%',
               padding: '12px',
               background: loading ? 'var(--color-input-bg)' : 'var(--color-input-hover)',
-              border: '1px solid rgba(245, 230, 200, 0.15)',
+              border: '1px solid var(--color-border-mid)',
               borderRadius: 8,
               color: 'var(--color-text)',
               fontSize: 13,

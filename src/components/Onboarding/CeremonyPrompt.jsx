@@ -92,7 +92,7 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(4, 8, 16, 0.97)',
+        background: 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -116,8 +116,8 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
         style={{
           width: '100%',
           maxWidth: 340,
-          background: '#0a0f18',
-          border: '1px solid rgba(245, 230, 200, 0.1)',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
           borderRadius: 20,
           padding: '40px 28px 32px',
           textAlign: 'center',
@@ -142,7 +142,7 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: 24,
             fontWeight: 400,
-            color: '#f5e6c8',
+            color: 'var(--color-text)',
             marginBottom: 16,
             lineHeight: 1.3,
           }}
@@ -154,7 +154,7 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
         <p
           style={{
             fontSize: 14,
-            color: 'rgba(245, 230, 200, 0.6)',
+            color: 'var(--color-text-dim)',
             lineHeight: 1.75,
             marginBottom: 32,
           }}
@@ -170,12 +170,12 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
               padding: '14px 24px',
               borderRadius: 12,
               background: type === 'new-moon'
-                ? 'rgba(167, 139, 250, 0.15)'
-                : 'rgba(245, 230, 200, 0.1)',
+                ? 'var(--color-accent-bg)'
+                : 'var(--color-border-light)',
               border: `1px solid ${type === 'new-moon'
-                ? 'rgba(167, 139, 250, 0.3)'
-                : 'rgba(245, 230, 200, 0.2)'}`,
-              color: type === 'new-moon' ? '#c4b5fd' : '#f5e6c8',
+                ? 'var(--color-accent)'
+                : 'var(--color-border-mid)'}`,
+              color: type === 'new-moon' ? 'var(--color-accent)' : 'var(--color-text)',
               fontSize: 15,
               fontFamily: "'DM Sans', sans-serif",
               cursor: 'pointer',
@@ -192,7 +192,7 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
               borderRadius: 12,
               background: 'transparent',
               border: 'none',
-              color: 'rgba(245, 230, 200, 0.35)',
+              color: 'var(--color-text-muted)',
               fontSize: 13,
               fontFamily: "'DM Sans', sans-serif",
               cursor: 'pointer',

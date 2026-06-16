@@ -70,7 +70,7 @@ export function DeepCosmicSheet({
         width: '100%',
         maxWidth: 520,
         height: '84vh',
-        background: '#0a0a12',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         display: 'flex',
@@ -257,7 +257,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
           opacity: 1,
           transition: 'opacity 0.4s ease',
@@ -273,7 +273,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
             padding: '6px 12px',
             borderRadius: 16,
             background: 'var(--color-input-hover)',
-            border: '1px solid rgba(245, 230, 200, 0.1)',
+            border: '1px solid var(--color-border-light)',
             fontSize: 11,
             color: 'var(--color-text)',
             fontFamily: 'monospace',
@@ -288,7 +288,7 @@ function PhaseSection({ phase, content, tideKey, generatedText, phrasesLoading }
         padding: 20,
         borderRadius: 12,
         background: 'var(--color-input-bg)',
-        border: '1px solid rgba(245, 230, 200, 0.08)',
+        border: '1px solid var(--color-border-light)',
       }}>
         <div style={{
           fontSize: 10,
@@ -350,7 +350,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
         }}>
           {displayText}
@@ -461,7 +461,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
         }}>
           {displayText}
@@ -491,7 +491,7 @@ function SignSection({ zodiac, info, phase: _phase, generatedText, phrasesLoadin
           padding: 20,
           borderRadius: 12,
           background: 'var(--color-input-bg)',
-          border: '1px solid rgba(245, 230, 200, 0.08)',
+          border: '1px solid var(--color-border-light)',
         }}>
           <div style={{
             fontSize: 10,
@@ -554,7 +554,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
           fontStyle: 'italic',
         }}>
@@ -567,7 +567,7 @@ function SeasonSection({ solarData, generatedText, phrasesLoading }) {
         padding: 20,
         borderRadius: 12,
         background: 'var(--color-input-bg)',
-        border: '1px solid rgba(245, 230, 200, 0.08)',
+        border: '1px solid var(--color-border-light)',
         marginBottom: 24,
       }}>
         <div style={{
@@ -655,8 +655,8 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
       <div style={{
         padding: 24,
         borderRadius: 16,
-        background: 'rgba(167, 139, 250, 0.06)',
-        border: '1px solid rgba(167, 139, 250, 0.15)',
+        background: 'var(--color-accent-bg)',
+        border: '1px solid var(--color-border-mid)',
         marginBottom: 24,
       }}>
         <div style={{
@@ -678,7 +678,7 @@ function WeaveSection({ lunarData, solarData, zodiacInfo, generatedText, phrases
           <p style={{
             fontSize: 15,
             lineHeight: 1.9,
-            color: 'rgba(245, 230, 200, 0.9)',
+            color: 'var(--color-text)',
             fontFamily: "'Cormorant Garamond', serif",
           }}>
             {displayText}
@@ -707,7 +707,7 @@ function Pill({ children }) {
       padding: '6px 14px',
       borderRadius: 20,
       background: 'var(--color-input-hover)',
-      border: '1px solid rgba(245, 230, 200, 0.12)',
+      border: '1px solid var(--color-border-light)',
       fontSize: 12,
       color: 'var(--color-text)',
     }}>
@@ -804,7 +804,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
           fontStyle: 'italic',
         }}>
@@ -821,7 +821,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
               padding: 16,
               borderRadius: 12,
               background: 'var(--color-input-bg)',
-              border: '1px solid rgba(245, 230, 200, 0.08)',
+              border: '1px solid var(--color-border-light)',
             }}
           >
             <div style={{
@@ -925,7 +925,7 @@ function YourSkySection({ resonances = [], generatedText, phrasesLoading, userPr
                   fontFamily: "'Cormorant Garamond', serif",
                   fontSize: 14,
                   fontStyle: 'italic',
-                  color: 'rgba(245, 230, 200, 0.65)',
+                  color: 'var(--color-text-dim)',
                   lineHeight: 1.6,
                 }}>
                   {r.invitation}
@@ -985,7 +985,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
         <p style={{
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 24,
           fontStyle: 'italic',
         }}>
@@ -1020,7 +1020,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
 
         <div style={{
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           marginBottom: 14,
           lineHeight: 1.5,
         }}>
@@ -1073,7 +1073,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
                     ? '#FBBF24'
                     : isPassed
                       ? 'var(--color-focus)'
-                      : 'rgba(245, 230, 200, 0.25)',
+                      : 'var(--color-text-faint)',
                 }}
               >
                 {isPassed && !isCurrent && '✓ '}
@@ -1113,7 +1113,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
 
         <div style={{
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           lineHeight: 1.7,
         }}>
           Near maximum. Peak electromagnetic output. The collective nervous system is measurably more activated than usual.
@@ -1146,7 +1146,7 @@ function _ArcsSection({ solarData, generatedText, phrasesLoading }) {
 
         <div style={{
           fontSize: 14,
-          color: 'rgba(245, 230, 200, 0.85)',
+          color: 'var(--color-text-dim)',
           lineHeight: 1.7,
         }}>
           Pisces → Aquarius transition. Seed moment of an age organised around individual sovereignty and conscious relationship with time.

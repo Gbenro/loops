@@ -41,12 +41,12 @@ function CreateSheet({ onSave, onClose }) {
 
       <div style={{
         position: 'relative', width: '100%', maxWidth: 520,
-        background: '#070b14',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
         padding: '24px 20px 40px',
         animation: 'slideUp 0.25s ease-out',
       }}>
-        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'rgba(245,230,200,0.15)', margin: '0 auto 20px' }} />
+        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
 
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: 'var(--color-text)', marginBottom: 20 }}>
           New rhythm
@@ -61,8 +61,8 @@ function CreateSheet({ onSave, onClose }) {
           placeholder="Name this practice…"
           style={{
             width: '100%', padding: '13px 14px', marginBottom: 16,
-            background: 'rgba(245,230,200,0.04)',
-            border: '1px solid rgba(245,230,200,0.1)',
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border-light)',
             borderRadius: 10, color: 'var(--color-text)', fontSize: 15, outline: 'none',
             fontFamily: "'DM Sans', sans-serif",
             boxSizing: 'border-box',
@@ -81,11 +81,11 @@ function CreateSheet({ onSave, onClose }) {
                 onClick={() => setScope(v)}
                 style={{
                   flex: 1, padding: '12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                  background: scope === v ? 'rgba(245,230,200,0.07)' : 'rgba(245,230,200,0.02)',
-                  border: scope === v ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.06)',
+                  background: scope === v ? 'var(--color-border-light)' : 'var(--color-input-bg)',
+                  border: scope === v ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
                 }}
               >
-                <div style={{ fontSize: 13, color: scope === v ? 'var(--color-text)' : 'rgba(245,230,200,0.5)', marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ fontSize: 13, color: scope === v ? 'var(--color-text)' : 'var(--color-text-dim)', marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
                   {l}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
@@ -101,9 +101,9 @@ function CreateSheet({ onSave, onClose }) {
           disabled={!canSave || saving}
           style={{
             width: '100%', padding: '14px', borderRadius: 12,
-            background: canSave ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.03)',
-            border: canSave ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
-            color: canSave ? 'var(--color-text)' : 'var(--text-disabled)',
+            background: canSave ? 'var(--color-border-light)' : 'var(--color-input-bg)',
+            border: canSave ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
+            color: canSave ? 'var(--color-text)' : 'var(--color-text-muted)',
             fontSize: 14, cursor: canSave ? 'pointer' : 'default',
             fontFamily: "'DM Sans', sans-serif",
           }}
@@ -135,7 +135,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
     ? ALL_PHASE_KEYS.slice(0, currentPhaseIndex)
     : [];
 
-  const phaseAccent = PHASE_ACCENTS[currentPhaseKey] || 'rgba(245,230,200,0.6)';
+  const phaseAccent = PHASE_ACCENTS[currentPhaseKey] || 'var(--color-accent)';
 
   // Cycle loop title for AI context
   const cycleLoop = loops.find(l => l.type === 'cycle' && l.status === 'active');
@@ -203,7 +203,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-      <div style={{ color: 'rgba(245,230,200,0.2)', fontSize: 13 }}>·</div>
+      <div style={{ color: 'var(--color-text-faint)', fontSize: 13 }}>·</div>
     </div>
   );
 
@@ -224,14 +224,14 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
         <div key={r.id} data-tour="rhythm-intention" style={{
           marginBottom: 12,
           padding: '14px 16px',
-          background: 'rgba(245,230,200,0.04)',
-          border: '1px solid rgba(245,230,200,0.1)',
+          background: 'var(--color-input-bg)',
+          border: '1px solid var(--color-border-light)',
           borderRadius: 12,
         }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
             NEW MOON · {r.name.toUpperCase()}
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.6)', marginBottom: 12, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-dim)', marginBottom: 12, lineHeight: 1.5 }}>
             {resolvePhaseText('rhythmContinuePrompt', 'new')}
           </div>
           <div data-tour="rhythm-intention-actions" style={{ display: 'flex', gap: 8 }}>
@@ -239,9 +239,9 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
               onClick={() => handleContinueIntention(r)}
               style={{
                 flex: 1, padding: '9px', borderRadius: 8,
-                background: 'rgba(245,230,200,0.06)',
-                border: '1px solid rgba(245,230,200,0.1)',
-                color: 'rgba(245,230,200,0.7)', fontSize: 12, cursor: 'pointer',
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border-light)',
+                color: 'var(--color-text-dim)', fontSize: 12, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
               }}
             >
@@ -251,9 +251,9 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
               onClick={() => setSelectedRhythm(r)}
               style={{
                 flex: 1, padding: '9px', borderRadius: 8,
-                background: 'rgba(245,230,200,0.03)',
-                border: '1px solid rgba(245,230,200,0.08)',
-                color: 'rgba(245,230,200,0.5)', fontSize: 12, cursor: 'pointer',
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border-light)',
+                color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
               }}
             >
@@ -284,7 +284,7 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
         <div style={{ padding: '60px 0', textAlign: 'center' }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 22, fontWeight: 300, color: 'rgba(245,230,200,0.4)',
+            fontSize: 22, fontWeight: 300, color: 'var(--color-text-dim)',
             marginBottom: 12,
           }}>
             {resolvePhaseText('noRhythmsMessage', currentPhaseKey)}
@@ -337,9 +337,9 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
           width: 'calc(100% - 40px)',
           padding: '13px',
           borderRadius: 12,
-          background: 'rgba(245,230,200,0.06)',
-          border: '1px solid rgba(245,230,200,0.1)',
-          color: 'rgba(245,230,200,0.5)',
+          background: 'var(--color-border-light)',
+          border: '1px solid var(--color-border-mid)',
+          color: 'var(--color-text-muted)',
           fontSize: 13, cursor: 'pointer',
           fontFamily: "'DM Sans', sans-serif",
           letterSpacing: '0.04em',

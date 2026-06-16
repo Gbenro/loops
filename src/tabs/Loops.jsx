@@ -635,7 +635,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       <div style={{
         padding: '16px 20px',
         background: 'var(--color-input-bg)',
-        borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
+        borderBottom: '1px solid var(--color-border-light)',
       }}>
         <div style={{
           display: 'flex',
@@ -684,7 +684,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       {/* Cycle Selector + Progress */}
       <div style={{
         padding: '0 20px',
-        borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
+        borderBottom: '1px solid var(--color-border-light)',
       }}>
         {/* Collapse toggle */}
         <button
@@ -1146,7 +1146,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       {/* Add Loop Button */}
       <div style={{
         padding: '16px 20px 20px',
-        borderTop: '1px solid rgba(245, 230, 200, 0.06)',
+        borderTop: '1px solid var(--color-border-light)',
       }}>
         <button
           data-tutorial="add-loop-btn"
@@ -1157,7 +1157,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             padding: '14px 20px',
             borderRadius: 12,
             background: 'var(--color-border)',
-            border: '1px solid rgba(245, 230, 200, 0.12)',
+            border: '1px solid var(--color-border-light)',
             color: 'var(--color-text)',
             fontSize: 13,
             cursor: 'pointer',
@@ -1305,7 +1305,7 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
         padding: '14px 12px 14px 14px',
         background: isOpen
           ? 'rgba(148, 163, 184, 0.03)'
-          : 'rgba(245, 230, 200, 0.025)',
+          : 'var(--color-input-bg)',
         border: `1px solid ${isOpen ? 'rgba(148, 163, 184, 0.08)' : 'var(--color-border)'}`,
         borderLeft: !closed ? `3px solid ${isOngoing ? '#34D399' : isPaused ? 'rgba(251, 191, 36, 0.45)' : 'transparent'}` : undefined,
         borderRadius: 12,
@@ -1384,9 +1384,9 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
           title={isOngoing ? 'Clear ongoing' : 'Set as ongoing'}
           style={{
             width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-            border: `1px solid ${isOngoing ? 'rgba(52,211,153,0.5)' : isPaused ? 'rgba(251,191,36,0.3)' : 'rgba(245,230,200,0.15)'}`,
+            border: `1px solid ${isOngoing ? 'rgba(52,211,153,0.5)' : isPaused ? 'rgba(251,191,36,0.3)' : 'var(--color-border-mid)'}`,
             background: isOngoing ? 'rgba(52,211,153,0.12)' : 'transparent',
-            color: isOngoing ? '#34D399' : isPaused ? 'rgba(251,191,36,0.5)' : 'rgba(245,230,200,0.2)',
+            color: isOngoing ? '#34D399' : isPaused ? 'rgba(251,191,36,0.5)' : 'var(--color-text-faint)',
             fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
@@ -1542,19 +1542,19 @@ function DetailPanel({
         width: '100%',
         maxWidth: 520,
         maxHeight: '85vh',
-        background: '#0a0a12',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         display: 'flex',
         flexDirection: 'column',
       }}>
         {/* Header */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(245, 230, 200, 0.08)' }}>
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Ring
               pct={pct}
-              color={isReleased ? 'rgba(245,230,200,0.3)' : (loop.color || '#A78BFA')}
+              color={isReleased ? 'var(--color-text-muted)' : (loop.color || '#A78BFA')}
               size={56}
               stroke={4}
             >
@@ -1606,7 +1606,7 @@ function DetailPanel({
                     padding: '10px 12px',
                     marginBottom: 6,
                     borderRadius: 8,
-                    background: cp.done ? 'rgba(167, 139, 250, 0.08)' : 'rgba(245, 230, 200, 0.02)',
+                    background: cp.done ? 'var(--color-accent-bg)' : 'var(--color-input-bg)',
                     border: `1px solid ${cp.done ? 'rgba(167, 139, 250, 0.2)' : 'var(--color-border)'}`,
                     cursor: 'pointer',
                   }}
@@ -1644,7 +1644,7 @@ function DetailPanel({
               {regularSubtasks.map((subtask, index) => (
                 <div
                   key={subtask.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(245, 230, 200, 0.06)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--color-border-light)' }}
                 >
                   {/* Reorder buttons — only for non-cycle loops */}
                   {!isCycle && isActive && regularSubtasks.length > 1 && (
@@ -1691,7 +1691,7 @@ function DetailPanel({
                     onChange={e => setNewSubtask(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
                     placeholder="Add a step..."
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.1)', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, outline: 'none' }}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border-light)', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, outline: 'none' }}
                   />
                   <button
                     onClick={handleAddSubtask}
@@ -1712,7 +1712,7 @@ function DetailPanel({
               {!showEchoInput && (
                 <button
                   onClick={() => setShowEchoInput(true)}
-                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
                 >
                   + ADD ECHO
                 </button>
@@ -1721,13 +1721,13 @@ function DetailPanel({
 
             {/* Echo input form */}
             {showEchoInput && (
-              <div style={{ background: 'var(--color-input-bg)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+              <div style={{ background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
                 <textarea
                   value={newEchoText}
                   onChange={e => setNewEchoText(e.target.value)}
                   placeholder="Write your reflection..."
                   rows={3}
-                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'rgba(245, 230, 200, 0.9)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
                 />
                 {echoAudioBlob && (
                   <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(52, 211, 153, 0.7)', marginTop: 4 }}>
@@ -1762,7 +1762,7 @@ function DetailPanel({
                 <div
                   key={echo.id}
                   onClick={() => setEchoModal(echo)}
-                  style={{ padding: '12px 14px', background: 'rgba(245, 230, 200, 0.02)', border: '1px solid rgba(245, 230, 200, 0.06)', borderRadius: 8, marginBottom: 8, cursor: 'pointer' }}
+                  style={{ padding: '12px 14px', background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 8, marginBottom: 8, cursor: 'pointer' }}
                 >
                   <div style={{ fontSize: 12, color: 'var(--color-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
@@ -1783,7 +1783,7 @@ function DetailPanel({
           </div>
 
           {/* Note */}
-          <div style={{ borderTop: '1px solid rgba(245, 230, 200, 0.06)', paddingTop: 16, marginBottom: 8 }}>
+          <div style={{ borderTop: '1px solid var(--color-border-light)', paddingTop: 16, marginBottom: 8 }}>
             <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 8 }}>
               NOTE
             </div>
@@ -1793,13 +1793,13 @@ function DetailPanel({
               onBlur={() => onUpdateNote(noteText.trim() || null)}
               placeholder="A note to yourself... (saves when you stop writing)"
               rows={3}
-              style={{ width: '100%', background: 'var(--color-input-bg)', border: '1px solid rgba(245, 230, 200, 0.08)', borderRadius: 8, padding: '10px 12px', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, padding: '10px 12px', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div data-tour="loop-actions" style={{ padding: '16px 20px 24px', borderTop: '1px solid rgba(245, 230, 200, 0.08)', display: 'flex', gap: 10 }}>
+        <div data-tour="loop-actions" style={{ padding: '16px 20px 24px', borderTop: '1px solid var(--color-border-light)', display: 'flex', gap: 10 }}>
           {!isCycle && (
             <button
               onClick={onDelete}
@@ -1809,7 +1809,7 @@ function DetailPanel({
           {isActive && (
             <button
               onClick={onReleaseLoop}
-              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
             >Release</button>
           )}
           {(isClosed || isReleased) && (
@@ -1835,7 +1835,7 @@ function DetailPanel({
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: '#0a0a12', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
+            style={{ width: '100%', maxWidth: 520, background: 'var(--color-surface)', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
             <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1844,7 +1844,7 @@ function DetailPanel({
               <span>· day {echoModal.dayOfCycle}</span>
             </div>
             {echoModal.text && (
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: 'rgba(245, 230, 200, 0.85)', lineHeight: 1.7, marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: 'var(--color-text-dim)', lineHeight: 1.7, marginBottom: 16 }}>
                 {echoModal.text}
               </div>
             )}
@@ -1856,7 +1856,7 @@ function DetailPanel({
             )}
             <button
               onClick={() => setEchoModal(null)}
-              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid rgba(245, 230, 200, 0.15)', background: 'transparent', color: 'var(--color-focus)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
+              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
             >Close</button>
           </div>
         </div>

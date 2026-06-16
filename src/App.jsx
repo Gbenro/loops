@@ -50,13 +50,14 @@ function UnlockModal({ verifyToken, userId }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(4, 8, 16, 0.97)',
+      background: 'rgba(0, 0, 0, 0.7)',
+      backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 1000, padding: 20,
     }}>
       <div style={{
         width: '100%', maxWidth: 320,
-        background: '#0a0f18',
+        background: 'var(--color-surface)',
         border: '1px solid var(--color-border-light)',
         borderRadius: 16, padding: 28,
       }}>
@@ -68,7 +69,7 @@ function UnlockModal({ verifyToken, userId }) {
           }}>Encrypted content</div>
           <div style={{
             fontSize: 11, fontFamily: 'monospace',
-            color: 'var(--text-secondary)', letterSpacing: '0.08em',
+            color: 'var(--color-text-muted)', letterSpacing: '0.08em',
           }}>ENTER PASSPHRASE TO DECRYPT</div>
         </div>
         <form onSubmit={handleUnlock}>
@@ -151,11 +152,11 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
       left: '50%',
       transform: 'translateX(-50%)',
       width: 'min(calc(100% - 32px), 488px)',
-      background: '#0e1420',
-      border: '1px solid rgba(167, 139, 250, 0.25)',
+      background: 'var(--color-surface)',
+      border: '1px solid var(--color-border-light)',
       borderRadius: 16, padding: '16px 18px',
       zIndex: 500,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
       animation: 'fadeIn 0.3s ease-out',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -176,9 +177,9 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
                 onClick={handleInstall}
                 style={{
                   padding: '8px 16px', borderRadius: 8,
-                  background: 'rgba(167, 139, 250, 0.2)',
-                  border: '1px solid rgba(167, 139, 250, 0.35)',
-                  color: '#c4b5fd', fontSize: 12, cursor: 'pointer',
+                  background: 'var(--color-accent-bg)',
+                  border: '1px solid var(--color-border-mid)',
+                  color: 'var(--color-accent)', fontSize: 12, cursor: 'pointer',
                 }}
               >
                 Install
@@ -217,7 +218,7 @@ function BetaGate({ onSignOut }) {
         Luna Loops v2
       </div>
       <div style={{
-        fontSize: 14, color: 'rgba(245,230,200,0.5)',
+        fontSize: 14, color: 'var(--color-text-muted)',
         lineHeight: 1.8, maxWidth: 280, marginBottom: 32,
       }}>
         This version is in private beta. You&apos;re on the list — we&apos;ll be in touch when your access is ready.
@@ -225,8 +226,8 @@ function BetaGate({ onSignOut }) {
       <button
         onClick={onSignOut}
         style={{
-          background: 'none', border: '1px solid rgba(245,230,200,0.15)',
-          borderRadius: 8, color: 'rgba(245,230,200,0.4)',
+          background: 'none', border: '1px solid var(--color-border-mid)',
+          borderRadius: 8, color: 'var(--color-text-dim)',
           fontSize: 11, fontFamily: 'monospace', padding: '10px 20px',
           cursor: 'pointer', letterSpacing: '0.08em',
         }}

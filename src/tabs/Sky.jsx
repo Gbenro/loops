@@ -88,7 +88,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           onClick={() => user ? setMenuOpen(true) : onSignIn()}
           style={{
             background: 'none',
-            border: '1px solid rgba(245, 230, 200, 0.15)',
+            border: '1px solid var(--color-border-mid)',
             borderRadius: 8,
             padding: '8px 14px',
             fontSize: 'var(--font-xs)',
@@ -205,10 +205,10 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
           borderRadius: 14,
           background: lunarData.phase.isThreshold
             ? 'var(--color-input-bg)'
-            : 'rgba(201, 168, 76, 0.04)',
+            : 'var(--color-input-bg)',
           border: `1px solid ${lunarData.phase.isThreshold
             ? 'var(--color-border-light)'
-            : 'rgba(201, 168, 76, 0.12)'}`,
+            : 'var(--color-border-light)'}`,
           marginBottom: 24,
         }}>
           <div style={{
@@ -233,10 +233,10 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               borderRadius: 4,
               background: lunarData.phase.isThreshold
                 ? 'var(--color-input-hover)'
-                : 'rgba(201, 168, 76, 0.1)',
+                : 'var(--color-input-hover)',
               color: lunarData.phase.isThreshold
                 ? 'var(--color-focus)'
-                : 'rgba(201, 168, 76, 0.7)',
+                : 'var(--color-focus)',
             }}>
               {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
             </span>
@@ -247,7 +247,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontSize: 'var(--font-md)',
             color: lunarData.phase.isThreshold
               ? 'var(--color-text-dim)'
-              : 'rgba(201, 168, 76, 0.65)',
+              : 'var(--color-text-dim)',
             marginBottom: 10,
             lineHeight: 1.5,
           }}>
@@ -266,7 +266,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 'var(--font-lg)',
               fontStyle: 'italic',
-              color: 'rgba(245, 230, 200, 0.85)',
+              color: 'var(--color-text-dim)',
               lineHeight: 1.6,
               opacity: 1,
               transition: 'opacity 0.4s ease',
@@ -282,7 +282,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             fontFamily: "'Cormorant Garamond', serif",
             fontStyle: 'italic',
             fontSize: '13px',
-            color: 'rgba(245, 230, 200, 0.45)',
+            color: 'var(--color-text-muted)',
             textAlign: 'center',
             letterSpacing: '0.02em',
             padding: '0 24px',
@@ -392,7 +392,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             </div>
             <div style={{
               fontSize: 'var(--font-md)',
-              color: 'rgba(245, 230, 200, 0.85)',
+              color: 'var(--color-text-dim)',
               marginBottom: resonanceSummary.strongest?.invitation ? 6 : 0,
             }}>
               {resonanceSummary.message}
@@ -420,7 +420,7 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
             padding: '16px 24px',
             borderRadius: 14,
             background: 'var(--color-border)',
-            border: '1px solid rgba(245, 230, 200, 0.12)',
+            border: '1px solid var(--color-border-light)',
             color: 'var(--color-text)',
             fontSize: 'var(--font-sm)',
             fontFamily: 'monospace',

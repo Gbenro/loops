@@ -45,13 +45,13 @@ function IntentionSetter({ instance, onSave, onClose }) {
 
       <div style={{
         position: 'relative', width: '100%', maxWidth: 520,
-        background: '#070b14',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
         padding: '24px 20px 40px',
         maxHeight: '85vh', overflowY: 'auto',
         animation: 'slideUp 0.25s ease-out',
       }}>
-        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'rgba(245,230,200,0.15)', margin: '0 auto 20px' }} />
+        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
 
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: 'var(--color-text)', marginBottom: 20 }}>
           Set intention
@@ -65,11 +65,11 @@ function IntentionSetter({ instance, onSave, onClose }) {
               onClick={() => setMode(v)}
               style={{
                 flex: 1, padding: '9px 4px', borderRadius: 8,
-                background: mode === v ? 'rgba(245,230,200,0.1)' : 'rgba(245,230,200,0.03)',
-                color: mode === v ? 'var(--color-text)' : 'rgba(245,230,200,0.35)',
+                background: mode === v ? 'var(--color-border-light)' : 'var(--color-input-bg)',
+                color: mode === v ? 'var(--color-text)' : 'var(--color-text-muted)',
                 fontSize: 11, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
-                border: mode === v ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.05)',
+                border: mode === v ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
               }}
             >
               {l}
@@ -85,10 +85,10 @@ function IntentionSetter({ instance, onSave, onClose }) {
                 onClick={() => setWhole(lv)}
                 style={{
                   padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                  background: whole === lv ? 'rgba(245,230,200,0.08)' : 'rgba(245,230,200,0.02)',
-                  color: whole === lv ? 'var(--color-text)' : 'rgba(245,230,200,0.5)',
+                  background: whole === lv ? 'var(--color-border-light)' : 'var(--color-input-bg)',
+                  color: whole === lv ? 'var(--color-text)' : 'var(--color-text-dim)',
                   fontSize: 14, textAlign: 'left',
-                  border: whole === lv ? '1px solid rgba(245,230,200,0.15)' : '1px solid rgba(245,230,200,0.06)',
+                  border: whole === lv ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
@@ -104,14 +104,14 @@ function IntentionSetter({ instance, onSave, onClose }) {
               <div key={ph.key} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 0',
-                borderBottom: '1px solid rgba(245,230,200,0.05)',
+                borderBottom: '1px solid var(--color-border-light)',
               }}>
                 <div style={{
                   width: 7, height: 7, borderRadius: '50%',
                   background: ph.accent, flexShrink: 0,
                 }} />
                 <div style={{
-                  fontSize: 12, color: 'rgba(245,230,200,0.6)',
+                  fontSize: 12, color: 'var(--color-text-dim)',
                   width: 110, flexShrink: 0,
                 }}>
                   {ph.label}
@@ -127,8 +127,8 @@ function IntentionSetter({ instance, onSave, onClose }) {
                           padding: '4px 8px', borderRadius: 6,
                           fontSize: 10, fontFamily: 'monospace', cursor: 'pointer',
                           background: sel ? `${ph.accent}22` : 'transparent',
-                          border: sel ? `1px solid ${ph.accent}44` : '1px solid rgba(245,230,200,0.08)',
-                          color: sel ? ph.accent : 'rgba(245,230,200,0.35)',
+                          border: sel ? `1px solid ${ph.accent}44` : '1px solid var(--color-border-light)',
+                          color: sel ? ph.accent : 'var(--color-text-muted)',
                           letterSpacing: '0.05em',
                         }}
                       >
@@ -143,7 +143,7 @@ function IntentionSetter({ instance, onSave, onClose }) {
         )}
 
         {mode === 'none' && (
-          <div style={{ fontSize: 13, color: 'rgba(245,230,200,0.4)', marginBottom: 20, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
             Pure observation mode — just log what actually happens. Intention can be set any time.
           </div>
         )}
@@ -153,8 +153,8 @@ function IntentionSetter({ instance, onSave, onClose }) {
           disabled={saving}
           style={{
             width: '100%', padding: '14px', borderRadius: 12,
-            background: 'rgba(245,230,200,0.08)',
-            border: '1px solid rgba(245,230,200,0.15)',
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border-mid)',
             color: 'var(--color-text)', fontSize: 14, cursor: 'pointer',
             fontFamily: "'DM Sans', sans-serif",
           }}
@@ -242,7 +242,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
 
   if (loading) return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'rgba(245,230,200,0.3)', fontSize: 13 }}>Loading…</div>
+      <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Loading…</div>
     </div>
   );
 
@@ -253,16 +253,16 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         position: 'sticky', top: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '16px 20px',
-        background: 'rgba(4,8,16,0.9)', backdropFilter: 'blur(8px)',
+        background: 'var(--color-bg)',
         zIndex: 10,
       }}>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: 'rgba(245,230,200,0.4)', fontSize: 14, cursor: 'pointer', padding: 0 }}
+          style={{ background: 'none', border: 'none', color: 'var(--color-text-dim)', fontSize: 14, cursor: 'pointer', padding: 0 }}
         >
           ← Back
         </button>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'rgba(245,230,200,0.3)', letterSpacing: '0.08em' }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.08em' }}>
           {SCOPE_LABELS[rhythm.scope] || rhythm.scope.toUpperCase()}
         </div>
       </div>
@@ -281,7 +281,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
           {currentPhaseKey && phaseDuration > 0 && (
             <div style={{
               fontSize: 11, fontFamily: 'monospace',
-              color: 'rgba(245,230,200,0.4)',
+              color: 'var(--color-text-muted)',
               letterSpacing: '0.08em',
               marginBottom: 8,
             }}>
@@ -293,7 +293,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
             style={{
               background: 'none', border: 'none', padding: 0,
               fontSize: 11, fontFamily: 'monospace',
-              color: instance ? 'rgba(245,230,200,0.3)' : 'rgba(245,230,200,0.15)',
+              color: instance ? 'var(--color-text-dim)' : 'var(--color-text-faint)',
               letterSpacing: '0.1em',
               cursor: instance ? 'pointer' : 'default',
             }}
@@ -347,9 +347,9 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
               style={{
                 display: 'block', width: '100%',
                 padding: '14px 16px', borderRadius: 12,
-                background: 'rgba(245,230,200,0.04)',
-                border: '1px solid rgba(245,230,200,0.1)',
-                color: 'rgba(245,230,200,0.6)', fontSize: 13,
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border-light)',
+                color: 'var(--color-text-dim)', fontSize: 13,
                 cursor: 'pointer', marginBottom: 24,
                 fontFamily: "'DM Sans', sans-serif",
                 textAlign: 'center',
@@ -399,7 +399,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                           style={{
                             display: 'flex', alignItems: 'flex-start', gap: 12,
                             padding: '12px 0',
-                            borderBottom: '1px solid rgba(245,230,200,0.05)',
+                            borderBottom: '1px solid var(--color-border-light)',
                             background: 'none', border: 'none',
                             cursor: 'pointer', textAlign: 'left',
                           }}
@@ -407,10 +407,10 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                           <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: obs.note ? 3 : 0 }}>
-                              <span style={{ fontSize: 12, color: 'rgba(245,230,200,0.5)' }}>{dayLabel}</span>
+                              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>{dayLabel}</span>
                               <span style={{
                                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                                color: obs.engagement === 'ceremonial' ? '#fefcbf' : 'rgba(245,230,200,0.4)',
+                                color: obs.engagement === 'ceremonial' ? '#FBBF24' : 'var(--color-text-muted)',
                               }}>
                                 {(ENGAGEMENT_LABEL[obs.engagement] || obs.engagement).toUpperCase()}
                               </span>
@@ -451,7 +451,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                           style={{
                             display: 'flex', alignItems: 'flex-start', gap: 12,
                             padding: '12px 0',
-                            borderBottom: '1px solid rgba(245,230,200,0.05)',
+                            borderBottom: '1px solid var(--color-border-light)',
                             background: 'none', border: 'none',
                             cursor: 'pointer', textAlign: 'left',
                           }}
@@ -459,10 +459,10 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
                           <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: latestObs.note ? 3 : 0 }}>
-                              <span style={{ fontSize: 12, color: 'rgba(245,230,200,0.5)' }}>{ph?.label || k}</span>
+                              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>{ph?.label || k}</span>
                               <span style={{
                                 fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                                color: 'rgba(245,230,200,0.4)',
+                                color: 'var(--color-text-muted)',
                               }}>
                                 {checkInCount > 1 ? `${checkInCount} check-ins` : (ENGAGEMENT_LABEL[latestObs.engagement] || latestObs.engagement).toUpperCase()}
                               </span>

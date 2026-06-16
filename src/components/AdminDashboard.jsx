@@ -89,7 +89,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         position: 'absolute', bottom: 0, left: '50%',
         transform: 'translateX(-50%)', width: '100%', maxWidth: 520,
         height: '92vh',
-        background: '#070b14',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
         display: 'flex', flexDirection: 'column',
         animation: 'slideUp 0.3s ease-out',
@@ -98,11 +98,11 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         <div onClick={onClose} style={{
           padding: '12px 0', display: 'flex', justifyContent: 'center', cursor: 'pointer',
         }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(245,230,200,0.2)' }} />
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)' }} />
         </div>
 
         {/* Header */}
-        <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(245,230,200,0.06)' }}>
+        <div style={{ padding: '0 20px 16px', borderBottom: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <div style={{
@@ -111,7 +111,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
               }}>
                 Mission Control
               </div>
-              <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em' }}>
+              <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>
                 LUNA LOOPS
               </div>
             </div>
@@ -121,8 +121,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                 {V1_URL && (
                   <button onClick={() => switchVersion(V1_URL)} style={{
                     padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-                    border: `1px solid ${!IS_V2 ? 'rgba(245,230,200,0.4)' : 'rgba(245,230,200,0.12)'}`,
-                    color: !IS_V2 ? 'rgba(245,230,200,0.8)' : 'rgba(245,230,200,0.35)',
+                    border: `1px solid ${!IS_V2 ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                    color: !IS_V2 ? 'var(--color-text)' : 'var(--color-text-muted)',
                     fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
                     background: 'none',
                   }}>V1</button>
@@ -130,8 +130,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                 {V2_URL && (
                   <button onClick={() => switchVersion(V2_URL)} style={{
                     padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-                    border: `1px solid ${IS_V2 ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.15)'}`,
-                    color: IS_V2 ? 'rgba(167,139,250,0.9)' : 'rgba(167,139,250,0.4)',
+                    border: `1px solid ${IS_V2 ? 'var(--color-accent)' : 'var(--color-accent-bg)'}`,
+                    color: IS_V2 ? 'var(--color-accent)' : 'var(--color-text-muted)',
                     fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
                     background: 'none',
                   }}>V2</button>
@@ -145,7 +145,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         <div style={{
           display: 'flex', gap: 1,
           padding: '16px 20px',
-          borderBottom: '1px solid rgba(245,230,200,0.06)',
+          borderBottom: '1px solid var(--color-border)',
         }}>
           {[
             { label: 'USERS', value: totalUsers },
@@ -165,15 +165,15 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, padding: '12px 20px', borderBottom: '1px solid rgba(245,230,200,0.06)' }}>
+        <div style={{ display: 'flex', gap: 4, padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
           {['users', 'allowlist', 'feedback'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{
                 padding: '6px 14px', borderRadius: 6, border: 'none',
-                background: activeTab === tab ? 'rgba(245,230,200,0.1)' : 'transparent',
-                color: activeTab === tab ? 'rgba(245,230,200,0.8)' : 'rgba(245,230,200,0.3)',
+                background: activeTab === tab ? 'var(--color-border-light)' : 'transparent',
+                color: activeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
                 fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.08em',
                 textTransform: 'uppercase', cursor: 'pointer',
               }}
@@ -186,20 +186,20 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', color: 'rgba(245,230,200,0.3)', padding: 40, fontSize: 20 }}>〜</div>
+            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40, fontSize: 20 }}>〜</div>
           ) : (
             <>
               {/* Users tab */}
               {activeTab === 'users' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {users.length === 0 && (
-                    <div style={{ color: 'rgba(245,230,200,0.3)', fontSize: 13, fontStyle: 'italic' }}>No users yet.</div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 13, fontStyle: 'italic' }}>No users yet.</div>
                   )}
                   {users.map(u => (
                     <div key={u.email} style={{
                       padding: '14px 16px',
-                      background: 'rgba(245,230,200,0.03)',
-                      border: '1px solid rgba(245,230,200,0.07)',
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 10,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -209,13 +209,13 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                         <span style={{
                           fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.08em',
                           padding: '2px 6px', borderRadius: 3,
-                          background: u.role === 'admin' ? 'rgba(167,139,250,0.15)' : 'rgba(245,230,200,0.06)',
-                          color: u.role === 'admin' ? 'rgba(167,139,250,0.8)' : 'rgba(245,230,200,0.4)',
+                          background: u.role === 'admin' ? 'var(--color-accent-bg)' : 'var(--color-border-light)',
+                          color: u.role === 'admin' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                         }}>
                           {u.role?.toUpperCase()}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', gap: 16, fontSize: 10, fontFamily: 'monospace', color: 'rgba(245,230,200,0.4)' }}>
+                      <div style={{ display: 'flex', gap: 16, fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
                         <span>{u.loop_count} loops</span>
                         <span>{u.echo_count} echoes</span>
                         <span>{u.feedback_count} feedback</span>
@@ -234,8 +234,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                   {/* Add email form */}
                   <div style={{
                     padding: 16, borderRadius: 12,
-                    background: 'rgba(167,139,250,0.04)',
-                    border: '1px solid rgba(167,139,250,0.12)',
+                    background: 'var(--color-accent-bg)',
+                    border: '1px solid var(--color-border-light)',
                     marginBottom: 20,
                   }}>
                     <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-secondary)', letterSpacing: '0.1em', marginBottom: 12 }}>
@@ -249,8 +249,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                       onKeyDown={e => e.key === 'Enter' && addEmail()}
                       style={{
                         width: '100%', padding: '10px 12px', marginBottom: 8,
-                        background: 'rgba(245,230,200,0.03)',
-                        border: '1px solid rgba(245,230,200,0.1)',
+                        background: 'var(--color-input-bg)',
+                        border: '1px solid var(--color-border-light)',
                         borderRadius: 8, color: 'var(--color-text)', fontSize: 13, outline: 'none',
                         boxSizing: 'border-box',
                       }}
@@ -262,8 +262,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                       onChange={e => setNewNote(e.target.value)}
                       style={{
                         width: '100%', padding: '10px 12px', marginBottom: 10,
-                        background: 'rgba(245,230,200,0.03)',
-                        border: '1px solid rgba(245,230,200,0.1)',
+                        background: 'var(--color-input-bg)',
+                        border: '1px solid var(--color-border-light)',
                         borderRadius: 8, color: 'var(--color-text)', fontSize: 13, outline: 'none',
                         boxSizing: 'border-box',
                       }}
@@ -277,8 +277,8 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                       style={{
                         width: '100%', padding: '10px',
                         borderRadius: 8, border: 'none',
-                        background: newEmail.trim() ? 'rgba(167,139,250,0.15)' : 'rgba(245,230,200,0.04)',
-                        color: newEmail.trim() ? 'rgba(167,139,250,0.9)' : 'rgba(245,230,200,0.3)',
+                        background: newEmail.trim() ? 'var(--color-accent-bg)' : 'var(--color-input-bg)',
+                        color: newEmail.trim() ? 'var(--color-accent)' : 'var(--color-text-muted)',
                         fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.08em',
                         cursor: newEmail.trim() ? 'pointer' : 'default',
                       }}
@@ -288,7 +288,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                   </div>
 
                   {/* Current list */}
-                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)', letterSpacing: '0.1em', marginBottom: 12 }}>
+                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', letterSpacing: '0.1em', marginBottom: 12 }}>
                     {allowlist.length} ALLOWED
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -296,21 +296,21 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                       <div key={entry.email} style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '12px 14px',
-                        background: 'rgba(245,230,200,0.03)',
-                        border: '1px solid rgba(245,230,200,0.07)',
+                        background: 'var(--color-input-bg)',
+                        border: '1px solid var(--color-border)',
                         borderRadius: 8,
                       }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: 'var(--color-text)', marginBottom: 2 }}>{entry.email}</div>
                           {entry.note && (
-                            <div style={{ fontSize: 10, color: 'rgba(245,230,200,0.4)' }}>{entry.note}</div>
+                            <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{entry.note}</div>
                           )}
                         </div>
                         <span style={{
                           fontSize: 8, fontFamily: 'monospace',
                           padding: '2px 6px', borderRadius: 3,
-                          background: entry.role === 'admin' ? 'rgba(167,139,250,0.12)' : 'rgba(245,230,200,0.06)',
-                          color: entry.role === 'admin' ? 'rgba(167,139,250,0.7)' : 'rgba(245,230,200,0.35)',
+                          background: entry.role === 'admin' ? 'var(--color-accent-bg)' : 'var(--color-border-light)',
+                          color: entry.role === 'admin' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                         }}>
                           {entry.role?.toUpperCase()}
                         </span>
@@ -336,23 +336,23 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
               {activeTab === 'feedback' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {feedback.length === 0 && (
-                    <div style={{ color: 'rgba(245,230,200,0.3)', fontSize: 13, fontStyle: 'italic' }}>No feedback yet.</div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 13, fontStyle: 'italic' }}>No feedback yet.</div>
                   )}
                   {feedback.map(f => (
                     <div key={f.id} style={{
                       padding: '14px 16px',
-                      background: 'rgba(245,230,200,0.03)',
-                      border: '1px solid rgba(245,230,200,0.07)',
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 10,
                     }}>
                       <div style={{
                         fontFamily: "'Cormorant Garamond', serif",
-                        fontSize: 15, color: 'rgba(245,230,200,0.85)',
+                        fontSize: 15, color: 'var(--color-text-dim)',
                         lineHeight: 1.6, marginBottom: 10,
                       }}>
                         {f.text}
                       </div>
-                      <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(245,230,200,0.3)' }}>
+                      <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
                         {new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </div>
                     </div>
