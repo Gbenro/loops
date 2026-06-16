@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
 import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, updateEchoTags, generateId } from '../lib/storage.js';
-import { getLunarData } from '../lib/lunar.js';
+import { getLunarData, getLunarMonthName } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
@@ -141,22 +141,30 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
 
+  // Normalize echoes to ensure they all have a lunarMonth property (fallback for legacy/seeded data)
+  const echoesWithCycle = useMemo(() => {
+    return echoes.map(e => ({
+      ...e,
+      lunarMonth: e.lunarMonth || (e.createdAt ? getLunarMonthName(new Date(e.createdAt)) : lunarData.lunarMonth)
+    }));
+  }, [echoes, lunarData.lunarMonth]);
+
   // Derive all unique cycles from all echoes (base filter)
   const allUniqueCycles = useMemo(() => {
-    const cycles = [...new Set(echoes.map(e => e.lunarMonth).filter(v => v != null))];
+    const cycles = [...new Set(echoesWithCycle.map(e => e.lunarMonth).filter(v => v != null))];
     // Sort with current cycle first, then reverse chronological by first appearance
     const currentCycle = lunarData.lunarMonth;
     const currentFirst = cycles.filter(c => c === currentCycle);
     const rest = cycles.filter(c => c !== currentCycle);
     return [...currentFirst, ...rest];
-  }, [echoes, lunarData.lunarMonth]);
+  }, [echoesWithCycle, lunarData.lunarMonth]);
 
   // Echoes scoped to the selected cycle
   const cycleFilteredEchoes = useMemo(() => {
-    if (allUniqueCycles.length === 0) return echoes;
+    if (allUniqueCycles.length === 0) return echoesWithCycle;
     const targetCycle = allUniqueCycles[selectedCycleIndex];
-    return echoes.filter(e => e.lunarMonth === targetCycle);
-  }, [echoes, allUniqueCycles, selectedCycleIndex]);
+    return echoesWithCycle.filter(e => e.lunarMonth === targetCycle);
+  }, [echoesWithCycle, allUniqueCycles, selectedCycleIndex]);
 
   // Derive sorted unique values within the selected cycle
   const uniqueDays = useMemo(() =>
@@ -167,11 +175,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     PHASE_ORDER.filter(p => cycleFilteredEchoes.some(e => e.phase === p)),
   [cycleFilteredEchoes]);
 
-  // Tags are global — search across all cycles, not just the selected one
+  // Tags are cycle-scoped to align with the selected month cycle
   const uniqueTags = useMemo(() => {
-    const all = echoes.flatMap(e => e.tags || []);
+    const all = cycleFilteredEchoes.flatMap(e => e.tags || []);
     return [...new Set(all)].sort();
-  }, [echoes]);
+  }, [cycleFilteredEchoes]);
 
   const switchFilterMode = (mode) => {
     setFilterMode(mode);
@@ -233,20 +241,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
 
-  // Filtered echoes — day/phase are cycle-scoped; tag searches the full database
+  // Filtered echoes — day/phase/tag are all strictly cycle-scoped
   const filteredEchoes = useMemo(() => {
     if (navList.length === 0) return cycleFilteredEchoes;
     const target = navList[filterNavIndex];
     if (filterMode === 'tag') {
-      // Tag filter is global — not restricted to the selected cycle
-      return echoes.filter(e => (e.tags || []).includes(target));
+      return cycleFilteredEchoes.filter(e => (e.tags || []).includes(target));
     }
     return cycleFilteredEchoes.filter(e => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
       return true;
     });
-  }, [echoes, cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
+  }, [cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
