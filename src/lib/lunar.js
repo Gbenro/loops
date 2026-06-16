@@ -149,18 +149,38 @@ export function getDaysUntilNew(date = new Date()) {
   return getDaysUntilPhase(0, date);
 }
 
-// Calculate approximate zodiac sign from moon position
-// (Simplified: moon travels ~13 degrees/day through zodiac)
+// Calculate approximate zodiac sign from moon position using astronomical ecliptic longitude approximation
 export function getMoonZodiac(date = new Date()) {
-  const age = getMoonAge(date);
-  const zodiacAge = (age / SYNODIC) * 360;
+  const jd = toJulianDate(date);
+  const normalize = (v) => v - Math.floor(v);
+
+  // rp: Moon's mean longitude (sidereal period of 27.321582241 days)
+  const rp = normalize((jd - 2451555.8) / 27.321582241);
+
+  // ip: Moon's mean elongation/phase (synodic period of 29.530588853 days)
+  const ip = normalize((jd - 2451550.1) / 29.530588853);
+
+  // dp: Moon's mean anomaly (anomalistic period of 27.55454988 days)
+  const dp = 2 * Math.PI * normalize((jd - 2451562.2) / 27.55454988);
+
+  const radIp = 2 * Math.PI * ip;
+
+  // Calculate approximate ecliptic longitude of the moon in degrees
+  let longitude = 360 * rp 
+                + 6.3 * Math.sin(dp) 
+                + 1.3 * Math.sin(2 * radIp - dp) 
+                + 0.7 * Math.sin(2 * radIp);
+
+  // Ensure within [0, 360) range
+  const finalLongitude = (longitude % 360 + 360) % 360;
+
   const signs = [
     'Aries', 'Taurus', 'Gemini', 'Cancer',
     'Leo', 'Virgo', 'Libra', 'Scorpio',
     'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
   ];
-  const index = Math.floor(zodiacAge / 30) % 12;
-  const degree = Math.floor(zodiacAge % 30);
+  const index = Math.floor(finalLongitude / 30) % 12;
+  const degree = Math.floor(finalLongitude % 30);
   return { sign: signs[index], degree };
 }
 
