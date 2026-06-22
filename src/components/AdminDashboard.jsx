@@ -77,7 +77,14 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
   const totalFeedback = feedback.length;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 200,
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    }}>
       {/* Backdrop */}
       <div onClick={onClose} style={{
         position: 'absolute', inset: 0,
@@ -86,13 +93,14 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
 
       {/* Panel */}
       <div style={{
-        position: 'absolute', bottom: 0, left: '50%',
-        transform: 'translateX(-50%)', width: '100%', maxWidth: 520,
+        position: 'relative',
+        width: '100%',
+        maxWidth: 520,
         height: '92vh',
         background: 'var(--color-surface)',
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
         display: 'flex', flexDirection: 'column',
-        animation: 'slideUp 0.3s ease-out',
+        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
         {/* Handle */}
         <div onClick={onClose} style={{
@@ -364,12 +372,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
         </div>
       </div>
 
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
+
     </div>
   );
 }

@@ -72,6 +72,7 @@ export async function getLoops(userId) {
       isEncrypted: row.is_encrypted || false,
       tags: row.tags || [],
       focus: row.focus || null,
+      autoClosedReason: row.auto_closed_reason || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -135,6 +136,7 @@ export async function saveLoop(loop, userId) {
         is_encrypted: loop.isEncrypted || false,
         tags: loop.tags || [],
         focus: loop.focus || null,
+        auto_closed_reason: loop.autoClosedReason || null,
         updated_at: new Date().toISOString(),
       })
       .select();

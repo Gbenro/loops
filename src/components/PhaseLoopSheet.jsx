@@ -52,6 +52,9 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
       position: 'fixed',
       inset: 0,
       zIndex: 100,
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
     }}>
       {/* Backdrop */}
       <div
@@ -66,15 +69,14 @@ export function PhaseLoopSheet({ lunarData, cycleLoopId, onClose, onCreate }) {
 
       {/* Sheet */}
       <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        position: 'relative',
+        width: '100%',
+        maxWidth: 520,
         background: '#0a0a12',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: '20px 20px 40px',
-        animation: 'fadeIn 0.3s ease',
+        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
         {/* Drag handle */}
         <div style={{

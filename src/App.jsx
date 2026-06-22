@@ -713,6 +713,11 @@ function App() {
           100% { opacity: 1; transform: translateY(0); }
         }
 
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+
         @keyframes moonPulse {
           0%, 100% { filter: drop-shadow(0 0 35px var(--color-glow)); }
           50% { filter: drop-shadow(0 0 45px var(--color-focus)); }

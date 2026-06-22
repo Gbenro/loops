@@ -49,6 +49,9 @@ export function DeepCosmicSheet({
       position: 'fixed',
       inset: 0,
       zIndex: 100,
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
     }}>
       {/* Backdrop */}
       <div
@@ -63,10 +66,7 @@ export function DeepCosmicSheet({
 
       {/* Sheet */}
       <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        position: 'relative',
         width: '100%',
         maxWidth: 520,
         height: '84vh',
@@ -75,7 +75,7 @@ export function DeepCosmicSheet({
         borderTopRightRadius: 20,
         display: 'flex',
         flexDirection: 'column',
-        animation: 'slideUp 0.3s ease-out',
+        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
         {/* Drag handle */}
         <div
@@ -200,13 +200,6 @@ export function DeepCosmicSheet({
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

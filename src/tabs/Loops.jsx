@@ -1526,7 +1526,14 @@ function DetailPanel({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 100,
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    }}>
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -1535,10 +1542,7 @@ function DetailPanel({
 
       {/* Panel */}
       <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        position: 'relative',
         width: '100%',
         maxWidth: 520,
         maxHeight: '85vh',
@@ -1547,6 +1551,7 @@ function DetailPanel({
         borderTopRightRadius: 20,
         display: 'flex',
         flexDirection: 'column',
+        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
         {/* Header */}
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
@@ -1835,7 +1840,7 @@ function DetailPanel({
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: 'var(--color-surface)', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box' }}
+            style={{ width: '100%', maxWidth: 520, background: 'var(--color-surface)', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box', animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
             <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
