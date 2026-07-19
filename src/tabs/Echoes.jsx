@@ -70,11 +70,30 @@ function formatDayLabel(dateStr) {
   return d.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
+let sharedChimeCtx = null;
+
+function unlockChimeContext() {
+  try {
+    if (!sharedChimeCtx) {
+      sharedChimeCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (sharedChimeCtx.state === 'suspended') {
+      sharedChimeCtx.resume().catch(() => {});
+    }
+  } catch {}
+}
+
 // Short bell chime between queue tracks
 function playChime() {
   return new Promise(resolve => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!sharedChimeCtx) {
+        sharedChimeCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (sharedChimeCtx.state === 'suspended') {
+        sharedChimeCtx.resume().catch(() => {});
+      }
+      const ctx = sharedChimeCtx;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -85,7 +104,7 @@ function playChime() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.7);
-      osc.onended = () => { ctx.close(); resolve(); };
+      osc.onended = () => { resolve(); };
     } catch { resolve(); }
   });
 }
@@ -581,19 +600,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Queue track player — uses ref pattern so onended always calls the latest version
   playQueueTrackRef.current = async (index) => {
+    unlockChimeContext();
     const queue = queueRef.current;
     if (index < 0 || index >= queue.length) {
       setQueuePlaying(false);
       setPlayingId(null);
       setQueueIndex(0);
-      audioPlayerRef.current = null;
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+      }
       releasePlaybackWakeLock();
       return;
     }
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      audioPlayerRef.current = null;
+    
+    let audio = audioPlayerRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audioPlayerRef.current = audio;
+    } else {
+      audio.pause();
     }
+
     const echo = queue[index];
     setQueueIndex(index);
 
@@ -619,13 +646,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       playQueueTrackRef.current(index + 1);
       return;
     }
-    const audio = new Audio(audioUrl);
+
+    audio.src = audioUrl;
+    audio.load();
     setAudioDuration(null);
     audio.onloadedmetadata = () => {
       if (isFinite(audio.duration)) setAudioDuration(audio.duration);
     };
     audio.onended = () => {
-      audioPlayerRef.current = null;
       const hasNext = index + 1 < queueRef.current.length;
       if (hasNext) {
         playChime();
@@ -633,20 +661,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       playQueueTrackRef.current(index + 1);
     };
     audio.onerror = () => {
-      audioPlayerRef.current = null;
       playQueueTrackRef.current(index + 1);
     };
-    audioPlayerRef.current = audio;
     setPlayingId(echo.id);
     setQueuePlaying(true);
     acquirePlaybackWakeLock();
-    audio.play();
+    audio.play().catch(err => {
+      console.warn("Autoplay was blocked or failed:", err);
+    });
   };
 
   const stopQueue = () => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
-      audioPlayerRef.current = null;
     }
     setQueuePlaying(false);
     setPlayingId(null);
@@ -656,25 +683,28 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Play/stop audio for an echo (single card — stops queue if active)
   const playAudio = async (echoId, audioPath) => {
+    unlockChimeContext();
+
     // Stop queue mode if running
     if (queuePlaying) {
       setQueuePlaying(false);
     }
 
+    let audio = audioPlayerRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audioPlayerRef.current = audio;
+    }
+
     // If already playing this echo, stop it
-    if (playingId === echoId && audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      audioPlayerRef.current = null;
+    if (playingId === echoId) {
+      audio.pause();
       setPlayingId(null);
       releasePlaybackWakeLock();
       return;
     }
 
-    // Stop any currently playing audio
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      audioPlayerRef.current = null;
-    }
+    audio.pause();
 
     let audioUrl = resolvedUrlsRef.current[echoId];
     if (!audioUrl) {
@@ -690,25 +720,25 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       return;
     }
 
-    const audio = new Audio(audioUrl);
+    audio.src = audioUrl;
+    audio.load();
     setAudioDuration(null);
     audio.onloadedmetadata = () => {
       if (isFinite(audio.duration)) setAudioDuration(audio.duration);
     };
     audio.onended = () => {
       setPlayingId(null);
-      audioPlayerRef.current = null;
       releasePlaybackWakeLock();
     };
     audio.onerror = () => {
       setPlayingId(null);
-      audioPlayerRef.current = null;
       releasePlaybackWakeLock();
     };
-    audioPlayerRef.current = audio;
     setPlayingId(echoId);
     acquirePlaybackWakeLock();
-    audio.play();
+    audio.play().catch(err => {
+      console.warn("Single audio playback blocked:", err);
+    });
   };
 
   // Format recording time
