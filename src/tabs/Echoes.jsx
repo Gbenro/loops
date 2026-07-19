@@ -139,6 +139,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const [audioDuration, setAudioDuration] = useState(null);
   const queueRef = useRef([]);
   const playQueueTrackRef = useRef(null);
+  const resolvedUrlsRef = useRef({});
+
+  useEffect(() => {
+    resolvedUrlsRef.current = {};
+  }, [userId]);
 
   const lunarData = useMemo(() => getLunarData(), []);
   const phaseContent = getPhaseContent(lunarData.phase.key);
@@ -267,6 +272,15 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   useEffect(() => {
     queueRef.current = audioQueue;
     if (queueIndex >= audioQueue.length) setQueueIndex(0);
+
+    // Pre-resolve first few tracks in background
+    audioQueue.slice(0, 5).forEach(item => {
+      if (item.audio_path && !resolvedUrlsRef.current[item.id]) {
+        getAudioUrl(item.audio_path).then(url => {
+          if (url) resolvedUrlsRef.current[item.id] = url;
+        });
+      }
+    });
   }, [audioQueue]); // eslint-disable-line
 
   // Stop queue and reset when filter changes (including base cycle)
@@ -582,7 +596,25 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     }
     const echo = queue[index];
     setQueueIndex(index);
-    const audioUrl = await getAudioUrl(echo.audio_path);
+
+    // Pre-resolve next few tracks in the queue in the background
+    for (let i = index + 1; i <= index + 5; i++) {
+      const nextItem = queue[i];
+      if (nextItem && nextItem.audio_path && !resolvedUrlsRef.current[nextItem.id]) {
+        getAudioUrl(nextItem.audio_path).then(url => {
+          if (url) resolvedUrlsRef.current[nextItem.id] = url;
+        });
+      }
+    }
+
+    let audioUrl = resolvedUrlsRef.current[echo.id];
+    if (!audioUrl) {
+      audioUrl = await getAudioUrl(echo.audio_path);
+      if (audioUrl) {
+        resolvedUrlsRef.current[echo.id] = audioUrl;
+      }
+    }
+
     if (!audioUrl) {
       playQueueTrackRef.current(index + 1);
       return;
@@ -644,7 +676,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       audioPlayerRef.current = null;
     }
 
-    const audioUrl = await getAudioUrl(audioPath);
+    let audioUrl = resolvedUrlsRef.current[echoId];
+    if (!audioUrl) {
+      audioUrl = await getAudioUrl(audioPath);
+      if (audioUrl) {
+        resolvedUrlsRef.current[echoId] = audioUrl;
+      }
+    }
+
     if (!audioUrl) {
       setPlayingId('unavailable-' + echoId);
       setTimeout(() => setPlayingId(null), 2000);
