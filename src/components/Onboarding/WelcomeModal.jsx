@@ -11,8 +11,8 @@ export function WelcomeModal() {
 
   const handleBeginTour = () => {
     dismissWelcome();
-    // Start the Sky tour as the first tour
-    startTour('sky');
+    // Start with the navigation tour, which auto-advances to the Sky tour
+    startTour('navigation');
   };
 
   const handleSkip = () => {
