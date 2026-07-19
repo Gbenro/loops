@@ -55,6 +55,7 @@ function timeOfDayEmoji(isoString) {
 // Get local YYYY-MM-DD for any ISO timestamp
 function localDateStr(isoString) {
   const d = new Date(isoString);
+  if (isNaN(d.getTime())) return null;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -62,6 +63,7 @@ function formatDayLabel(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const d = new Date(dateStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return 'Unknown Day';
   const diffDays = Math.round((today - d) / 86400000);
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
@@ -253,7 +255,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       if (filterMode === 'phase') return e.phase === target;
       return true;
     });
-  }, [echoes, cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
+  }, [cycleFilteredEchoes, filterMode, filterNavIndex, navList]);
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
@@ -765,7 +767,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         padding: filtersExpanded ? '0 20px 14px' : '0 20px 0',
       }}>
         {/* Base cycle selector */}
-        <div style={{
+        <div data-tour="echoes-cycle-nav" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -824,7 +826,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         </div>
 
         {/* Secondary filter mode toggle */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
+        <div data-tour="echoes-filter-modes" style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
           {['day', 'phase', 'tag'].map(mode => (
             <button
               key={mode}
@@ -922,7 +924,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           }}>
             {/* Recording indicator */}
             {isRecording && (
-              <div style={{
+              <div data-tour="echoes-recording-state" style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
@@ -1022,7 +1024,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             />
 
             {/* Cosmic stamp with phase type */}
-            <div data-tutorial="echo-stamp" style={{
+            <div data-tutorial="echo-stamp" data-tour="echoes-phase-stamp" style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -1119,7 +1121,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             )}
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div data-tour="echoes-save-controls" style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={cancelWriting}
                 style={{
@@ -1211,7 +1213,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             {filterMode === 'tag' ? `No echoes tagged "${navList[filterNavIndex]}".` : `No echoes in this ${filterMode}.`}
           </div>
         ) : (
-          filteredEchoes.map(echo => (
+          filteredEchoes.map((echo, echoIndex) => (
             <EchoCard
               key={echo.id}
               echo={echo}
@@ -1226,6 +1228,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               isPlaying={playingId === echo.id}
               playingDuration={playingId === echo.id ? audioDuration : null}
               isUnavailable={playingId === 'unavailable-' + echo.id}
+              tourId={echoIndex === 0 ? 'echoes-card' : undefined}
               onDownloadAudio={async () => {
                 const blob = await getAudio(echo.audio_path);
                 if (!blob) return;
@@ -1233,7 +1236,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                const date = echo.createdAt ? new Date(echo.createdAt).toISOString().slice(0, 10) : 'unknown';
+                const date = (() => {
+                  if (!echo.createdAt) return 'unknown';
+                  const d = new Date(echo.createdAt);
+                  return isNaN(d.getTime()) ? 'unknown' : d.toISOString().slice(0, 10);
+                })();
                 const phase = (echo.phase || 'moon').replace(/\s+/g, '-');
                 const zodiac = (echo.zodiac || '').toLowerCase();
                 const day = echo.dayOfCycle ? `day${echo.dayOfCycle}` : '';
@@ -1569,7 +1576,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [] }) {
+function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [], tourId }) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
   const cardRef = useRef(null);
