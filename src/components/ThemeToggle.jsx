@@ -1,10 +1,11 @@
 import { useTheme } from '../lib/ThemeContext.jsx';
 
 const OPTIONS = [
-  { value: 'dark',  label: '◑', title: 'Dark' },
-  { value: 'dim',   label: '◐', title: 'Dim' },
-  { value: 'light', label: '○', title: 'Light' },
-  { value: 'auto',  label: '◎', title: 'Auto' },
+  { value: 'dark',     label: '◑', title: 'Dark' },
+  { value: 'dim',      label: '◐', title: 'Dim' },
+  { value: 'light',    label: '○', title: 'Light' },
+  { value: 'sunlight', label: '☀️', title: 'Sunlight' },
+  { value: 'auto',     label: '◎', title: 'Auto' },
 ];
 
 export function ThemeToggle() {

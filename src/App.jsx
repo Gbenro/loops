@@ -669,6 +669,21 @@ function App() {
           transition: background 0.2s ease, color 0.2s ease;
         }
 
+        /* High-Contrast Sunlight Mode Overrides */
+        [data-theme="sunlight"] {
+          font-weight: 500;
+        }
+        [data-theme="sunlight"] button,
+        [data-theme="sunlight"] input,
+        [data-theme="sunlight"] textarea {
+          font-weight: 600;
+        }
+        [data-theme="sunlight"] input::placeholder,
+        [data-theme="sunlight"] textarea::placeholder {
+          color: rgba(0, 0, 0, 0.65);
+          font-style: normal;
+        }
+
         input, textarea, button {
           font-family: inherit;
         }
