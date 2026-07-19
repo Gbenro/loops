@@ -25,8 +25,8 @@ export const PHASE_LABELS = {
 
 export const PHASE_ACCENTS = {
   'new':             'rgba(245,230,200,0.75)',
-  'waxing-crescent': '#C9A84C',
-  'first-quarter':   '#F5E6C8',
+  'waxing-crescent': '#74c69d',
+  'first-quarter':   '#f6ad55',
   'waxing-gibbous':  '#81e6d9',
   'full':            '#fefcbf',
   'waning-gibbous':  '#b794f4',

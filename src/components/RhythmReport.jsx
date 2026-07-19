@@ -142,7 +142,7 @@ export function RhythmReport({ rhythm, instance, observations, cycleLoopTitle, t
   const quietestPhase = findQuietestPhase(observations);
 
   return (
-    <div data-tour={tourId} style={{
+    <div style={{
       background: 'rgba(245,230,200,0.025)',
       border: '1px solid rgba(245,230,200,0.1)',
       borderRadius: 16, overflow: 'hidden',
