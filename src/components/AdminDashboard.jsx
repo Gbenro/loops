@@ -2,9 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 
-const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
-const V1_URL = import.meta.env.VITE_V1_URL || null;
-const V2_URL = import.meta.env.VITE_V2_URL || null;
+const IS_V2 = true;
 
 export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUserEmail }) {
   const [activeTab, setActiveTab] = useState('users');
@@ -56,16 +54,6 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
   const removeEmail = async (email) => {
     await supabase.from('allowed_emails').delete().eq('email', email);
     loadData();
-  };
-
-  const switchVersion = async (targetUrl) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const hash = `access_token=${session.access_token}&refresh_token=${session.refresh_token}&type=bearer`;
-      window.location.href = `${targetUrl}/#${hash}`;
-    } else {
-      window.location.href = targetUrl;
-    }
   };
 
   if (!isOpen) return null;
@@ -123,29 +111,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                 LUNA LOOPS
               </div>
             </div>
-            {/* Version switcher */}
-            {(V1_URL || V2_URL) && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingTop: 4 }}>
-                {V1_URL && (
-                  <button onClick={() => switchVersion(V1_URL)} style={{
-                    padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-                    border: `1px solid ${!IS_V2 ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
-                    color: !IS_V2 ? 'var(--color-text)' : 'var(--color-text-muted)',
-                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
-                    background: 'none',
-                  }}>V1</button>
-                )}
-                {V2_URL && (
-                  <button onClick={() => switchVersion(V2_URL)} style={{
-                    padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-                    border: `1px solid ${IS_V2 ? 'var(--color-accent)' : 'var(--color-accent-bg)'}`,
-                    color: IS_V2 ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em',
-                    background: 'none',
-                  }}>V2</button>
-                )}
-              </div>
-            )}
+
           </div>
         </div>
 

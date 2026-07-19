@@ -1,7 +1,7 @@
 // Luna Loops - Main App Shell
 // Tab navigation between Sky, Loops, and Echoes
 
-const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+const IS_V2 = true;
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';

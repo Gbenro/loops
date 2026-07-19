@@ -10,7 +10,7 @@ import { useOnboarding } from './Onboarding/index.js';
 import { seedAllData, clearAllData } from '../lib/seedData.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 
-const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+const IS_V2 = true;
 
 export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate, onOpenTutorial }) {
   const [activeSection, setActiveSection] = useState('account');

@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MoonFace } from './MoonFace.jsx';
 
-const IS_V2 = import.meta.env.VITE_APP_VERSION === 'v2';
+const IS_V2 = true;
 
 // ─── Guide Steps ─────────────────────────────────────────────────────────────
 

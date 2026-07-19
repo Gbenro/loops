@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { LunaLogo } from './LunaLogo.jsx';
 
-const REDIRECT_URL = 'https://lunaloops.app';
+const REDIRECT_URL = window.location.origin;
 
 const PRIVACY_POINTS = [
   {
