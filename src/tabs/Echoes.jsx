@@ -596,10 +596,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       audioPlayerRef.current = null;
       const hasNext = index + 1 < queueRef.current.length;
       if (hasNext) {
-        playChime().then(() => playQueueTrackRef.current(index + 1));
-      } else {
-        playQueueTrackRef.current(index + 1);
+        playChime();
       }
+      playQueueTrackRef.current(index + 1);
     };
     audio.onerror = () => {
       audioPlayerRef.current = null;
