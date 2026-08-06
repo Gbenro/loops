@@ -37,7 +37,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [notifPrefs, setNotifPrefs] = useState(getNotificationPrefs());
 
   // Encryption
-  const { status: encStatus, setupEncryption, disableEncryption, lock } = useEncryption();
+  const { status: encStatus, setupEncryption, disableEncryption, lock, decryptField, sessionKey } = useEncryption();
 
   // Onboarding
   const { resetOnboarding } = useOnboarding();
@@ -51,10 +51,94 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
   ];
 
+  const [digestStats, setDigestStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const getMoonEmoji = (phaseName) => {
+    const name = (phaseName || '').toLowerCase();
+    if (name.includes('new')) return '🌑';
+    if (name.includes('waxing crescent')) return '🌒';
+    if (name.includes('first quarter')) return '🌓';
+    if (name.includes('waxing gibbous')) return '🌔';
+    if (name.includes('full')) return '🌕';
+    if (name.includes('waning gibbous')) return '🌖';
+    if (name.includes('last quarter') || name.includes('third quarter')) return '🌗';
+    if (name.includes('waning crescent')) return '🌘';
+    return '🌙';
+  };
+
+  const loadDigestStats = async () => {
+    if (!user) return;
+    setStatsLoading(true);
+    try {
+      const [echoesRes, loopsRes] = await Promise.all([
+        supabase.from('echoes').select('source, lunar_month, phase_name, tags').eq('user_id', user.id).is('deleted_at', null),
+        supabase.from('loops').select('id, title, status').eq('user_id', user.id).is('deleted_at', null),
+      ]);
+
+      const echoes = echoesRes.data || [];
+      const loops = loopsRes.data || [];
+
+      // Unique moons
+      const uniqueMoons = [...new Set(echoes.map(e => e.lunar_month).filter(Boolean))];
+
+      // Voice vs Text
+      const voiceCount = echoes.filter(e => e.source === 'voice').length;
+      const textCount = echoes.filter(e => e.source === 'text').length;
+
+      // Tags frequency
+      const tagFreq = {};
+      echoes.forEach(e => {
+        let tagArray = [];
+        try {
+          tagArray = typeof e.tags === 'string' ? JSON.parse(e.tags) : e.tags;
+        } catch (_) {
+          tagArray = Array.isArray(e.tags) ? e.tags : [];
+        }
+        if (Array.isArray(tagArray)) {
+          tagArray.forEach(t => {
+            tagFreq[t] = (tagFreq[t] || 0) + 1;
+          });
+        }
+      });
+      const topTags = Object.entries(tagFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tag, count]) => ({ tag, count }));
+
+      // Phase frequency
+      const phaseFreq = {};
+      echoes.forEach(e => {
+        const name = e.phase_name || 'Unknown';
+        phaseFreq[name] = (phaseFreq[name] || 0) + 1;
+      });
+      const topPhases = Object.entries(phaseFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([phase, count]) => ({ phase, count }));
+
+      setDigestStats({
+        totalEchoes: echoes.length,
+        voiceCount,
+        textCount,
+        uniqueMoonsCount: uniqueMoons.length,
+        uniqueMoonsList: uniqueMoons,
+        topTags,
+        topPhases,
+        loopsCount: loops.length,
+        activeLoopsCount: loops.filter(l => l.status === 'active').length,
+      });
+    } catch (e) {
+      console.error('Error loading digest stats:', e);
+    }
+    setStatsLoading(false);
+  };
+
   // Load profile on open
   useEffect(() => {
     if (isOpen && user) {
       loadProfile();
+      loadDigestStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user]);
@@ -154,12 +238,25 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         supabase.from('echoes').select('*').eq('user_id', user.id),
       ]);
 
+      // Decrypt echoes if encrypted and sessionKey is present
+      const decryptedEchoes = await Promise.all((echoesRes.data || []).map(async echo => {
+        if (echo.is_encrypted && sessionKey) {
+          try {
+            const plainText = await decryptField(echo.text);
+            return { ...echo, text: plainText, is_decrypted_in_export: true };
+          } catch (err) {
+            console.error("Could not decrypt echo during backup export:", echo.id, err);
+          }
+        }
+        return echo;
+      }));
+
       const exportData = {
         exportedAt: new Date().toISOString(),
         email: user.email,
         profile: profileRes.data || null,
         loops: loopsRes.data || [],
-        echoes: echoesRes.data || [],
+        echoes: decryptedEchoes,
       };
 
       // Download as JSON
@@ -167,14 +264,104 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `cosmic-loops-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `cosmic-loops-backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error('Export error:', e);
-      alert('Could not export data. Please try again.');
+      alert('Could not export backup. Please try again.');
+    }
+    setExporting(false);
+  };
+
+  const handleExportMarkdown = async () => {
+    if (!user) return;
+    setExporting(true);
+
+    try {
+      // Fetch loops and echoes
+      const [loopsRes, echoesRes] = await Promise.all([
+        supabase.from('loops').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
+        supabase.from('echoes').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
+      ]);
+
+      const echoes = await Promise.all((echoesRes.data || []).map(async echo => {
+        let text = echo.text;
+        if (echo.is_encrypted && sessionKey) {
+          try {
+            text = await decryptField(echo.text);
+          } catch (_) {}
+        }
+        return { ...echo, text };
+      }));
+
+      // Group echoes by lunar_month
+      const groupedByMonth = {};
+      echoes.forEach(echo => {
+        const month = echo.lunar_month || 'Seed/Transition Moon';
+        if (!groupedByMonth[month]) groupedByMonth[month] = [];
+        groupedByMonth[month].push(echo);
+      });
+
+      let md = `# Luna Loops Journal - Personal Reflections\n\n`;
+      md += `Exported on: ${new Date().toLocaleDateString()}\n`;
+      md += `Email: ${user.email}\n\n`;
+      md += `*A collection of decrypted reflections recorded under the guidance of the moon.*\n\n---\n\n`;
+
+      Object.entries(groupedByMonth).forEach(([month, monthEchoes]) => {
+        md += `# ☽ ${month} Cycle\n\n`;
+
+        // Sort echoes within this month chronologically
+        const sorted = [...monthEchoes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        sorted.forEach(echo => {
+          const dateStr = new Date(echo.created_at).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const phaseName = (echo.phase_name || echo.phase || '').toUpperCase();
+          const zodiac = echo.zodiac ? `in ${echo.zodiac}` : '';
+          const dayOfCycle = echo.day_of_cycle != null ? `· Day ${echo.day_of_cycle}` : '';
+          
+          let tags = '';
+          if (echo.tags) {
+            let tagArray = [];
+            try {
+              tagArray = typeof echo.tags === 'string' ? JSON.parse(echo.tags) : echo.tags;
+            } catch (_) {
+              tagArray = Array.isArray(echo.tags) ? echo.tags : [];
+            }
+            if (tagArray.length > 0) {
+              tags = `\n*Tags: ${tagArray.map(t => `#${t}`).join(', ')}*`;
+            }
+          }
+
+          md += `### ${dateStr}\n`;
+          md += `**${phaseName} ${zodiac} ${dayOfCycle}**${tags}\n\n`;
+          md += `${echo.text}\n\n`;
+          md += `---\n\n`;
+        });
+      });
+
+      // Download as markdown
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `luna-loops-journal-${new Date().toISOString().split('T')[0]}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export error:', e);
+      alert('Could not export journal. Please try again.');
     }
     setExporting(false);
   };
@@ -298,6 +485,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         }}>
           {[
             { id: 'account', label: 'Account', icon: '◯' },
+            { id: 'digest', label: 'Digest', icon: '✦' },
             { id: 'birth', label: 'Your Sky', icon: '⚝' },
             { id: 'notifs', label: 'Alerts', icon: '◉' },
             { id: 'privacy', label: 'Privacy', icon: '◎' },
@@ -403,6 +591,25 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     DATA MANAGEMENT
                   </div>
 
+                   <button
+                    onClick={handleExportMarkdown}
+                    disabled={exporting}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      borderRadius: 10,
+                      border: '1px solid var(--color-accent)',
+                      background: 'var(--color-accent-bg)',
+                      color: exporting ? 'var(--color-text-muted)' : 'var(--color-accent)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: exporting ? 'wait' : 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {exporting ? 'Exporting...' : 'Export Journal (Markdown)'}
+                  </button>
+
                   <button
                     onClick={handleExportData}
                     disabled={exporting}
@@ -418,7 +625,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       marginBottom: 10,
                     }}
                   >
-                    {exporting ? 'Exporting...' : 'Export My Data'}
+                    {exporting ? 'Exporting...' : 'Export Backup (JSON)'}
                   </button>
 
                   <button
@@ -538,6 +745,252 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       {seedResult}
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reflections Digest Section */}
+          {activeSection === 'digest' && (
+            <div>
+              <div style={{
+                fontSize: 13,
+                color: 'var(--color-text-dim)',
+                marginBottom: 20,
+                lineHeight: 1.6,
+              }}>
+                A high-level view of your reflections and habits accumulated across all your cycles.
+              </div>
+
+              {!user ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: 24,
+                  color: 'var(--color-focus)',
+                  fontStyle: 'italic',
+                }}>
+                  Sign in to view your Reflections Digest
+                </div>
+              ) : statsLoading ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: 24,
+                  color: 'var(--color-text-muted)',
+                }}>
+                  Calculating cosmic metrics...
+                </div>
+              ) : digestStats ? (
+                <div>
+                  {/* Total reflections card */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 12,
+                    marginBottom: 16,
+                  }}>
+                    <div style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
+                        {digestStats.totalEchoes}
+                      </div>
+                      <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>
+                        TOTAL REFLECTIONS
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
+                        {digestStats.uniqueMoonsCount}
+                      </div>
+                      <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>
+                        MOONS EXPERIENCED
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Voice vs Text progress bar */}
+                  <div style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border-light)',
+                    marginBottom: 16,
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 8,
+                    }}>
+                      <span>VOICE ({digestStats.voiceCount})</span>
+                      <span>TEXT ({digestStats.textCount})</span>
+                    </div>
+                    <div style={{
+                      height: 8,
+                      borderRadius: 4,
+                      background: 'var(--color-border-light)',
+                      display: 'flex',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${digestStats.totalEchoes > 0 ? (digestStats.voiceCount / digestStats.totalEchoes) * 100 : 50}%`,
+                        background: 'var(--color-accent)',
+                      }} />
+                      <div style={{
+                        width: `${digestStats.totalEchoes > 0 ? (digestStats.textCount / digestStats.totalEchoes) * 100 : 50}%`,
+                        background: 'var(--color-border-mid)',
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Lunar Phase Alignment */}
+                  <div style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border-light)',
+                    marginBottom: 16,
+                  }}>
+                    <div style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.05em',
+                    }}>
+                      LUNAR ALIGNMENT (Most Active Phases)
+                    </div>
+                    {digestStats.topPhases.length === 0 ? (
+                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                        No reflections recorded yet.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {digestStats.topPhases.map(({ phase, count }) => (
+                          <div key={phase} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 16 }}>{getMoonEmoji(phase)}</span>
+                              <span style={{ color: 'var(--color-text)' }}>{phase}</span>
+                            </span>
+                            <span style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+                              {count} {count === 1 ? 'reflection' : 'reflections'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Top Tags / Emotional Signature */}
+                  <div style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border-light)',
+                    marginBottom: 16,
+                  }}>
+                    <div style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.05em',
+                    }}>
+                      TOP TAGS (Emotional Signatures)
+                    </div>
+                    {digestStats.topTags.length === 0 ? (
+                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                        No tags used yet. Add tags to your reflections to see them here!
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {digestStats.topTags.map(({ tag, count }) => (
+                          <span
+                            key={tag}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 16,
+                              background: 'var(--color-accent-bg)',
+                              color: 'var(--color-accent)',
+                              border: '1px solid var(--color-accent)',
+                              fontSize: 12,
+                              fontWeight: 500,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            #{tag}
+                            <span style={{
+                              opacity: 0.6,
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                            }}>
+                              ({count})
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Moons Experienced list */}
+                  <div style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border-light)',
+                  }}>
+                    <div style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.05em',
+                    }}>
+                      MOONS HISTORY
+                    </div>
+                    {digestStats.uniqueMoonsList.length === 0 ? (
+                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                        No moon history recorded.
+                      </div>
+                    ) : (
+                      <div style={{
+                        maxHeight: 120,
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}>
+                        {digestStats.uniqueMoonsList.map(moon => (
+                          <div key={moon} style={{ fontSize: 13, color: 'var(--color-text)' }}>
+                            ☾ {moon}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: 'center',
+                  padding: 24,
+                  color: 'var(--color-text-muted)',
+                }}>
+                  No reflections recorded yet.
                 </div>
               )}
             </div>
