@@ -519,6 +519,71 @@ app.post('/messages', async (req, res) => {
 
 // ─── Status check endpoint ───────────────────────────────────────────────────
 
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Luna Loop MCP Server</title>
+      <style>
+        body {
+          margin: 0;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          background: #040810;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+        }
+        .container {
+          background: #080d1a;
+          border: 1px solid rgba(245, 230, 200, 0.2);
+          border-radius: 16px;
+          padding: 32px;
+          width: 100%;
+          max-width: 420px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          text-align: center;
+        }
+        h1 {
+          font-family: serif;
+          font-size: 28px;
+          margin-bottom: 12px;
+          color: #f5e6c8;
+        }
+        p {
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 14px;
+          line-height: 1.6;
+          margin-bottom: 24px;
+          font-style: italic;
+        }
+        .status {
+          display: inline-block;
+          padding: 6px 12px;
+          background: rgba(167, 139, 250, 0.15);
+          border: 1px solid rgba(167, 139, 250, 0.3);
+          border-radius: 20px;
+          color: #c4b5fd;
+          font-size: 12px;
+          font-weight: 500;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Luna Loop MCP Server</h1>
+        <p>"Conversation is where awareness can unfold. Luna Loop is where what deserves to remain is consciously carried forward."</p>
+        <div class="status">● Server Online & Active</div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 app.get('/status', (req, res) => {
   res.json({
     status: 'healthy',
