@@ -621,7 +621,7 @@ app.get('/api/context', authenticateRest, async (req, res) => {
 
 app.get('/api/loops', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'list_open_loops', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'list_loops', req.query);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -631,7 +631,80 @@ app.get('/api/loops', authenticateRest, async (req, res) => {
 app.post('/api/loops', authenticateRest, async (req, res) => {
   try {
     const result = await executeTool(req.body.supabaseClient, 'create_loop', req.body);
-    res.json({ message: result.content[0].text });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/loops/:id', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_loop', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/loops/:id', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, id: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'update_loop', args);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops/:id/close', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'close_loop', { id: req.params.id, note: req.body.note });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops/:id/reopen', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'reopen_loop', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops/:id/archive', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'archive_loop', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops/:id/restore', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'restore_loop', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops/:id/carry-forward', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'carry_loop_forward', { id: req.params.id, new_note: req.body.new_note });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/echoes', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'search_echoes', req.query);
+    res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -640,7 +713,53 @@ app.post('/api/loops', authenticateRest, async (req, res) => {
 app.post('/api/echoes', authenticateRest, async (req, res) => {
   try {
     const result = await executeTool(req.body.supabaseClient, 'create_echo', req.body);
-    res.json({ message: result.content[0].text });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/echoes/:id', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_echo', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/echoes/:id', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, id: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'update_echo', args);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/echoes/:id/archive', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'archive_echo', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/echoes/:id/restore', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'restore_echo', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/search', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query);
+    res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
