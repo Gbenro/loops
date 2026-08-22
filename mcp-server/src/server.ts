@@ -183,8 +183,8 @@ app.get('/login', (req, res) => {
       </div>
 
       <script>
-        const supabaseUrl = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
-        const supabaseAnonKey = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+        const supabaseUrl = '${process.env.SUPABASE_URL || 'https://eyxvsbqyzeodsjajfqsj.supabase.co'}';
+        const supabaseAnonKey = '${process.env.SUPABASE_ANON_KEY || 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr'}';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
