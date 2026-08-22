@@ -584,6 +584,59 @@ app.get('/', (req, res) => {
   `);
 });
 
+// ─── REST API Fallback (for Custom GPT Actions) ────────────────────────────────
+
+const authenticateRest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    res.status(401).json({ error: 'Missing token' });
+    return;
+  }
+  const userId = await getUserIdFromToken(token);
+  if (!userId) {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
+  }
+  req.body.supabaseClient = getSupabaseForUser(token);
+  next();
+};
+
+app.get('/api/context', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_ai_context', {});
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/loops', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'list_open_loops', req.query);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loops', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'create_loop', req.body);
+    res.json({ message: result.content[0].text });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/echoes', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'create_echo', req.body);
+    res.json({ message: result.content[0].text });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/status', (req, res) => {
   res.json({
     status: 'healthy',
