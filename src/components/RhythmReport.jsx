@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // Cosmic Loops — RhythmReport
 // Waning Crescent report: phase ring + AI reflection
 

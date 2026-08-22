@@ -80,7 +80,9 @@ function unlockChimeContext() {
     if (sharedChimeCtx.state === 'suspended') {
       sharedChimeCtx.resume().catch(() => {});
     }
-  } catch {}
+  } catch (_) {
+    // ignore AudioContext unlock error
+  }
 }
 
 // Short bell chime between queue tracks

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Luna Loops - Tour Overlay
 // React-joyride wrapper with Luna Loops dark cosmic styling
 

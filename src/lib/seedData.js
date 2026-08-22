@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Luna Loops - Seed Data Generator for Testing
 // Creates realistic dummy data across all app features
 

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 
-const IS_V2 = true;
+
 
 export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUserEmail }) {
   const [activeTab, setActiveTab] = useState('users');

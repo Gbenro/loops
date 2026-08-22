@@ -281,8 +281,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     setExporting(true);
 
     try {
-      // Fetch loops and echoes
-      const [loopsRes, echoesRes] = await Promise.all([
+      // Fetch echoes
+      const [, echoesRes] = await Promise.all([
         supabase.from('loops').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
         supabase.from('echoes').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
       ]);
@@ -292,7 +292,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         if (echo.is_encrypted && sessionKey) {
           try {
             text = await decryptField(echo.text);
-          } catch (_) {}
+          } catch (_) {
+            // ignore decryption failure
+          }
         }
         return { ...echo, text };
       }));
