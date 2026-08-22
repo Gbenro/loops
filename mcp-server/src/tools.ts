@@ -287,6 +287,116 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   
+  // Threads (Connections across Echoes)
+  {
+    name: 'create_thread',
+    description: 'Create a new Thread representing a theme, relationship, pattern, tension, or insight across one or many Echoes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Thread title' },
+        description: { type: 'string', description: 'Detailed description of the pattern or theme' },
+        source: { type: 'string', enum: ['user_created', 'ai_suggested', 'conversation_discovered', 'system_detected'], default: 'user_created' },
+        confidence: { type: 'number', description: 'Confidence level (0.0 to 1.0) of AI detection' },
+        metadata: { type: 'object', description: 'Additional custom metadata' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'list_threads',
+    description: 'Search and query the user\'s Threads. Supports status, query, source filters, limit, and cursor pagination.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['active', 'archived', 'all'], default: 'active' },
+        query: { type: 'string', description: 'Search title or description' },
+        source: { type: 'string', enum: ['user_created', 'ai_suggested', 'conversation_discovered', 'system_detected'] },
+        limit: { type: 'integer', default: 20 },
+        cursor: { type: 'string' }
+      }
+    }
+  },
+  {
+    name: 'get_thread',
+    description: 'Retrieve a complete Thread object by its stable ID, including all connected Echo IDs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Thread' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'update_thread',
+    description: 'Modify an existing Thread. PATCH semantics. Returns the full updated Thread.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Thread to update' },
+        title: { type: 'string', description: 'Updated title' },
+        description: { type: 'string', description: 'Updated description details' },
+        status: { type: 'string', enum: ['active', 'archived'] }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'connect_echo_to_thread',
+    description: 'Connect an Echo (reflection) to a Thread (theme/pattern). Establishes a many-to-many relationship.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        echoId: { type: 'string', description: 'ID of the Echo' },
+        threadId: { type: 'string', description: 'ID of the Thread' },
+        createdBy: { type: 'string', enum: ['user', 'ai'], default: 'user' },
+        relationshipType: { type: 'string', description: 'Optional relationship qualifier (e.g. \'triggers\', \'resolves\')' },
+        note: { type: 'string', description: 'Optional note explaining the connection' }
+      },
+      required: ['echoId', 'threadId']
+    }
+  },
+  {
+    name: 'disconnect_echo_from_thread',
+    description: 'Remove a many-to-many connection between an Echo and a Thread.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        echoId: { type: 'string', description: 'ID of the Echo' },
+        threadId: { type: 'string', description: 'ID of the Thread' }
+      },
+      required: ['echoId', 'threadId']
+    }
+  },
+
+  // Echo Reflections (Insights over time)
+  {
+    name: 'get_echo_reflections',
+    description: 'Retrieve all attached reflections/insights accumulated around a specific Echo over time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        echoId: { type: 'string', description: 'ID of the Echo' }
+      },
+      required: ['echoId']
+    }
+  },
+  {
+    name: 'attach_reflection',
+    description: 'Attach a new conversation reflection/insight to an Echo, keeping the user\'s original expression untouched.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        echoId: { type: 'string', description: 'ID of the Echo to attach the insight to' },
+        content: { type: 'string', description: 'Text content of the reflection/insight' },
+        authorType: { type: 'string', enum: ['user', 'ai', 'co_created'], default: 'user' },
+        conversationId: { type: 'string', description: 'Optional source conversation ID' }
+      },
+      required: ['echoId', 'content']
+    }
+  },
+
   // Cross-Object Global Search
   {
     name: 'search_luna',
@@ -383,6 +493,35 @@ function mapLoop(row: any, relatedEchoIds: string[] = []): any {
     closedAt: row.closed_at || null,
     relatedEchoIds,
     metadata: row.metadata || {}
+  };
+}
+
+function mapThread(row: any, echoIds: string[] = []): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    status: row.status,
+    source: row.source,
+    confidence: row.confidence || null,
+    echoIds,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    metadata: row.metadata || {}
+  };
+}
+
+function mapReflection(row: any): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    echoId: row.echo_id,
+    content: row.content,
+    authorType: row.author_type,
+    conversationId: row.conversation_id || null,
+    lunarContext: row.lunar_context || {},
+    createdAt: row.created_at
   };
 }
 
@@ -1118,6 +1257,179 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           }, null, 2)
         }]
       };
+    }
+
+    case 'create_thread': {
+      const id = generateServerId('t');
+      const insertData = {
+        id,
+        user_id: userId,
+        title: args.title,
+        description: args.description || null,
+        status: 'active',
+        source: args.source || 'user_created',
+        confidence: args.confidence || null,
+        metadata: args.metadata || {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await supabase.from('threads').insert(insertData);
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(mapThread(insertData), null, 2) }] };
+    }
+
+    case 'list_threads': {
+      const { status = 'active', query, source, limit = 20 } = args;
+      let dbQuery = supabase.from('threads').select('*').eq('user_id', userId);
+      
+      if (status === 'active') {
+        dbQuery = dbQuery.eq('status', 'active');
+      } else if (status === 'archived') {
+        dbQuery = dbQuery.eq('status', 'archived');
+      }
+      
+      if (query) {
+        dbQuery = dbQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+      }
+      if (source) {
+        dbQuery = dbQuery.eq('source', source);
+      }
+      
+      if (args.cursor) {
+        const cursorTimestamp = decodeCursor(args.cursor);
+        dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+      }
+      
+      dbQuery = dbQuery.order('created_at', { ascending: false }).limit(limit + 1);
+      const { data, error } = await dbQuery;
+      if (error) throw error;
+      
+      const results = data || [];
+      const hasMore = results.length > limit;
+      const paginatedData = hasMore ? results.slice(0, limit) : results;
+      const nextCursor = hasMore ? encodeCursor(paginatedData[paginatedData.length - 1].created_at) : null;
+      
+      // bulk fetch echo IDs for the threads to populate their lists
+      const threadIds = paginatedData.map(t => t.id);
+      let echoIdsMap: Record<string, string[]> = {};
+      if (threadIds.length > 0) {
+        const { data: links } = await supabase
+          .from('echo_threads')
+          .select('echo_id, thread_id')
+          .in('thread_id', threadIds);
+        
+        (links || []).forEach(link => {
+          if (!echoIdsMap[link.thread_id]) {
+            echoIdsMap[link.thread_id] = [];
+          }
+          echoIdsMap[link.thread_id].push(link.echo_id);
+        });
+      }
+      
+      const items = paginatedData.map(row => mapThread(row, echoIdsMap[row.id] || []));
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ items, nextCursor }, null, 2)
+        }]
+      };
+    }
+
+    case 'get_thread': {
+      const { data: thread, error } = await supabase
+        .from('threads')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
+      if (error || !thread) throw new Error(error?.message || `Thread not found: ${args.id}`);
+      
+      const { data: links } = await supabase
+        .from('echo_threads')
+        .select('echo_id')
+        .eq('thread_id', args.id);
+      
+      const echoIds = (links || []).map(l => l.echo_id);
+      return { content: [{ type: 'text', text: JSON.stringify(mapThread(thread, echoIds), null, 2) }] };
+    }
+
+    case 'update_thread': {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      if (args.title !== undefined) updateData.title = args.title;
+      if (args.description !== undefined) updateData.description = args.description;
+      if (args.status !== undefined) updateData.status = args.status;
+      
+      const { error } = await supabase
+        .from('threads')
+        .update(updateData)
+        .eq('id', args.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      
+      // Retrieve full object
+      const { data: thread } = await supabase.from('threads').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapThread(thread), null, 2) }] };
+    }
+
+    case 'connect_echo_to_thread': {
+      const { echoId, threadId, createdBy = 'user', relationshipType, note } = args;
+      const insertData = {
+        echo_id: echoId,
+        thread_id: threadId,
+        created_by: createdBy,
+        relationship_type: relationshipType || null,
+        note: note || null,
+        created_at: new Date().toISOString()
+      };
+      const { error } = await supabase.from('echo_threads').insert(insertData);
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify({ success: true, echoId, threadId }, null, 2) }] };
+    }
+
+    case 'disconnect_echo_from_thread': {
+      const { echoId, threadId } = args;
+      const { error } = await supabase
+        .from('echo_threads')
+        .delete()
+        .eq('echo_id', echoId)
+        .eq('thread_id', threadId);
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify({ success: true, echoId, threadId }, null, 2) }] };
+    }
+
+    case 'get_echo_reflections': {
+      const { data, error } = await supabase
+        .from('echo_reflections')
+        .select('*')
+        .eq('echo_id', args.echoId)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify((data || []).map(mapReflection), null, 2) }] };
+    }
+
+    case 'attach_reflection': {
+      const id = generateServerId('r');
+      const insertData = {
+        id,
+        echo_id: args.echoId,
+        user_id: userId,
+        content: args.content,
+        author_type: args.authorType || 'user',
+        conversation_id: args.conversationId || null,
+        lunar_context: {
+          cycle: lunar.lunarMonth,
+          phase: lunar.phase.name,
+          illumination: lunar.illumination,
+          zodiac: lunar.zodiac.sign
+        },
+        created_at: new Date().toISOString()
+      };
+      const { error } = await supabase.from('echo_reflections').insert(insertData);
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(mapReflection(insertData), null, 2) }] };
     }
 
     default:

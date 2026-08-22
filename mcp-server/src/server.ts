@@ -354,11 +354,11 @@ function checkScope(scopes: string[], toolName: string): boolean {
     return scopes.includes('loops:write');
   }
   // Echoes write tools
-  if (toolName === 'create_echo' || toolName === 'create_entry' || toolName === 'update_echo' || toolName === 'archive_echo' || toolName === 'restore_echo') {
+  if (toolName === 'create_echo' || toolName === 'create_entry' || toolName === 'update_echo' || toolName === 'archive_echo' || toolName === 'restore_echo' || toolName === 'create_thread' || toolName === 'update_thread' || toolName === 'connect_echo_to_thread' || toolName === 'disconnect_echo_from_thread' || toolName === 'attach_reflection') {
     return scopes.includes('echoes:write') || scopes.includes('entries:write');
   }
   // Echoes read tools
-  if (toolName === 'get_echo' || toolName === 'get_entry' || toolName === 'search_echoes' || toolName === 'search_entries' || toolName === 'get_cycle_entries') {
+  if (toolName === 'get_echo' || toolName === 'get_entry' || toolName === 'search_echoes' || toolName === 'search_entries' || toolName === 'get_cycle_entries' || toolName === 'list_threads' || toolName === 'get_thread' || toolName === 'get_echo_reflections') {
     return scopes.includes('echoes:read') || scopes.includes('entries:read');
   }
   // Cycle / context read tools
@@ -759,6 +759,83 @@ app.post('/api/echoes/:id/restore', authenticateRest, async (req, res) => {
 app.get('/api/search', authenticateRest, async (req, res) => {
   try {
     const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Threads & Reflections REST API Endpoints ────────────────────────────────
+app.get('/api/threads', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'list_threads', req.query);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/threads', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'create_thread', req.body);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/threads/:id', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_thread', { id: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/threads/:id', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, id: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'update_thread', args);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res) => {
+  try {
+    const args = { threadId: req.params.id, echoId: req.params.echoId, createdBy: req.body.createdBy, relationshipType: req.body.relationshipType, note: req.body.note };
+    const result = await executeTool(req.body.supabaseClient, 'connect_echo_to_thread', args);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res) => {
+  try {
+    const args = { threadId: req.params.id, echoId: req.params.echoId };
+    const result = await executeTool(req.body.supabaseClient, 'disconnect_echo_from_thread', args);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_echo_reflections', { echoId: req.params.id });
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, echoId: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'attach_reflection', args);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
