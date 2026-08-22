@@ -282,7 +282,7 @@ app.post('/login/callback', async (req, res) => {
 
 // 4. Token exchange endpoint
 app.post('/oauth/token', async (req, res) => {
-  const { grant_type, code, redirect_uri, refresh_token } = req.body;
+  const { grant_type, code, refresh_token } = req.body;
 
   if (grant_type === 'authorization_code') {
     if (!code) {
@@ -299,18 +299,11 @@ app.post('/oauth/token', async (req, res) => {
     // Clean up used authorization code
     authCodes.delete(code);
 
-    // Generate refresh token
-    const newRefreshToken = 'rt_' + Math.random().toString(36).substr(2, 16);
-    refreshTokens.set(newRefreshToken, {
-      userId: authData.userId,
-      tokens: authData.tokens
-    });
-
     res.json({
       access_token: authData.tokens.supabaseAccessToken,
       token_type: 'Bearer',
       expires_in: 3600,
-      refresh_token: newRefreshToken,
+      refresh_token: authData.tokens.supabaseRefreshToken, // return actual Supabase refresh token
       scope: authData.session.scope
     });
   } else if (grant_type === 'refresh_token') {
@@ -319,24 +312,28 @@ app.post('/oauth/token', async (req, res) => {
       return;
     }
 
-    const refreshData = refreshTokens.get(refresh_token);
-    if (!refreshData) {
-      res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid refresh token' });
-      return;
+    try {
+      // Create a stateless client to exchange the refresh token with Supabase Auth API
+      const client = getSupabaseForUser(refresh_token);
+      const { data, error } = await client.auth.refreshSession({ refresh_token });
+
+      if (error || !data.session) {
+        console.error('Supabase token refresh failed:', error?.message);
+        res.status(400).json({ error: 'invalid_grant', error_description: error?.message || 'Invalid refresh token' });
+        return;
+      }
+
+      res.json({
+        access_token: data.session.access_token,
+        token_type: 'Bearer',
+        expires_in: data.session.expires_in || 3600,
+        refresh_token: data.session.refresh_token, // return new Supabase refresh token
+        scope: 'cycles:read loops:read loops:write echoes:read echoes:write profile:read'
+      });
+    } catch (err: any) {
+      console.error('Error during stateless token refresh:', err);
+      res.status(500).json({ error: 'server_error', error_description: err.message });
     }
-
-    // Use current token details (in a real app, we would exchange the Supabase refresh token)
-    const newRefreshToken = 'rt_' + Math.random().toString(36).substr(2, 16);
-    refreshTokens.delete(refresh_token);
-    refreshTokens.set(newRefreshToken, refreshData);
-
-    res.json({
-      access_token: refreshData.tokens.supabaseAccessToken,
-      token_type: 'Bearer',
-      expires_in: 3600,
-      refresh_token: newRefreshToken,
-      scope: refreshData.tokens.scopes.join(' ')
-    });
   } else {
     res.status(400).json({ error: 'unsupported_grant_type' });
   }
