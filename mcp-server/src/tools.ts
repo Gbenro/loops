@@ -157,6 +157,30 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         note: { type: 'string', description: 'Descriptive details or observations' },
         type: { type: 'string', description: 'Type of loop (\'phase\' or \'cycle\')', default: 'phase' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Tags' },
+        subtasks: { 
+          type: 'array', 
+          items: { 
+            type: 'object', 
+            properties: { 
+              title: { type: 'string' }, 
+              completed: { type: 'boolean' } 
+            }, 
+            required: ['title'] 
+          }, 
+          description: 'Array of subtasks/steps with titles and completion status' 
+        },
+        steps: { 
+          type: 'array', 
+          items: { 
+            type: 'object', 
+            properties: { 
+              title: { type: 'string' }, 
+              completed: { type: 'boolean' } 
+            }, 
+            required: ['title'] 
+          }, 
+          description: 'Conversational alias for subtasks' 
+        },
         energyState: { type: 'string', description: 'Current user energy state' },
         attentionLevel: { type: 'string', description: 'Amount of awareness required (e.g. \'active\', \'background\')' },
         alivenessScore: { type: 'integer', description: 'Vitality score (1-10)' },
@@ -176,7 +200,31 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         title: { type: 'string', description: 'Updated title' },
         note: { type: 'string', description: 'Updated note description' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Updated tags list (overwrites existing)' },
-        status: { type: 'string', enum: ['open', 'paused', 'closed', 'archived'], description: 'Change status' }
+        status: { type: 'string', enum: ['open', 'paused', 'closed', 'archived'], description: 'Change status' },
+        subtasks: { 
+          type: 'array', 
+          items: { 
+            type: 'object', 
+            properties: { 
+              title: { type: 'string' }, 
+              completed: { type: 'boolean' } 
+            }, 
+            required: ['title'] 
+          }, 
+          description: 'Array of subtasks/steps' 
+        },
+        steps: { 
+          type: 'array', 
+          items: { 
+            type: 'object', 
+            properties: { 
+              title: { type: 'string' }, 
+              completed: { type: 'boolean' } 
+            }, 
+            required: ['title'] 
+          }, 
+          description: 'Alias for subtasks' 
+        }
       },
       required: ['id']
     }
@@ -320,12 +368,16 @@ function mapLoop(row: any, relatedEchoIds: string[] = []): any {
     status = 'closed';
   }
   
+  const subtasks = Array.isArray(row.subtasks) ? row.subtasks : [];
+
   return {
     id: row.id,
     title: row.title,
     note: row.note || row.description || '',
     tags: Array.isArray(row.tags) ? row.tags : [],
     status,
+    subtasks,
+    steps: subtasks,
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
     closedAt: row.closed_at || null,
@@ -743,6 +795,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         type: args.type || 'phase',
         status: 'active',
         tags: args.tags || [],
+        subtasks: args.subtasks || args.steps || [],
         energy_state: args.energyState || null,
         attention_level: args.attentionLevel || null,
         aliveness_score: args.alivenessScore || null,
@@ -770,6 +823,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           note: insertData.note,
           type: insertData.type,
           status: 'active',
+          subtasks: insertData.subtasks,
           phase_opened: insertData.phase_opened,
           phase_name: insertData.phase_name,
           lunar_month_opened: insertData.lunar_month_opened,
@@ -806,6 +860,11 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         updateData.description = args.note;
       }
       if (args.tags !== undefined) updateData.tags = args.tags;
+      if (args.subtasks !== undefined) {
+        updateData.subtasks = args.subtasks;
+      } else if (args.steps !== undefined) {
+        updateData.subtasks = args.steps;
+      }
       if (args.status !== undefined) {
         if (args.status === 'archived') {
           updateData.deleted_at = new Date().toISOString();
