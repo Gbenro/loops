@@ -426,7 +426,30 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         created_at: new Date().toISOString()
       };
 
-      const { error } = await supabase.from('loops').insert(insertData);
+      let { error } = await supabase.from('loops').insert(insertData);
+      
+      // If PostgreSQL reports undefined_column (code 42703), retry with core columns only
+      if (error && error.code === '42703') {
+        console.warn('Metadata columns missing in loops table, retrying with core columns only.');
+        const baseInsertData = {
+          id: insertData.id,
+          user_id: insertData.user_id,
+          title: insertData.title,
+          note: insertData.note,
+          type: insertData.type,
+          status: 'active', // Default to 'active' which the frontend base schema expects
+          phase_opened: insertData.phase_opened,
+          phase_name: insertData.phase_name,
+          lunar_month_opened: insertData.lunar_month_opened,
+          moon_age_opened: insertData.moon_age_opened,
+          zodiac_opened: insertData.zodiac_opened,
+          opened_at: insertData.opened_at,
+          created_at: insertData.created_at
+        };
+        const retryResult = await supabase.from('loops').insert(baseInsertData);
+        error = retryResult.error;
+      }
+
       if (error) throw error;
 
       return {
@@ -568,7 +591,29 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         created_at: new Date().toISOString()
       };
 
-      const { error: insertErr } = await supabase.from('loops').insert(insertData);
+      let { error: insertErr } = await supabase.from('loops').insert(insertData);
+      
+      if (insertErr && insertErr.code === '42703') {
+        console.warn('Metadata columns missing in loops table during carry forward, retrying with core columns only.');
+        const baseInsertData = {
+          id: insertData.id,
+          user_id: insertData.user_id,
+          title: insertData.title,
+          note: insertData.note,
+          type: insertData.type,
+          status: 'active',
+          phase_opened: insertData.phase_opened,
+          phase_name: insertData.phase_name,
+          lunar_month_opened: insertData.lunar_month_opened,
+          moon_age_opened: insertData.moon_age_opened,
+          zodiac_opened: insertData.zodiac_opened,
+          opened_at: insertData.opened_at,
+          created_at: insertData.created_at
+        };
+        const retryResult = await supabase.from('loops').insert(baseInsertData);
+        insertErr = retryResult.error;
+      }
+
       if (insertErr) throw insertErr;
 
       return {
@@ -607,7 +652,31 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         created_at: new Date().toISOString()
       };
 
-      const { error } = await supabase.from('echoes').insert(insertData);
+      let { error } = await supabase.from('echoes').insert(insertData);
+      
+      if (error && error.code === '42703') {
+        console.warn('Metadata columns missing in echoes table, retrying with core columns only.');
+        const baseInsertData = {
+          id: insertData.id,
+          user_id: insertData.user_id,
+          text: insertData.text,
+          source: insertData.source,
+          phase: insertData.phase,
+          phase_name: insertData.phase_name,
+          phase_type: insertData.phase_type,
+          lunar_month: insertData.lunar_month,
+          day_of_cycle: insertData.day_of_cycle,
+          zodiac: insertData.zodiac,
+          illumination: insertData.illumination,
+          tags: insertData.tags,
+          linked_loop_id: insertData.linked_loop_id,
+          is_encrypted: insertData.is_encrypted,
+          created_at: insertData.created_at
+        };
+        const retryResult = await supabase.from('echoes').insert(baseInsertData);
+        error = retryResult.error;
+      }
+
       if (error) throw error;
 
       return {
