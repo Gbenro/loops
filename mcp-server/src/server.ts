@@ -592,7 +592,7 @@ app.get('/status', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Luna Loop MCP Server running on port ${PORT}`);
   console.log(`OAuth endpoints: /oauth/authorize, /oauth/token`);
   console.log(`SSE connection endpoint: /sse`);
