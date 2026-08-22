@@ -13,288 +13,325 @@ export interface ToolDefinition {
 }
 
 /**
- * Declares all V1 MCP tools with precise schemas and descriptions.
+ * Declares all Luna Loop MCP tools with precise schemas and instructions for the AI client.
  */
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
+  // Context
   {
-    name: 'get_current_lunar_context',
-    description: 'Retrieve current detailed lunar cycle and phase context (illumination, zodiac, phase energy, cycle day, hours remaining).',
+    name: 'get_ai_context',
+    description: 'LIGHTWEIGHT CONTEXT: Retrieve the user\'s present state snapshot (current moon, phase, active themes, open loop lists, and last 5 reflections) for orientation. Do not use for historical retrieval or deep queries.',
     inputSchema: {
       type: 'object',
       properties: {}
     }
   },
+  
+  // Echoes (Reflections)
   {
-    name: 'get_current_cycle',
-    description: 'Retrieve the current lunar month name and when this cycle started.',
-    inputSchema: {
-      type: 'object',
-      properties: {}
-    }
-  },
-  {
-    name: 'get_phase_summary',
-    description: 'Dynamically compile stats and items opened/closed/released for a specific moon phase.',
+    name: 'search_echoes',
+    description: 'Search the user\'s persistent Luna Loop Echo (reflection) history. Supports composable filters (query, phase, cycle, tags, loopId, date range, status, sorting, pagination). Use when the user asks about previous reflections, memories, observations, or topics.',
     inputSchema: {
       type: 'object',
       properties: {
-        phaseKey: { type: 'string', description: "Lunar phase key (e.g. 'new', 'waxing-crescent', 'full'). Defaults to current phase." },
-        lunarMonth: { type: 'string', description: "Lunar month name (e.g. 'Wolf', 'Snow'). Defaults to current cycle." }
+        query: { type: 'string', description: 'Search text query (case-insensitive keyword match)' },
+        phase: { type: 'string', description: 'Filter by moon phase name (e.g., \'New Moon\', \'First Quarter\')' },
+        cycle: { type: 'string', description: 'Filter by lunar month name (e.g., \'Wolf Moon\', \'Snow\')' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (matches all specified tags)' },
+        loopId: { type: 'string', description: 'Filter echoes associated with a specific loop ID' },
+        from: { type: 'string', description: 'Filter created_at timestamp starting boundary (ISO-8601)' },
+        to: { type: 'string', description: 'Filter created_at timestamp ending boundary (ISO-8601)' },
+        status: { type: 'string', enum: ['active', 'archived', 'all'], default: 'active', description: 'Filter active, archived (soft-deleted), or all echoes' },
+        sort: { type: 'string', enum: ['newest', 'oldest'], default: 'newest', description: 'Sorting order by creation date' },
+        limit: { type: 'integer', default: 20, description: 'Number of results (max 100)' },
+        cursor: { type: 'string', description: 'Pagination cursor for subsequent page fetches' }
       }
     }
   },
   {
-    name: 'list_open_loops',
-    description: 'Retrieve all loops that are currently open/active in the user\'s awareness.',
+    name: 'get_echo',
+    description: 'Retrieve a complete persistent Echo (reflection) object by its stable ID.',
     inputSchema: {
       type: 'object',
       properties: {
-        limit: { type: 'integer', description: 'Limit number of loops returned. Default is 20.' },
-        offset: { type: 'integer', description: 'Offset for pagination.' }
-      }
-    }
-  },
-  {
-    name: 'get_loop',
-    description: 'Retrieve detailed information about a specific Loop by ID.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Unique loop ID' }
-      },
-      required: ['id']
-    }
-  },
-  {
-    name: 'search_loops',
-    description: 'Search loops across all cycles by title or note contents. Designed for semantic migration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Keywords to search for in title or note' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'create_loop',
-    description: 'Create a new Loop (an item consciously retained in awareness). Automatically stamps lunar context.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', description: 'The intention or focus title' },
-        note: { type: 'string', description: 'Optional descriptive notes or details' },
-        type: { type: 'string', description: "Type of loop ('phase' or 'cycle'). Default is 'phase'." },
-        linked_to: { type: 'string', description: 'Optional ID of another loop this is linked to' },
-        energy_state: { type: 'string', description: 'Current user energy state (e.g. high, resting, focused)' },
-        attention_level: { type: 'string', description: 'Amount of awareness required (e.g. active, background)' },
-        aliveness_score: { type: 'integer', description: 'Self-rated score of aliveness/vitality associated (1-10)' },
-        parent_loop_id: { type: 'string', description: 'Optional parent Loop ID' },
-        metadata: { type: 'object', description: 'Optional custom metadata object' }
-      },
-      required: ['title']
-    }
-  },
-  {
-    name: 'update_loop',
-    description: 'Update properties, description, metadata or status of an existing loop.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Loop ID to update' },
-        title: { type: 'string', description: 'Updated title' },
-        note: { type: 'string', description: 'Updated notes' },
-        status: { type: 'string', description: "New lifecycle state ('open', 'completed', 'released', 'carried_forward', 'transformed')" },
-        metadata: { type: 'object', description: 'Optional key-value overrides for metadata' }
-      },
-      required: ['id']
-    }
-  },
-  {
-    name: 'complete_loop',
-    description: 'Mark a Loop as completed (consciously resolved).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Loop ID to complete' }
-      },
-      required: ['id']
-    }
-  },
-  {
-    name: 'release_loop',
-    description: 'Mark a Loop as released (deliberately letting go of awareness/intention).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Loop ID to release' }
-      },
-      required: ['id']
-    }
-  },
-  {
-    name: 'carry_loop_forward',
-    description: 'Carries a Loop forward into the current phase/cycle, transitioning the old loop and creating a new linked one.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'ID of loop to carry forward' },
-        new_note: { type: 'string', description: 'Optional updated details/note for the new loop instance' }
+        id: { type: 'string', description: 'Stable unique ID of the Echo' }
       },
       required: ['id']
     }
   },
   {
     name: 'create_echo',
-    description: 'Create a new Echo (reflection note). Stamped with lunar data.',
+    description: 'Create a new Echo (reflection note). Automatically stamps current lunar metadata (phase, cycle, illumination, zodiac) and relates it to loops.',
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Decrypted plaintext content of the reflection' },
-        source: { type: 'string', description: "Source client ('chatgpt', 'claude', 'voice', 'app'). Default 'text'." },
-        tags: { type: 'array', items: { type: 'string' }, description: 'Optional emotional signature tags' },
-        linked_loop_id: { type: 'string', description: 'Optional loop ID this reflection directly links to' },
-        energy_state: { type: 'string', description: 'Current energy signature' },
-        metadata: { type: 'object', description: 'Optional client metadata' }
+        text: { type: 'string', description: 'Plaintext content of the reflection' },
+        source: { type: 'string', description: 'Client identifier (e.g. \'chatgpt\', \'claude\', \'voice\')', default: 'chatgpt' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Emotional signature tags' },
+        loopIds: { type: 'array', items: { type: 'string' }, description: 'List of loop IDs to connect this reflection to' },
+        energyState: { type: 'string', description: 'Energy signature (e.g. \'resting\', \'focused\')' },
+        metadata: { type: 'object', description: 'Optional custom client metadata' }
       },
       required: ['text']
     }
   },
   {
-    name: 'get_echo',
-    description: 'Retrieve detailed information about a specific Echo by ID.',
+    name: 'update_echo',
+    description: 'Modify an existing Echo identified by its stable ID using PATCH semantics (only specified fields are changed). Returns the full updated Echo.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'Echo ID' }
+        id: { type: 'string', description: 'Stable unique ID of the Echo to update' },
+        text: { type: 'string', description: 'Updated text content' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Updated tags list (overwrites existing)' },
+        status: { type: 'string', enum: ['active', 'archived'], description: 'Change status (\'active\' or \'archived\')' },
+        loopIds: { type: 'array', items: { type: 'string' }, description: 'Updated list of associated loop IDs' }
       },
       required: ['id']
     }
   },
   {
-    name: 'search_echoes',
-    description: 'Search through historical reflections (echoes) using keyword filters. Designed for semantic migration.',
+    name: 'archive_echo',
+    description: 'Soft-delete an Echo by setting its status to archived. Highly preferred over permanent delete.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Query text' },
-        tag: { type: 'string', description: 'Filter by specific emotional tag' },
-        lunar_month: { type: 'string', description: 'Filter by specific cycle (e.g. Wolf Moon)' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'create_entry',
-    description: 'Create a new journal entry (synonym for create_echo). Stamped with lunar data.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: 'Plaintext journal entry text' },
-        source: { type: 'string', description: "Source client ('chatgpt', 'claude', 'app')" },
-        tags: { type: 'array', items: { type: 'string' } },
-        linked_loop_id: { type: 'string', description: 'Optional linked loop ID' },
-        metadata: { type: 'object', description: 'Client metadata' }
-      },
-      required: ['text']
-    }
-  },
-  {
-    name: 'get_entry',
-    description: 'Retrieve detailed journal entry by ID (synonym for get_echo).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Journal Entry/Echo ID' }
+        id: { type: 'string', description: 'Stable unique ID of the Echo to archive' }
       },
       required: ['id']
     }
   },
   {
-    name: 'search_entries',
-    description: 'Search journal entries (synonym for search_echoes) using keyword filters.',
+    name: 'restore_echo',
+    description: 'Recover a soft-deleted (archived) Echo back to active state.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Query text' },
-        tag: { type: 'string', description: 'Tag' }
+        id: { type: 'string', description: 'Stable unique ID of the Echo to restore' }
       },
-      required: ['query']
+      required: ['id']
     }
   },
+  
+  // Loops (Intentions in Awareness)
   {
-    name: 'get_cycle_entries',
-    description: 'Get all reflections/entries recorded during a specific lunar month cycle.',
+    name: 'list_loops',
+    description: 'Search and query the user\'s Loops (intentions consciously held in awareness). Replaces listOpenLoops with rich filtering, status checking, and sorting.',
     inputSchema: {
       type: 'object',
       properties: {
-        lunarMonth: { type: 'string', description: "Name of lunar month (e.g. 'Wolf Moon'). Defaults to current cycle." }
+        status: { type: 'string', enum: ['open', 'paused', 'closed', 'archived', 'all'], default: 'open', description: 'Lifecycle status filter' },
+        query: { type: 'string', description: 'Search term query matching title or note description' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags' },
+        sort: { type: 'string', enum: ['newest', 'oldest', 'recently_updated'], default: 'newest', description: 'Sorting order' },
+        limit: { type: 'integer', default: 20, description: 'Number of results' },
+        cursor: { type: 'string', description: 'Pagination cursor' }
       }
     }
   },
   {
-    name: 'get_cycle_summary',
-    description: 'Dynamically compile statistics and activity summaries for an entire completed cycle.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        lunarMonth: { type: 'string', description: "Name of lunar month. Defaults to current cycle." }
-      }
-    }
-  },
-  {
-    name: 'search_cycles',
-    description: 'Search historical cycles (lunar months) matching name keywords.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Cycle name query' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'get_ai_context',
-    description: 'LIGHTWEIGHT CONTEXT: Returns current lunar status, active themes/tags, open loops, and recent reflections without reading entire historical journal.',
+    name: 'list_open_loops',
+    description: 'Backward-compatible shortcut to retrieve all open loops in the user\'s active awareness.',
     inputSchema: {
       type: 'object',
       properties: {}
     }
+  },
+  {
+    name: 'get_loop',
+    description: 'Retrieve a complete Loop object by its stable ID, including its associated Echo IDs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'create_loop',
+    description: 'Create a new Loop (an item consciously held in awareness). Automatically stamps current lunar metadata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Focus title' },
+        note: { type: 'string', description: 'Descriptive details or observations' },
+        type: { type: 'string', description: 'Type of loop (\'phase\' or \'cycle\')', default: 'phase' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Tags' },
+        energyState: { type: 'string', description: 'Current user energy state' },
+        attentionLevel: { type: 'string', description: 'Amount of awareness required (e.g. \'active\', \'background\')' },
+        alivenessScore: { type: 'integer', description: 'Vitality score (1-10)' },
+        parentLoopId: { type: 'string', description: 'Parent loop ID if transformed/carried forward' },
+        metadata: { type: 'object', description: 'Custom client metadata' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'update_loop',
+    description: 'Modify an existing Loop identified by its stable ID using PATCH semantics (only specified fields are changed). Returns the full updated Loop.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop to update' },
+        title: { type: 'string', description: 'Updated title' },
+        note: { type: 'string', description: 'Updated note description' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Updated tags list (overwrites existing)' },
+        status: { type: 'string', enum: ['open', 'paused', 'closed', 'archived'], description: 'Change status' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'close_loop',
+    description: 'Mark a Loop as closed (consciously completed/resolved). Stamped with closing moon phase.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop to close' },
+        note: { type: 'string', description: 'Optional closing note reflection' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'reopen_loop',
+    description: 'Reopen a previously closed or archived Loop back to active state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop to reopen' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'archive_loop',
+    description: 'Soft-delete a Loop by setting its status to archived.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop to archive' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'restore_loop',
+    description: 'Restore an archived Loop back to its previous state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Stable unique ID of the Loop to restore' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'carry_loop_forward',
+    description: 'Carries a Loop forward into the current phase/cycle, transitioning the old loop to \'carried_forward\' and opening a new linked instance.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID of loop to carry forward' },
+        new_note: { type: 'string', description: 'Updated note details for the new loop instance' }
+      },
+      required: ['id']
+    }
+  },
+  
+  // Cross-Object Global Search
+  {
+    name: 'search_luna',
+    description: 'Perform a global keyword search across both Loops and Echoes. Use when the user asks a search query but does not specify if the item is a loop or a reflection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search term query' },
+        types: { type: 'array', items: { type: 'string', enum: ['echo', 'loop'] }, default: ['echo', 'loop'], description: 'Filter by search types' },
+        from: { type: 'string', description: 'ISO-8601 starting date' },
+        to: { type: 'string', description: 'ISO-8601 ending date' },
+        limit: { type: 'integer', default: 20 },
+        cursor: { type: 'string' }
+      },
+      required: ['query']
+    }
   }
 ];
 
-// ─── Underlying Search Layer (Embeddings Readiness) ─────────────────────────
-
-async function searchEchoesInDb(supabase: SupabaseClient, userId: string, query: string, tag?: string, lunarMonth?: string) {
-  // NOTE: This interface is isolated so that developers can easily hook in
-  // semantic vector search (e.g. pgvector) in the future.
-  let dbQuery = supabase.from('echoes').select('*').eq('user_id', userId).is('deleted_at', null);
-
-  if (tag) {
-    dbQuery = dbQuery.contains('tags', [tag]);
+// Aliases for compatibility
+export const TOOL_DEFINITIONS_COMPAT = [
+  ...TOOL_DEFINITIONS,
+  {
+    name: 'create_entry',
+    description: 'Synonym for create_echo.',
+    inputSchema: TOOL_DEFINITIONS.find(t => t.name === 'create_echo')!.inputSchema
+  },
+  {
+    name: 'get_entry',
+    description: 'Synonym for get_echo.',
+    inputSchema: TOOL_DEFINITIONS.find(t => t.name === 'get_echo')!.inputSchema
+  },
+  {
+    name: 'search_entries',
+    description: 'Synonym for search_echoes.',
+    inputSchema: TOOL_DEFINITIONS.find(t => t.name === 'search_echoes')!.inputSchema
   }
-  if (lunarMonth) {
-    dbQuery = dbQuery.eq('lunar_month', lunarMonth);
-  }
-  
-  dbQuery = dbQuery.ilike('text', `%${query}%`);
-  
-  const { data, error } = await dbQuery.order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+];
+
+// ─── Pagination Helpers ──────────────────────────────────────────────────────
+
+function encodeCursor(timestamp: string): string {
+  return Buffer.from(timestamp).toString('base64');
 }
 
-async function searchLoopsInDb(supabase: SupabaseClient, userId: string, query: string) {
-  const { data, error } = await supabase
-    .from('loops')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .or(`title.ilike.%${query}%,note.ilike.%${query}%`)
-    .order('created_at', { ascending: false });
+function decodeCursor(cursor: string): string {
+  return Buffer.from(cursor, 'base64').toString('ascii');
+}
 
-  if (error) throw error;
-  return data || [];
+// ─── Schema Mappers ─────────────────────────────────────────────────────────
+
+function mapEcho(row: any): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    text: row.text,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    phase: row.phase_name || row.phase,
+    cycle: row.lunar_month,
+    phaseEnergy: row.energy_state,
+    illumination: row.illumination,
+    zodiacSign: row.zodiac,
+    loopIds: Array.isArray(row.loop_ids) ? row.loop_ids : (row.linked_loop_id ? [row.linked_loop_id] : []),
+    status: row.deleted_at ? 'archived' : 'active',
+    metadata: row.metadata || {}
+  };
+}
+
+function mapLoop(row: any, relatedEchoIds: string[] = []): any {
+  if (!row) return null;
+  let status = 'open';
+  if (row.deleted_at) {
+    status = 'archived';
+  } else if (row.status === 'paused') {
+    status = 'paused';
+  } else if (row.status === 'completed' || row.status === 'closed' || row.status === 'released') {
+    status = 'closed';
+  }
+  
+  return {
+    id: row.id,
+    title: row.title,
+    note: row.note || row.description || '',
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    closedAt: row.closed_at || null,
+    relatedEchoIds,
+    metadata: row.metadata || {}
+  };
 }
 
 // Helper to generate unique IDs on server
@@ -307,10 +344,9 @@ function generateServerId(prefix = 'l') {
 export async function executeTool(supabase: SupabaseClient, name: string, args: any) {
   const lunar = getLunarData();
 
-  // Retrieve authenticated userId for data isolation
+  // Retrieve authenticated userId
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    // get_current_lunar_context and get_current_cycle do not require database interaction
     if (name !== 'get_current_lunar_context' && name !== 'get_current_cycle') {
       throw new Error(`Authentication required for database tool "${name}": ${authError?.message || 'Session invalid'}`);
     }
@@ -318,64 +354,358 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
   
   const userId = user?.id || '';
 
-  switch (name) {
-    case 'get_current_lunar_context': {
-      return { content: [{ type: 'text', text: JSON.stringify(lunar, null, 2) }] };
+  // Standardize aliases
+  const activeToolName = name === 'create_entry' ? 'create_echo' :
+                         name === 'get_entry' ? 'get_echo' :
+                         name === 'search_entries' ? 'search_echoes' : name;
+
+  switch (activeToolName) {
+    case 'get_ai_context': {
+      const [loopsRes, echoesRes] = await Promise.all([
+        supabase.from('loops').select('id, title, note, status, created_at').eq('user_id', userId).in('status', ['open', 'active', 'paused']).is('deleted_at', null).limit(10),
+        supabase.from('echoes').select('id, text, phase_name, tags, created_at').eq('user_id', userId).is('deleted_at', null).order('created_at', { ascending: false }).limit(5)
+      ]);
+
+      const openLoops = loopsRes.data || [];
+      const recentEchoes = echoesRes.data || [];
+      const recentTags = new Set<string>();
+      recentEchoes.forEach(e => {
+        if (Array.isArray(e.tags)) {
+          e.tags.forEach(t => recentTags.add(t));
+        }
+      });
+
+      const context = {
+        currentCycle: `${lunar.lunarMonth} Moon`,
+        currentPhase: lunar.phase.name,
+        phaseEnergy: lunar.phase.energy,
+        illumination: `${lunar.illumination}%`,
+        zodiacSign: lunar.zodiac.sign,
+        hoursRemainingInPhase: lunar.remainingHours,
+        openLoopsCount: openLoops.length,
+        activeThemes: Array.from(recentTags).slice(0, 5),
+        openLoopsPreview: openLoops.map(l => ({ id: l.id, title: l.title, status: l.status })),
+        recentEchoesPreview: recentEchoes.map(e => ({
+          id: e.id,
+          phase: e.phase_name,
+          tags: e.tags,
+          text: e.text.substr(0, 100) + (e.text.length > 100 ? '...' : '')
+        }))
+      };
+
+      return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
     }
 
-    case 'get_current_cycle': {
+    case 'search_echoes': {
+      const { query, phase, cycle, tags, loopId, from, to, status = 'active', sort = 'newest', limit = 20 } = args;
+      let dbQuery = supabase.from('echoes').select('*').eq('user_id', userId);
+
+      // Status filters
+      if (status === 'active') {
+        dbQuery = dbQuery.is('deleted_at', null);
+      } else if (status === 'archived') {
+        dbQuery = dbQuery.not('deleted_at', 'is', null);
+      }
+
+      // Composable filters
+      if (phase) {
+        dbQuery = dbQuery.or(`phase.eq."${phase}",phase_name.eq."${phase}"`);
+      }
+      if (cycle) {
+        dbQuery = dbQuery.eq('lunar_month', cycle);
+      }
+      if (tags && Array.isArray(tags) && tags.length > 0) {
+        dbQuery = dbQuery.contains('tags', tags);
+      }
+      if (loopId) {
+        dbQuery = dbQuery.or(`linked_loop_id.eq."${loopId}",loop_ids.contains.["${loopId}"]`);
+      }
+      if (from) {
+        dbQuery = dbQuery.gte('created_at', from);
+      }
+      if (to) {
+        dbQuery = dbQuery.lte('created_at', to);
+      }
+      if (query) {
+        dbQuery = dbQuery.ilike('text', `%${query}%`);
+      }
+
+      // Pagination Cursor
+      if (args.cursor) {
+        const cursorTimestamp = decodeCursor(args.cursor);
+        if (sort === 'newest') {
+          dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+        } else {
+          dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+        }
+      }
+
+      // Sort & Limit
+      const isAscending = sort === 'oldest';
+      dbQuery = dbQuery.order('created_at', { ascending: isAscending }).limit(limit + 1);
+
+      const { data, error } = await dbQuery;
+      if (error) throw error;
+
+      const results = data || [];
+      const hasMore = results.length > limit;
+      const paginatedData = hasMore ? results.slice(0, limit) : results;
+      const nextCursor = hasMore ? encodeCursor(paginatedData[paginatedData.length - 1].created_at) : null;
+
       return {
         content: [{
           type: 'text',
-          text: `Current Lunar Month: ${lunar.lunarMonth} Moon\nCycle Started: ${lunar.cycleStart}`
+          text: JSON.stringify({
+            items: paginatedData.map(mapEcho),
+            nextCursor
+          }, null, 2)
         }]
       };
     }
 
-    case 'get_phase_summary': {
-      const phaseKey = args.phaseKey || lunar.phase.key;
-      const lunarMonth = args.lunarMonth || lunar.lunarMonth;
+    case 'get_echo': {
+      const { data, error } = await supabase
+        .from('echoes')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
 
-      const [echoesRes, loopsRes] = await Promise.all([
-        supabase.from('echoes').select('*').eq('user_id', userId).eq('phase', phaseKey).eq('lunar_month', lunarMonth).is('deleted_at', null),
-        supabase.from('loops').select('*').eq('user_id', userId).eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
-      ]);
+      if (error || !data) throw new Error(error?.message || `Echo not found: ${args.id}`);
 
-      const echoes = echoesRes.data || [];
-      const loops = loopsRes.data || [];
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(data), null, 2) }] };
+    }
 
-      const loopsOpened = loops.filter(l => l.phase_opened === phaseKey);
-      const loopsClosed = loops.filter(l => l.phase_closed === phaseKey && l.status === 'completed');
-      const loopsReleased = loops.filter(l => l.phase_closed === phaseKey && l.status === 'released');
-
-      const summary = {
-        phase: phaseKey,
-        lunarMonth,
-        reflectionsCount: echoes.length,
-        loopsOpened: loopsOpened.map(l => ({ id: l.id, title: l.title })),
-        loopsCompleted: loopsClosed.map(l => ({ id: l.id, title: l.title })),
-        loopsReleased: loopsReleased.map(l => ({ id: l.id, title: l.title })),
-        reflections: echoes.map(e => e.text)
+    case 'create_echo': {
+      const id = generateServerId('e');
+      const loopIds = args.loopIds || [];
+      const insertData = {
+        id,
+        user_id: userId,
+        text: args.text,
+        source: args.source || 'chatgpt',
+        tags: args.tags || [],
+        linked_loop_id: loopIds[0] || null,
+        loop_ids: loopIds,
+        energy_state: args.energyState || null,
+        metadata: args.metadata || {},
+        
+        // Auto lunar tracking
+        phase: lunar.phase.key,
+        phase_name: lunar.phase.name,
+        phase_type: (lunar.phase.key === 'new' || lunar.phase.key === 'first-quarter' || lunar.phase.key === 'full' || lunar.phase.key === 'last-quarter') ? 'threshold' : 'flow',
+        lunar_month: lunar.lunarMonth,
+        day_of_cycle: lunar.dayOfCycle,
+        zodiac: lunar.zodiac.sign,
+        illumination: lunar.illumination,
+        is_encrypted: false,
+        created_at: new Date().toISOString()
       };
 
-      return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
+      let { error } = await supabase.from('echoes').insert(insertData);
+      
+      // Undefined column schema fallback check
+      if (error && error.code === '42703') {
+        console.warn('Metadata columns missing, retrying with core columns only.');
+        const baseInsertData = {
+          id: insertData.id,
+          user_id: insertData.user_id,
+          text: insertData.text,
+          source: insertData.source,
+          phase: insertData.phase,
+          phase_name: insertData.phase_name,
+          phase_type: insertData.phase_type,
+          lunar_month: insertData.lunar_month,
+          day_of_cycle: insertData.day_of_cycle,
+          zodiac: insertData.zodiac,
+          illumination: insertData.illumination,
+          tags: insertData.tags,
+          linked_loop_id: insertData.linked_loop_id,
+          is_encrypted: insertData.is_encrypted,
+          created_at: insertData.created_at
+        };
+        const retryResult = await supabase.from('echoes').insert(baseInsertData);
+        error = retryResult.error;
+      }
+      
+      if (error) throw error;
+
+      // Query and return the full created object
+      const { data: createdRow, error: fetchErr } = await supabase
+        .from('echoes')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchErr) throw fetchErr;
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(createdRow), null, 2) }] };
+    }
+
+    case 'update_echo': {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      if (args.text !== undefined) updateData.text = args.text;
+      if (args.tags !== undefined) updateData.tags = args.tags;
+      if (args.loopIds !== undefined) {
+        updateData.loop_ids = args.loopIds;
+        updateData.linked_loop_id = args.loopIds[0] || null;
+      }
+      if (args.status !== undefined) {
+        updateData.deleted_at = args.status === 'archived' ? new Date().toISOString() : null;
+      }
+
+      let { error } = await supabase
+        .from('echoes')
+        .update(updateData)
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      // Fallback in case loop_ids does not exist in their DB
+      if (error && error.code === '42703' && updateData.loop_ids !== undefined) {
+        delete updateData.loop_ids;
+        const retryResult = await supabase
+          .from('echoes')
+          .update(updateData)
+          .eq('id', args.id)
+          .eq('user_id', userId);
+        error = retryResult.error;
+      }
+
+      if (error) throw error;
+
+      // Query and return the full updated object
+      const { data: updatedRow, error: fetchErr } = await supabase
+        .from('echoes')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(updatedRow), null, 2) }] };
+    }
+
+    case 'archive_echo': {
+      const { error } = await supabase
+        .from('echoes')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const { data: row } = await supabase.from('echoes').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(row), null, 2) }] };
+    }
+
+    case 'restore_echo': {
+      const { error } = await supabase
+        .from('echoes')
+        .update({ deleted_at: null })
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const { data: row } = await supabase.from('echoes').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(row), null, 2) }] };
+    }
+
+    case 'list_loops': {
+      const { status = 'open', query, tags, sort = 'newest', limit = 20 } = args;
+      let dbQuery = supabase.from('loops').select('*').eq('user_id', userId);
+
+      // Status filters mapping
+      if (status === 'open') {
+        dbQuery = dbQuery.in('status', ['open', 'active']).is('deleted_at', null);
+      } else if (status === 'paused') {
+        dbQuery = dbQuery.eq('status', 'paused').is('deleted_at', null);
+      } else if (status === 'closed') {
+        dbQuery = dbQuery.in('status', ['closed', 'completed', 'released']).is('deleted_at', null);
+      } else if (status === 'archived') {
+        dbQuery = dbQuery.not('deleted_at', 'is', null);
+      }
+
+      // Composable filters
+      if (query) {
+        dbQuery = dbQuery.or(`title.ilike.%${query}%,note.ilike.%${query}%,description.ilike.%${query}%`);
+      }
+      if (tags && Array.isArray(tags) && tags.length > 0) {
+        dbQuery = dbQuery.contains('tags', tags);
+      }
+
+      // Pagination Cursor
+      if (args.cursor) {
+        const cursorTimestamp = decodeCursor(args.cursor);
+        if (sort === 'newest') {
+          dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+        } else if (sort === 'oldest') {
+          dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+        } else {
+          dbQuery = dbQuery.lt('updated_at', cursorTimestamp);
+        }
+      }
+
+      // Sorting
+      if (sort === 'oldest') {
+        dbQuery = dbQuery.order('created_at', { ascending: true });
+      } else if (sort === 'recently_updated') {
+        dbQuery = dbQuery.order('updated_at', { ascending: false });
+      } else {
+        dbQuery = dbQuery.order('created_at', { ascending: false });
+      }
+
+      dbQuery = dbQuery.limit(limit + 1);
+
+      const { data, error } = await dbQuery;
+      if (error) throw error;
+
+      const results = data || [];
+      const hasMore = results.length > limit;
+      const paginatedData = hasMore ? results.slice(0, limit) : results;
+      const nextCursor = hasMore ? encodeCursor(sort === 'recently_updated' ? paginatedData[paginatedData.length - 1].updated_at : paginatedData[paginatedData.length - 1].created_at) : null;
+
+      // Resolve relationships (Echo IDs) for all returned loops in bulk
+      const loopIds = paginatedData.map(l => l.id);
+      const { data: matches } = await supabase
+        .from('echoes')
+        .select('id, linked_loop_id, loop_ids')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+
+      const echoMatches = matches || [];
+      const items = paginatedData.map(row => {
+        const related = echoMatches
+          .filter(e => e.linked_loop_id === row.id || (Array.isArray(e.loop_ids) && e.loop_ids.includes(row.id)))
+          .map(e => e.id);
+        return mapLoop(row, related);
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            items,
+            nextCursor
+          }, null, 2)
+        }]
+      };
     }
 
     case 'list_open_loops': {
-      const limit = args.limit || 20;
-      const offset = args.offset || 0;
-
       const { data, error } = await supabase
         .from('loops')
         .select('*')
         .eq('user_id', userId)
         .in('status', ['open', 'active'])
         .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return { content: [{ type: 'text', text: JSON.stringify(data || [], null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify((data || []).map(row => mapLoop(row)), null, 2) }] };
     }
 
     case 'get_loop': {
@@ -384,16 +714,22 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .select('*')
         .eq('id', args.id)
         .eq('user_id', userId)
-        .is('deleted_at', null)
         .single();
 
-      if (error) throw error;
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-    }
+      if (error || !data) throw new Error(error?.message || `Loop not found: ${args.id}`);
 
-    case 'search_loops': {
-      const data = await searchLoopsInDb(supabase, userId, args.query);
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      // Query associated echo IDs
+      const { data: echoes } = await supabase
+        .from('echoes')
+        .select('id, linked_loop_id, loop_ids')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+
+      const relatedEchoIds = (echoes || [])
+        .filter(e => e.linked_loop_id === args.id || (Array.isArray(e.loop_ids) && e.loop_ids.includes(args.id)))
+        .map(e => e.id);
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(data, relatedEchoIds), null, 2) }] };
     }
 
     case 'create_loop': {
@@ -405,15 +741,12 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         note: args.note || null,
         description: args.note || null,
         type: args.type || 'phase',
-        status: 'open',
-        source: args.source || 'chatgpt',
-        source_conversation_id: args.source_conversation_id || null,
-        source_excerpt: args.source_excerpt || null,
-        source_reference: args.source_reference || null,
-        energy_state: args.energy_state || null,
-        attention_level: args.attention_level || null,
-        aliveness_score: args.aliveness_score || null,
-        parent_loop_id: args.parent_loop_id || null,
+        status: 'active',
+        tags: args.tags || [],
+        energy_state: args.energyState || null,
+        attention_level: args.attentionLevel || null,
+        aliveness_score: args.alivenessScore || null,
+        parent_loop_id: args.parentLoopId || null,
         metadata: args.metadata || {},
         
         // Auto lunar tracking
@@ -428,16 +761,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       let { error } = await supabase.from('loops').insert(insertData);
       
-      // If PostgreSQL reports undefined_column (code 42703), retry with core columns only
       if (error && error.code === '42703') {
-        console.warn('Metadata columns missing in loops table, retrying with core columns only.');
+        console.warn('Metadata columns missing, retrying with core columns only.');
         const baseInsertData = {
           id: insertData.id,
           user_id: insertData.user_id,
           title: insertData.title,
           note: insertData.note,
           type: insertData.type,
-          status: 'active', // Default to 'active' which the frontend base schema expects
+          status: 'active',
           phase_opened: insertData.phase_opened,
           phase_name: insertData.phase_name,
           lunar_month_opened: insertData.lunar_month_opened,
@@ -452,12 +784,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       if (error) throw error;
 
-      return {
-        content: [{
-          type: 'text',
-          text: `Successfully created Loop: "${args.title}" (ID: ${id}) under the ${lunar.phase.name} in ${lunar.zodiac.sign}.`
-        }]
-      };
+      // Query and return the full created object
+      const { data: createdRow, error: fetchErr } = await supabase
+        .from('loops')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(createdRow), null, 2) }] };
     }
 
     case 'update_loop': {
@@ -469,21 +805,21 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         updateData.note = args.note;
         updateData.description = args.note;
       }
+      if (args.tags !== undefined) updateData.tags = args.tags;
       if (args.status !== undefined) {
-        updateData.status = args.status;
-        if (args.status === 'completed' || args.status === 'closed') {
-          updateData.closed_at = new Date().toISOString();
-          updateData.phase_closed = lunar.phase.key;
-          updateData.phase_name_closed = lunar.phase.name;
-          updateData.lunar_month_closed = lunar.lunarMonth;
-        } else if (args.status === 'released') {
-          updateData.released_at = new Date().toISOString();
-          updateData.phase_closed = lunar.phase.key;
-          updateData.phase_name_closed = lunar.phase.name;
-          updateData.lunar_month_closed = lunar.lunarMonth;
+        if (args.status === 'archived') {
+          updateData.deleted_at = new Date().toISOString();
+        } else {
+          updateData.deleted_at = null;
+          updateData.status = args.status === 'open' ? 'active' : args.status;
+          if (args.status === 'closed') {
+            updateData.closed_at = new Date().toISOString();
+            updateData.phase_closed = lunar.phase.key;
+            updateData.phase_name_closed = lunar.phase.name;
+            updateData.lunar_month_closed = lunar.lunarMonth;
+          }
         }
       }
-      if (args.metadata !== undefined) updateData.metadata = args.metadata;
 
       const { error } = await supabase
         .from('loops')
@@ -493,48 +829,84 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       if (error) throw error;
 
-      return {
-        content: [{
-          type: 'text',
-          text: `Successfully updated Loop ID: ${args.id} (Status: ${args.status || 'unchanged'}).`
-        }]
-      };
+      // Query and return full updated object
+      const { data: updatedRow, error: fetchErr } = await supabase
+        .from('loops')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(updatedRow), null, 2) }] };
     }
 
-    case 'complete_loop': {
+    case 'close_loop': {
       const { error } = await supabase
         .from('loops')
         .update({
-          status: 'completed',
+          status: 'completed', // maps to closed status state in loop
           closed_at: new Date().toISOString(),
           phase_closed: lunar.phase.key,
           phase_name_closed: lunar.phase.name,
           lunar_month_closed: lunar.lunarMonth,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          note: args.note || undefined
         })
         .eq('id', args.id)
         .eq('user_id', userId);
 
       if (error) throw error;
-      return { content: [{ type: 'text', text: `Completed Loop ID: ${args.id}.` }] };
+
+      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
     }
 
-    case 'release_loop': {
+    case 'reopen_loop': {
       const { error } = await supabase
         .from('loops')
         .update({
-          status: 'released',
-          released_at: new Date().toISOString(),
-          phase_closed: lunar.phase.key,
-          phase_name_closed: lunar.phase.name,
-          lunar_month_closed: lunar.lunarMonth,
+          status: 'active',
+          closed_at: null,
+          phase_closed: null,
+          phase_name_closed: null,
+          lunar_month_closed: null,
+          deleted_at: null,
           updated_at: new Date().toISOString()
         })
         .eq('id', args.id)
         .eq('user_id', userId);
 
       if (error) throw error;
-      return { content: [{ type: 'text', text: `Released Loop ID: ${args.id} (let go).` }] };
+
+      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+    }
+
+    case 'archive_loop': {
+      const { error } = await supabase
+        .from('loops')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+    }
+
+    case 'restore_loop': {
+      const { error } = await supabase
+        .from('loops')
+        .update({ deleted_at: null })
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
     }
 
     case 'carry_loop_forward': {
@@ -573,7 +945,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         note: args.new_note || oldLoop.note,
         description: args.new_note || oldLoop.note,
         type: oldLoop.type,
-        status: 'open',
+        status: 'active',
         source: 'chatgpt',
         parent_loop_id: oldLoop.id,
         metadata: {
@@ -594,7 +966,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       let { error: insertErr } = await supabase.from('loops').insert(insertData);
       
       if (insertErr && insertErr.code === '42703') {
-        console.warn('Metadata columns missing in loops table during carry forward, retrying with core columns only.');
+        console.warn('Metadata columns missing in loops table, retrying with core columns only.');
         const baseInsertData = {
           id: insertData.id,
           user_id: insertData.user_id,
@@ -616,182 +988,77 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       if (insertErr) throw insertErr;
 
-      return {
-        content: [{
-          type: 'text',
-          text: `Carried loop forward. Old Loop (ID: ${args.id}) set to "carried_forward". New Loop (ID: ${newId}) opened under the ${lunar.phase.name}.`
-        }]
-      };
+      // Query and return the new loop object
+      const { data: newRow } = await supabase.from('loops').select('*').eq('id', newId).eq('user_id', userId).single();
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(newRow), null, 2) }] };
     }
 
-    case 'create_echo':
-    case 'create_entry': {
-      const id = generateServerId('e');
-      const insertData = {
-        id,
-        user_id: userId,
-        text: args.text,
-        source: args.source || 'chatgpt',
-        source_conversation_id: args.source_conversation_id || null,
-        source_excerpt: args.source_excerpt || null,
-        source_reference: args.source_reference || null,
-        energy_state: args.energy_state || null,
-        metadata: args.metadata || {},
-        
-        // Auto lunar context
-        phase: lunar.phase.key,
-        phase_name: lunar.phase.name,
-        phase_type: lunar.phase.key.includes('crescent') || lunar.phase.key.includes('gibbous') ? 'flow' : 'threshold',
-        lunar_month: lunar.lunarMonth,
-        day_of_cycle: lunar.dayOfCycle,
-        zodiac: lunar.zodiac.sign,
-        illumination: lunar.illumination,
-        tags: args.tags || [],
-        linked_loop_id: args.linked_loop_id || null,
-        is_encrypted: false,
-        created_at: new Date().toISOString()
-      };
-
-      let { error } = await supabase.from('echoes').insert(insertData);
+    case 'search_luna': {
+      const { query, types = ['echo', 'loop'], from, to, limit = 20 } = args;
       
-      if (error && error.code === '42703') {
-        console.warn('Metadata columns missing in echoes table, retrying with core columns only.');
-        const baseInsertData = {
-          id: insertData.id,
-          user_id: insertData.user_id,
-          text: insertData.text,
-          source: insertData.source,
-          phase: insertData.phase,
-          phase_name: insertData.phase_name,
-          phase_type: insertData.phase_type,
-          lunar_month: insertData.lunar_month,
-          day_of_cycle: insertData.day_of_cycle,
-          zodiac: insertData.zodiac,
-          illumination: insertData.illumination,
-          tags: insertData.tags,
-          linked_loop_id: insertData.linked_loop_id,
-          is_encrypted: insertData.is_encrypted,
-          created_at: insertData.created_at
-        };
-        const retryResult = await supabase.from('echoes').insert(baseInsertData);
-        error = retryResult.error;
+      const searchTasks: Promise<any>[] = [];
+      if (types.includes('echo')) {
+        let echoQuery = supabase.from('echoes').select('id, text, created_at').eq('user_id', userId).is('deleted_at', null).ilike('text', `%${query}%`);
+        if (from) echoQuery = echoQuery.gte('created_at', from);
+        if (to) echoQuery = echoQuery.lte('created_at', to);
+        searchTasks.push(echoQuery as any);
+      } else {
+        searchTasks.push(Promise.resolve({ data: [] }));
       }
 
-      if (error) throw error;
+      if (types.includes('loop')) {
+        let loopQuery = supabase.from('loops').select('id, title, note, description, created_at').eq('user_id', userId).is('deleted_at', null).or(`title.ilike.%${query}%,note.ilike.%${query}%,description.ilike.%${query}%`);
+        if (from) loopQuery = loopQuery.gte('created_at', from);
+        if (to) loopQuery = loopQuery.lte('created_at', to);
+        searchTasks.push(loopQuery as any);
+      } else {
+        searchTasks.push(Promise.resolve({ data: [] }));
+      }
+
+      const [echoesRes, loopsRes] = await Promise.all(searchTasks);
+      
+      const combined: any[] = [];
+      (echoesRes.data || []).forEach((row: any) => {
+        combined.push({
+          type: 'echo',
+          id: row.id,
+          text: row.text,
+          createdAt: row.created_at
+        });
+      });
+      (loopsRes.data || []).forEach((row: any) => {
+        combined.push({
+          type: 'loop',
+          id: row.id,
+          title: row.title,
+          note: row.note || row.description || '',
+          createdAt: row.created_at
+        });
+      });
+
+      // Sort combined newest first
+      combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // Paginate
+      let paginated = combined;
+      if (args.cursor) {
+        const decodedTime = decodeCursor(args.cursor);
+        paginated = combined.filter(item => new Date(item.createdAt).getTime() < new Date(decodedTime).getTime());
+      }
+      
+      const hasMore = paginated.length > limit;
+      const pageData = hasMore ? paginated.slice(0, limit) : paginated;
+      const nextCursor = hasMore ? encodeCursor(pageData[pageData.length - 1].createdAt) : null;
 
       return {
         content: [{
           type: 'text',
-          text: `Reflection recorded under the ${lunar.phase.name} in ${lunar.zodiac.sign}. (ID: ${id})`
+          text: JSON.stringify({
+            items: pageData,
+            nextCursor
+          }, null, 2)
         }]
       };
-    }
-
-    case 'get_echo':
-    case 'get_entry': {
-      const { data, error } = await supabase
-        .from('echoes')
-        .select('*')
-        .eq('id', args.id)
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .single();
-
-      if (error) throw error;
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-    }
-
-    case 'search_echoes':
-    case 'search_entries': {
-      const data = await searchEchoesInDb(supabase, userId, args.query, args.tag, args.lunar_month);
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-    }
-
-    case 'get_cycle_entries': {
-      const lunarMonth = args.lunarMonth || lunar.lunarMonth;
-      const { data, error } = await supabase
-        .from('echoes')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('lunar_month', lunarMonth)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return { content: [{ type: 'text', text: JSON.stringify(data || [], null, 2) }] };
-    }
-
-    case 'get_cycle_summary': {
-      const lunarMonth = args.lunarMonth || lunar.lunarMonth;
-
-      const [echoesRes, loopsRes] = await Promise.all([
-        supabase.from('echoes').select('*').eq('user_id', userId).eq('lunar_month', lunarMonth).is('deleted_at', null),
-        supabase.from('loops').select('*').eq('user_id', userId).eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
-      ]);
-
-      const echoes = echoesRes.data || [];
-      const loops = loopsRes.data || [];
-
-      const summary = {
-        lunarMonth,
-        totalEchoes: echoes.length,
-        loopsOpened: loops.length,
-        loopsCompleted: loops.filter(l => l.status === 'completed' || l.status === 'closed').length,
-        loopsReleased: loops.filter(l => l.status === 'released').length,
-        reflectionsExcerpt: echoes.slice(0, 5).map(e => `[${e.phase_name}] ${e.text.substr(0, 100)}...`)
-      };
-
-      return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
-    }
-
-    case 'search_cycles': {
-      const { data, error } = await supabase
-        .from('echoes')
-        .select('lunar_month')
-        .eq('user_id', userId)
-        .ilike('lunar_month', `%${args.query}%`);
-
-      if (error) throw error;
-      const uniqueMonths = [...new Set((data || []).map(d => d.lunar_month))];
-      return { content: [{ type: 'text', text: JSON.stringify(uniqueMonths, null, 2) }] };
-    }
-
-    case 'get_ai_context': {
-      // Compiled lightweight context
-      const [loopsRes, echoesRes] = await Promise.all([
-        supabase.from('loops').select('id, title, note, status, created_at').eq('user_id', userId).in('status', ['open', 'active']).is('deleted_at', null).limit(10),
-        supabase.from('echoes').select('id, text, phase_name, tags, created_at').eq('user_id', userId).is('deleted_at', null).order('created_at', { ascending: false }).limit(5)
-      ]);
-
-      const openLoops = loopsRes.data || [];
-      const recentEchoes = echoesRes.data || [];
-
-      // Extract active themes (top tags used recently)
-      const recentTags = new Set<string>();
-      recentEchoes.forEach(e => {
-        if (Array.isArray(e.tags)) {
-          e.tags.forEach(t => recentTags.add(t));
-        }
-      });
-
-      const context = {
-        currentCycle: `${lunar.lunarMonth} Moon`,
-        currentPhase: lunar.phase.name,
-        phaseEnergy: lunar.phase.energy,
-        illumination: `${lunar.illumination}%`,
-        zodiacSign: lunar.zodiac.sign,
-        hoursRemainingInPhase: lunar.remainingHours,
-        openLoopsCount: openLoops.length,
-        activeThemes: Array.from(recentTags).slice(0, 5),
-        openLoopsList: openLoops.map(l => ({ id: l.id, title: l.title, created: l.created_at })),
-        recentReflections: recentEchoes.map(e => ({
-          phase: e.phase_name,
-          tags: e.tags,
-          text: e.text.substr(0, 150) + (e.text.length > 150 ? '...' : '')
-        }))
-      };
-
-      return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
     }
 
     default:

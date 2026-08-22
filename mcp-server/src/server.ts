@@ -10,7 +10,7 @@ import {
   ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { getUserIdFromToken, getSupabaseForUser } from './db.js';
-import { executeTool, TOOL_DEFINITIONS } from './tools.js';
+import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 
 dotenv.config();
 
@@ -345,23 +345,32 @@ app.post('/oauth/token', async (req, res) => {
 // ─── Scope Permissions Helper ────────────────────────────────────────────────
 
 function checkScope(scopes: string[], toolName: string): boolean {
-  if (toolName.startsWith('list_loops') || toolName.startsWith('get_loop') || toolName.startsWith('search_loops')) {
+  // Loops read tools
+  if (toolName === 'list_loops' || toolName === 'list_open_loops' || toolName === 'get_loop' || toolName === 'search_loops') {
     return scopes.includes('loops:read');
   }
-  if (toolName.startsWith('create_loop') || toolName.startsWith('update_loop') || toolName.startsWith('complete_loop') || toolName.startsWith('release_loop') || toolName.startsWith('carry_loop_forward')) {
+  // Loops write tools
+  if (toolName === 'create_loop' || toolName === 'update_loop' || toolName === 'close_loop' || toolName === 'reopen_loop' || toolName === 'archive_loop' || toolName === 'restore_loop' || toolName === 'carry_loop_forward') {
     return scopes.includes('loops:write');
   }
-  if (toolName.startsWith('create_echo') || toolName.startsWith('create_entry')) {
+  // Echoes write tools
+  if (toolName === 'create_echo' || toolName === 'create_entry' || toolName === 'update_echo' || toolName === 'archive_echo' || toolName === 'restore_echo') {
     return scopes.includes('echoes:write') || scopes.includes('entries:write');
   }
-  if (toolName.startsWith('get_echo') || toolName.startsWith('get_entry') || toolName.startsWith('search_echoes') || toolName.startsWith('search_entries') || toolName.startsWith('get_cycle_entries')) {
+  // Echoes read tools
+  if (toolName === 'get_echo' || toolName === 'get_entry' || toolName === 'search_echoes' || toolName === 'search_entries' || toolName === 'get_cycle_entries') {
     return scopes.includes('echoes:read') || scopes.includes('entries:read');
   }
-  if (toolName.startsWith('get_current_lunar_context') || toolName.startsWith('get_current_cycle') || toolName.startsWith('get_phase_summary') || toolName.startsWith('get_cycle_summary') || toolName.startsWith('search_cycles')) {
+  // Cycle / context read tools
+  if (toolName === 'get_current_lunar_context' || toolName === 'get_current_cycle' || toolName === 'get_phase_summary' || toolName === 'get_cycle_summary' || toolName === 'search_cycles') {
     return scopes.includes('cycles:read');
   }
+  // Cross-object search (requires both)
+  if (toolName === 'search_luna') {
+    return scopes.includes('loops:read') && (scopes.includes('echoes:read') || scopes.includes('entries:read'));
+  }
+  // Lightweight AI Context (requires both)
   if (toolName === 'get_ai_context') {
-    // Requires both loops and echoes read access
     return scopes.includes('loops:read') && (scopes.includes('echoes:read') || scopes.includes('entries:read'));
   }
   return false;
@@ -405,7 +414,7 @@ app.get('/sse', async (req, res) => {
 
   // 1. Tools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: TOOL_DEFINITIONS };
+    return { tools: TOOL_DEFINITIONS_COMPAT };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {

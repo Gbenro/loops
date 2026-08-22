@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS public.echoes (
   audio_path text,
   tags jsonb DEFAULT '[]'::jsonb,
   linked_loop_id text REFERENCES public.loops(id) ON DELETE SET NULL,
+  loop_ids jsonb DEFAULT '[]'::jsonb,
   deleted_at timestamptz,
   source_conversation_id text,
   source_excerpt text,
