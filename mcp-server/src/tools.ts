@@ -265,14 +265,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 
 // ─── Underlying Search Layer (Embeddings Readiness) ─────────────────────────
 
-async function searchEchoesInDb(supabase: SupabaseClient, query: string, tag?: string, lunarMonth?: string) {
+async function searchEchoesInDb(supabase: SupabaseClient, userId: string, query: string, tag?: string, lunarMonth?: string) {
   // NOTE: This interface is isolated so that developers can easily hook in
   // semantic vector search (e.g. pgvector) in the future.
-  // Example future code:
-  // const embeddings = await getEmbeddings(query);
-  // return await supabase.rpc('match_echo_embeddings', { query_embedding: embeddings, match_threshold: 0.7 });
-
-  let dbQuery = supabase.from('echoes').select('*').is('deleted_at', null);
+  let dbQuery = supabase.from('echoes').select('*').eq('user_id', userId).is('deleted_at', null);
 
   if (tag) {
     dbQuery = dbQuery.contains('tags', [tag]);
@@ -288,10 +284,11 @@ async function searchEchoesInDb(supabase: SupabaseClient, query: string, tag?: s
   return data || [];
 }
 
-async function searchLoopsInDb(supabase: SupabaseClient, query: string) {
+async function searchLoopsInDb(supabase: SupabaseClient, userId: string, query: string) {
   const { data, error } = await supabase
     .from('loops')
     .select('*')
+    .eq('user_id', userId)
     .is('deleted_at', null)
     .or(`title.ilike.%${query}%,note.ilike.%${query}%`)
     .order('created_at', { ascending: false });
@@ -309,6 +306,17 @@ function generateServerId(prefix = 'l') {
 
 export async function executeTool(supabase: SupabaseClient, name: string, args: any) {
   const lunar = getLunarData();
+
+  // Retrieve authenticated userId for data isolation
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    // get_current_lunar_context and get_current_cycle do not require database interaction
+    if (name !== 'get_current_lunar_context' && name !== 'get_current_cycle') {
+      throw new Error(`Authentication required for database tool "${name}": ${authError?.message || 'Session invalid'}`);
+    }
+  }
+  
+  const userId = user?.id || '';
 
   switch (name) {
     case 'get_current_lunar_context': {
@@ -329,8 +337,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const lunarMonth = args.lunarMonth || lunar.lunarMonth;
 
       const [echoesRes, loopsRes] = await Promise.all([
-        supabase.from('echoes').select('*').eq('phase', phaseKey).eq('lunar_month', lunarMonth).is('deleted_at', null),
-        supabase.from('loops').select('*').eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
+        supabase.from('echoes').select('*').eq('user_id', userId).eq('phase', phaseKey).eq('lunar_month', lunarMonth).is('deleted_at', null),
+        supabase.from('loops').select('*').eq('user_id', userId).eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
       ]);
 
       const echoes = echoesRes.data || [];
@@ -360,6 +368,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { data, error } = await supabase
         .from('loops')
         .select('*')
+        .eq('user_id', userId)
         .in('status', ['open', 'active'])
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
@@ -374,6 +383,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .from('loops')
         .select('*')
         .eq('id', args.id)
+        .eq('user_id', userId)
         .is('deleted_at', null)
         .single();
 
@@ -382,7 +392,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'search_loops': {
-      const data = await searchLoopsInDb(supabase, args.query);
+      const data = await searchLoopsInDb(supabase, userId, args.query);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
 
@@ -390,6 +400,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const id = generateServerId('l');
       const insertData = {
         id,
+        user_id: userId,
         title: args.title,
         note: args.note || null,
         description: args.note || null,
@@ -454,7 +465,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { error } = await supabase
         .from('loops')
         .update(updateData)
-        .eq('id', args.id);
+        .eq('id', args.id)
+        .eq('user_id', userId);
 
       if (error) throw error;
 
@@ -477,7 +489,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           lunar_month_closed: lunar.lunarMonth,
           updated_at: new Date().toISOString()
         })
-        .eq('id', args.id);
+        .eq('id', args.id)
+        .eq('user_id', userId);
 
       if (error) throw error;
       return { content: [{ type: 'text', text: `Completed Loop ID: ${args.id}.` }] };
@@ -494,7 +507,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           lunar_month_closed: lunar.lunarMonth,
           updated_at: new Date().toISOString()
         })
-        .eq('id', args.id);
+        .eq('id', args.id)
+        .eq('user_id', userId);
 
       if (error) throw error;
       return { content: [{ type: 'text', text: `Released Loop ID: ${args.id} (let go).` }] };
@@ -506,6 +520,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .from('loops')
         .select('*')
         .eq('id', args.id)
+        .eq('user_id', userId)
         .single();
 
       if (fetchErr || !oldLoop) throw new Error(`Loop not found: ${args.id}`);
@@ -521,7 +536,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           lunar_month_closed: lunar.lunarMonth,
           updated_at: new Date().toISOString()
         })
-        .eq('id', args.id);
+        .eq('id', args.id)
+        .eq('user_id', userId);
 
       if (updateErr) throw updateErr;
 
@@ -529,6 +545,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const newId = generateServerId('l');
       const insertData = {
         id: newId,
+        user_id: userId,
         title: oldLoop.title,
         note: args.new_note || oldLoop.note,
         description: args.new_note || oldLoop.note,
@@ -567,6 +584,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const id = generateServerId('e');
       const insertData = {
         id,
+        user_id: userId,
         text: args.text,
         source: args.source || 'chatgpt',
         source_conversation_id: args.source_conversation_id || null,
@@ -606,6 +624,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .from('echoes')
         .select('*')
         .eq('id', args.id)
+        .eq('user_id', userId)
         .is('deleted_at', null)
         .single();
 
@@ -615,7 +634,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
     case 'search_echoes':
     case 'search_entries': {
-      const data = await searchEchoesInDb(supabase, args.query, args.tag, args.lunar_month);
+      const data = await searchEchoesInDb(supabase, userId, args.query, args.tag, args.lunar_month);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
 
@@ -624,6 +643,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { data, error } = await supabase
         .from('echoes')
         .select('*')
+        .eq('user_id', userId)
         .eq('lunar_month', lunarMonth)
         .is('deleted_at', null)
         .order('created_at', { ascending: true });
@@ -636,8 +656,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const lunarMonth = args.lunarMonth || lunar.lunarMonth;
 
       const [echoesRes, loopsRes] = await Promise.all([
-        supabase.from('echoes').select('*').eq('lunar_month', lunarMonth).is('deleted_at', null),
-        supabase.from('loops').select('*').eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
+        supabase.from('echoes').select('*').eq('user_id', userId).eq('lunar_month', lunarMonth).is('deleted_at', null),
+        supabase.from('loops').select('*').eq('user_id', userId).eq('lunar_month_opened', lunarMonth).is('deleted_at', null)
       ]);
 
       const echoes = echoesRes.data || [];
@@ -659,6 +679,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { data, error } = await supabase
         .from('echoes')
         .select('lunar_month')
+        .eq('user_id', userId)
         .ilike('lunar_month', `%${args.query}%`);
 
       if (error) throw error;
@@ -669,8 +690,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     case 'get_ai_context': {
       // Compiled lightweight context
       const [loopsRes, echoesRes] = await Promise.all([
-        supabase.from('loops').select('id, title, note, status, created_at').in('status', ['open', 'active']).is('deleted_at', null).limit(10),
-        supabase.from('echoes').select('id, text, phase_name, tags, created_at').is('deleted_at', null).order('created_at', { ascending: false }).limit(5)
+        supabase.from('loops').select('id, title, note, status, created_at').eq('user_id', userId).in('status', ['open', 'active']).is('deleted_at', null).limit(10),
+        supabase.from('echoes').select('id, text, phase_name, tags, created_at').eq('user_id', userId).is('deleted_at', null).order('created_at', { ascending: false }).limit(5)
       ]);
 
       const openLoops = loopsRes.data || [];
