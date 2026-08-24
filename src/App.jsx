@@ -115,10 +115,11 @@ function isIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 }
 
-// Check if already running as installed PWA
+// Check if already running as installed PWA or inside native Capacitor
 function isInStandaloneMode() {
   return window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true;
+    window.navigator.standalone === true ||
+    !!window.Capacitor;
 }
 
 function isMobile() {
@@ -349,6 +350,20 @@ function App() {
         .eq('id', userId)
         .single();
       setUserProfile(data);
+      if (data) {
+        if (data.onboarding_completed) {
+          localStorage.setItem('onboardingCompleted', 'true');
+        }
+        if (data.tours_completed) {
+          localStorage.setItem('toursCompleted', JSON.stringify(data.tours_completed));
+        }
+        if (data.tutorial_seen) {
+          localStorage.setItem('tutorial_seen_v2', 'true');
+        }
+        if (data.pwa_prompt_dismissed) {
+          localStorage.setItem('install_dismissed', '1');
+        }
+      }
     } catch (e) {
       // No profile yet
       setUserProfile(null);
@@ -539,9 +554,15 @@ function App() {
     }
   };
 
-  const handleInstallDismiss = () => {
+  const handleInstallDismiss = async () => {
     localStorage.setItem('install_dismissed', '1');
     setShowInstallBanner(false);
+    if (user) {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        pwa_prompt_dismissed: true
+      });
+    }
   };
 
   const handleSignOut = async () => {
@@ -963,9 +984,15 @@ function App() {
           activeTab={activeTab}
           onSwitchTab={setActiveTab}
           initialMode={tutorialMode}
-          onClose={() => {
+          onClose={async () => {
             localStorage.setItem('tutorial_seen_v2', 'true');
             setShowTutorial(false);
+            if (user) {
+              await supabase.from('profiles').upsert({
+                id: user.id,
+                tutorial_seen: true
+              });
+            }
           }}
         />
       )}

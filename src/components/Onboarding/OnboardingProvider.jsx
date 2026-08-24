@@ -2,6 +2,7 @@
 // Context for managing interactive onboarding tours
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { supabase } from '../../lib/supabase.js';
 
 const ONBOARDING_VERSION = '1.0';
 const STORAGE_KEYS = {
@@ -320,16 +321,67 @@ export function OnboardingProvider({ children }) {
     }
   }, []);
 
-  // Save tours completed to localStorage
+  const [user, setUser] = useState(null);
+
+  // Subscribe to authentication state
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch onboarding state from user profile on mount / login
+  useEffect(() => {
+    if (!user) return;
+
+    supabase.from('profiles')
+      .select('onboarding_completed, tours_completed')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          if (data.onboarding_completed) {
+            localStorage.setItem(STORAGE_KEYS.completed, 'true');
+            setIsFirstLaunch(false);
+            setShowWelcome(false);
+          }
+          if (data.tours_completed && Object.keys(data.tours_completed).length > 0) {
+            localStorage.setItem(STORAGE_KEYS.tours, JSON.stringify(data.tours_completed));
+            setToursCompleted(data.tours_completed);
+            localStorage.setItem(STORAGE_KEYS.welcomeDismissed, 'true');
+          }
+        }
+      });
+  }, [user]);
+
+  // Save tours completed to localStorage and Supabase
   useEffect(() => {
     if (Object.keys(toursCompleted).length > 0) {
       localStorage.setItem(STORAGE_KEYS.tours, JSON.stringify(toursCompleted));
+      if (user) {
+        supabase.from('profiles').upsert({
+          id: user.id,
+          tours_completed: toursCompleted
+        }).catch(err => console.error('Error saving tours to profile:', err));
+      }
     }
-  }, [toursCompleted]);
+  }, [toursCompleted, user]);
 
-  const dismissWelcome = useCallback(() => {
+  const dismissWelcome = useCallback(async () => {
     setShowWelcome(false);
     localStorage.setItem(STORAGE_KEYS.welcomeDismissed, 'true');
+    setToursCompleted(prev => {
+      const next = { ...prev, welcomeDismissed: true };
+      return next;
+    });
   }, []);
 
   const startTour = useCallback((tourId) => {
@@ -361,19 +413,31 @@ export function OnboardingProvider({ children }) {
     }
   }, [activeTour, onSwitchTab]);
 
-  const skipOnboarding = useCallback(() => {
+  const skipOnboarding = useCallback(async () => {
     setShowWelcome(false);
     localStorage.setItem(STORAGE_KEYS.completed, 'true');
     localStorage.setItem(STORAGE_KEYS.version, ONBOARDING_VERSION);
     localStorage.setItem(STORAGE_KEYS.welcomeDismissed, 'true');
-  }, []);
+    if (user) {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        onboarding_completed: true
+      });
+    }
+  }, [user]);
 
-  const completeOnboarding = useCallback(() => {
+  const completeOnboarding = useCallback(async () => {
     localStorage.setItem(STORAGE_KEYS.completed, 'true');
     localStorage.setItem(STORAGE_KEYS.version, ONBOARDING_VERSION);
-  }, []);
+    if (user) {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        onboarding_completed: true
+      });
+    }
+  }, [user]);
 
-  const resetOnboarding = useCallback(() => {
+  const resetOnboarding = useCallback(async () => {
     localStorage.removeItem(STORAGE_KEYS.completed);
     localStorage.removeItem(STORAGE_KEYS.version);
     localStorage.removeItem(STORAGE_KEYS.tours);
@@ -381,7 +445,14 @@ export function OnboardingProvider({ children }) {
     setToursCompleted({});
     setShowWelcome(true);
     setIsFirstLaunch(true);
-  }, []);
+    if (user) {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        onboarding_completed: false,
+        tours_completed: {}
+      });
+    }
+  }, [user]);
 
   const isTourCompleted = useCallback((tourId) => {
     return !!toursCompleted[tourId];

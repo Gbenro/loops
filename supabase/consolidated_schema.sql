@@ -12,7 +12,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   latitude double precision,
   longitude double precision,
   timezone text,
-  encryption_verify_token text
+  encryption_verify_token text,
+  onboarding_completed boolean DEFAULT false,
+  tours_completed jsonb DEFAULT '{}'::jsonb,
+  tutorial_seen boolean DEFAULT false,
+  pwa_prompt_dismissed boolean DEFAULT false
 );
 
 -- 2. Loops Table
