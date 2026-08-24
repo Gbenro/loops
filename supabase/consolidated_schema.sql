@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS public.loops (
   parent_loop_id text,
   metadata jsonb DEFAULT '{}'::jsonb,
   tags jsonb DEFAULT '[]'::jsonb,
+  updated_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
 
@@ -80,6 +81,7 @@ CREATE TABLE IF NOT EXISTS public.echoes (
   source_reference text,
   energy_state text,
   metadata jsonb DEFAULT '{}'::jsonb,
+  updated_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
 

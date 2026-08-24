@@ -467,6 +467,19 @@ function mapEcho(row: any): any {
   };
 }
 
+function normalizeSubtasks(list: any[]): any[] {
+  if (!Array.isArray(list)) return [];
+  return list.map((st: any) => {
+    const text = st.text || st.title || '';
+    const done = st.done !== undefined ? st.done : (st.completed !== undefined ? st.completed : false);
+    return {
+      id: st.id || `st_${Math.random().toString(36).substr(2, 9)}`,
+      text,
+      done
+    };
+  });
+}
+
 function mapLoop(row: any, relatedEchoIds: string[] = []): any {
   if (!row) return null;
   let status = 'open';
@@ -478,7 +491,14 @@ function mapLoop(row: any, relatedEchoIds: string[] = []): any {
     status = 'closed';
   }
   
-  const subtasks = Array.isArray(row.subtasks) ? row.subtasks : [];
+  const rawSubtasks = Array.isArray(row.subtasks) ? row.subtasks : [];
+  const subtasks = rawSubtasks.map((st: any) => ({
+    id: st.id || `st_${Math.random().toString(36).substr(2, 9)}`,
+    text: st.text || st.title || '',
+    done: st.done !== undefined ? st.done : (st.completed !== undefined ? st.completed : false),
+    title: st.title || st.text || '',
+    completed: st.completed !== undefined ? st.completed : (st.done !== undefined ? st.done : false)
+  }));
 
   return {
     id: row.id,
@@ -934,7 +954,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         type: args.type || 'phase',
         status: 'active',
         tags: args.tags || [],
-        subtasks: args.subtasks || args.steps || [],
+        subtasks: normalizeSubtasks(args.subtasks || args.steps || []),
         energy_state: args.energyState || null,
         attention_level: args.attentionLevel || null,
         aliveness_score: args.alivenessScore || null,
@@ -1000,9 +1020,9 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
       if (args.tags !== undefined) updateData.tags = args.tags;
       if (args.subtasks !== undefined) {
-        updateData.subtasks = args.subtasks;
+        updateData.subtasks = normalizeSubtasks(args.subtasks);
       } else if (args.steps !== undefined) {
-        updateData.subtasks = args.steps;
+        updateData.subtasks = normalizeSubtasks(args.steps);
       }
       if (args.status !== undefined) {
         if (args.status === 'archived') {
