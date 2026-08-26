@@ -3,12 +3,13 @@
 
 import { supabase } from './supabase.js';
 
-const RHYTHMS_KEY      = 'cosmic_rhythms_v1';
-const INSTANCES_KEY    = 'cosmic_rhythm_instances_v1';
+const RHYTHMS_KEY = 'cosmic_rhythms_v1';
+const INSTANCES_KEY = 'cosmic_rhythm_instances_v1';
 const OBSERVATIONS_KEY = 'cosmic_rhythm_observations_v1';
 
-const GENERATE_PHRASES_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/generate-phrases';
-const SUPABASE_ANON_KEY    = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+const GENERATE_PHRASES_URL =
+  'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/generate-phrases';
+const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 
 // ── Local storage helpers ─────────────────────────────────────────────────────
 
@@ -16,12 +17,17 @@ function getLocal(key, fallback = []) {
   try {
     const d = localStorage.getItem(key);
     return d ? JSON.parse(d) : fallback;
-  } catch { return fallback; }
+  } catch {
+    return fallback;
+  }
 }
 
 function setLocal(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); }
-  catch (e) { console.warn('localStorage save failed:', e); }
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn('localStorage save failed:', e);
+  }
 }
 
 // ── Rhythms ───────────────────────────────────────────────────────────────────
@@ -41,8 +47,8 @@ export async function getRhythms(userId) {
     if (error) throw error;
 
     const server = data.map(rowToRhythm);
-    const serverIds = new Set(server.map(r => r.id));
-    const unsynced = local.filter(r => !serverIds.has(r.id));
+    const serverIds = new Set(server.map((r) => r.id));
+    const unsynced = local.filter((r) => !serverIds.has(r.id));
     const merged = [...server, ...unsynced];
     setLocal(RHYTHMS_KEY, merged);
     for (const r of unsynced) saveRhythm(r, userId);
@@ -55,19 +61,20 @@ export async function getRhythms(userId) {
 
 export async function saveRhythm(rhythm, userId) {
   const all = getLocal(RHYTHMS_KEY);
-  const idx = all.findIndex(r => r.id === rhythm.id);
-  if (idx >= 0) all[idx] = rhythm; else all.push(rhythm);
+  const idx = all.findIndex((r) => r.id === rhythm.id);
+  if (idx >= 0) all[idx] = rhythm;
+  else all.push(rhythm);
   setLocal(RHYTHMS_KEY, all);
 
   if (!userId) return rhythm;
 
   try {
     const { error } = await supabase.from('rhythms').upsert({
-      id:         rhythm.id,
-      user_id:    userId,
-      name:       rhythm.name,
-      scope:      rhythm.scope,
-      active:     rhythm.active !== false,
+      id: rhythm.id,
+      user_id: userId,
+      name: rhythm.name,
+      scope: rhythm.scope,
+      active: rhythm.active !== false,
       created_at: rhythm.createdAt,
     });
     if (error) throw error;
@@ -78,7 +85,7 @@ export async function saveRhythm(rhythm, userId) {
 }
 
 export async function deleteRhythm(rhythmId, userId) {
-  const all = getLocal(RHYTHMS_KEY).filter(r => r.id !== rhythmId);
+  const all = getLocal(RHYTHMS_KEY).filter((r) => r.id !== rhythmId);
   setLocal(RHYTHMS_KEY, all);
 
   if (!userId) return;
@@ -91,10 +98,10 @@ export async function deleteRhythm(rhythmId, userId) {
 
 function rowToRhythm(row) {
   return {
-    id:        row.id,
-    name:      row.name,
-    scope:     row.scope,
-    active:    row.active,
+    id: row.id,
+    name: row.name,
+    scope: row.scope,
+    active: row.active,
     createdAt: row.created_at,
   };
 }
@@ -102,7 +109,7 @@ function rowToRhythm(row) {
 // ── Cycle instances ───────────────────────────────────────────────────────────
 
 export async function getInstancesForRhythm(rhythmId, userId) {
-  const local = getLocal(INSTANCES_KEY).filter(i => i.rhythmId === rhythmId);
+  const local = getLocal(INSTANCES_KEY).filter((i) => i.rhythmId === rhythmId);
   if (!userId) return local;
 
   try {
@@ -115,12 +122,12 @@ export async function getInstancesForRhythm(rhythmId, userId) {
     if (error) throw error;
 
     const server = data.map(rowToInstance);
-    const serverIds = new Set(server.map(i => i.id));
+    const serverIds = new Set(server.map((i) => i.id));
 
     // Merge with all local instances (for all rhythms)
     const allLocal = getLocal(INSTANCES_KEY);
-    const otherLocal = allLocal.filter(i => i.rhythmId !== rhythmId);
-    const unsyncedThis = local.filter(i => !serverIds.has(i.id));
+    const otherLocal = allLocal.filter((i) => i.rhythmId !== rhythmId);
+    const unsyncedThis = local.filter((i) => !serverIds.has(i.id));
     setLocal(INSTANCES_KEY, [...otherLocal, ...server, ...unsyncedThis]);
     for (const inst of unsyncedThis) saveInstance(inst, userId);
 
@@ -136,9 +143,7 @@ export async function getOrCreateCurrentInstance(rhythm, cycleStart, userId) {
 
   // Check local storage first
   const allLocal = getLocal(INSTANCES_KEY);
-  const existing = allLocal.find(
-    i => i.rhythmId === rhythm.id && i.cycleStart === cycleStartISO
-  );
+  const existing = allLocal.find((i) => i.rhythmId === rhythm.id && i.cycleStart === cycleStartISO);
   if (existing) return existing;
 
   // If logged in, check server for existing instance (may exist from another device/session)
@@ -165,15 +170,15 @@ export async function getOrCreateCurrentInstance(rhythm, cycleStart, userId) {
 
   // Create new instance
   const instance = {
-    id:              crypto.randomUUID(),
-    rhythmId:        rhythm.id,
-    userId:          userId || null,
-    cycleStart:      cycleStartISO,
-    intentionType:   null,
-    wholeIntention:  null,
+    id: crypto.randomUUID(),
+    rhythmId: rhythm.id,
+    userId: userId || null,
+    cycleStart: cycleStartISO,
+    intentionType: null,
+    wholeIntention: null,
     phaseIntentions: {},
     reportGenerated: false,
-    createdAt:       new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   };
 
   allLocal.push(instance);
@@ -182,15 +187,15 @@ export async function getOrCreateCurrentInstance(rhythm, cycleStart, userId) {
   if (userId) {
     try {
       const { error } = await supabase.from('rhythm_cycle_instances').insert({
-        id:               instance.id,
-        rhythm_id:        instance.rhythmId,
-        user_id:          userId,
-        cycle_start:      instance.cycleStart,
-        intention_type:   null,
-        whole_intention:  null,
+        id: instance.id,
+        rhythm_id: instance.rhythmId,
+        user_id: userId,
+        cycle_start: instance.cycleStart,
+        intention_type: null,
+        whole_intention: null,
         phase_intentions: {},
         report_generated: false,
-        created_at:       instance.createdAt,
+        created_at: instance.createdAt,
       });
       if (error) throw error;
     } catch (e) {
@@ -203,23 +208,24 @@ export async function getOrCreateCurrentInstance(rhythm, cycleStart, userId) {
 
 export async function saveInstance(instance, userId) {
   const all = getLocal(INSTANCES_KEY);
-  const idx = all.findIndex(i => i.id === instance.id);
-  if (idx >= 0) all[idx] = instance; else all.push(instance);
+  const idx = all.findIndex((i) => i.id === instance.id);
+  if (idx >= 0) all[idx] = instance;
+  else all.push(instance);
   setLocal(INSTANCES_KEY, all);
 
   if (!userId) return instance;
 
   try {
     const { error } = await supabase.from('rhythm_cycle_instances').upsert({
-      id:               instance.id,
-      rhythm_id:        instance.rhythmId,
-      user_id:          userId,
-      cycle_start:      instance.cycleStart,
-      intention_type:   instance.intentionType || null,
-      whole_intention:  instance.wholeIntention || null,
+      id: instance.id,
+      rhythm_id: instance.rhythmId,
+      user_id: userId,
+      cycle_start: instance.cycleStart,
+      intention_type: instance.intentionType || null,
+      whole_intention: instance.wholeIntention || null,
       phase_intentions: instance.phaseIntentions || {},
       report_generated: instance.reportGenerated || false,
-      created_at:       instance.createdAt,
+      created_at: instance.createdAt,
     });
     if (error) throw error;
   } catch (e) {
@@ -230,22 +236,22 @@ export async function saveInstance(instance, userId) {
 
 function rowToInstance(row) {
   return {
-    id:              row.id,
-    rhythmId:        row.rhythm_id,
-    userId:          row.user_id,
-    cycleStart:      row.cycle_start,
-    intentionType:   row.intention_type,
-    wholeIntention:  row.whole_intention,
+    id: row.id,
+    rhythmId: row.rhythm_id,
+    userId: row.user_id,
+    cycleStart: row.cycle_start,
+    intentionType: row.intention_type,
+    wholeIntention: row.whole_intention,
     phaseIntentions: row.phase_intentions || {},
     reportGenerated: row.report_generated,
-    createdAt:       row.created_at,
+    createdAt: row.created_at,
   };
 }
 
 // ── Observations ──────────────────────────────────────────────────────────────
 
 export async function getObservationsForInstance(instanceId, userId) {
-  const local = getLocal(OBSERVATIONS_KEY).filter(o => o.cycleInstanceId === instanceId);
+  const local = getLocal(OBSERVATIONS_KEY).filter((o) => o.cycleInstanceId === instanceId);
   if (!userId) return local;
 
   try {
@@ -259,11 +265,11 @@ export async function getObservationsForInstance(instanceId, userId) {
 
     const server = data.map(rowToObservation);
     // Use composite key of phase + dateKey for dedup (allows multiple per phase, one per day)
-    const serverKeys = new Set(server.map(o => `${o.phase}:${o.dateKey || ''}`));
+    const serverKeys = new Set(server.map((o) => `${o.phase}:${o.dateKey || ''}`));
 
     const allLocal = getLocal(OBSERVATIONS_KEY);
-    const otherLocal = allLocal.filter(o => o.cycleInstanceId !== instanceId);
-    const unsyncedThis = local.filter(o => !serverKeys.has(`${o.phase}:${o.dateKey || ''}`));
+    const otherLocal = allLocal.filter((o) => o.cycleInstanceId !== instanceId);
+    const unsyncedThis = local.filter((o) => !serverKeys.has(`${o.phase}:${o.dateKey || ''}`));
     setLocal(OBSERVATIONS_KEY, [...otherLocal, ...server, ...unsyncedThis]);
     for (const obs of unsyncedThis) saveObservation(obs, userId);
 
@@ -283,11 +289,13 @@ export async function saveObservation(obs, userId) {
   // Enforce one per phase per day per instance — replace existing
   const all = getLocal(OBSERVATIONS_KEY);
   const idx = all.findIndex(
-    o => o.cycleInstanceId === obs.cycleInstanceId &&
-         o.phase === obs.phase &&
-         o.dateKey === obs.dateKey
+    (o) =>
+      o.cycleInstanceId === obs.cycleInstanceId &&
+      o.phase === obs.phase &&
+      o.dateKey === obs.dateKey
   );
-  if (idx >= 0) all[idx] = obs; else all.push(obs);
+  if (idx >= 0) all[idx] = obs;
+  else all.push(obs);
   setLocal(OBSERVATIONS_KEY, all);
 
   if (!userId) return obs;
@@ -295,15 +303,15 @@ export async function saveObservation(obs, userId) {
   try {
     const { error } = await supabase.from('rhythm_observations').upsert(
       {
-        id:                obs.id,
+        id: obs.id,
         cycle_instance_id: obs.cycleInstanceId,
-        user_id:           userId,
-        phase:             obs.phase,
-        engagement:        obs.engagement,
-        note:              obs.note || null,
-        logged_at:         obs.loggedAt,
-        date_key:          obs.dateKey,
-        day_in_phase:      obs.dayInPhase ?? null,
+        user_id: userId,
+        phase: obs.phase,
+        engagement: obs.engagement,
+        note: obs.note || null,
+        logged_at: obs.loggedAt,
+        date_key: obs.dateKey,
+        day_in_phase: obs.dayInPhase ?? null,
       },
       { onConflict: 'cycle_instance_id,phase,date_key' }
     );
@@ -316,15 +324,15 @@ export async function saveObservation(obs, userId) {
 
 function rowToObservation(row) {
   return {
-    id:              row.id,
+    id: row.id,
     cycleInstanceId: row.cycle_instance_id,
-    userId:          row.user_id,
-    phase:           row.phase,
-    engagement:      row.engagement,
-    note:            row.note,
-    loggedAt:        row.logged_at,
-    dateKey:         row.date_key || null,
-    dayInPhase:      row.day_in_phase ?? null,
+    userId: row.user_id,
+    phase: row.phase,
+    engagement: row.engagement,
+    note: row.note,
+    loggedAt: row.logged_at,
+    dateKey: row.date_key || null,
+    dayInPhase: row.day_in_phase ?? null,
   };
 }
 
@@ -340,13 +348,13 @@ Never use the words "embrace", "journey", or "beautiful".`;
 
 export async function generateRhythmReport({ rhythm, instance, observations, cycleLoopTitle }) {
   const PHASE_NAMES = {
-    'new':             'New Moon',
+    new: 'New Moon',
     'waxing-crescent': 'Waxing Crescent',
-    'first-quarter':   'First Quarter',
-    'waxing-gibbous':  'Waxing Gibbous',
-    'full':            'Full Moon',
-    'waning-gibbous':  'Waning Gibbous',
-    'last-quarter':    'Last Quarter',
+    'first-quarter': 'First Quarter',
+    'waxing-gibbous': 'Waxing Gibbous',
+    full: 'Full Moon',
+    'waning-gibbous': 'Waning Gibbous',
+    'last-quarter': 'Last Quarter',
     'waning-crescent': 'Waning Crescent',
   };
 
@@ -354,24 +362,26 @@ export async function generateRhythmReport({ rhythm, instance, observations, cyc
   for (const o of observations) obsMap[o.phase] = o;
 
   const allPhases = Object.keys(PHASE_NAMES);
-  const observed = allPhases.filter(p => obsMap[p]);
-  const missing  = allPhases.filter(p => !obsMap[p]);
+  const observed = allPhases.filter((p) => obsMap[p]);
+  const missing = allPhases.filter((p) => !obsMap[p]);
 
   let intentionText = 'No intention set — pure observation mode.';
   if (instance.intentionType === 'whole' && instance.wholeIntention) {
     intentionText = `Whole-circle: ${instance.wholeIntention}`;
   } else if (instance.intentionType === 'phase') {
-    const lines = allPhases.map(p => {
+    const lines = allPhases.map((p) => {
       const val = instance.phaseIntentions?.[p];
       return `  ${PHASE_NAMES[p]}: ${val || 'not set'}`;
     });
     intentionText = `Phase-by-phase:\n${lines.join('\n')}`;
   }
 
-  const observedLines = observed.map(p => {
-    const o = obsMap[p];
-    return `  ${PHASE_NAMES[p]}: ${o.engagement}${o.note ? ` — "${o.note}"` : ''}`;
-  }).join('\n');
+  const observedLines = observed
+    .map((p) => {
+      const o = obsMap[p];
+      return `  ${PHASE_NAMES[p]}: ${o.engagement}${o.note ? ` — "${o.note}"` : ''}`;
+    })
+    .join('\n');
 
   const contextPayload = [
     `Rhythm: ${rhythm.name}`,
@@ -379,15 +389,19 @@ export async function generateRhythmReport({ rhythm, instance, observations, cyc
     cycleLoopTitle ? `Cycle intention: ${cycleLoopTitle}` : '',
     `Intended pattern:\n${intentionText}`,
     observed.length > 0 ? `Observed:\n${observedLines}` : 'Observed: nothing logged',
-    missing.length > 0 ? `Phases with no observation: ${missing.map(p => PHASE_NAMES[p]).join(', ')}` : '',
-  ].filter(Boolean).join('\n\n');
+    missing.length > 0
+      ? `Phases with no observation: ${missing.map((p) => PHASE_NAMES[p]).join(', ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   try {
     const response = await fetch(GENERATE_PHRASES_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         type: 'rhythm_report',
@@ -408,7 +422,11 @@ export async function generateRhythmReport({ rhythm, instance, observations, cyc
 // ── Cache cleanup (called on user change) ────────────────────────────────────
 
 export function clearRhythmCache() {
-  [RHYTHMS_KEY, INSTANCES_KEY, OBSERVATIONS_KEY].forEach(key => {
-    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  [RHYTHMS_KEY, INSTANCES_KEY, OBSERVATIONS_KEY].forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
   });
 }

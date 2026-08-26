@@ -8,11 +8,11 @@ const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
 
 // Phase Type Classification - Threshold (pivotal) vs Flow (sustained)
 const PHASE_TYPE = {
-  'new': 'threshold',
+  new: 'threshold',
   'waxing-crescent': 'flow',
   'first-quarter': 'threshold',
   'waxing-gibbous': 'flow',
-  'full': 'threshold',
+  full: 'threshold',
   'waning-gibbous': 'flow',
   'last-quarter': 'threshold',
   'waning-crescent': 'flow',
@@ -20,7 +20,7 @@ const PHASE_TYPE = {
 
 const PHASE_DURATION = {
   threshold: 1.85, // days - brief, pivotal
-  flow: 5.55,      // days - sustained, unfolding
+  flow: 5.55, // days - sustained, unfolding
 };
 
 // Full moon peak: illumination = 100% at age = SYNODIC/2 = ~14.7653 days.
@@ -29,14 +29,70 @@ const FULL_MOON_PEAK = SYNODIC / 2; // ~14.7653
 
 // Phase name constants with next phase info
 const PHASES = [
-  { name: 'New Moon', key: 'new', start: 0, end: 1.85, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
-  { name: 'Waxing Crescent', key: 'waxing-crescent', start: 1.85, end: 7.38, next: 'First Quarter', nextKey: 'first-quarter' },
-  { name: 'First Quarter', key: 'first-quarter', start: 7.38, end: 9.22, next: 'Waxing Gibbous', nextKey: 'waxing-gibbous' },
-  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: FULL_MOON_PEAK, next: 'Full Moon', nextKey: 'full' },
-  { name: 'Full Moon', key: 'full', start: FULL_MOON_PEAK, end: 16.61, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
-  { name: 'Waning Gibbous', key: 'waning-gibbous', start: 16.61, end: 22.15, next: 'Last Quarter', nextKey: 'last-quarter' },
-  { name: 'Last Quarter', key: 'last-quarter', start: 22.15, end: 23.99, next: 'Waning Crescent', nextKey: 'waning-crescent' },
-  { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53, next: 'New Moon', nextKey: 'new' },
+  {
+    name: 'New Moon',
+    key: 'new',
+    start: 0,
+    end: 1.85,
+    next: 'Waxing Crescent',
+    nextKey: 'waxing-crescent',
+  },
+  {
+    name: 'Waxing Crescent',
+    key: 'waxing-crescent',
+    start: 1.85,
+    end: 7.38,
+    next: 'First Quarter',
+    nextKey: 'first-quarter',
+  },
+  {
+    name: 'First Quarter',
+    key: 'first-quarter',
+    start: 7.38,
+    end: 9.22,
+    next: 'Waxing Gibbous',
+    nextKey: 'waxing-gibbous',
+  },
+  {
+    name: 'Waxing Gibbous',
+    key: 'waxing-gibbous',
+    start: 9.22,
+    end: FULL_MOON_PEAK,
+    next: 'Full Moon',
+    nextKey: 'full',
+  },
+  {
+    name: 'Full Moon',
+    key: 'full',
+    start: FULL_MOON_PEAK,
+    end: 16.61,
+    next: 'Waning Gibbous',
+    nextKey: 'waning-gibbous',
+  },
+  {
+    name: 'Waning Gibbous',
+    key: 'waning-gibbous',
+    start: 16.61,
+    end: 22.15,
+    next: 'Last Quarter',
+    nextKey: 'last-quarter',
+  },
+  {
+    name: 'Last Quarter',
+    key: 'last-quarter',
+    start: 22.15,
+    end: 23.99,
+    next: 'Waning Crescent',
+    nextKey: 'waning-crescent',
+  },
+  {
+    name: 'Waning Crescent',
+    key: 'waning-crescent',
+    start: 23.99,
+    end: 29.53,
+    next: 'New Moon',
+    nextKey: 'new',
+  },
 ];
 
 // Convert JavaScript Date to Julian Date
@@ -52,7 +108,7 @@ export function fromJulianDate(jd) {
 // Get moon age (days into current lunar cycle, 0-29.53)
 export function getMoonAge(date = new Date()) {
   const JD = toJulianDate(date);
-  const age = ((JD - KNOWN_NEW_MOON) % SYNODIC + SYNODIC) % SYNODIC;
+  const age = (((JD - KNOWN_NEW_MOON) % SYNODIC) + SYNODIC) % SYNODIC;
   return age;
 }
 
@@ -78,9 +134,9 @@ export function getPhaseInfo(age) {
         isNew: phase.key === 'new',
         isFull: phase.key === 'full',
         // Phase rhythm
-        phaseType,              // 'threshold' | 'flow'
-        phaseDuration,          // 1.85 | 5.55 days
-        dayInPhase,             // days into current phase
+        phaseType, // 'threshold' | 'flow'
+        phaseDuration, // 1.85 | 5.55 days
+        dayInPhase, // days into current phase
         isThreshold: phaseType === 'threshold',
         isFlow: phaseType === 'flow',
       };
@@ -104,18 +160,18 @@ export function getPhaseInfo(age) {
 
 // Lunar month names by calendar month (0-indexed)
 const LUNAR_MONTH_BY_CALENDAR = [
-  'Wolf',       // January
-  'Snow',       // February
-  'Worm',       // March
-  'Pink',       // April
-  'Flower',     // May
+  'Wolf', // January
+  'Snow', // February
+  'Worm', // March
+  'Pink', // April
+  'Flower', // May
   'Strawberry', // June
-  'Buck',       // July
-  'Sturgeon',   // August
-  'Harvest',    // September
-  "Hunter's",   // October
-  'Beaver',     // November
-  'Cold',       // December
+  'Buck', // July
+  'Sturgeon', // August
+  'Harvest', // September
+  "Hunter's", // October
+  'Beaver', // November
+  'Cold', // December
 ];
 
 // Get lunar month name based on the month containing the full moon
@@ -166,18 +222,25 @@ export function getMoonZodiac(date = new Date()) {
   const radIp = 2 * Math.PI * ip;
 
   // Calculate approximate ecliptic longitude of the moon in degrees
-  let longitude = 360 * rp 
-                + 6.3 * Math.sin(dp) 
-                + 1.3 * Math.sin(2 * radIp - dp) 
-                + 0.7 * Math.sin(2 * radIp);
+  let longitude =
+    360 * rp + 6.3 * Math.sin(dp) + 1.3 * Math.sin(2 * radIp - dp) + 0.7 * Math.sin(2 * radIp);
 
   // Ensure within [0, 360) range
-  const finalLongitude = (longitude % 360 + 360) % 360;
+  const finalLongitude = ((longitude % 360) + 360) % 360;
 
   const signs = [
-    'Aries', 'Taurus', 'Gemini', 'Cancer',
-    'Leo', 'Virgo', 'Libra', 'Scorpio',
-    'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+    'Aries',
+    'Taurus',
+    'Gemini',
+    'Cancer',
+    'Leo',
+    'Virgo',
+    'Libra',
+    'Scorpio',
+    'Sagittarius',
+    'Capricorn',
+    'Aquarius',
+    'Pisces',
   ];
   const index = Math.floor(finalLongitude / 30) % 12;
   const degree = Math.floor(finalLongitude % 30);
@@ -198,7 +261,7 @@ export function getLunarData(date = new Date()) {
   const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
 
   // Find current phase bounds for timing calculations
-  const currentPhase = PHASES.find(p => age >= p.start && age < p.end) || PHASES[0];
+  const currentPhase = PHASES.find((p) => age >= p.start && age < p.end) || PHASES[0];
   const phaseDuration = currentPhase.end - currentPhase.start;
   const phaseProgress = (age - currentPhase.start) / phaseDuration;
   const phaseRemaining = currentPhase.end - age;
@@ -217,34 +280,34 @@ export function getLunarData(date = new Date()) {
   // Threshold phases: 4 hours - brief, need less warning
   // Flow phases: 8 hours - more time to prepare
   const isNewCycleApproaching = nextKey === 'new';
-  const approachingThreshold = isNewCycleApproaching ? 24 : (nextPhaseType === 'threshold' ? 4 : 8);
+  const approachingThreshold = isNewCycleApproaching ? 24 : nextPhaseType === 'threshold' ? 4 : 8;
   const isApproaching = remainingHours < approachingThreshold;
-  const isImminent = remainingHours < (approachingThreshold / 4); // 1/4 of threshold
+  const isImminent = remainingHours < approachingThreshold / 4; // 1/4 of threshold
 
   return {
-    age,                           // Days into cycle (0-29.53)
+    age, // Days into cycle (0-29.53)
     dayOfCycle: Math.floor(age) + 1, // Day 1-30
-    cycleStart,                    // ISO string of new moon that started this cycle
-    phase,                         // { name, key, energy, isWaning, isNew, isFull }
-    illumination,                  // 0-100%
-    lunarMonth,                    // "Snow", "Wolf", etc.
-    zodiac,                        // { sign, degree }
+    cycleStart, // ISO string of new moon that started this cycle
+    phase, // { name, key, energy, isWaning, isNew, isFull }
+    illumination, // 0-100%
+    lunarMonth, // "Snow", "Wolf", etc.
+    zodiac, // { sign, degree }
     daysToFull,
     daysToNew,
     // Phase timing
-    phaseProgress,                 // 0-1, position within current phase
-    phaseRemaining,                // Days remaining in current phase
-    remainingHours,                // Hours remaining (rounded)
-    isApproaching,                 // true if < 24h remaining
-    isImminent,                    // true if < 6h remaining
-    nextPhase,                     // Name of next phase
-    nextSymbol,                    // Emoji of next phase
-    nextEnergy,                    // Energy word of next phase
-    nextPhaseType,                 // 'threshold' | 'flow'
-    nextPhaseDuration,             // 1.85 | 5.55 days
+    phaseProgress, // 0-1, position within current phase
+    phaseRemaining, // Days remaining in current phase
+    remainingHours, // Hours remaining (rounded)
+    isApproaching, // true if < 24h remaining
+    isImminent, // true if < 6h remaining
+    nextPhase, // Name of next phase
+    nextSymbol, // Emoji of next phase
+    nextEnergy, // Energy word of next phase
+    nextPhaseType, // 'threshold' | 'flow'
+    nextPhaseDuration, // 1.85 | 5.55 days
     // Transition timing
-    approachingThreshold,          // Hours before showing transition card
-    isNewCycleApproaching,         // true if next phase is new moon (new cycle)
+    approachingThreshold, // Hours before showing transition card
+    isNewCycleApproaching, // true if next phase is new moon (new cycle)
   };
 }
 
@@ -256,7 +319,7 @@ export function getPhaseEmoji(key) {
 
 // Get all 8 phases for timeline display
 export function getAllPhases() {
-  return PHASES.map(p => ({
+  return PHASES.map((p) => ({
     name: p.name,
     key: p.key,
     emoji: getPhaseEmoji(p.key),

@@ -2,23 +2,35 @@
 // Luna Loops - Seed Data Generator for Testing
 // Creates realistic dummy data across all app features
 
-import { getMoonAge, getPhaseInfo, getLunarMonthName, getMoonZodiac, getIllumination } from './lunar.js';
+import {
+  getMoonAge,
+  getPhaseInfo,
+  getLunarMonthName,
+  getMoonZodiac,
+  getIllumination,
+} from './lunar.js';
 
 const SYNODIC = 29.53058867;
 
 // Phase keys in order
 const PHASE_KEYS = [
-  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
+  'new',
+  'waxing-crescent',
+  'first-quarter',
+  'waxing-gibbous',
+  'full',
+  'waning-gibbous',
+  'last-quarter',
+  'waning-crescent',
 ];
 
 // Phase names map
 const PHASE_NAMES = {
-  'new': 'New Moon',
+  new: 'New Moon',
   'waxing-crescent': 'Waxing Crescent',
   'first-quarter': 'First Quarter',
   'waxing-gibbous': 'Waxing Gibbous',
-  'full': 'Full Moon',
+  full: 'Full Moon',
   'waning-gibbous': 'Waning Gibbous',
   'last-quarter': 'Last Quarter',
   'waning-crescent': 'Waning Crescent',
@@ -57,7 +69,7 @@ const SUBTASKS = [
 
 // Sample echo texts by phase energy
 const ECHO_TEXTS = {
-  'new': [
+  new: [
     'Setting intentions for this cycle. Feeling hopeful about what might emerge.',
     'Planting seeds of change today. The darkness feels generative.',
     'Starting fresh. Sometimes the void is exactly what I need.',
@@ -77,7 +89,7 @@ const ECHO_TEXTS = {
     'The vision is clearer. Polishing what I have.',
     'Patience with the process. Growth takes time.',
   ],
-  'full': [
+  full: [
     'Everything illuminated. I can see what I built.',
     'Full expression of this cycle energy.',
     'Celebrating what has come to fruition.',
@@ -169,7 +181,12 @@ function generateLoops(cycleCount = 3) {
         id: generateId('l'),
         title: randomFrom(LOOP_TITLES.cycle),
         type: 'cycle',
-        status: c === 0 ? (Math.random() > 0.5 ? 'active' : 'closed') : randomFrom(['closed', 'released']),
+        status:
+          c === 0
+            ? Math.random() > 0.5
+              ? 'active'
+              : 'closed'
+            : randomFrom(['closed', 'released']),
         color: randomFrom(['#A78BFA', '#F472B6', '#34D399', '#60A5FA', '#FBBF24']),
         subtasks: SUBTASKS.slice(0, randomInt(3, 6)).map((text, i) => ({
           id: generateId('st'),
@@ -184,7 +201,12 @@ function generateLoops(cycleCount = 3) {
         zodiacOpened: lunar.zodiac.sign,
         windowEnd: null,
         openedAt: new Date(cycleDate.getTime() - lunar.age * 24 * 60 * 60 * 1000).toISOString(),
-        closedAt: c > 0 ? new Date(cycleDate.getTime() + (SYNODIC - lunar.age - 2) * 24 * 60 * 60 * 1000).toISOString() : null,
+        closedAt:
+          c > 0
+            ? new Date(
+                cycleDate.getTime() + (SYNODIC - lunar.age - 2) * 24 * 60 * 60 * 1000
+              ).toISOString()
+            : null,
         releasedAt: null,
         phaseClosed: c > 0 ? 'waning-crescent' : null,
         phaseNameClosed: c > 0 ? 'Waning Crescent' : null,
@@ -206,10 +228,12 @@ function generateLoops(cycleCount = 3) {
       const phaseKey = PHASE_KEYS[phaseIdx];
       const phaseName = PHASE_NAMES[phaseKey];
       const phaseOffset = phaseIdx * 3.69; // Approx days per phase
-      const phaseDate = new Date(cycleDate.getTime() - (lunar.age - phaseOffset) * 24 * 60 * 60 * 1000);
+      const phaseDate = new Date(
+        cycleDate.getTime() - (lunar.age - phaseOffset) * 24 * 60 * 60 * 1000
+      );
       const phaseLunar = getLunarDataForDate(phaseDate);
 
-      const isClosed = c > 0 || (p < phaseLoopCount - 1);
+      const isClosed = c > 0 || p < phaseLoopCount - 1;
       const phaseLoop = {
         id: generateId('l'),
         title: randomFrom(LOOP_TITLES.phase),
@@ -229,7 +253,9 @@ function generateLoops(cycleCount = 3) {
         zodiacOpened: phaseLunar.zodiac.sign,
         windowEnd: new Date(phaseDate.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
         openedAt: phaseDate.toISOString(),
-        closedAt: isClosed ? new Date(phaseDate.getTime() + randomInt(2, 5) * 24 * 60 * 60 * 1000).toISOString() : null,
+        closedAt: isClosed
+          ? new Date(phaseDate.getTime() + randomInt(2, 5) * 24 * 60 * 60 * 1000).toISOString()
+          : null,
         releasedAt: null,
         phaseClosed: isClosed ? phaseKey : null,
         phaseNameClosed: isClosed ? phaseName : null,
@@ -337,7 +363,7 @@ function generateRhythms(cycleCount = 2) {
         instance.wholeIntention = randomFrom(ENGAGEMENT_LEVELS.slice(1));
       } else {
         // Set intentions for some phases
-        PHASE_KEYS.forEach(phase => {
+        PHASE_KEYS.forEach((phase) => {
           if (Math.random() > 0.3) {
             instance.phaseIntentions[phase] = randomFrom(ENGAGEMENT_LEVELS.slice(1));
           }
@@ -368,13 +394,16 @@ function generateRhythms(cycleCount = 2) {
           userId: null,
           phase,
           engagement: randomFrom(ENGAGEMENT_LEVELS),
-          note: Math.random() > 0.6 ? randomFrom([
-            'Felt present today.',
-            'Challenging but worth it.',
-            'Easier than expected.',
-            'Rest day.',
-            'Deep practice.',
-          ]) : null,
+          note:
+            Math.random() > 0.6
+              ? randomFrom([
+                  'Felt present today.',
+                  'Challenging but worth it.',
+                  'Easier than expected.',
+                  'Rest day.',
+                  'Deep practice.',
+                ])
+              : null,
           loggedAt: obsDate.toISOString(),
           dateKey,
           dayInPhase: randomInt(1, 3),
@@ -389,10 +418,7 @@ function generateRhythms(cycleCount = 2) {
 
 // Main seed function - populates localStorage
 export function seedAllData(options = {}) {
-  const {
-    cycleCount = 3,
-    clearExisting = true,
-  } = options;
+  const { cycleCount = 3, clearExisting = true } = options;
 
   if (clearExisting) {
     // Clear existing data
@@ -476,7 +502,7 @@ export function clearAllData() {
     'cosmic_phase_summaries_v1',
     'cosmic_cycle_summaries_v1',
   ];
-  keys.forEach(key => localStorage.removeItem(key));
+  keys.forEach((key) => localStorage.removeItem(key));
   console.log('[Seed] Cleared all app data');
 }
 
@@ -489,5 +515,7 @@ if (typeof window !== 'undefined') {
     seedRhythms,
     clearAll: clearAllData,
   };
-  console.log('[Seed] Available: window.seedData.seedAll(), .seedLoops(), .seedEchoes(), .seedRhythms(), .clearAll()');
+  console.log(
+    '[Seed] Available: window.seedData.seedAll(), .seedLoops(), .seedEchoes(), .seedRhythms(), .clearAll()'
+  );
 }

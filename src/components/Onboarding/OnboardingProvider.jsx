@@ -58,43 +58,50 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="moon-display"]',
         title: 'This is now.',
-        content: 'The moon as it appears tonight, wherever you are. Tap it to open a deeper view of what this phase is asking.',
+        content:
+          'The moon as it appears tonight, wherever you are. Tap it to open a deeper view of what this phase is asking.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="phase-info"]',
         title: 'The phase has a quality.',
-        content: 'Eight phases, each with different energy — building, questioning, releasing. The text below the moon describes what is live right now.',
+        content:
+          'Eight phases, each with different energy — building, questioning, releasing. The text below the moon describes what is live right now.',
         placement: 'top',
       },
       {
         target: '[data-tour="zodiac-transit"]',
         title: 'The moon moves through the zodiac too.',
-        content: 'Every few days it shifts signs. This adds texture — a watery sign feels different from a fiery one.',
+        content:
+          'Every few days it shifts signs. This adds texture — a watery sign feels different from a fiery one.',
         placement: 'top',
       },
       {
         target: '[data-tour="phase-tide-bar"]',
         title: 'Eight stations.',
-        content: 'This row shows where you are in the cycle. The current phase is lit. Tap any phase to preview what that part of the cycle holds.',
+        content:
+          'This row shows where you are in the cycle. The current phase is lit. Tap any phase to preview what that part of the cycle holds.',
         placement: 'top',
       },
       {
         target: '[data-tour="sky-go-deeper"]',
         title: 'Go deeper.',
-        content: 'Tap this to open the cosmic detail sheet — extended phase meaning, resonances, and personal transit information.',
+        content:
+          'Tap this to open the cosmic detail sheet — extended phase meaning, resonances, and personal transit information.',
         placement: 'top',
       },
       {
         target: '[data-tour="sky-transit-card"]',
         title: 'Your personal transit.',
-        content: 'When a notable transit is active, this card appears. It shows what cosmic weather is in play for you right now.',
+        content:
+          'When a notable transit is active, this card appears. It shows what cosmic weather is in play for you right now.',
         placement: 'top',
       },
       {
         target: '[data-tour="sky-phase-transition"]',
         title: 'Phase transitions.',
-        content: 'When a new phase is approaching, this alert lets you know what is shifting and when.',
+        content:
+          'When a new phase is approaching, this alert lets you know what is shifting and when.',
         placement: 'top',
       },
       {
@@ -113,7 +120,8 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="cycle-loop"]',
         title: 'A cycle loop is a seed.',
-        content: 'Set it at the New Moon. It holds your intention for the entire cycle — dark to light and back.',
+        content:
+          'Set it at the New Moon. It holds your intention for the entire cycle — dark to light and back.',
         placement: 'bottom',
       },
       {
@@ -125,37 +133,43 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="add-loop-btn"]',
         title: 'Add a new loop.',
-        content: 'Tap here to create a new loop — give it a name, choose its scope, and start tracking.',
+        content:
+          'Tap here to create a new loop — give it a name, choose its scope, and start tracking.',
         placement: 'top',
       },
       {
         target: '[data-tour="loop-card"]',
         title: 'Tap any loop to open it.',
-        content: 'Each loop card opens a detail panel. Inside you can add subtasks, write notes, and manage the loop\'s lifecycle.',
+        content:
+          "Each loop card opens a detail panel. Inside you can add subtasks, write notes, and manage the loop's lifecycle.",
         placement: 'bottom',
       },
       {
         target: '[data-tour="loop-subtasks"]',
         title: 'Break it into steps.',
-        content: 'Inside a loop, add subtasks to break your intention into concrete actions. Toggle them as you go.',
+        content:
+          'Inside a loop, add subtasks to break your intention into concrete actions. Toggle them as you go.',
         placement: 'top',
       },
       {
         target: '[data-tour="loop-actions"]',
         title: 'Close, release, or continue.',
-        content: 'When a loop is done, close it. At cycle\'s end, choose to release it completely or continue its thread into the next cycle.',
+        content:
+          "When a loop is done, close it. At cycle's end, choose to release it completely or continue its thread into the next cycle.",
         placement: 'top',
       },
       {
         target: '[data-tour="open-loops"]',
         title: 'Open loops persist.',
-        content: 'These loops have no phase window — they stay open across phases until you close them.',
+        content:
+          'These loops have no phase window — they stay open across phases until you close them.',
         placement: 'top',
       },
       {
         target: '[data-tour="closed-loops"]',
         title: 'Completed this cycle.',
-        content: 'Closed and released loops live here. Use the phase arrows to see what was completed in each phase.',
+        content:
+          'Closed and released loops live here. Use the phase arrows to see what was completed in each phase.',
         placement: 'top',
       },
       {
@@ -173,19 +187,22 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="echoes-write-area"]',
         title: 'An echo is a reflection.',
-        content: 'Write what is true right now. Each echo is anchored to the phase when you made it.',
+        content:
+          'Write what is true right now. Each echo is anchored to the phase when you made it.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="echoes-voice-orb"]',
         title: 'Your voice carries more than words.',
-        content: 'Tap the orb to record. Speak freely — it will be transcribed and saved as an echo.',
+        content:
+          'Tap the orb to record. Speak freely — it will be transcribed and saved as an echo.',
         placement: 'top',
       },
       {
         target: '[data-tour="echoes-recording-state"]',
         title: 'Recording in progress.',
-        content: 'While recording, you will see a timer and visual pulse. Tap the orb again to stop and save.',
+        content:
+          'While recording, you will see a timer and visual pulse. Tap the orb again to stop and save.',
         placement: 'top',
       },
       {
@@ -197,7 +214,8 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="echoes-tags"]',
         title: 'Find what you left.',
-        content: 'Tags help you trace themes — grief, clarity, intention, body. Tap to filter by tag.',
+        content:
+          'Tags help you trace themes — grief, clarity, intention, body. Tap to filter by tag.',
         placement: 'top',
       },
       {
@@ -209,19 +227,22 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="echoes-filter-modes"]',
         title: 'Filter by day, phase, or tag.',
-        content: 'Switch between views to see your echoes organized differently — by calendar day, lunar phase, or your custom tags.',
+        content:
+          'Switch between views to see your echoes organized differently — by calendar day, lunar phase, or your custom tags.',
         placement: 'top',
       },
       {
         target: '[data-tour="echoes-card"]',
         title: 'Each echo is a card.',
-        content: 'Tap an echo to edit its text or tags. The phase stamp shows when it was captured in the cycle.',
+        content:
+          'Tap an echo to edit its text or tags. The phase stamp shows when it was captured in the cycle.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="echoes-phase-stamp"]',
         title: 'The phase stamp.',
-        content: 'Every echo carries a stamp — the phase, zodiac sign, and day it was recorded. This is your breadcrumb through the cycle.',
+        content:
+          'Every echo carries a stamp — the phase, zodiac sign, and day it was recorded. This is your breadcrumb through the cycle.',
         placement: 'top',
       },
     ],
@@ -233,55 +254,64 @@ export const TOUR_DEFINITIONS = {
       {
         target: '[data-tour="rhythm-what"]',
         title: 'A rhythm is a named practice.',
-        content: 'Not a habit to track. Not a goal to hit. A practice you want to observe as it moves through the phases.',
+        content:
+          'Not a habit to track. Not a goal to hit. A practice you want to observe as it moves through the phases.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="rhythm-add-btn"]',
         title: 'Start a new rhythm.',
-        content: 'Tap here to create a practice. Give it a name and choose whether it is ongoing or just for this cycle.',
+        content:
+          'Tap here to create a practice. Give it a name and choose whether it is ongoing or just for this cycle.',
         placement: 'top',
       },
       {
         target: '[data-tour="rhythm-intention"]',
         title: 'Intention is not a promise.',
-        content: 'At each New Moon, set an intention for how you want to engage. No numbers. No pressure.',
+        content:
+          'At each New Moon, set an intention for how you want to engage. No numbers. No pressure.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="rhythm-intention-actions"]',
         title: 'Continue or adjust.',
-        content: 'For existing rhythms, you can continue last cycle\'s intention or adjust it for the new cycle.',
+        content:
+          "For existing rhythms, you can continue last cycle's intention or adjust it for the new cycle.",
         placement: 'top',
       },
       {
         target: '[data-tour="phase-ring"]',
         title: 'Two rings. Two truths.',
-        content: 'Outer ring = intention. Inner ring = reality. The gap between them is not failure — it is information.',
+        content:
+          'Outer ring = intention. Inner ring = reality. The gap between them is not failure — it is information.',
         placement: 'top',
       },
       {
         target: '[data-tour="rhythm-checkin"]',
         title: 'The dots are not scores.',
-        content: 'Each phase, note what happened — present, partial, absent. Observations, not judgments.',
+        content:
+          'Each phase, note what happened — present, partial, absent. Observations, not judgments.',
         placement: 'top',
       },
       {
         target: '[data-tour="rhythm-card"]',
         title: 'Tap to see the detail.',
-        content: 'Each rhythm card opens a view where you can record observations, review your phase history, and see patterns.',
+        content:
+          'Each rhythm card opens a view where you can record observations, review your phase history, and see patterns.',
         placement: 'bottom',
       },
       {
         target: '[data-tour="rhythm-history"]',
         title: 'At the end, a report.',
-        content: 'When the Waning Crescent arrives, you can see how the whole cycle unfolded. Not to grade yourself — to notice patterns.',
+        content:
+          'When the Waning Crescent arrives, you can see how the whole cycle unfolded. Not to grade yourself — to notice patterns.',
         placement: 'top',
       },
       {
         target: '[data-tour="rhythm-cycle-report"]',
         title: 'The cycle report.',
-        content: 'A summary of your practice across all eight phases. What showed up, what didn\'t, and what you might carry forward.',
+        content:
+          "A summary of your practice across all eight phases. What showed up, what didn't, and what you might carry forward.",
         placement: 'top',
       },
     ],
@@ -329,7 +359,9 @@ export function OnboardingProvider({ children }) {
       setUser(session?.user || null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
     });
 
@@ -342,7 +374,8 @@ export function OnboardingProvider({ children }) {
   useEffect(() => {
     if (!user) return;
 
-    supabase.from('profiles')
+    supabase
+      .from('profiles')
       .select('onboarding_completed, tours_completed')
       .eq('id', user.id)
       .single()
@@ -357,6 +390,9 @@ export function OnboardingProvider({ children }) {
             localStorage.setItem(STORAGE_KEYS.tours, JSON.stringify(data.tours_completed));
             setToursCompleted(data.tours_completed);
             localStorage.setItem(STORAGE_KEYS.welcomeDismissed, 'true');
+            if (data.tours_completed.welcomeDismissed) {
+              setShowWelcome(false);
+            }
           }
         }
       });
@@ -367,10 +403,13 @@ export function OnboardingProvider({ children }) {
     if (Object.keys(toursCompleted).length > 0) {
       localStorage.setItem(STORAGE_KEYS.tours, JSON.stringify(toursCompleted));
       if (user) {
-        supabase.from('profiles').upsert({
-          id: user.id,
-          tours_completed: toursCompleted
-        }).catch(err => console.error('Error saving tours to profile:', err));
+        supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            tours_completed: toursCompleted,
+          })
+          .catch((err) => console.error('Error saving tours to profile:', err));
       }
     }
   }, [toursCompleted, user]);
@@ -378,40 +417,46 @@ export function OnboardingProvider({ children }) {
   const dismissWelcome = useCallback(async () => {
     setShowWelcome(false);
     localStorage.setItem(STORAGE_KEYS.welcomeDismissed, 'true');
-    setToursCompleted(prev => {
+    setToursCompleted((prev) => {
       const next = { ...prev, welcomeDismissed: true };
       return next;
     });
   }, []);
 
-  const startTour = useCallback((tourId) => {
-    const tour = TOUR_DEFINITIONS[tourId];
-    if (!tour) return;
-    // Navigate to the correct tab before starting the tour
-    // Skip tab switch for 'navigation' tour — tab buttons are always visible
-    if (onSwitchTab && tourId !== 'navigation') {
-      onSwitchTab(tourId); // tourId matches tab id (sky, loops, echoes, rhythm)
-    }
-    setActiveTour(tourId);
-    setStepIndex(0);
-  }, [onSwitchTab]);
+  const startTour = useCallback(
+    (tourId) => {
+      const tour = TOUR_DEFINITIONS[tourId];
+      if (!tour) return;
+      // Navigate to the correct tab before starting the tour
+      // Skip tab switch for 'navigation' tour — tab buttons are always visible
+      if (onSwitchTab && tourId !== 'navigation') {
+        onSwitchTab(tourId); // tourId matches tab id (sky, loops, echoes, rhythm)
+      }
+      setActiveTour(tourId);
+      setStepIndex(0);
+    },
+    [onSwitchTab]
+  );
 
-  const endTour = useCallback((completed = false) => {
-    const completedTourId = activeTour;
-    if (activeTour && completed) {
-      setToursCompleted(prev => ({ ...prev, [activeTour]: true }));
-    }
-    setActiveTour(null);
-    setStepIndex(0);
-    // Auto-advance from navigation tour into the sky tour
-    if (completedTourId === 'navigation' && completed) {
-      setTimeout(() => {
-        if (onSwitchTab) onSwitchTab('sky');
-        setActiveTour('sky');
-        setStepIndex(0);
-      }, 300);
-    }
-  }, [activeTour, onSwitchTab]);
+  const endTour = useCallback(
+    (completed = false) => {
+      const completedTourId = activeTour;
+      if (activeTour && completed) {
+        setToursCompleted((prev) => ({ ...prev, [activeTour]: true }));
+      }
+      setActiveTour(null);
+      setStepIndex(0);
+      // Auto-advance from navigation tour into the sky tour
+      if (completedTourId === 'navigation' && completed) {
+        setTimeout(() => {
+          if (onSwitchTab) onSwitchTab('sky');
+          setActiveTour('sky');
+          setStepIndex(0);
+        }, 300);
+      }
+    },
+    [activeTour, onSwitchTab]
+  );
 
   const skipOnboarding = useCallback(async () => {
     setShowWelcome(false);
@@ -421,7 +466,7 @@ export function OnboardingProvider({ children }) {
     if (user) {
       await supabase.from('profiles').upsert({
         id: user.id,
-        onboarding_completed: true
+        onboarding_completed: true,
       });
     }
   }, [user]);
@@ -432,7 +477,7 @@ export function OnboardingProvider({ children }) {
     if (user) {
       await supabase.from('profiles').upsert({
         id: user.id,
-        onboarding_completed: true
+        onboarding_completed: true,
       });
     }
   }, [user]);
@@ -449,14 +494,17 @@ export function OnboardingProvider({ children }) {
       await supabase.from('profiles').upsert({
         id: user.id,
         onboarding_completed: false,
-        tours_completed: {}
+        tours_completed: {},
       });
     }
   }, [user]);
 
-  const isTourCompleted = useCallback((tourId) => {
-    return !!toursCompleted[tourId];
-  }, [toursCompleted]);
+  const isTourCompleted = useCallback(
+    (tourId) => {
+      return !!toursCompleted[tourId];
+    },
+    [toursCompleted]
+  );
 
   const getActiveTourSteps = useCallback(() => {
     if (!activeTour) return [];
@@ -492,11 +540,7 @@ export function OnboardingProvider({ children }) {
     tourDefinitions: TOUR_DEFINITIONS,
   };
 
-  return (
-    <OnboardingContext.Provider value={value}>
-      {children}
-    </OnboardingContext.Provider>
-  );
+  return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }
 
 export function useOnboarding() {

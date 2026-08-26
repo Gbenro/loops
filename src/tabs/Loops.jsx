@@ -6,7 +6,14 @@ import { Ring } from '../components/Ring.jsx';
 import { MiniMoon } from '../components/MoonFace.jsx';
 import { NewMoonRitual } from '../components/NewMoonRitual.jsx';
 import { LoopCreationSheet } from '../components/LoopCreationSheet.jsx';
-import { getLoops, saveLoop, deleteLoop as deleteLoopFromDb, generateId, saveEcho, getEchoes } from '../lib/storage.js';
+import {
+  getLoops,
+  saveLoop,
+  deleteLoop as deleteLoopFromDb,
+  generateId,
+  saveEcho,
+  getEchoes,
+} from '../lib/storage.js';
 import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
 import { getLunarData } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
@@ -28,8 +35,14 @@ const PHASE_CHECKPOINTS = [
 
 // Phase order for proper sequencing (8 lunar phases in cycle order)
 const PHASE_ORDER = [
-  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
+  'new',
+  'waxing-crescent',
+  'first-quarter',
+  'waxing-gibbous',
+  'full',
+  'waning-gibbous',
+  'last-quarter',
+  'waning-crescent',
 ];
 
 export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
@@ -52,7 +65,9 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Check if we're in New Moon phase
   const isNewMoon = lunarData.phase.key === 'new';
-  const isWaxing = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'].includes(lunarData.phase.key);
+  const isWaxing = ['new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous'].includes(
+    lunarData.phase.key
+  );
   const isWaning = !isWaxing;
   const _isFullMoon = lunarData.phase.key === 'full'; // For future full moon features
   const _isWaningCrescent = lunarData.phase.key === 'waning-crescent'; // For release reminders
@@ -70,24 +85,29 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   // Fetch loops on mount; decrypt encrypted titles if key is available
   useEffect(() => {
     setLoading(true);
-    getLoops(userId).then(async (data) => {
-      const decrypted = await Promise.all(data.map(async (loop) => {
-        if (loop.isEncrypted && sessionKey) {
-          return { ...loop, title: await decryptField(loop.title) };
-        }
-        return loop;
-      }));
-      // Merge: keep any loops added to state since fetch started (e.g. just-created cycle loop)
-      setLoops(prev => {
-        const fetchedIds = new Set(decrypted.map(l => l.id));
-        const justAdded = prev.filter(l => !fetchedIds.has(l.id));
-        return [...decrypted, ...justAdded];
+    getLoops(userId)
+      .then(async (data) => {
+        const decrypted = await Promise.all(
+          data.map(async (loop) => {
+            if (loop.isEncrypted && sessionKey) {
+              return { ...loop, title: await decryptField(loop.title) };
+            }
+            return loop;
+          })
+        );
+        // Merge: keep any loops added to state since fetch started (e.g. just-created cycle loop)
+        setLoops((prev) => {
+          const fetchedIds = new Set(decrypted.map((l) => l.id));
+          const justAdded = prev.filter((l) => !fetchedIds.has(l.id));
+          return [...decrypted, ...justAdded];
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to load loops:', err);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-    }).catch(err => {
-      console.error('Failed to load loops:', err);
-    }).finally(() => {
-      setLoading(false);
-    });
   }, [userId, sessionKey, decryptField]);
 
   // Auto-populate phase checkpoints on existing cycle loops that predate the feature
@@ -95,11 +115,11 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     if (loading) return;
     loops.forEach(async (loop) => {
       if (loop.type !== 'cycle') return;
-      if (loop.subtasks?.some(s => s.isPhaseCheckpoint)) return; // already has checkpoints
+      if (loop.subtasks?.some((s) => s.isPhaseCheckpoint)) return; // already has checkpoints
       const updated = {
         ...loop,
         subtasks: [
-          ...PHASE_CHECKPOINTS.map(cp => ({
+          ...PHASE_CHECKPOINTS.map((cp) => ({
             id: generateId('pc'),
             text: cp.name,
             phase: cp.phase,
@@ -109,8 +129,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           ...(loop.subtasks || []),
         ],
       };
-      setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
-      setSelected(prev => prev?.id === loop.id ? updated : prev);
+      setLoops((prev) => prev.map((l) => (l.id === loop.id ? updated : l)));
+      setSelected((prev) => (prev?.id === loop.id ? updated : prev));
       await saveLoop(updated, userId);
     });
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -120,7 +140,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     if (loading || loops.length === 0) return;
 
     const currentPhase = lunarData.phase.key;
-    const phaseLoopsToClose = loops.filter(l => {
+    const phaseLoopsToClose = loops.filter((l) => {
       if (l.type !== 'phase' || l.status !== 'active' || !l.phaseOpened) return false;
       if (l.phaseOpened === currentPhase) return false;
       // New moon loops stay open through last-quarter (for releasing in waning-gibbous)
@@ -141,7 +161,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         lunarMonthClosed: loop.lunarMonthOpened,
         autoClosedReason: 'phase_ended',
       };
-      setLoops(prev => prev.map(l => l.id === loop.id ? updated : l));
+      setLoops((prev) => prev.map((l) => (l.id === loop.id ? updated : l)));
       await saveLoop(updated, userId);
     });
   }, [loops, lunarData.phase.key, loading, userId]);
@@ -150,7 +170,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const getLoopPct = useCallback((loop) => {
     if (loop.status === 'closed' || loop.status === 'released') return 100;
     if (!loop.subtasks || loop.subtasks.length === 0) return 0;
-    const done = loop.subtasks.filter(s => s.done).length;
+    const done = loop.subtasks.filter((s) => s.done).length;
     return Math.round((done / loop.subtasks.length) * 100);
   }, []);
 
@@ -164,7 +184,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       type: 'cycle',
       status: 'active',
       color: '#A78BFA',
-      subtasks: PHASE_CHECKPOINTS.map(cp => ({
+      subtasks: PHASE_CHECKPOINTS.map((cp) => ({
         id: generateId('pc'),
         text: cp.name,
         phase: cp.phase,
@@ -184,7 +204,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       createdAt: new Date().toISOString(),
     };
     justCreatedCycleRef.current = true;
-    setLoops(prev => [newLoop, ...prev]);
+    setLoops((prev) => [newLoop, ...prev]);
     setShowRitual(false);
     await saveLoop({ ...newLoop, title: storedTitle }, userId);
   };
@@ -206,7 +226,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       isEncrypted,
       createdAt: new Date().toISOString(),
     };
-    setLoops(prev => [newLoop, ...prev]);
+    setLoops((prev) => [newLoop, ...prev]);
     setSelected(newLoop);
     setShowDetail(true);
     await saveLoop({ ...newLoop, title: storedTitle }, userId);
@@ -214,7 +234,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Close loop
   const closeLoop = async (id) => {
-    const loop = loops.find(l => l.id === id);
+    const loop = loops.find((l) => l.id === id);
     if (!loop) return;
     const updated = {
       ...loop,
@@ -224,7 +244,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       phaseNameClosed: lunarData.phase.name,
       lunarMonthClosed: lunarData.lunarMonth,
     };
-    setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === id ? updated : l)));
     if (selected?.id === id) setSelected(updated);
     await saveLoop(updated, userId);
   };
@@ -233,7 +253,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   // For cycle loops: creates a new cycle loop for the new lunar month
   // For phase loops: creates a new phase loop in current phase
   const continueLoop = async (id) => {
-    const sourceLoop = loops.find(l => l.id === id);
+    const sourceLoop = loops.find((l) => l.id === id);
     if (!sourceLoop) return;
 
     const isEncrypted = !!sessionKey;
@@ -245,18 +265,19 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       type: isCycleLoop ? 'cycle' : sourceLoop.type,
       status: 'active',
       color: sourceLoop.color,
-      linkedTo: isCycleLoop ? null : (cycleLoop?.id || null),
+      linkedTo: isCycleLoop ? null : cycleLoop?.id || null,
       phaseOpened: lunarData.phase.key,
       phaseName: lunarData.phase.name,
       lunarMonthOpened: lunarData.lunarMonth,
       moonAgeOpened: lunarData.age,
       zodiacOpened: lunarData.zodiac.sign,
-      windowEnd: sourceLoop.type === 'phase'
-        ? new Date(Date.now() + lunarData.phaseRemaining * 24 * 60 * 60 * 1000).toISOString()
-        : null,
+      windowEnd:
+        sourceLoop.type === 'phase'
+          ? new Date(Date.now() + lunarData.phaseRemaining * 24 * 60 * 60 * 1000).toISOString()
+          : null,
       // Cycle loops get fresh phase checkpoints; phase loops copy steps from source
       subtasks: isCycleLoop
-        ? PHASE_CHECKPOINTS.map(cp => ({
+        ? PHASE_CHECKPOINTS.map((cp) => ({
             id: generateId('pc'),
             text: cp.name,
             phase: cp.phase,
@@ -264,11 +285,11 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             isPhaseCheckpoint: true,
           }))
         : (sourceLoop.subtasks || [])
-            .filter(s => !s.isPhaseCheckpoint) // only copy regular steps, not phase checkpoints
-            .map(s => ({
+            .filter((s) => !s.isPhaseCheckpoint) // only copy regular steps, not phase checkpoints
+            .map((s) => ({
               ...s,
               id: generateId('st'), // generate new ID
-              done: false,          // reset completion status
+              done: false, // reset completion status
             })),
       openedAt: new Date().toISOString(),
       closedAt: null,
@@ -284,7 +305,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       justCreatedCycleRef.current = true;
     }
 
-    setLoops(prev => [newLoop, ...prev]);
+    setLoops((prev) => [newLoop, ...prev]);
     setSelected(newLoop);
     setShowDetail(true);
 
@@ -294,7 +315,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Reopen loop
   const reopenLoop = async (id) => {
-    const loop = loops.find(l => l.id === id);
+    const loop = loops.find((l) => l.id === id);
     if (!loop) return;
     const updated = {
       ...loop,
@@ -304,14 +325,14 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       phaseClosed: null,
       phaseNameClosed: null,
     };
-    setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === id ? updated : l)));
     if (selected?.id === id) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // Release loop (let go without completing)
   const releaseLoop = async (id) => {
-    const loop = loops.find(l => l.id === id);
+    const loop = loops.find((l) => l.id === id);
     if (!loop) return;
     const updated = {
       ...loop,
@@ -321,17 +342,17 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       phaseNameClosed: lunarData.phase.name,
       lunarMonthClosed: lunarData.lunarMonth,
     };
-    setLoops(prev => prev.map(l => l.id === id ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === id ? updated : l)));
     if (selected?.id === id) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // Update loop note
   const updateLoopNote = async (loopId, note) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop) return;
     const updated = { ...loop, note };
-    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === loopId ? updated : l)));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
@@ -339,7 +360,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   // Delete loop
   const deleteLoop = async (id) => {
     if (!window.confirm('Delete this loop? This cannot be undone.')) return;
-    setLoops(prev => prev.filter(l => l.id !== id));
+    setLoops((prev) => prev.filter((l) => l.id !== id));
     setSelected(null);
     setShowDetail(false);
     await deleteLoopFromDb(id, userId);
@@ -347,47 +368,45 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Delete subtask
   const deleteSubtask = async (loopId, subtaskId) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop) return;
-    const updated = { ...loop, subtasks: loop.subtasks.filter(s => s.id !== subtaskId) };
-    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    const updated = { ...loop, subtasks: loop.subtasks.filter((s) => s.id !== subtaskId) };
+    setLoops((prev) => prev.map((l) => (l.id === loopId ? updated : l)));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // Toggle subtask
   const toggleSubtask = async (loopId, subtaskId) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop) return;
     const updated = {
       ...loop,
-      subtasks: loop.subtasks.map(s =>
-        s.id === subtaskId ? { ...s, done: !s.done } : s
-      ),
+      subtasks: loop.subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s)),
     };
-    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === loopId ? updated : l)));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // Add subtask
   const addSubtask = async (loopId, text) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop) return;
     const newSubtask = { id: generateId('s'), text, done: false };
     const updated = { ...loop, subtasks: [...loop.subtasks, newSubtask] };
-    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === loopId ? updated : l)));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // Reorder subtask (move up or down)
   const reorderSubtask = async (loopId, subtaskId, direction) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop || !loop.subtasks) return;
 
     const subtasks = [...loop.subtasks];
-    const currentIndex = subtasks.findIndex(s => s.id === subtaskId);
+    const currentIndex = subtasks.findIndex((s) => s.id === subtaskId);
     if (currentIndex === -1) return;
 
     const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
@@ -397,18 +416,26 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     [subtasks[currentIndex], subtasks[newIndex]] = [subtasks[newIndex], subtasks[currentIndex]];
 
     const updated = { ...loop, subtasks };
-    setLoops(prev => prev.map(l => l.id === loopId ? updated : l));
+    setLoops((prev) => prev.map((l) => (l.id === loopId ? updated : l)));
     if (selected?.id === loopId) setSelected(updated);
     await saveLoop(updated, userId);
   };
 
   // ─── Active loop ordering (localStorage, per-device) ───────────────────────
   const [activeLoopsOrder, setActiveLoopsOrder] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('loops_active_order_v1') || '[]'); } catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem('loops_active_order_v1') || '[]');
+    } catch {
+      return [];
+    }
   });
 
   const persistLoopsOrder = (order) => {
-    try { localStorage.setItem('loops_active_order_v1', JSON.stringify(order)); } catch (_e) { /* ignore localStorage errors */ }
+    try {
+      localStorage.setItem('loops_active_order_v1', JSON.stringify(order));
+    } catch (_e) {
+      /* ignore localStorage errors */
+    }
   };
 
   const sortByOrder = (list, order) => {
@@ -424,25 +451,25 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   };
 
   const reorderActiveLoop = (loopId, direction, sectionLoops) => {
-    const sectionIds = sectionLoops.map(l => l.id);
-    const base = [...activeLoopsOrder.filter(id => sectionIds.includes(id))];
+    const sectionIds = sectionLoops.map((l) => l.id);
+    const base = [...activeLoopsOrder.filter((id) => sectionIds.includes(id))];
     // ensure all section IDs present
     for (const id of sectionIds) if (!base.includes(id)) base.push(id);
     const idx = base.indexOf(loopId);
     const newIdx = direction === 'up' ? idx - 1 : idx + 1;
     if (newIdx < 0 || newIdx >= base.length) return;
     [base[idx], base[newIdx]] = [base[newIdx], base[idx]];
-    const merged = [...activeLoopsOrder.filter(id => !sectionIds.includes(id)), ...base];
+    const merged = [...activeLoopsOrder.filter((id) => !sectionIds.includes(id)), ...base];
     setActiveLoopsOrder(merged);
     persistLoopsOrder(merged);
   };
 
   // ─── Focus: ongoing / paused ────────────────────────────────────────────────
   const toggleLoopFocus = async (loopId) => {
-    const loop = loops.find(l => l.id === loopId);
+    const loop = loops.find((l) => l.id === loopId);
     if (!loop) return;
     const isOngoing = loop.focus === 'ongoing';
-    const updatedLoops = loops.map(l => {
+    const updatedLoops = loops.map((l) => {
       if (l.type === 'cycle' || l.status !== 'active') return l;
       if (l.id === loopId) return { ...l, focus: isOngoing ? null : 'ongoing' };
       // when setting one as ongoing, pause all others; when clearing, leave as-is
@@ -450,9 +477,9 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       return l;
     });
     setLoops(updatedLoops);
-    if (selected?.id === loopId) setSelected(updatedLoops.find(l => l.id === loopId));
+    if (selected?.id === loopId) setSelected(updatedLoops.find((l) => l.id === loopId));
     for (const updated of updatedLoops) {
-      const original = loops.find(l => l.id === updated.id);
+      const original = loops.find((l) => l.id === updated.id);
       if (original?.focus !== updated.focus) await saveLoop(updated, userId);
     }
   };
@@ -480,34 +507,52 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Filter loops by type, scoped to selected cycle
   const phaseLoops = sortByOrder(
-    loops.filter(l => l.type === 'phase' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
+    loops.filter(
+      (l) => l.type === 'phase' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName
+    ),
     activeLoopsOrder
   );
   const openLoops = sortByOrder(
-    loops.filter(l => l.type === 'open' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
+    loops.filter(
+      (l) => l.type === 'open' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName
+    ),
     activeLoopsOrder
   );
 
   // All closed phase/open loops (for phase mode)
   const allClosedLoops = loops
-    .filter(l =>
-      (l.type === 'phase' || l.type === 'open') &&
-      (l.status === 'closed' || l.status === 'released')
+    .filter(
+      (l) =>
+        (l.type === 'phase' || l.type === 'open') &&
+        (l.status === 'closed' || l.status === 'released')
     )
-    .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.closedAt || b.updatedAt || 0).getTime() -
+        new Date(a.closedAt || a.updatedAt || 0).getTime()
+    );
 
   // All closed loops INCLUDING cycle intentions (for cycle mode)
   const allClosedWithCycles = loops
-    .filter(l =>
-      (l.type === 'phase' || l.type === 'open' || l.type === 'cycle') &&
-      (l.status === 'closed' || l.status === 'released')
+    .filter(
+      (l) =>
+        (l.type === 'phase' || l.type === 'open' || l.type === 'cycle') &&
+        (l.status === 'closed' || l.status === 'released')
     )
-    .sort((a, b) => new Date(b.closedAt || b.updatedAt || 0).getTime() - new Date(a.closedAt || a.updatedAt || 0).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.closedAt || b.updatedAt || 0).getTime() -
+        new Date(a.closedAt || a.updatedAt || 0).getTime()
+    );
 
   // Get cycle loop for the selected cycle (if exists)
   // Must be defined after allUniqueCycles and selectedCycleName
-  const cycleLoop = useMemo(() =>
-    loops.find(l => l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName),
+  const cycleLoop = useMemo(
+    () =>
+      loops.find(
+        (l) =>
+          l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName
+      ),
     [loops, selectedCycleName]
   );
 
@@ -525,7 +570,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
   const switchCycle = (direction) => {
-    setSelectedCycleIndex(i => {
+    setSelectedCycleIndex((i) => {
       const next = direction === 'prev' ? i + 1 : i - 1;
       return Math.max(0, Math.min(next, allUniqueCycles.length - 1));
     });
@@ -534,7 +579,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
   // Get unique phases from closed loops within the selected cycle
   const uniquePhases = useMemo(() => {
-    const cycleClosedLoops = allClosedLoops.filter(l => {
+    const cycleClosedLoops = allClosedLoops.filter((l) => {
       const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
       return loopCycle === selectedCycleName;
     });
@@ -545,7 +590,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         const isCurrent = isCurrentCycle && phaseKey === lunarData.phase.key;
         phaseMap.set(phaseKey, {
           key: phaseKey,
-          name: isCurrent ? lunarData.phase.name : (loop.phaseNameClosed || phaseKey),
+          name: isCurrent ? lunarData.phase.name : loop.phaseNameClosed || phaseKey,
           isCurrent,
         });
       }
@@ -555,12 +600,18 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       const bi = PHASE_ORDER.indexOf(b.key);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
-  }, [allClosedLoops, selectedCycleName, isCurrentCycle, lunarData.phase.key, lunarData.phase.name]);
+  }, [
+    allClosedLoops,
+    selectedCycleName,
+    isCurrentCycle,
+    lunarData.phase.key,
+    lunarData.phase.name,
+  ]);
 
   // Closed loops within selected cycle, filtered by phase navigation
   const closedLoops = useMemo(() => {
     // First scope to selected cycle
-    const cycleScoped = allClosedWithCycles.filter(l => {
+    const cycleScoped = allClosedWithCycles.filter((l) => {
       const loopCycle = l.lunarMonthClosed || l.lunarMonthOpened;
       return loopCycle === selectedCycleName;
     });
@@ -568,44 +619,52 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     if (uniquePhases.length === 0) return cycleScoped;
     const targetPhase = uniquePhases[closedNavIndex];
     if (!targetPhase) return cycleScoped;
-    return cycleScoped.filter(l => l.phaseClosed === targetPhase.key || (l.type === 'cycle' && !l.phaseClosed));
+    return cycleScoped.filter(
+      (l) => l.phaseClosed === targetPhase.key || (l.type === 'cycle' && !l.phaseClosed)
+    );
   }, [allClosedWithCycles, selectedCycleName, uniquePhases, closedNavIndex]);
 
   // Phase navigation within the selected cycle
   const canNavPrev = closedNavIndex > 0;
   const canNavNext = closedNavIndex < uniquePhases.length - 1;
-  const onNavPrev = () => setClosedNavIndex(i => i - 1);
-  const onNavNext = () => setClosedNavIndex(i => i + 1);
+  const onNavPrev = () => setClosedNavIndex((i) => i - 1);
+  const onNavNext = () => setClosedNavIndex((i) => i + 1);
 
   const currentNavLabel = uniquePhases[closedNavIndex]?.name || '';
   const isCurrentNav = uniquePhases[closedNavIndex]?.isCurrent;
 
   // Use generated prompt or fallback
-  const addButtonLabel = phrasesLoading ? '+ open a loop' : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
+  const addButtonLabel = phrasesLoading
+    ? '+ open a loop'
+    : `+ ${phrases.addLoopPrompt?.toLowerCase() || 'open a loop'}`;
 
   if (loading) {
     return (
-      <div style={{
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--color-bg)',
-        color: 'var(--color-text-muted)',
-        fontSize: 18,
-      }}>
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--color-bg)',
+          color: 'var(--color-text-muted)',
+          fontSize: 18,
+        }}
+      >
         ◯
       </div>
     );
   }
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--color-bg)',
-    }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--color-bg)',
+      }}
+    >
       {/* New Moon Ritual */}
       {showRitual && (
         <NewMoonRitual
@@ -632,63 +691,81 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       )}
 
       {/* Cosmic Guidance Banner */}
-      <div style={{
-        padding: '16px 20px',
-        background: 'var(--color-input-bg)',
-        borderBottom: '1px solid var(--color-border-light)',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginBottom: 8,
-        }}>
-          <MiniMoon size={18} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} />
-          <span style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 16,
-            color: 'var(--color-text)',
-          }}>
+      <div
+        style={{
+          padding: '16px 20px',
+          background: 'var(--color-input-bg)',
+          borderBottom: '1px solid var(--color-border-light)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 8,
+          }}
+        >
+          <MiniMoon
+            size={18}
+            phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8}
+            phaseName={lunarData.phase.name}
+          />
+          <span
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 16,
+              color: 'var(--color-text)',
+            }}
+          >
             {lunarData.phase.name}
           </span>
-          <span style={{
-            fontSize: 10,
-            fontFamily: 'monospace',
-            color: 'var(--color-text-muted)',
-            marginLeft: 'auto',
-          }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: 'monospace',
+              color: 'var(--color-text-muted)',
+              marginLeft: 'auto',
+            }}
+          >
             {phaseContent.energy.toUpperCase()}
           </span>
         </div>
         {phrasesLoading ? (
-          <div style={{
-            height: 18,
-            background: 'var(--color-border-light)',
-            borderRadius: 4,
-            opacity: 0.3,
-          }} />
+          <div
+            style={{
+              height: 18,
+              background: 'var(--color-border-light)',
+              borderRadius: 4,
+              opacity: 0.3,
+            }}
+          />
         ) : (
-          <div style={{
-            fontSize: 13,
-            fontStyle: 'italic',
-            color: 'var(--color-text-dim)',
-            lineHeight: 1.5,
-            opacity: 1,
-            transition: 'opacity 0.4s ease',
-          }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontStyle: 'italic',
+              color: 'var(--color-text-dim)',
+              lineHeight: 1.5,
+              opacity: 1,
+              transition: 'opacity 0.4s ease',
+            }}
+          >
             {phrases.phaseBanner}
           </div>
         )}
       </div>
 
       {/* Cycle Selector + Progress */}
-      <div style={{
-        padding: '0 20px',
-        borderBottom: '1px solid var(--color-border-light)',
-      }}>
+      <div
+        style={{
+          padding: '0 20px',
+          borderBottom: '1px solid var(--color-border-light)',
+        }}
+      >
         {/* Collapse toggle */}
         <button
-          onClick={() => setCycleExpanded(e => !e)}
+          onClick={() => setCycleExpanded((e) => !e)}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -701,35 +778,45 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
             minHeight: 44,
           }}
         >
-          <span style={{
-            fontSize: 11,
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            color: 'var(--color-focus)',
-          }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: 'monospace',
+              letterSpacing: '0.08em',
+              color: 'var(--color-focus)',
+            }}
+          >
             {getLunarMonthInfo(selectedCycleName, hemisphere).name}
             {isCurrentCycle ? ` · Day ${lunarData.dayOfCycle}` : ''}
           </span>
-          <span style={{
-            fontSize: 14,
-            color: 'var(--color-text-muted)',
-            transform: cycleExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-            lineHeight: 1,
-          }}>⌄</span>
+          <span
+            style={{
+              fontSize: 14,
+              color: 'var(--color-text-muted)',
+              transform: cycleExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+              lineHeight: 1,
+            }}
+          >
+            ⌄
+          </span>
         </button>
-        <div style={{
-          overflow: 'hidden',
-          maxHeight: cycleExpanded ? 200 : 0,
-          transition: 'max-height 0.25s ease',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            marginBottom: 8,
-          }}>
+        <div
+          style={{
+            overflow: 'hidden',
+            maxHeight: cycleExpanded ? 200 : 0,
+            transition: 'max-height 0.25s ease',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              marginBottom: 8,
+            }}
+          >
             <button
               onClick={() => switchCycle('prev')}
               disabled={!canCyclePrev}
@@ -745,22 +832,26 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               ‹
             </button>
             <div style={{ textAlign: 'center', minWidth: 120 }}>
-              <div style={{
-                fontSize: 15,
-                color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
-                fontFamily: "'Cormorant Garamond', serif",
-                fontWeight: 600,
-              }}>
+              <div
+                style={{
+                  fontSize: 15,
+                  color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontWeight: 600,
+                }}
+              >
                 {getLunarMonthInfo(selectedCycleName, hemisphere).name}
               </div>
               {isCurrentCycle && (
-                <div style={{
-                  fontSize: 8,
-                  fontFamily: 'monospace',
-                  color: 'rgba(167, 139, 250, 0.5)',
-                  letterSpacing: '0.1em',
-                  marginTop: 2,
-                }}>
+                <div
+                  style={{
+                    fontSize: 8,
+                    fontFamily: 'monospace',
+                    color: 'rgba(167, 139, 250, 0.5)',
+                    letterSpacing: '0.1em',
+                    marginTop: 2,
+                  }}
+                >
                   CURRENT CYCLE · DAY {lunarData.dayOfCycle}
                 </div>
               )}
@@ -780,57 +871,69 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               ›
             </button>
           </div>
-          <div style={{
-            height: 3,
-            borderRadius: 2,
-            background: 'var(--color-input-hover)',
-            overflow: 'hidden',
-            marginBottom: 12,
-          }}>
-            <div style={{
-              width: `${(lunarData.age / 29.53) * 100}%`,
-              height: '100%',
-              background: 'var(--color-text-muted)',
+          <div
+            style={{
+              height: 3,
               borderRadius: 2,
-            }} />
+              background: 'var(--color-input-hover)',
+              overflow: 'hidden',
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                width: `${(lunarData.age / 29.53) * 100}%`,
+                height: '100%',
+                background: 'var(--color-text-muted)',
+                borderRadius: 2,
+              }}
+            />
           </div>
         </div>
       </div>
 
       {/* Waning Banner */}
       {isWaning && (
-        <div style={{
-          padding: '12px 20px',
-          background: 'rgba(252, 129, 129, 0.06)',
-          borderBottom: '1px solid rgba(252, 129, 129, 0.1)',
-        }}>
-          <div style={{
-            fontSize: 12,
-            fontStyle: 'italic',
-            color: 'rgba(252, 129, 129, 0.65)',
-            lineHeight: 1.5,
-          }}>
+        <div
+          style={{
+            padding: '12px 20px',
+            background: 'rgba(252, 129, 129, 0.06)',
+            borderBottom: '1px solid rgba(252, 129, 129, 0.1)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontStyle: 'italic',
+              color: 'rgba(252, 129, 129, 0.65)',
+              lineHeight: 1.5,
+            }}
+          >
             Waning phase — the cosmos supports closing, not opening.
           </div>
         </div>
       )}
 
       {/* Loop List */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px 20px',
-      }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 20px',
+        }}
+      >
         {/* Cycle Loop (pinned at top) */}
         {cycleLoop && (
           <div data-tutorial="cycle-loop" data-tour="cycle-loop" style={{ marginBottom: 24 }}>
-            <div style={{
-              fontSize: 10,
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              color: 'rgba(167, 139, 250, 0.6)',
-              marginBottom: 12,
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'rgba(167, 139, 250, 0.6)',
+                marginBottom: 12,
+              }}
+            >
               CYCLE INTENTION
             </div>
             <CycleLoopCard
@@ -849,28 +952,34 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         {/* Phase Loops (Windowed) */}
         {phaseLoops.length > 0 && (
           <div data-tutorial="phase-loops" data-tour="phase-loops" style={{ marginBottom: 24 }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 12,
-            }}>
-              <span style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                letterSpacing: '0.1em',
-                color: 'rgba(167, 139, 250, 0.6)',
-              }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: 'rgba(167, 139, 250, 0.6)',
+                }}
+              >
                 PHASE LOOPS
               </span>
-              <span style={{
-                fontSize: 8,
-                fontFamily: 'monospace',
-                padding: '2px 6px',
-                borderRadius: 3,
-                background: 'rgba(167, 139, 250, 0.1)',
-                color: 'rgba(167, 139, 250, 0.7)',
-              }}>
+              <span
+                style={{
+                  fontSize: 8,
+                  fontFamily: 'monospace',
+                  padding: '2px 6px',
+                  borderRadius: 3,
+                  background: 'rgba(167, 139, 250, 0.1)',
+                  color: 'rgba(167, 139, 250, 0.7)',
+                }}
+              >
                 {lunarData.phaseRemaining?.toFixed(1)}D WINDOW
               </span>
             </div>
@@ -901,13 +1010,15 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         {/* Open Loops (No Window) */}
         {openLoops.length > 0 && (
           <div data-tour="open-loops" style={{ marginBottom: 24 }}>
-            <div style={{
-              fontSize: 10,
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              color: 'rgba(148, 163, 184, 0.6)',
-              marginBottom: 12,
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'rgba(148, 163, 184, 0.6)',
+                marginBottom: 12,
+              }}
+            >
               OPEN LOOPS
             </div>
             {openLoops.map((loop, i) => (
@@ -935,130 +1046,174 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
         {/* Closed / Released Loops (within selected cycle) */}
         {closedLoops.length > 0 && (
           <div data-tour="closed-loops">
-            <div style={{
-              fontSize: 10,
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              color: 'var(--text-disabled)',
-              marginBottom: 12,
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'var(--text-disabled)',
+                marginBottom: 12,
+              }}
+            >
               COMPLETED
             </div>
 
             {/* Phase navigation within cycle */}
-            {uniquePhases.length > 1 && <div data-tour="closed-loops-nav">
-              <button
-                onClick={() => setClosedNavExpanded(e => !e)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  width: '100%',
-                  background: 'none',
-                  border: 'none',
-                  padding: '8px 0',
-                  cursor: 'pointer',
-                  minHeight: 44,
-                }}
-              >
-                <span style={{
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-focus)',
-                }}>{currentNavLabel}</span>
-                <span style={{
-                  fontSize: 14,
-                  color: 'var(--color-text-muted)',
-                  transform: closedNavExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s ease',
-                  lineHeight: 1,
-                }}>⌄</span>
-              </button>
-              <div style={{
-                overflow: 'hidden',
-                maxHeight: closedNavExpanded ? 120 : 0,
-                transition: 'max-height 0.25s ease',
-              }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 16,
-                  marginBottom: 16,
-                  padding: '6px 0',
-                }}>
-                  <button
-                    onClick={onNavPrev}
-                    disabled={!canNavPrev}
+            {uniquePhases.length > 1 && (
+              <div data-tour="closed-loops-nav">
+                <button
+                  onClick={() => setClosedNavExpanded((e) => !e)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    background: 'none',
+                    border: 'none',
+                    padding: '8px 0',
+                    cursor: 'pointer',
+                    minHeight: 44,
+                  }}
+                >
+                  <span
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: canNavPrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
-                      fontSize: 16,
-                      cursor: canNavPrev ? 'pointer' : 'default',
-                      padding: '4px 8px',
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      letterSpacing: '0.08em',
+                      color: 'var(--color-focus)',
                     }}
                   >
-                    ‹
-                  </button>
-                  <div style={{
-                    textAlign: 'center',
-                    minWidth: 140,
-                  }}>
-                    <div style={{
-                      fontSize: 13,
-                      color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
-                      fontFamily: "'Cormorant Garamond', serif",
-                    }}>
-                      {currentNavLabel}
-                    </div>
-                    {isCurrentNav && (
-                      <div style={{
-                        fontSize: 8,
-                        fontFamily: 'monospace',
-                        color: 'rgba(167, 139, 250, 0.5)',
-                        letterSpacing: '0.1em',
-                        marginTop: 2,
-                      }}>
-                        CURRENT
+                    {currentNavLabel}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      color: 'var(--color-text-muted)',
+                      transform: closedNavExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ⌄
+                  </span>
+                </button>
+                <div
+                  style={{
+                    overflow: 'hidden',
+                    maxHeight: closedNavExpanded ? 120 : 0,
+                    transition: 'max-height 0.25s ease',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 16,
+                      marginBottom: 16,
+                      padding: '6px 0',
+                    }}
+                  >
+                    <button
+                      onClick={onNavPrev}
+                      disabled={!canNavPrev}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: canNavPrev ? 'var(--color-focus)' : 'var(--color-border-mid)',
+                        fontSize: 16,
+                        cursor: canNavPrev ? 'pointer' : 'default',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <div
+                      style={{
+                        textAlign: 'center',
+                        minWidth: 140,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
+                          fontFamily: "'Cormorant Garamond', serif",
+                        }}
+                      >
+                        {currentNavLabel}
                       </div>
-                    )}
+                      {isCurrentNav && (
+                        <div
+                          style={{
+                            fontSize: 8,
+                            fontFamily: 'monospace',
+                            color: 'rgba(167, 139, 250, 0.5)',
+                            letterSpacing: '0.1em',
+                            marginTop: 2,
+                          }}
+                        >
+                          CURRENT
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={onNavNext}
+                      disabled={!canNavNext}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: canNavNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
+                        fontSize: 16,
+                        cursor: canNavNext ? 'pointer' : 'default',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
-                  <button
-                    onClick={onNavNext}
-                    disabled={!canNavNext}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: canNavNext ? 'var(--color-focus)' : 'var(--color-border-mid)',
-                      fontSize: 16,
-                      cursor: canNavNext ? 'pointer' : 'default',
-                      padding: '4px 8px',
-                    }}
-                  >
-                    ›
-                  </button>
                 </div>
               </div>
-            </div>}
+            )}
 
             {/* Closed loops for selected cycle */}
             {closedLoops.length > 0 ? (
               <>
                 {/* Cycle intention at top */}
-                {closedLoops.filter(l => l.type === 'cycle').map(loop => (
-                  <div key={loop.id} style={{ marginBottom: 16 }}>
-                    <div style={{
-                      fontSize: 9,
-                      fontFamily: 'monospace',
-                      letterSpacing: '0.1em',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 8,
-                    }}>
-                      CYCLE INTENTION
+                {closedLoops
+                  .filter((l) => l.type === 'cycle')
+                  .map((loop) => (
+                    <div key={loop.id} style={{ marginBottom: 16 }}>
+                      <div
+                        style={{
+                          fontSize: 9,
+                          fontFamily: 'monospace',
+                          letterSpacing: '0.1em',
+                          color: 'var(--color-text-muted)',
+                          marginBottom: 8,
+                        }}
+                      >
+                        CYCLE INTENTION
+                      </div>
+                      <LoopCard
+                        loop={loop}
+                        pct={100}
+                        closed
+                        released={loop.status === 'released'}
+                        onSelect={() => {
+                          setSelected(loop);
+                          setShowDetail(true);
+                        }}
+                        onReopen={() => reopenLoop(loop.id)}
+                      />
                     </div>
+                  ))}
+                {/* Phase/open loops */}
+                {closedLoops
+                  .filter((l) => l.type !== 'cycle')
+                  .map((loop) => (
                     <LoopCard
+                      key={loop.id}
                       loop={loop}
                       pct={100}
                       closed
@@ -1069,32 +1224,18 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
                       }}
                       onReopen={() => reopenLoop(loop.id)}
                     />
-                  </div>
-                ))}
-                {/* Phase/open loops */}
-                {closedLoops.filter(l => l.type !== 'cycle').map(loop => (
-                  <LoopCard
-                    key={loop.id}
-                    loop={loop}
-                    pct={100}
-                    closed
-                    released={loop.status === 'released'}
-                    onSelect={() => {
-                      setSelected(loop);
-                      setShowDetail(true);
-                    }}
-                    onReopen={() => reopenLoop(loop.id)}
-                  />
-                ))}
+                  ))}
               </>
             ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '24px',
-                color: 'var(--color-text-muted)',
-                fontSize: 12,
-                fontStyle: 'italic',
-              }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px',
+                  color: 'var(--color-text-muted)',
+                  fontSize: 12,
+                  fontStyle: 'italic',
+                }}
+              >
                 No completed loops in this cycle
               </div>
             )}
@@ -1103,19 +1244,23 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 
         {/* Empty state */}
         {!cycleLoop && phaseLoops.length === 0 && openLoops.length === 0 && !isNewMoon && (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            color: 'var(--color-text-muted)',
-          }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              color: 'var(--color-text-muted)',
+            }}
+          >
             <div style={{ fontSize: 32, marginBottom: 16 }}>◯</div>
             <div style={{ fontSize: 14, fontStyle: 'italic', marginBottom: 8 }}>
               {phrasesLoading
                 ? resolvePhaseText('noLoopsMessage', lunarData.phase.key)
-                : (phrases.emptyStateGuidance || resolvePhaseText('noLoopsMessage', lunarData.phase.key))}
+                : phrases.emptyStateGuidance ||
+                  resolvePhaseText('noLoopsMessage', lunarData.phase.key)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-disabled)' }}>
-              {resolvePhaseText('noLoopsSubtext', lunarData.phase.key) || 'Open loops for regular tasks, or phase loops to align with the moon.'}
+              {resolvePhaseText('noLoopsSubtext', lunarData.phase.key) ||
+                'Open loops for regular tasks, or phase loops to align with the moon.'}
             </div>
           </div>
         )}
@@ -1131,12 +1276,16 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
               cursor: 'pointer',
             }}
           >
-            <div style={{ marginBottom: 16 }}><MiniMoon size={48} phase={0} phaseName="New Moon" /></div>
-            <div style={{
-              fontSize: 16,
-              fontFamily: "'Cormorant Garamond', serif",
-              fontStyle: 'italic',
-            }}>
+            <div style={{ marginBottom: 16 }}>
+              <MiniMoon size={48} phase={0} phaseName="New Moon" />
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: 'italic',
+              }}
+            >
               Tap to set your cycle intention
             </div>
           </div>
@@ -1144,10 +1293,12 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       </div>
 
       {/* Add Loop Button */}
-      <div style={{
-        padding: '16px 20px 20px',
-        borderTop: '1px solid var(--color-border-light)',
-      }}>
+      <div
+        style={{
+          padding: '16px 20px 20px',
+          borderTop: '1px solid var(--color-border-light)',
+        }}
+      >
         <button
           data-tutorial="add-loop-btn"
           data-tour="add-loop-btn"
@@ -1186,7 +1337,9 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           onToggleSubtask={(subtaskId) => toggleSubtask(selected.id, subtaskId)}
           onDeleteSubtask={(subtaskId) => deleteSubtask(selected.id, subtaskId)}
           onAddSubtask={(text) => addSubtask(selected.id, text)}
-          onReorderSubtask={(subtaskId, direction) => reorderSubtask(selected.id, subtaskId, direction)}
+          onReorderSubtask={(subtaskId, direction) =>
+            reorderSubtask(selected.id, subtaskId, direction)
+          }
           onUpdateNote={(note) => updateLoopNote(selected.id, note)}
         />
       )}
@@ -1197,10 +1350,13 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
 // ─── Cycle Loop Card ─────────────────────────────────────────────────────────
 
 function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct }) {
-  const checkpoints = loop.subtasks?.filter(s => s.isPhaseCheckpoint) || [];
-  const cycleProgress = checkpoints.length > 0
-    ? (checkpoints.filter(s => s.done).length / checkpoints.length) * 100
-    : pct != null ? pct : (lunarData.age / 29.53) * 100;
+  const checkpoints = loop.subtasks?.filter((s) => s.isPhaseCheckpoint) || [];
+  const cycleProgress =
+    checkpoints.length > 0
+      ? (checkpoints.filter((s) => s.done).length / checkpoints.length) * 100
+      : pct != null
+        ? pct
+        : (lunarData.age / 29.53) * 100;
 
   return (
     <div
@@ -1216,54 +1372,57 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
       }}
     >
       {/* Subtle lunar glow effect */}
-      <div style={{
-        position: 'absolute',
-        top: -20,
-        right: -20,
-        width: 80,
-        height: 80,
-        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 16,
-        position: 'relative',
-      }}>
-        <Ring
-          pct={cycleProgress}
-          color="#A78BFA"
-          size={48}
-          stroke={3}
-          variant="cycle"
-          glow
-        />
+      <div
+        style={{
+          position: 'absolute',
+          top: -20,
+          right: -20,
+          width: 80,
+          height: 80,
+          background: 'radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 16,
+          position: 'relative',
+        }}
+      >
+        <Ring pct={cycleProgress} color="#A78BFA" size={48} stroke={3} variant="cycle" glow />
         <div style={{ flex: 1 }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 18,
-            color: 'var(--color-text)',
-            lineHeight: 1.4,
-            marginBottom: 8,
-          }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 18,
+              color: 'var(--color-text)',
+              lineHeight: 1.4,
+              marginBottom: 8,
+            }}
+          >
             {loop.title}
           </div>
-          <div style={{
-            fontSize: 9,
-            fontFamily: 'monospace',
-            color: 'rgba(167, 139, 250, 0.6)',
-            letterSpacing: '0.08em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            <span style={{
-              padding: '2px 6px',
-              borderRadius: 4,
-              background: 'var(--color-border)',
-              color: 'var(--color-text-dim)',
-            }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontFamily: 'monospace',
+              color: 'rgba(167, 139, 250, 0.6)',
+              letterSpacing: '0.08em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                padding: '2px 6px',
+                borderRadius: 4,
+                background: 'var(--color-border)',
+                color: 'var(--color-text-dim)',
+              }}
+            >
               ☽ CYCLE
             </span>
             <span>{getLunarMonthInfo(loop.lunarMonthOpened, hemisphere).name.toUpperCase()}</span>
@@ -1276,7 +1435,24 @@ function CycleLoopCard({ loop, lunarData, onSelect, hemisphere = 'north', pct })
 
 // ─── Loop Card ───────────────────────────────────────────────────────────────
 
-function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarData, onSelect, onClose, onReopen, focus, onToggleFocus, canMoveUp, canMoveDown, onMoveUp, onMoveDown, tourId }) {
+function LoopCard({
+  loop,
+  pct,
+  closed,
+  released,
+  isWindowed: _isWindowed,
+  lunarData,
+  onSelect,
+  onClose,
+  onReopen,
+  focus,
+  onToggleFocus,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  tourId,
+}) {
   const isOpen = loop.type === 'open';
   const isPhase = loop.type === 'phase';
   const isCycle = loop.type === 'cycle';
@@ -1303,11 +1479,11 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
         alignItems: 'center',
         gap: 10,
         padding: '14px 12px 14px 14px',
-        background: isOpen
-          ? 'rgba(148, 163, 184, 0.03)'
-          : 'var(--color-input-bg)',
+        background: isOpen ? 'rgba(148, 163, 184, 0.03)' : 'var(--color-input-bg)',
         border: `1px solid ${isOpen ? 'rgba(148, 163, 184, 0.08)' : 'var(--color-border)'}`,
-        borderLeft: !closed ? `3px solid ${isOngoing ? '#34D399' : isPaused ? 'rgba(251, 191, 36, 0.45)' : 'transparent'}` : undefined,
+        borderLeft: !closed
+          ? `3px solid ${isOngoing ? '#34D399' : isPaused ? 'rgba(251, 191, 36, 0.45)' : 'transparent'}`
+          : undefined,
         borderRadius: 12,
         marginBottom: 10,
         opacity: closed ? 0.5 : isPaused ? 0.55 : 1,
@@ -1320,59 +1496,129 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
       {!closed && (onMoveUp || onMoveDown) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
           <button
-            onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp?.();
+            }}
             disabled={!canMoveUp}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveUp ? 'var(--text-secondary)' : 'var(--color-border-light)', cursor: canMoveUp ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
-          >▲</button>
+            style={{
+              width: 14,
+              height: 12,
+              padding: 0,
+              background: 'none',
+              border: 'none',
+              color: canMoveUp ? 'var(--text-secondary)' : 'var(--color-border-light)',
+              cursor: canMoveUp ? 'pointer' : 'default',
+              fontSize: 8,
+              lineHeight: 1,
+            }}
+          >
+            ▲
+          </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown?.();
+            }}
             disabled={!canMoveDown}
-            style={{ width: 14, height: 12, padding: 0, background: 'none', border: 'none', color: canMoveDown ? 'var(--text-secondary)' : 'var(--color-border-light)', cursor: canMoveDown ? 'pointer' : 'default', fontSize: 8, lineHeight: 1 }}
-          >▼</button>
+            style={{
+              width: 14,
+              height: 12,
+              padding: 0,
+              background: 'none',
+              border: 'none',
+              color: canMoveDown ? 'var(--text-secondary)' : 'var(--color-border-light)',
+              cursor: canMoveDown ? 'pointer' : 'default',
+              fontSize: 8,
+              lineHeight: 1,
+            }}
+          >
+            ▼
+          </button>
         </div>
       )}
 
       <Ring
         pct={pct}
-        color={isAutoReleased ? 'rgba(251, 191, 36, 0.5)' : released ? 'var(--color-text-muted)' : (loop.color || '#A78BFA')}
+        color={
+          isAutoReleased
+            ? 'rgba(251, 191, 36, 0.5)'
+            : released
+              ? 'var(--color-text-muted)'
+              : loop.color || '#A78BFA'
+        }
         size={40}
         stroke={3}
         variant={isCycle ? 'cycle' : 'default'}
       />
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 16,
-          color: 'var(--color-text)',
-          marginBottom: 4,
-          textDecoration: closed ? 'line-through' : 'none',
-          opacity: closed ? 0.6 : 1,
-        }}>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 16,
+            color: 'var(--color-text)',
+            marginBottom: 4,
+            textDecoration: closed ? 'line-through' : 'none',
+            opacity: closed ? 0.6 : 1,
+          }}
+        >
           {loop.title}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: 9,
+            fontFamily: 'monospace',
+            color: 'var(--color-text-muted)',
+          }}
+        >
           {/* Phase badge */}
-          <span style={{
-            padding: '2px 6px', borderRadius: 4,
-            background: isCycle ? 'var(--color-input-hover)' : isOpen ? 'rgba(148, 163, 184, 0.1)' : 'rgba(167, 139, 250, 0.1)',
-            color: isCycle ? 'var(--color-text)' : isOpen ? 'rgba(148, 163, 184, 0.7)' : 'rgba(167, 139, 250, 0.7)',
-          }}>
+          <span
+            style={{
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: isCycle
+                ? 'var(--color-input-hover)'
+                : isOpen
+                  ? 'rgba(148, 163, 184, 0.1)'
+                  : 'rgba(167, 139, 250, 0.1)',
+              color: isCycle
+                ? 'var(--color-text)'
+                : isOpen
+                  ? 'rgba(148, 163, 184, 0.7)'
+                  : 'rgba(167, 139, 250, 0.7)',
+            }}
+          >
             {isCycle ? '☽ CYCLE' : isOpen ? 'OPEN' : loop.phaseName?.toUpperCase()}
           </span>
           {/* Status badge for closed/released */}
           {(isAutoReleased || released) && (
-            <span style={{
-              padding: '2px 6px', borderRadius: 4,
-              background: isAutoReleased ? 'rgba(251, 191, 36, 0.1)' : 'rgba(252, 129, 129, 0.1)',
-              color: isAutoReleased ? 'rgba(251, 191, 36, 0.7)' : 'rgba(252, 129, 129, 0.6)',
-            }}>
+            <span
+              style={{
+                padding: '2px 6px',
+                borderRadius: 4,
+                background: isAutoReleased ? 'rgba(251, 191, 36, 0.1)' : 'rgba(252, 129, 129, 0.1)',
+                color: isAutoReleased ? 'rgba(251, 191, 36, 0.7)' : 'rgba(252, 129, 129, 0.6)',
+              }}
+            >
               {isAutoReleased ? 'PHASE ENDED' : 'RELEASED'}
             </span>
           )}
-          {isOngoing && <span style={{ color: '#34D399', letterSpacing: '0.08em' }}>▶ ONGOING</span>}
-          {isOpen && loop.phaseName && !closed && <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>↑ {loop.phaseName}</span>}
-          {isOpen && closed && <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span>}
+          {isOngoing && (
+            <span style={{ color: '#34D399', letterSpacing: '0.08em' }}>▶ ONGOING</span>
+          )}
+          {isOpen && loop.phaseName && !closed && (
+            <span style={{ color: 'rgba(148, 163, 184, 0.5)' }}>↑ {loop.phaseName}</span>
+          )}
+          {isOpen && closed && (
+            <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>
+              ↓ {loop.phaseNameClosed || '?'}
+            </span>
+          )}
           {windowText && <span style={{ color: 'rgba(167, 139, 250, 0.5)' }}>{windowText}</span>}
         </div>
       </div>
@@ -1380,14 +1626,28 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
       {/* Focus toggle button */}
       {!closed && onToggleFocus && (
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleFocus(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFocus();
+          }}
           title={isOngoing ? 'Clear ongoing' : 'Set as ongoing'}
           style={{
-            width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            flexShrink: 0,
             border: `1px solid ${isOngoing ? 'rgba(52,211,153,0.5)' : isPaused ? 'rgba(251,191,36,0.3)' : 'var(--color-border-mid)'}`,
             background: isOngoing ? 'rgba(52,211,153,0.12)' : 'transparent',
-            color: isOngoing ? '#34D399' : isPaused ? 'rgba(251,191,36,0.5)' : 'var(--color-text-faint)',
-            fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: isOngoing
+              ? '#34D399'
+              : isPaused
+                ? 'rgba(251,191,36,0.5)'
+                : 'var(--color-text-faint)',
+            fontSize: 9,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {isOngoing ? '▶' : isPaused ? '⏸' : '◎'}
@@ -1396,13 +1656,23 @@ function LoopCard({ loop, pct, closed, released, isWindowed: _isWindowed, lunarD
 
       {/* Close / reopen button */}
       <button
-        onClick={(e) => { e.stopPropagation(); closed ? onReopen?.() : onClose?.(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          closed ? onReopen?.() : onClose?.();
+        }}
         style={{
-          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          flexShrink: 0,
           border: `2px solid ${closed ? '#34D399' : 'var(--color-border-mid)'}`,
           background: closed ? '#34D399' : 'transparent',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: closed ? 'var(--color-bg)' : 'transparent', fontSize: 14,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: closed ? 'var(--color-bg)' : 'transparent',
+          fontSize: 14,
         }}
       >
         {closed && '✓'}
@@ -1447,25 +1717,30 @@ function DetailPanel({
   const isReleased = loop.status === 'released';
   const isActive = loop.status === 'active';
 
-  const phaseCheckpoints = isCycle
-    ? (loop.subtasks?.filter(s => s.isPhaseCheckpoint) || [])
-    : [];
-  const regularSubtasks = loop.subtasks?.filter(s => !s.isPhaseCheckpoint) || [];
+  const phaseCheckpoints = isCycle ? loop.subtasks?.filter((s) => s.isPhaseCheckpoint) || [] : [];
+  const regularSubtasks = loop.subtasks?.filter((s) => !s.isPhaseCheckpoint) || [];
 
   const computedLunarData = useMemo(() => getLunarData(), []);
   const lunarData = lunarDataProp || computedLunarData;
 
   // Load echoes linked to this loop
   useEffect(() => {
-    getEchoes(userId).then(all => {
-      setLinkedEchoes(all.filter(e => e.linkedLoopId === loop.id));
-    }).catch(() => {});
+    getEchoes(userId)
+      .then((all) => {
+        setLinkedEchoes(all.filter((e) => e.linkedLoopId === loop.id));
+      })
+      .catch(() => {});
   }, [loop.id, userId]);
 
   // Get signed URL when echo modal opens
   useEffect(() => {
-    if (!echoModal?.audio_path) { setModalAudioUrl(null); return; }
-    getAudioUrl(echoModal.audio_path).then(url => setModalAudioUrl(url)).catch(() => {});
+    if (!echoModal?.audio_path) {
+      setModalAudioUrl(null);
+      return;
+    }
+    getAudioUrl(echoModal.audio_path)
+      .then((url) => setModalAudioUrl(url))
+      .catch(() => {});
   }, [echoModal]);
 
   const handleAddSubtask = () => {
@@ -1479,10 +1754,12 @@ function DetailPanel({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
       const mr = new MediaRecorder(stream);
-      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
       mr.onstop = () => {
         setEchoAudioBlob(new Blob(audioChunksRef.current, { type: 'audio/webm' }));
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach((t) => t.stop());
       };
       mediaRecorderRef.current = mr;
       mr.start();
@@ -1519,67 +1796,112 @@ function DetailPanel({
       const path = await saveAudio(echoId, echoAudioBlob, userId);
       if (path && path !== 'TOO_LARGE') echo.audio_path = path;
     }
-    setLinkedEchoes(prev => [echo, ...prev]);
+    setLinkedEchoes((prev) => [echo, ...prev]);
     setNewEchoText('');
     setEchoAudioBlob(null);
     setShowEchoInput(false);
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'flex-end',
-      justifyContent: 'center',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+        }}
       />
 
       {/* Panel */}
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        maxWidth: 520,
-        maxHeight: '85vh',
-        background: 'var(--color-surface)',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        display: 'flex',
-        flexDirection: 'column',
-        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      }}>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 520,
+          maxHeight: '85vh',
+          background: 'var(--color-surface)',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         {/* Header */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
+        <div
+          style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--color-border-light)' }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: 'var(--color-border-mid)',
+              margin: '0 auto 20px',
+            }}
+          />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Ring
               pct={pct}
-              color={isReleased ? 'var(--color-text-muted)' : (loop.color || '#A78BFA')}
+              color={isReleased ? 'var(--color-text-muted)' : loop.color || '#A78BFA'}
               size={56}
               stroke={4}
             >
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{pct}%</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                {pct}%
+              </span>
             </Ring>
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: 'var(--color-text)', marginBottom: 4 }}>
+              <div
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 22,
+                  color: 'var(--color-text)',
+                  marginBottom: 4,
+                }}
+              >
                 {loop.title}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
                 <span>{isCycle ? '◐ CYCLE' : loop.type === 'open' ? '◯ OPEN' : '◯ PHASE'}</span>
                 {isCycle && loop.cycleNumber > 1 && (
-                  <><span>·</span><span style={{ color: 'rgba(167, 139, 250, 0.6)' }}>#{loop.cycleNumber}</span></>
+                  <>
+                    <span>·</span>
+                    <span style={{ color: 'rgba(167, 139, 250, 0.6)' }}>#{loop.cycleNumber}</span>
+                  </>
                 )}
                 <span>·</span>
                 {loop.type === 'open' ? (
                   <>
                     <span>↑ {loop.phaseName || '?'}</span>
                     {(isClosed || isReleased) && (
-                      <><span>·</span><span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>↓ {loop.phaseNameClosed || '?'}</span></>
+                      <>
+                        <span>·</span>
+                        <span style={{ color: 'rgba(52, 211, 153, 0.6)' }}>
+                          ↓ {loop.phaseNameClosed || '?'}
+                        </span>
+                      </>
                     )}
                   </>
                 ) : (
@@ -1592,14 +1914,21 @@ function DetailPanel({
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-
           {/* Phase Journey — cycle loops only */}
           {isCycle && phaseCheckpoints.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'rgba(167, 139, 250, 0.5)', marginBottom: 12 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: 'rgba(167, 139, 250, 0.5)',
+                  marginBottom: 12,
+                }}
+              >
                 PHASE JOURNEY
               </div>
-              {phaseCheckpoints.map(cp => (
+              {phaseCheckpoints.map((cp) => (
                 <div
                   key={cp.id}
                   onClick={() => onToggleSubtask(cp.id)}
@@ -1616,23 +1945,37 @@ function DetailPanel({
                     cursor: 'pointer',
                   }}
                 >
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    border: `2px solid ${cp.done ? '#A78BFA' : 'var(--color-border-mid)'}`,
-                    background: cp.done ? '#A78BFA' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    fontSize: 10,
-                    color: cp.done ? 'var(--color-bg)' : 'transparent',
-                  }}>
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      border: `2px solid ${cp.done ? '#A78BFA' : 'var(--color-border-mid)'}`,
+                      background: cp.done ? '#A78BFA' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      fontSize: 10,
+                      color: cp.done ? 'var(--color-bg)' : 'transparent',
+                    }}
+                  >
                     {cp.done && '✓'}
                   </div>
-                  <span style={{ fontSize: 13, color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-focus)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <MiniMoon size={14} phase={PHASE_ORDER.indexOf(cp.phase) / 8} phaseName={cp.text} />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: cp.done ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-focus)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <MiniMoon
+                      size={14}
+                      phase={PHASE_ORDER.indexOf(cp.phase) / 8}
+                      phaseName={cp.text}
+                    />
                     {cp.text}
                   </span>
                 </div>
@@ -1643,66 +1986,174 @@ function DetailPanel({
           {/* Regular Steps — not shown for cycle loops */}
           {!isCycle && (regularSubtasks.length > 0 || isActive) && (
             <div data-tour="loop-subtasks" style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: 'var(--text-secondary)',
+                  marginBottom: 12,
+                }}
+              >
                 STEPS
               </div>
               {regularSubtasks.map((subtask, index) => (
                 <div
                   key={subtask.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--color-border-light)' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 0',
+                    borderBottom: '1px solid var(--color-border-light)',
+                  }}
                 >
                   {/* Reorder buttons — only for non-cycle loops */}
                   {!isCycle && isActive && regularSubtasks.length > 1 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <button
-                        onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'up'); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReorderSubtask(subtask.id, 'up');
+                        }}
                         disabled={index === 0}
-                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === 0 ? 'var(--color-border-mid)' : 'var(--color-text-muted)', cursor: index === 0 ? 'default' : 'pointer', fontSize: 10 }}
-                      >▲</button>
+                        style={{
+                          width: 18,
+                          height: 14,
+                          padding: 0,
+                          background: 'none',
+                          border: 'none',
+                          color:
+                            index === 0 ? 'var(--color-border-mid)' : 'var(--color-text-muted)',
+                          cursor: index === 0 ? 'default' : 'pointer',
+                          fontSize: 10,
+                        }}
+                      >
+                        ▲
+                      </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); onReorderSubtask(subtask.id, 'down'); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReorderSubtask(subtask.id, 'down');
+                        }}
                         disabled={index === regularSubtasks.length - 1}
-                        style={{ width: 18, height: 14, padding: 0, background: 'none', border: 'none', color: index === regularSubtasks.length - 1 ? 'var(--color-border-mid)' : 'var(--color-text-muted)', cursor: index === regularSubtasks.length - 1 ? 'default' : 'pointer', fontSize: 10 }}
-                      >▼</button>
+                        style={{
+                          width: 18,
+                          height: 14,
+                          padding: 0,
+                          background: 'none',
+                          border: 'none',
+                          color:
+                            index === regularSubtasks.length - 1
+                              ? 'var(--color-border-mid)'
+                              : 'var(--color-text-muted)',
+                          cursor: index === regularSubtasks.length - 1 ? 'default' : 'pointer',
+                          fontSize: 10,
+                        }}
+                      >
+                        ▼
+                      </button>
                     </div>
                   )}
                   <div
                     onClick={() => onToggleSubtask(subtask.id)}
-                    style={{ minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', margin: '-10px', padding: '10px' }}
+                    style={{
+                      minWidth: 'var(--touch-min)',
+                      minHeight: 'var(--touch-min)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      margin: '-10px',
+                      padding: '10px',
+                    }}
                   >
                     <div
-                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${subtask.done ? '#34D399' : 'var(--color-border-mid)'}`, background: subtask.done ? '#34D399' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subtask.done ? 'var(--color-bg)' : 'transparent', fontSize: 12 }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        border: `2px solid ${subtask.done ? '#34D399' : 'var(--color-border-mid)'}`,
+                        background: subtask.done ? '#34D399' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: subtask.done ? 'var(--color-bg)' : 'transparent',
+                        fontSize: 12,
+                      }}
                     >
                       {subtask.done && '✓'}
                     </div>
                   </div>
                   <span
                     onClick={() => onToggleSubtask(subtask.id)}
-                    style={{ flex: 1, color: subtask.done ? 'var(--color-text-muted)' : 'var(--color-text)', textDecoration: subtask.done ? 'line-through' : 'none', fontSize: 14, cursor: 'pointer' }}
+                    style={{
+                      flex: 1,
+                      color: subtask.done ? 'var(--color-text-muted)' : 'var(--color-text)',
+                      textDecoration: subtask.done ? 'line-through' : 'none',
+                      fontSize: 14,
+                      cursor: 'pointer',
+                    }}
                   >
                     {subtask.text}
                   </span>
                   <button
                     onClick={() => onDeleteSubtask(subtask.id)}
                     aria-label="Delete step"
-                    style={{ background: 'none', border: 'none', color: 'rgba(252, 129, 129, 0.4)', fontSize: 16, cursor: 'pointer', minWidth: 'var(--touch-min)', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                  >×</button>
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(252, 129, 129, 0.4)',
+                      fontSize: 16,
+                      cursor: 'pointer',
+                      minWidth: 'var(--touch-min)',
+                      minHeight: 'var(--touch-min)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
               {isActive && (
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                   <input
                     value={newSubtask}
-                    onChange={e => setNewSubtask(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddSubtask()}
+                    onChange={(e) => setNewSubtask(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask()}
                     placeholder="Add a step..."
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border-light)', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, outline: 'none' }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      border: '1px solid var(--color-border-light)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text)',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
                   />
                   <button
                     onClick={handleAddSubtask}
                     disabled={!newSubtask.trim()}
-                    style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: newSubtask.trim() ? 'var(--color-border-light)' : 'var(--color-input-bg)', color: newSubtask.trim() ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: 13, cursor: newSubtask.trim() ? 'pointer' : 'default' }}
-                  >Add</button>
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: newSubtask.trim()
+                        ? 'var(--color-border-light)'
+                        : 'var(--color-input-bg)',
+                      color: newSubtask.trim() ? 'var(--color-text)' : 'var(--color-text-muted)',
+                      fontSize: 13,
+                      cursor: newSubtask.trim() ? 'pointer' : 'default',
+                    }}
+                  >
+                    Add
+                  </button>
                 </div>
               )}
             </div>
@@ -1710,14 +2161,37 @@ function DetailPanel({
 
           {/* Echoes */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: 'var(--text-secondary)',
+                }}
+              >
                 ECHOES{linkedEchoes.length > 0 ? ` (${linkedEchoes.length})` : ''}
               </div>
               {!showEchoInput && (
                 <button
                   onClick={() => setShowEchoInput(true)}
-                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-border-mid)',
+                    background: 'transparent',
+                    color: 'var(--color-focus)',
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    cursor: 'pointer',
+                  }}
                 >
                   + ADD ECHO
                 </button>
@@ -1726,108 +2200,295 @@ function DetailPanel({
 
             {/* Echo input form */}
             {showEchoInput && (
-              <div style={{ background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+              <div
+                style={{
+                  background: 'var(--color-input-bg)',
+                  border: '1px solid var(--color-border-light)',
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 12,
+                }}
+              >
                 <textarea
                   value={newEchoText}
-                  onChange={e => setNewEchoText(e.target.value)}
+                  onChange={(e) => setNewEchoText(e.target.value)}
                   placeholder="Write your reflection..."
                   rows={3}
-                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-text)',
+                    fontSize: 13,
+                    fontFamily: "'Cormorant Garamond', serif",
+                    lineHeight: 1.6,
+                    resize: 'none',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
                 />
                 {echoAudioBlob && (
-                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(52, 211, 153, 0.7)', marginTop: 4 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'rgba(52, 211, 153, 0.7)',
+                      marginTop: 4,
+                    }}
+                  >
                     ● voice recorded
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'space-between' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    marginTop: 10,
+                    justifyContent: 'space-between',
+                  }}
+                >
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.5)' : 'var(--color-border-mid)'}`, background: isRecording ? 'rgba(252, 129, 129, 0.1)' : 'transparent', color: isRecording ? 'rgba(252, 129, 129, 0.9)' : 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.5)' : 'var(--color-border-mid)'}`,
+                        background: isRecording ? 'rgba(252, 129, 129, 0.1)' : 'transparent',
+                        color: isRecording ? 'rgba(252, 129, 129, 0.9)' : 'var(--color-focus)',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
                     >
                       {isRecording ? '◼ Stop' : '🎙 Record'}
                     </button>
                     <button
-                      onClick={() => { setShowEchoInput(false); setNewEchoText(''); setEchoAudioBlob(null); if (isRecording) stopRecording(); }}
-                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--color-text-muted)', fontSize: 11, cursor: 'pointer' }}
-                    >Cancel</button>
+                      onClick={() => {
+                        setShowEchoInput(false);
+                        setNewEchoText('');
+                        setEchoAudioBlob(null);
+                        if (isRecording) stopRecording();
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--color-text-muted)',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
                   </div>
                   <button
                     onClick={submitEcho}
                     disabled={!newEchoText.trim() && !echoAudioBlob}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: (newEchoText.trim() || echoAudioBlob) ? 'var(--color-border-light)' : 'var(--color-input-bg)', color: (newEchoText.trim() || echoAudioBlob) ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: 12, cursor: (newEchoText.trim() || echoAudioBlob) ? 'pointer' : 'default' }}
-                  >Save Echo</button>
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background:
+                        newEchoText.trim() || echoAudioBlob
+                          ? 'var(--color-border-light)'
+                          : 'var(--color-input-bg)',
+                      color:
+                        newEchoText.trim() || echoAudioBlob
+                          ? 'var(--color-text)'
+                          : 'var(--color-text-muted)',
+                      fontSize: 12,
+                      cursor: newEchoText.trim() || echoAudioBlob ? 'pointer' : 'default',
+                    }}
+                  >
+                    Save Echo
+                  </button>
                 </div>
               </div>
             )}
 
             {/* Linked echoes list */}
-            {linkedEchoes.length > 0 ? (
-              linkedEchoes.map(echo => (
-                <div
-                  key={echo.id}
-                  onClick={() => setEchoModal(echo)}
-                  style={{ padding: '12px 14px', background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 8, marginBottom: 8, cursor: 'pointer' }}
-                >
-                  <div style={{ fontSize: 12, color: 'var(--color-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
+            {linkedEchoes.length > 0
+              ? linkedEchoes.map((echo) => (
+                  <div
+                    key={echo.id}
+                    onClick={() => setEchoModal(echo)}
+                    style={{
+                      padding: '12px 14px',
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--color-text)',
+                        lineHeight: 1.5,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginTop: 6,
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <MiniMoon
+                          size={12}
+                          phase={PHASE_ORDER.indexOf(echo.phase) / 8}
+                          phaseName={echo.phaseName}
+                        />{' '}
+                        {echo.phaseName}
+                      </span>
+                      {echo.audio_path && <span>· 🎙</span>}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echo.phase) / 8} phaseName={echo.phaseName} /> {echo.phaseName}</span>
-                    {echo.audio_path && <span>· 🎙</span>}
+                ))
+              : !showEchoInput && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontStyle: 'italic',
+                      color: 'var(--color-border-mid)',
+                      textAlign: 'center',
+                      padding: '12px 0',
+                    }}
+                  >
+                    No echoes yet
                   </div>
-                </div>
-              ))
-            ) : (
-              !showEchoInput && (
-                <div style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--color-border-mid)', textAlign: 'center', padding: '12px 0' }}>
-                  No echoes yet
-                </div>
-              )
-            )}
+                )}
           </div>
 
           {/* Note */}
-          <div style={{ borderTop: '1px solid var(--color-border-light)', paddingTop: 16, marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div
+            style={{
+              borderTop: '1px solid var(--color-border-light)',
+              paddingTop: 16,
+              marginBottom: 8,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'var(--text-secondary)',
+                marginBottom: 8,
+              }}
+            >
               NOTE
             </div>
             <textarea
               value={noteText}
-              onChange={e => setNoteText(e.target.value)}
+              onChange={(e) => setNoteText(e.target.value)}
               onBlur={() => onUpdateNote(noteText.trim() || null)}
               placeholder="A note to yourself... (saves when you stop writing)"
               rows={3}
-              style={{ width: '100%', background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, padding: '10px 12px', color: 'var(--color-text)', fontSize: 13, fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+              style={{
+                width: '100%',
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border-light)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: 'var(--color-text)',
+                fontSize: 13,
+                fontFamily: "'Cormorant Garamond', serif",
+                lineHeight: 1.6,
+                resize: 'none',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div data-tour="loop-actions" style={{ padding: '16px 20px 24px', borderTop: '1px solid var(--color-border-light)', display: 'flex', gap: 10 }}>
+        <div
+          data-tour="loop-actions"
+          style={{
+            padding: '16px 20px 24px',
+            borderTop: '1px solid var(--color-border-light)',
+            display: 'flex',
+            gap: 10,
+          }}
+        >
           {!isCycle && (
             <button
               onClick={onDelete}
-              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(252, 129, 129, 0.3)', background: 'transparent', color: 'rgba(252, 129, 129, 0.7)', fontSize: 11, cursor: 'pointer' }}
-            >Delete</button>
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid rgba(252, 129, 129, 0.3)',
+                background: 'transparent',
+                color: 'rgba(252, 129, 129, 0.7)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              Delete
+            </button>
           )}
           {isActive && (
             <button
               onClick={onReleaseLoop}
-              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 11, cursor: 'pointer' }}
-            >Release</button>
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid var(--color-border-mid)',
+                background: 'transparent',
+                color: 'var(--color-focus)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              Release
+            </button>
           )}
           {(isClosed || isReleased) && (
             <button
               onClick={onContinueLoop}
-              style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(167, 139, 250, 0.3)', background: 'rgba(167, 139, 250, 0.08)', color: 'rgba(167, 139, 250, 0.9)', fontSize: 11, cursor: 'pointer' }}
-            >{isCycle ? 'New Cycle →' : 'Continue →'}</button>
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid rgba(167, 139, 250, 0.3)',
+                background: 'rgba(167, 139, 250, 0.08)',
+                color: 'rgba(167, 139, 250, 0.9)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              {isCycle ? 'New Cycle →' : 'Continue →'}
+            </button>
           )}
           <button
             onClick={isActive ? onCloseLoop : onReopenLoop}
-            style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', background: isActive ? '#34D399' : 'var(--color-border-light)', color: isActive ? 'var(--color-bg)' : 'var(--color-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            style={{
+              flex: 1,
+              padding: '12px 20px',
+              borderRadius: 10,
+              border: 'none',
+              background: isActive ? '#34D399' : 'var(--color-border-light)',
+              color: isActive ? 'var(--color-bg)' : 'var(--color-text)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
           >
-            {isActive ? 'Close Loop' : (isReleased ? 'Reopen' : 'Reopen Loop')}
+            {isActive ? 'Close Loop' : isReleased ? 'Reopen' : 'Reopen Loop'}
           </button>
         </div>
       </div>
@@ -1835,21 +2496,73 @@ function DetailPanel({
       {/* Echo detail modal */}
       {echoModal && (
         <div
-          style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
           onClick={() => setEchoModal(null)}
         >
           <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: 'var(--color-surface)', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '24px 20px 40px', maxHeight: '70vh', overflowY: 'auto', boxSizing: 'border-box', animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--color-surface)',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: '24px 20px 40px',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              boxSizing: 'border-box',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
-            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MiniMoon size={12} phase={PHASE_ORDER.indexOf(echoModal.phase) / 8} phaseName={echoModal.phaseName} /> {echoModal.phaseName}</span>
+            <div
+              style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                background: 'var(--color-border-mid)',
+                margin: '0 auto 20px',
+              }}
+            />
+            <div
+              style={{
+                fontSize: 9,
+                fontFamily: 'monospace',
+                color: 'var(--color-text-muted)',
+                marginBottom: 12,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <MiniMoon
+                  size={12}
+                  phase={PHASE_ORDER.indexOf(echoModal.phase) / 8}
+                  phaseName={echoModal.phaseName}
+                />{' '}
+                {echoModal.phaseName}
+              </span>
               <span>· {echoModal.zodiac}</span>
               <span>· day {echoModal.dayOfCycle}</span>
             </div>
             {echoModal.text && (
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: 'var(--color-text-dim)', lineHeight: 1.7, marginBottom: 16 }}>
+              <div
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 16,
+                  color: 'var(--color-text-dim)',
+                  lineHeight: 1.7,
+                  marginBottom: 16,
+                }}
+              >
                 {echoModal.text}
               </div>
             )}
@@ -1857,12 +2570,27 @@ function DetailPanel({
               <audio controls src={modalAudioUrl} style={{ width: '100%', marginTop: 12 }} />
             )}
             {echoModal.audio_path && !modalAudioUrl && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Loading audio...</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                Loading audio...
+              </div>
             )}
             <button
               onClick={() => setEchoModal(null)}
-              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 8, border: '1px solid var(--color-border-mid)', background: 'transparent', color: 'var(--color-focus)', fontSize: 12, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
-            >Close</button>
+              style={{
+                marginTop: 20,
+                padding: '10px 20px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-mid)',
+                background: 'transparent',
+                color: 'var(--color-focus)',
+                fontSize: 12,
+                cursor: 'pointer',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

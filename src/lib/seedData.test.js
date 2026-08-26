@@ -6,25 +6,27 @@ const localStorageMock = (() => {
   let store = {};
   return {
     getItem: vi.fn((key) => store[key] || null),
-    setItem: vi.fn((key, value) => { store[key] = value; }),
-    removeItem: vi.fn((key) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
+    setItem: vi.fn((key, value) => {
+      store[key] = value;
+    }),
+    removeItem: vi.fn((key) => {
+      delete store[key];
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
   };
 })();
 
 Object.defineProperty(global, 'localStorage', { value: localStorageMock });
 
 // Mock crypto.randomUUID
-vi.spyOn(global.crypto, 'randomUUID').mockImplementation(() => `uuid-${Date.now()}-${Math.random()}`);
+vi.spyOn(global.crypto, 'randomUUID').mockImplementation(
+  () => `uuid-${Date.now()}-${Math.random()}`
+);
 
 // Import after mocks are set up
-import {
-  seedAllData,
-  seedLoops,
-  seedEchoes,
-  seedRhythms,
-  clearAllData,
-} from './seedData.js';
+import { seedAllData, seedLoops, seedEchoes, seedRhythms, clearAllData } from './seedData.js';
 
 describe('seedData', () => {
   beforeEach(() => {
@@ -49,14 +51,8 @@ describe('seedData', () => {
     it('saves data to localStorage', () => {
       seedAllData({ cycleCount: 1 });
 
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'cosmic_loops_v1',
-        expect.any(String)
-      );
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'cosmic_echoes_v1',
-        expect.any(String)
-      );
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('cosmic_loops_v1', expect.any(String));
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('cosmic_echoes_v1', expect.any(String));
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
         'cosmic_rhythms_v1',
         expect.any(String)
@@ -93,8 +89,8 @@ describe('seedData', () => {
     it('generates both cycle and phase loops', () => {
       const loops = seedLoops(2);
 
-      const cycleLoops = loops.filter(l => l.type === 'cycle');
-      const phaseLoops = loops.filter(l => l.type === 'phase');
+      const cycleLoops = loops.filter((l) => l.type === 'cycle');
+      const phaseLoops = loops.filter((l) => l.type === 'phase');
 
       expect(cycleLoops.length).toBeGreaterThan(0);
       expect(phaseLoops.length).toBeGreaterThan(0);
@@ -102,7 +98,7 @@ describe('seedData', () => {
 
     it('generates subtasks with proper structure', () => {
       const loops = seedLoops(1);
-      const loopWithSubtasks = loops.find(l => l.subtasks.length > 0);
+      const loopWithSubtasks = loops.find((l) => l.subtasks.length > 0);
 
       expect(loopWithSubtasks).toBeDefined();
       const subtask = loopWithSubtasks.subtasks[0];
@@ -133,7 +129,7 @@ describe('seedData', () => {
 
     it('generates echoes across different phases', () => {
       const echoes = seedEchoes(2);
-      const phases = new Set(echoes.map(e => e.phase));
+      const phases = new Set(echoes.map((e) => e.phase));
 
       // Should have echoes from multiple phases
       expect(phases.size).toBeGreaterThan(1);
@@ -141,7 +137,7 @@ describe('seedData', () => {
 
     it('generates echoes with valid tags', () => {
       const echoes = seedEchoes(2);
-      const echoWithTags = echoes.find(e => e.tags && e.tags.length > 0);
+      const echoWithTags = echoes.find((e) => e.tags && e.tags.length > 0);
 
       if (echoWithTags) {
         expect(Array.isArray(echoWithTags.tags)).toBe(true);
@@ -192,7 +188,7 @@ describe('seedData', () => {
     it('links instances to their rhythms', () => {
       const data = seedRhythms(1);
 
-      const rhythmIds = new Set(data.rhythms.map(r => r.id));
+      const rhythmIds = new Set(data.rhythms.map((r) => r.id));
       for (const instance of data.instances) {
         expect(rhythmIds.has(instance.rhythmId)).toBe(true);
       }
@@ -201,7 +197,7 @@ describe('seedData', () => {
     it('links observations to their instances', () => {
       const data = seedRhythms(1);
 
-      const instanceIds = new Set(data.instances.map(i => i.id));
+      const instanceIds = new Set(data.instances.map((i) => i.id));
       for (const obs of data.observations) {
         expect(instanceIds.has(obs.cycleInstanceId)).toBe(true);
       }
@@ -228,8 +224,18 @@ describe('seedData', () => {
     it('generates loops with valid lunar month names', () => {
       const loops = seedLoops(3);
       const validMonths = [
-        'Wolf', 'Snow', 'Worm', 'Pink', 'Flower', 'Strawberry',
-        'Buck', 'Sturgeon', 'Harvest', "Hunter's", 'Beaver', 'Cold'
+        'Wolf',
+        'Snow',
+        'Worm',
+        'Pink',
+        'Flower',
+        'Strawberry',
+        'Buck',
+        'Sturgeon',
+        'Harvest',
+        "Hunter's",
+        'Beaver',
+        'Cold',
       ];
 
       for (const loop of loops) {
@@ -240,8 +246,14 @@ describe('seedData', () => {
     it('generates echoes with valid phase keys', () => {
       const echoes = seedEchoes(2);
       const validPhases = [
-        'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-        'full', 'waning-gibbous', 'last-quarter', 'waning-crescent'
+        'new',
+        'waxing-crescent',
+        'first-quarter',
+        'waxing-gibbous',
+        'full',
+        'waning-gibbous',
+        'last-quarter',
+        'waning-crescent',
       ];
 
       for (const echo of echoes) {

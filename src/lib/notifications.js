@@ -31,13 +31,15 @@ export async function requestPermission() {
 export function getNotificationPrefs() {
   try {
     const prefs = localStorage.getItem(NOTIFICATION_KEY);
-    return prefs ? JSON.parse(prefs) : {
-      enabled: false,
-      phaseTransitions: true,
-      newCycle: true,
-      thresholdPhases: true,
-      flowPhases: true,
-    };
+    return prefs
+      ? JSON.parse(prefs)
+      : {
+          enabled: false,
+          phaseTransitions: true,
+          newCycle: true,
+          thresholdPhases: true,
+          flowPhases: true,
+        };
   } catch {
     return { enabled: false };
   }
@@ -78,7 +80,7 @@ function wasNotified(phaseKey, type, withinMs = 12 * 60 * 60 * 1000) {
   const data = getLastNotified();
   const lastTime = data[`${phaseKey}_${type}`];
   if (!lastTime) return false;
-  return (Date.now() - lastTime) < withinMs;
+  return Date.now() - lastTime < withinMs;
 }
 
 // Send a notification
@@ -111,14 +113,8 @@ export function checkPhaseNotifications(lunarData) {
   const prefs = getNotificationPrefs();
   if (!prefs.enabled || !canNotify()) return;
 
-  const {
-    isApproaching,
-    isNewCycleApproaching,
-    nextPhase,
-    nextPhaseType,
-    remainingHours,
-    phase,
-  } = lunarData;
+  const { isApproaching, isNewCycleApproaching, nextPhase, nextPhaseType, remainingHours, phase } =
+    lunarData;
 
   if (!isApproaching) return;
 

@@ -12,7 +12,7 @@ export function pickForToday(pool) {
 }
 
 export const zodiacMeanings = {
-  'Aries': {
+  Aries: {
     element: 'Fire',
     quality: 'Cardinal',
     symbol: '♈',
@@ -27,7 +27,7 @@ export const zodiacMeanings = {
     color: '#FF6B35',
   },
 
-  'Taurus': {
+  Taurus: {
     element: 'Earth',
     quality: 'Fixed',
     symbol: '♉',
@@ -42,7 +42,7 @@ export const zodiacMeanings = {
     color: '#34D399',
   },
 
-  'Gemini': {
+  Gemini: {
     element: 'Air',
     quality: 'Mutable',
     symbol: '♊',
@@ -57,7 +57,7 @@ export const zodiacMeanings = {
     color: '#FBBF24',
   },
 
-  'Cancer': {
+  Cancer: {
     element: 'Water',
     quality: 'Cardinal',
     symbol: '♋',
@@ -72,7 +72,7 @@ export const zodiacMeanings = {
     color: '#60A5FA',
   },
 
-  'Leo': {
+  Leo: {
     element: 'Fire',
     quality: 'Fixed',
     symbol: '♌',
@@ -87,7 +87,7 @@ export const zodiacMeanings = {
     color: '#F472B6',
   },
 
-  'Virgo': {
+  Virgo: {
     element: 'Earth',
     quality: 'Mutable',
     symbol: '♍',
@@ -102,7 +102,7 @@ export const zodiacMeanings = {
     color: '#A78BFA',
   },
 
-  'Libra': {
+  Libra: {
     element: 'Air',
     quality: 'Cardinal',
     symbol: '♎',
@@ -117,7 +117,7 @@ export const zodiacMeanings = {
     color: '#38BDF8',
   },
 
-  'Scorpio': {
+  Scorpio: {
     element: 'Water',
     quality: 'Fixed',
     symbol: '♏',
@@ -132,7 +132,7 @@ export const zodiacMeanings = {
     color: '#FB7185',
   },
 
-  'Sagittarius': {
+  Sagittarius: {
     element: 'Fire',
     quality: 'Mutable',
     symbol: '♐',
@@ -147,7 +147,7 @@ export const zodiacMeanings = {
     color: '#FF6B35',
   },
 
-  'Capricorn': {
+  Capricorn: {
     element: 'Earth',
     quality: 'Cardinal',
     symbol: '♑',
@@ -162,7 +162,7 @@ export const zodiacMeanings = {
     color: '#34D399',
   },
 
-  'Aquarius': {
+  Aquarius: {
     element: 'Air',
     quality: 'Fixed',
     symbol: '♒',
@@ -177,7 +177,7 @@ export const zodiacMeanings = {
     color: '#60A5FA',
   },
 
-  'Pisces': {
+  Pisces: {
     element: 'Water',
     quality: 'Mutable',
     symbol: '♓',
@@ -199,10 +199,10 @@ export function getZodiacInfo(sign) {
 
 export function getElementDescription(element) {
   const elements = {
-    'Fire': 'Active, passionate, transformative',
-    'Earth': 'Grounded, practical, material',
-    'Air': 'Mental, communicative, connective',
-    'Water': 'Emotional, intuitive, flowing',
+    Fire: 'Active, passionate, transformative',
+    Earth: 'Grounded, practical, material',
+    Air: 'Mental, communicative, connective',
+    Water: 'Emotional, intuitive, flowing',
   };
   return elements[element] || '';
 }

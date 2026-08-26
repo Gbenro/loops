@@ -417,7 +417,7 @@ const WANING_GIBBOUS_TIDES = {
     'The gibbous is closing. What you have learned needs to land — share it before the last quarter.',
     'The waning gibbous is completing. What was shared? What still wants to be offered?',
     'The sharing phase is nearly done. The last quarter threshold is close — what did you give?',
-    'The integration is finishing. What have you passed on from this cycle\'s harvest?',
+    "The integration is finishing. What have you passed on from this cycle's harvest?",
     'The waning gibbous closes. The last quarter arrives next — a reckoning follows generosity.',
   ],
   closing: [
@@ -431,10 +431,10 @@ const WANING_GIBBOUS_TIDES = {
 
 const WANING_GIBBOUS_DEEP_TIDES = {
   opening: [
-    'The full moon has passed. This phase is the cycle\'s most generous — let what you received begin to move outward.',
+    "The full moon has passed. This phase is the cycle's most generous — let what you received begin to move outward.",
     'The waning gibbous opens. The illumination of the full moon is still fresh. What did it show you that wants to be shared?',
     'The sharing phase begins. What the cycle built and the full moon revealed now asks to be given — not hoarded.',
-    'The light is receding and the generosity is rising. The waning gibbous is the cycle\'s moment of outward movement.',
+    "The light is receding and the generosity is rising. The waning gibbous is the cycle's moment of outward movement.",
     'The gibbous waning opens. You have received the illumination — now the cycle asks what you will do with it.',
   ],
   flowing: [
@@ -446,7 +446,7 @@ const WANING_GIBBOUS_DEEP_TIDES = {
   ],
   completing: [
     'The gibbous waning is closing. What was shared and integrated will be tested at the last quarter — prepare to let go.',
-    'The sharing phase is nearly past. What from this cycle\'s harvest have you passed on? What remains to offer?',
+    "The sharing phase is nearly past. What from this cycle's harvest have you passed on? What remains to offer?",
     'The waning gibbous completes. What you gave in this phase is already doing its work — trust it.',
     'The gibbous closes toward the last quarter. The sharing is finishing. The next phase asks for release, not giving.',
     'The integration is complete. What moved through you in the sharing phase is now doing its own work in the world.',
@@ -506,7 +506,7 @@ const WANING_CRESCENT_DEEP_TIDES = {
     'You are in the deepest part of the cycle. The waning crescent asks nothing of you except presence and rest.',
     'The quiet is full. What the cycle has been through is being integrated in the dark. Let it do that without interruption.',
     'You are inside the last phase. The cycle is breathing down. Breathe down with it.',
-    'The waning crescent is the cycle\'s permission to stop. Stop. Rest. Let what wants to release, release.',
+    "The waning crescent is the cycle's permission to stop. Stop. Rest. Let what wants to release, release.",
   ],
   completing: [
     'The new moon is approaching. What this cycle has taught you is settling in. Do not force conclusions.',
@@ -525,7 +525,7 @@ const WANING_CRESCENT_DEEP_TIDES = {
 };
 
 export const phaseContent = {
-  'new': {
+  new: {
     title: 'New Moon',
     symbol: '🌑',
     energy: 'Seed',
@@ -575,13 +575,13 @@ export const phaseContent = {
     typeOpening: WAXING_GIBBOUS_TIDES,
     deepTides: WAXING_GIBBOUS_DEEP_TIDES,
     guidance: "You're close. Adjust, trust, keep going.",
-    deep: 'Almost full. Refine, don\'t revolutionize. Adjust the details. The peak approaches. Trust what you\'ve built.',
+    deep: "Almost full. Refine, don't revolutionize. Adjust the details. The peak approaches. Trust what you've built.",
     keywords: ['Refinement', 'Anticipation', 'Adjustment', 'Nearing', 'Clarity'],
     asks: 'What needs refining before completion?',
     loopAdvice: 'Refine loops. Adjust details. Trust progress.',
   },
 
-  'full': {
+  full: {
     title: 'Full Moon',
     symbol: '🌕',
     energy: 'Illuminate',
@@ -603,7 +603,7 @@ export const phaseContent = {
     typeOpening: WANING_GIBBOUS_TIDES,
     deepTides: WANING_GIBBOUS_DEEP_TIDES,
     guidance: 'Give back what you have gathered. Reflect and release.',
-    deep: 'The peak has passed. Share what you\'ve learned. Give back. Gratitude flows naturally now.',
+    deep: "The peak has passed. Share what you've learned. Give back. Gratitude flows naturally now.",
     keywords: ['Gratitude', 'Sharing', 'Integration', 'Generosity', 'Wisdom'],
     asks: 'What can you share with others?',
     loopAdvice: 'Share progress. Teach what you learned. Begin releasing.',
@@ -617,7 +617,7 @@ export const phaseContent = {
     typeOpening: LAST_QUARTER_TIDES,
     deepTides: LAST_QUARTER_DEEP_TIDES,
     guidance: "Let go of what didn't close. Clear space.",
-    deep: 'Half-lit again, but releasing. What didn\'t work? Let it go. Clear the field for what\'s next.',
+    deep: "Half-lit again, but releasing. What didn't work? Let it go. Clear the field for what's next.",
     keywords: ['Release', 'Forgiveness', 'Clearing', 'Surrender', 'Space'],
     asks: 'What do you need to release?',
     loopAdvice: 'Close incomplete loops. Clear what blocks you. Forgive.',
@@ -631,7 +631,7 @@ export const phaseContent = {
     typeOpening: WANING_CRESCENT_TIDES,
     deepTides: WANING_CRESCENT_DEEP_TIDES,
     guidance: 'The cycle completes. Be still. Restore.',
-    deep: 'Final sliver before darkness. Rest deeply. Dream. Don\'t start new things. Let the cycle complete.',
+    deep: "Final sliver before darkness. Rest deeply. Dream. Don't start new things. Let the cycle complete.",
     keywords: ['Rest', 'Mystery', 'Restoration', 'Endings', 'Surrender'],
     asks: 'How can you rest more deeply?',
     loopAdvice: 'Rest. Do not open new loops. Let the cycle complete.',

@@ -53,7 +53,12 @@ if (typeof document !== 'undefined') {
   }
 }
 
-export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 50, phaseName = null }) {
+export function MoonFace({
+  size = 180,
+  phase = 0,
+  illumination: _illumination = 50,
+  phaseName = null,
+}) {
   // phase: 0 = new moon, 0.5 = full moon, 1 = new moon again
 
   // Generate accessible description
@@ -246,7 +251,8 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
+            background:
+              'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
             clipPath: clipPath,
             pointerEvents: 'none',
           }}
@@ -281,7 +287,8 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%)',
+            background:
+              'radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%)',
             clipPath: clipPath,
             pointerEvents: 'none',
           }}
@@ -296,7 +303,8 @@ export function MoonFace({ size = 180, phase = 0, illumination: _illumination = 
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
+            background:
+              'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
             backgroundSize: '200% 200%',
             clipPath: clipPath,
             pointerEvents: 'none',
@@ -421,7 +429,7 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
         className="moon-glow"
         style={{
           position: 'absolute',
-          inset: -(size * 4 / 180),
+          inset: -((size * 4) / 180),
           borderRadius: '50%',
           boxShadow: isNewMoon
             ? `0 0 ${Math.round(25 * glowScale)}px rgba(255, 220, 150, 0.1)`
@@ -476,7 +484,8 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
+            background:
+              'radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%)',
             clipPath: clipPath,
             pointerEvents: 'none',
           }}
@@ -511,7 +520,8 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%)',
+            background:
+              'radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%)',
             clipPath: clipPath,
             pointerEvents: 'none',
           }}
@@ -526,7 +536,8 @@ export function MiniMoon({ size = 24, phase = 0, phaseName = null }) {
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
+            background:
+              'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 50%)',
             backgroundSize: '200% 200%',
             clipPath: clipPath,
             pointerEvents: 'none',

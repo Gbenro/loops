@@ -4,22 +4,26 @@
 // The 8 solar thresholds - days relative to Winter Solstice (Day 1)
 // Winter Solstice is the start of the solar year
 const SOLAR_THRESHOLDS = [
-  { name: 'Winter Solstice', solarDay: 1   },  // Dec 21 - Day 1
-  { name: 'Imbolc',          solarDay: 44  },  // Feb 2  - ~44 days after WS
-  { name: 'Spring Equinox',  solarDay: 91  },  // Mar 21 - ~91 days after WS
-  { name: 'Beltane',         solarDay: 132 },  // May 1  - ~132 days after WS
-  { name: 'Summer Solstice', solarDay: 183 },  // Jun 21 - ~183 days after WS
-  { name: 'Lughnasadh',      solarDay: 224 },  // Aug 1  - ~224 days after WS
-  { name: 'Autumn Equinox',  solarDay: 277 },  // Sep 23 - ~277 days after WS
-  { name: 'Samhain',         solarDay: 316 },  // Nov 1  - ~316 days after WS
+  { name: 'Winter Solstice', solarDay: 1 }, // Dec 21 - Day 1
+  { name: 'Imbolc', solarDay: 44 }, // Feb 2  - ~44 days after WS
+  { name: 'Spring Equinox', solarDay: 91 }, // Mar 21 - ~91 days after WS
+  { name: 'Beltane', solarDay: 132 }, // May 1  - ~132 days after WS
+  { name: 'Summer Solstice', solarDay: 183 }, // Jun 21 - ~183 days after WS
+  { name: 'Lughnasadh', solarDay: 224 }, // Aug 1  - ~224 days after WS
+  { name: 'Autumn Equinox', solarDay: 277 }, // Sep 23 - ~277 days after WS
+  { name: 'Samhain', solarDay: 316 }, // Nov 1  - ~316 days after WS
 ];
 
 // Season descriptions — what each season quality invites
 const SEASON_DESCRIPTIONS = {
-  'Winter': 'The land rests. Energy draws inward. What you tend to internally during winter shapes what can emerge in spring.',
-  'Spring': 'The world stirs again. The sap rises. Creative force returns to the surface — meet it with intention.',
-  'Summer': 'Full light, full heat, full action. The peak of the outward arc. This is the time to do what needs doing.',
-  'Autumn': 'Light retreats. The harvest comes in. What you built in the outward arc is being gathered and sorted.',
+  Winter:
+    'The land rests. Energy draws inward. What you tend to internally during winter shapes what can emerge in spring.',
+  Spring:
+    'The world stirs again. The sap rises. Creative force returns to the surface — meet it with intention.',
+  Summer:
+    'Full light, full heat, full action. The peak of the outward arc. This is the time to do what needs doing.',
+  Autumn:
+    'Light retreats. The harvest comes in. What you built in the outward arc is being gathered and sorted.',
 };
 
 // Season definitions with day-of-year boundaries (Northern Hemisphere)
@@ -80,7 +84,7 @@ export function getSolarDayOfYear(date = new Date()) {
   } else {
     // Before Winter Solstice in Gregorian, but after in solar year
     const daysInPrevYear = isLeapYear(year - 1) ? 366 : 365;
-    return (daysInPrevYear - WINTER_SOLSTICE_DAY) + gregorianDay + 1;
+    return daysInPrevYear - WINTER_SOLSTICE_DAY + gregorianDay + 1;
   }
 }
 
@@ -97,18 +101,18 @@ export function getSeasonInfo(date = new Date(), hemisphere = 'north') {
     const daysInYear = isLeapYear(year) ? 366 : 365;
     let daysToNext;
     if (dayOfYear >= 355) {
-      daysToNext = (daysInYear - dayOfYear) + 80;
+      daysToNext = daysInYear - dayOfYear + 80;
     } else {
       daysToNext = 80 - dayOfYear;
     }
 
     // Calculate progress through wrap season
-    const seasonLength = (daysInYear - 355) + 80;
+    const seasonLength = daysInYear - 355 + 80;
     let dayIntoSeason;
     if (dayOfYear >= 355) {
       dayIntoSeason = dayOfYear - 355;
     } else {
-      dayIntoSeason = (daysInYear - 355) + dayOfYear;
+      dayIntoSeason = daysInYear - 355 + dayOfYear;
     }
     const progress = dayIntoSeason / seasonLength;
 
@@ -153,7 +157,7 @@ export function getSeasonInfo(date = new Date(), hemisphere = 'north') {
 
 // Check if leap year
 function isLeapYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 // Get sun sign (approximate, based on date)
@@ -182,16 +186,20 @@ export function getSunSign(date = new Date()) {
 
     // Handle Capricorn wrapping around year
     if (startMonth > endMonth) {
-      if ((month === startMonth && day >= startDay) ||
-          (month === endMonth && day <= endDay) ||
-          (month === 12 && month > startMonth) ||
-          (month === 1 && month < endMonth)) {
+      if (
+        (month === startMonth && day >= startDay) ||
+        (month === endMonth && day <= endDay) ||
+        (month === 12 && month > startMonth) ||
+        (month === 1 && month < endMonth)
+      ) {
         return s.sign;
       }
     } else {
-      if ((month === startMonth && day >= startDay) ||
-          (month === endMonth && day <= endDay) ||
-          (month > startMonth && month < endMonth)) {
+      if (
+        (month === startMonth && day >= startDay) ||
+        (month === endMonth && day <= endDay) ||
+        (month > startMonth && month < endMonth)
+      ) {
         return s.sign;
       }
     }
@@ -220,7 +228,7 @@ function getThresholdPosition(date = new Date()) {
       daysSince = solarDay - thresholdDay;
     } else {
       // Threshold is later in solar year, so days since is from last solar year
-      daysSince = (daysInYear - thresholdDay) + solarDay;
+      daysSince = daysInYear - thresholdDay + solarDay;
     }
 
     if (daysSince < daysFromLast && daysSince >= 0) {
@@ -234,7 +242,7 @@ function getThresholdPosition(date = new Date()) {
       daysUntil = thresholdDay - solarDay;
     } else {
       // Threshold is earlier in solar year, so days until is to next solar year
-      daysUntil = (daysInYear - solarDay) + thresholdDay;
+      daysUntil = daysInYear - solarDay + thresholdDay;
     }
 
     if (daysUntil < daysToNext && daysUntil > 0) {

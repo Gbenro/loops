@@ -11,7 +11,8 @@ export const NATAL = {
     element: 'Air',
     quality: 'Cardinal',
     role: 'Identity',
-    description: 'Born on the Autumn Equinox — the first degree of Libra. Your core identity seeks balance, beauty, and harmony. You are a bridge-builder, seeing all sides, sometimes to your own frustration.',
+    description:
+      'Born on the Autumn Equinox — the first degree of Libra. Your core identity seeks balance, beauty, and harmony. You are a bridge-builder, seeing all sides, sometimes to your own frustration.',
   },
 
   moon: {
@@ -22,7 +23,8 @@ export const NATAL = {
     element: 'Water',
     quality: 'Fixed',
     role: 'Inner World',
-    description: 'Your emotional nature runs deep and intense. You feel everything deeply, process in private, and transform through crisis. Trust is sacred. Betrayal cuts to the bone.',
+    description:
+      'Your emotional nature runs deep and intense. You feel everything deeply, process in private, and transform through crisis. Trust is sacred. Betrayal cuts to the bone.',
   },
 
   rising: {
@@ -33,7 +35,8 @@ export const NATAL = {
     element: 'Air',
     quality: 'Cardinal',
     role: 'First Impression',
-    description: 'You present as diplomatic, charming, and aesthetically aware. People see grace and balance. But your Scorpio moon means the depths are far more intense than the surface suggests.',
+    description:
+      'You present as diplomatic, charming, and aesthetically aware. People see grace and balance. But your Scorpio moon means the depths are far more intense than the surface suggests.',
   },
 
   // Birth data

@@ -10,8 +10,8 @@ export function Ring({
   speed = '2s',
   dim = false,
   glow = false,
-  variant = 'default',  // 'default' | 'cycle'
-  children
+  variant = 'default', // 'default' | 'cycle'
+  children,
 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -21,22 +21,20 @@ export function Ring({
   const isCycle = variant === 'cycle';
 
   return (
-    <div style={{
-      position: 'relative',
-      width: size,
-      height: size,
-      flexShrink: 0,
-    }}>
-      <svg
-        width={size}
-        height={size}
-        style={{ transform: 'rotate(-90deg)' }}
-      >
+    <div
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        flexShrink: 0,
+      }}
+    >
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
         {/* Outer glow ring for cycle variant */}
         {isCycle && (
           <circle
-            cx={size/2}
-            cy={size/2}
+            cx={size / 2}
+            cy={size / 2}
             r={r + stroke}
             fill="none"
             stroke="rgba(245, 230, 200, 0.04)"
@@ -45,18 +43,18 @@ export function Ring({
         )}
         {/* Background track */}
         <circle
-          cx={size/2}
-          cy={size/2}
+          cx={size / 2}
+          cy={size / 2}
           r={r}
           fill="none"
           stroke={isCycle ? 'rgba(245, 230, 200, 0.12)' : 'var(--color-input-hover)'}
           strokeWidth={stroke}
-          strokeDasharray={isCycle ? '2 4' : 'none'}  // Dotted for cycle
+          strokeDasharray={isCycle ? '2 4' : 'none'} // Dotted for cycle
         />
         {/* Progress arc */}
         <circle
-          cx={size/2}
-          cy={size/2}
+          cx={size / 2}
+          cy={size / 2}
           r={r}
           fill="none"
           stroke={displayColor}
@@ -67,14 +65,15 @@ export function Ring({
           style={{
             transition: 'stroke-dashoffset 0.4s ease, stroke 0.4s ease',
             opacity: dim ? 0.3 : 1,
-            filter: glow || isCycle ? `drop-shadow(0 0 ${isCycle ? 6 : 4}px ${displayColor})` : 'none',
+            filter:
+              glow || isCycle ? `drop-shadow(0 0 ${isCycle ? 6 : 4}px ${displayColor})` : 'none',
           }}
         />
         {/* Inner ring for cycle variant */}
         {isCycle && (
           <circle
-            cx={size/2}
-            cy={size/2}
+            cx={size / 2}
+            cy={size / 2}
             r={r - stroke - 2}
             fill="none"
             stroke="rgba(245, 230, 200, 0.06)"
@@ -85,33 +84,39 @@ export function Ring({
 
       {/* Center content */}
       {children && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {children}
         </div>
       )}
 
       {/* Pulse indicator */}
       {pulse && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <div style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: displayColor,
-            animation: `breathe ${speed} ease-in-out infinite`,
-          }} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: displayColor,
+              animation: `breathe ${speed} ease-in-out infinite`,
+            }}
+          />
         </div>
       )}
     </div>
@@ -129,16 +134,16 @@ export function MiniRing({ pct = 0, color = '#A78BFA', size = 16 }) {
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
       <circle
-        cx={size/2}
-        cy={size/2}
+        cx={size / 2}
+        cy={size / 2}
         r={r}
         fill="none"
         stroke="rgba(245, 230, 200, 0.1)"
         strokeWidth={2}
       />
       <circle
-        cx={size/2}
-        cy={size/2}
+        cx={size / 2}
+        cy={size / 2}
         r={r}
         fill="none"
         stroke={displayColor}

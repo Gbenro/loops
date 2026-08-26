@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 
 // Design tokens
 const THRESHOLD_COLOR = '#F5E6C8'; // brighter cream — pivotal
-const FLOW_COLOR = '#C9A84C';      // warm amber — sustained
+const FLOW_COLOR = '#C9A84C'; // warm amber — sustained
 
 export function PhaseTideBar({ lunarData }) {
   const {
@@ -34,7 +34,7 @@ export function PhaseTideBar({ lunarData }) {
 
   // Status text based on progress
   const status = useMemo(() => {
-    if (clampedProgress < 0.20) return 'OPENING';
+    if (clampedProgress < 0.2) return 'OPENING';
     if (clampedProgress < 0.62) return 'FLOWING';
     if (clampedProgress < 0.88) return 'COMPLETING';
     return 'CLOSING';
@@ -66,8 +66,8 @@ export function PhaseTideBar({ lunarData }) {
     if (isImminent) return 'rgba(252, 180, 80, 0.9)';
     if (isApproaching) return 'rgba(252, 200, 120, 0.7)';
     return isThreshold
-      ? 'var(--color-text-dim)'  // brighter for threshold
-      : 'rgba(201, 168, 76, 0.5)';   // amber for flow
+      ? 'var(--color-text-dim)' // brighter for threshold
+      : 'rgba(201, 168, 76, 0.5)'; // amber for flow
   }, [isApproaching, isImminent, isThreshold]);
 
   const dotColor = useMemo(() => {
@@ -78,79 +78,89 @@ export function PhaseTideBar({ lunarData }) {
 
   // Sub-label based on phase type and tide position — observational, distinct from Sky card text
   const subLabel = isThreshold
-    ? (clampedProgress < 0.20 ? 'A turning point. Brief and potent.'
-      : clampedProgress < 0.62 ? 'Inside the pivot.'
-      : clampedProgress < 0.88 ? 'The decision is resolving.'
-      : 'The threshold is passing.')
-    : (clampedProgress < 0.20 ? 'Time to move with what is already moving.'
-      : clampedProgress < 0.62 ? 'In the current.'
-      : clampedProgress < 0.88 ? 'Approaching the close.'
-      : 'Final movement.');
+    ? clampedProgress < 0.2
+      ? 'A turning point. Brief and potent.'
+      : clampedProgress < 0.62
+        ? 'Inside the pivot.'
+        : clampedProgress < 0.88
+          ? 'The decision is resolving.'
+          : 'The threshold is passing.'
+    : clampedProgress < 0.2
+      ? 'Time to move with what is already moving.'
+      : clampedProgress < 0.62
+        ? 'In the current.'
+        : clampedProgress < 0.88
+          ? 'Approaching the close.'
+          : 'Final movement.';
 
   return (
-    <div style={{
-      padding: '14px 20px',
-      background: isThreshold
-        ? 'var(--color-input-bg)'
-        : 'rgba(201, 168, 76, 0.03)',
-      borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
-    }}>
+    <div
+      style={{
+        padding: '14px 20px',
+        background: isThreshold ? 'var(--color-input-bg)' : 'rgba(201, 168, 76, 0.03)',
+        borderBottom: '1px solid rgba(245, 230, 200, 0.06)',
+      }}
+    >
       {/* Phase type and day */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 6,
-      }}>
-        <span style={{
-          fontSize: 9,
-          fontFamily: 'monospace',
-          letterSpacing: '0.12em',
-          color: isThreshold
-            ? 'var(--color-text)'
-            : 'rgba(201, 168, 76, 0.8)',
-          padding: '3px 8px',
-          background: isThreshold
-            ? 'var(--color-input-hover)'
-            : 'rgba(201, 168, 76, 0.1)',
-          borderRadius: 4,
-          fontWeight: isThreshold ? 600 : 400,
-        }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 9,
+            fontFamily: 'monospace',
+            letterSpacing: '0.12em',
+            color: isThreshold ? 'var(--color-text)' : 'rgba(201, 168, 76, 0.8)',
+            padding: '3px 8px',
+            background: isThreshold ? 'var(--color-input-hover)' : 'rgba(201, 168, 76, 0.1)',
+            borderRadius: 4,
+            fontWeight: isThreshold ? 600 : 400,
+          }}
+        >
           {phaseTypeLabel.toUpperCase()} · {dayText}
         </span>
-        <span style={{
-          fontSize: 9,
-          fontFamily: 'monospace',
-          letterSpacing: '0.08em',
-          color: isApproaching
-            ? 'rgba(252, 200, 120, 0.8)'
-            : 'var(--text-secondary)',
-        }}>
+        <span
+          style={{
+            fontSize: 9,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: isApproaching ? 'rgba(252, 200, 120, 0.8)' : 'var(--text-secondary)',
+          }}
+        >
           {remainingText}
         </span>
       </div>
 
       {/* Sub-label */}
-      <div style={{
-        fontSize: 10,
-        fontFamily: "'Cormorant Garamond', serif",
-        fontStyle: 'italic',
-        color: 'var(--color-text-muted)',
-        marginBottom: 10,
-      }}>
+      <div
+        style={{
+          fontSize: 10,
+          fontFamily: "'Cormorant Garamond', serif",
+          fontStyle: 'italic',
+          color: 'var(--color-text-muted)',
+          marginBottom: 10,
+        }}
+      >
         {subLabel}
       </div>
 
       {/* Tide track */}
-      <div style={{
-        position: 'relative',
-        height: 3,
-        borderRadius: 2,
-        background: 'var(--color-input-hover)',
-        marginBottom: 10,
-      }}>
+      <div
+        style={{
+          position: 'relative',
+          height: 3,
+          borderRadius: 2,
+          background: 'var(--color-input-hover)',
+          marginBottom: 10,
+        }}
+      >
         {/* Tick marks */}
-        {[0.25, 0.5, 0.75].map(pos => (
+        {[0.25, 0.5, 0.75].map((pos) => (
           <div
             key={pos}
             style={{
@@ -165,61 +175,69 @@ export function PhaseTideBar({ lunarData }) {
         ))}
 
         {/* Fill */}
-        <div style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          width: `${clampedProgress * 100}%`,
-          height: '100%',
-          background: `linear-gradient(to right, rgba(245, 230, 200, 0.15), ${barColor})`,
-          borderRadius: 2,
-          transition: isThreshold ? 'width 0.3s ease' : 'width 0.5s ease',
-        }} />
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: `${clampedProgress * 100}%`,
+            height: '100%',
+            background: `linear-gradient(to right, rgba(245, 230, 200, 0.15), ${barColor})`,
+            borderRadius: 2,
+            transition: isThreshold ? 'width 0.3s ease' : 'width 0.5s ease',
+          }}
+        />
 
         {/* Travelling dot */}
-        <div style={{
-          position: 'absolute',
-          left: `${clampedProgress * 100}%`,
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: isThreshold ? 10 : 8,
-          height: isThreshold ? 10 : 8,
-          borderRadius: '50%',
-          background: dotColor,
-          boxShadow: isImminent
-            ? `0 0 12px ${dotColor}, 0 0 4px ${dotColor}`
-            : isApproaching
-              ? `0 0 8px ${dotColor}`
-              : isThreshold
-                ? `0 0 8px rgba(245, 230, 200, 0.4)`
-                : `0 0 4px rgba(245, 230, 200, 0.3)`,
-          animation: isImminent ? 'pulse 1.5s ease-in-out infinite' : 'none',
-          transition: isThreshold ? 'left 0.3s ease' : 'left 0.5s ease',
-        }} />
+        <div
+          style={{
+            position: 'absolute',
+            left: `${clampedProgress * 100}%`,
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: isThreshold ? 10 : 8,
+            height: isThreshold ? 10 : 8,
+            borderRadius: '50%',
+            background: dotColor,
+            boxShadow: isImminent
+              ? `0 0 12px ${dotColor}, 0 0 4px ${dotColor}`
+              : isApproaching
+                ? `0 0 8px ${dotColor}`
+                : isThreshold
+                  ? `0 0 8px rgba(245, 230, 200, 0.4)`
+                  : `0 0 4px rgba(245, 230, 200, 0.3)`,
+            animation: isImminent ? 'pulse 1.5s ease-in-out infinite' : 'none',
+            transition: isThreshold ? 'left 0.3s ease' : 'left 0.5s ease',
+          }}
+        />
       </div>
 
       {/* Footer */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <span style={{
-          fontSize: 8,
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          color: 'var(--text-disabled)',
-        }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 8,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'var(--text-disabled)',
+          }}
+        >
           {status}
         </span>
-        <span style={{
-          fontSize: 8,
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          color: isApproaching
-            ? 'rgba(252, 200, 120, 0.6)'
-            : 'var(--color-text-muted)',
-        }}>
+        <span
+          style={{
+            fontSize: 8,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: isApproaching ? 'rgba(252, 200, 120, 0.6)' : 'var(--color-text-muted)',
+          }}
+        >
           {nextSymbol} {nextPhase?.toUpperCase()} →
         </span>
       </div>

@@ -8,8 +8,14 @@ import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { MiniMoon } from './MoonFace.jsx';
 
 const PHASE_ORDER = [
-  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+  'new',
+  'waxing-crescent',
+  'first-quarter',
+  'waxing-gibbous',
+  'full',
+  'waning-gibbous',
+  'last-quarter',
+  'waning-crescent',
 ];
 import { generatePhaseSummary, savePhaseSummary } from '../lib/storage.js';
 
@@ -23,11 +29,11 @@ function getPhaseClosingSummary(phaseKey, tideKey = 'closing') {
   }
   // Fallback to static summaries if tide data unavailable
   const FALLBACK_SUMMARIES = {
-    'new': 'The stillness gave space for seeds to form.',
+    new: 'The stillness gave space for seeds to form.',
     'waxing-crescent': 'First steps were taken. Momentum began.',
     'first-quarter': 'Decisions were made. Direction clarified.',
     'waxing-gibbous': 'Building continued. Refinement happened.',
-    'full': 'Illumination arrived. Something was revealed.',
+    full: 'Illumination arrived. Something was revealed.',
     'waning-gibbous': 'Sharing began. Gratitude flowed.',
     'last-quarter': 'Release happened. Letting go.',
     'waning-crescent': 'Rest restored. Completion neared.',
@@ -36,14 +42,20 @@ function getPhaseClosingSummary(phaseKey, tideKey = 'closing') {
 }
 
 const TRANSITION_INVITATIONS = {
-  'Waxing Crescent': 'First movement begins. What is the most natural first step toward your intention?',
+  'Waxing Crescent':
+    'First movement begins. What is the most natural first step toward your intention?',
   'First Quarter': 'The energy sharpens. A decision is forming. Let it arrive without forcing it.',
-  'Waxing Gibbous': 'The building deepens. What needs your most focused attention before the Full Moon?',
-  'Full Moon': 'The peak is almost here. Begin to receive rather than create. Something will be revealed.',
-  'Waning Gibbous': 'The light has reached its fullness. What wants to be shared from what you\'ve gathered?',
-  'Last Quarter': 'The releasing phase arrives. What loops are ready to close — or be consciously let go?',
+  'Waxing Gibbous':
+    'The building deepens. What needs your most focused attention before the Full Moon?',
+  'Full Moon':
+    'The peak is almost here. Begin to receive rather than create. Something will be revealed.',
+  'Waning Gibbous':
+    "The light has reached its fullness. What wants to be shared from what you've gathered?",
+  'Last Quarter':
+    'The releasing phase arrives. What loops are ready to close — or be consciously let go?',
   'Waning Crescent': 'The cycle moves toward stillness. Begin to slow. Rest is preparing you.',
-  'New Moon': 'A new cycle is close. Let the remaining hours be empty. Something is forming in the dark.',
+  'New Moon':
+    'A new cycle is close. Let the remaining hours be empty. Something is forming in the dark.',
 };
 
 // Phase type context for the arriving phase
@@ -53,7 +65,15 @@ const THRESHOLD_INTRO = (phaseName) =>
 const FLOW_INTRO = (phaseName, duration) =>
   `A flow phase opens. ${phaseName} gives you ${duration}+ days. No rush. Settle in.`;
 
-export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transitionInvitation, phrasesLoading: _phrasesLoading, echoes = [], loops = [] }) {
+export function PhaseTransitionCard({
+  lunarData,
+  onDismiss,
+  onOpenEchoes,
+  transitionInvitation,
+  phrasesLoading: _phrasesLoading,
+  echoes = [],
+  loops = [],
+}) {
   const {
     isApproaching,
     isImminent,
@@ -80,15 +100,16 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
 
   // Current (closing) phase info
   const currentPhaseContent = getPhaseContent(phase.key);
-  const hasActivity = phaseSummary && (
-    phaseSummary.stats.echoCount > 0 ||
-    phaseSummary.stats.loopsOpenedCount > 0 ||
-    phaseSummary.stats.loopsClosedCount > 0
-  );
+  const hasActivity =
+    phaseSummary &&
+    (phaseSummary.stats.echoCount > 0 ||
+      phaseSummary.stats.loopsOpenedCount > 0 ||
+      phaseSummary.stats.loopsClosedCount > 0);
   const closingSummary = getPhaseClosingSummary(phase.key, 'closing');
 
   // Use generated phrase if available, fall back to static
-  const invitation = transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
+  const invitation =
+    transitionInvitation || TRANSITION_INVITATIONS[nextPhase] || 'A shift is approaching.';
   const isNextThreshold = nextPhaseType === 'threshold';
 
   // Phase type intro
@@ -97,87 +118,102 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
     : FLOW_INTRO(nextPhase, Math.floor(nextPhaseDuration));
 
   // Time remaining text
-  const timeText = remainingHours < 1
-    ? `${Math.round(remainingHours * 60)}m`
-    : `${remainingHours.toFixed(1)}h`;
+  const timeText =
+    remainingHours < 1 ? `${Math.round(remainingHours * 60)}m` : `${remainingHours.toFixed(1)}h`;
 
   return (
     <div style={{ margin: '0 0 16px' }}>
       {/* Part 1: Phase Closing Summary */}
-      <div style={{
-        padding: '14px 16px',
-        borderRadius: '14px 14px 0 0',
-        background: 'var(--color-input-bg)',
-        border: '1px solid rgba(245, 230, 200, 0.08)',
-        borderBottom: 'none',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
-        }}>
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: '14px 14px 0 0',
+          background: 'var(--color-input-bg)',
+          border: '1px solid rgba(245, 230, 200, 0.08)',
+          borderBottom: 'none',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 10,
+          }}
+        >
           <MiniMoon size={16} phase={PHASE_ORDER.indexOf(phase.key) / 8} phaseName={phase.name} />
-          <span style={{
-            fontSize: 9,
-            fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            color: 'var(--color-focus)',
-          }}>
+          <span
+            style={{
+              fontSize: 9,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              color: 'var(--color-focus)',
+            }}
+          >
             {phase.name.toUpperCase()} CLOSING
           </span>
         </div>
 
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 13,
-          fontStyle: 'italic',
-          color: 'var(--color-text-dim)',
-          lineHeight: 1.5,
-          marginBottom: hasActivity ? 12 : 0,
-        }}>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 13,
+            fontStyle: 'italic',
+            color: 'var(--color-text-dim)',
+            lineHeight: 1.5,
+            marginBottom: hasActivity ? 12 : 0,
+          }}
+        >
           {closingSummary}
         </div>
 
         {hasActivity && (
-          <div style={{
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
             {phaseSummary.stats.echoCount > 0 && (
-              <span style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                color: 'var(--color-focus)',
-                padding: '4px 8px',
-                background: 'var(--color-input-bg)',
-                borderRadius: 4,
-              }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: 'var(--color-focus)',
+                  padding: '4px 8px',
+                  background: 'var(--color-input-bg)',
+                  borderRadius: 4,
+                }}
+              >
                 {phaseSummary.stats.echoCount} echo{phaseSummary.stats.echoCount !== 1 ? 'es' : ''}
               </span>
             )}
             {phaseSummary.stats.loopsOpenedCount > 0 && (
-              <span style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                color: 'rgba(167, 139, 250, 0.7)',
-                padding: '4px 8px',
-                background: 'rgba(167, 139, 250, 0.1)',
-                borderRadius: 4,
-              }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: 'rgba(167, 139, 250, 0.7)',
+                  padding: '4px 8px',
+                  background: 'rgba(167, 139, 250, 0.1)',
+                  borderRadius: 4,
+                }}
+              >
                 {phaseSummary.stats.loopsOpenedCount} opened
               </span>
             )}
             {phaseSummary.stats.loopsClosedCount > 0 && (
-              <span style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                color: 'rgba(52, 211, 153, 0.7)',
-                padding: '4px 8px',
-                background: 'rgba(52, 211, 153, 0.1)',
-                borderRadius: 4,
-              }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: 'rgba(52, 211, 153, 0.7)',
+                  padding: '4px 8px',
+                  background: 'rgba(52, 211, 153, 0.1)',
+                  borderRadius: 4,
+                }}
+              >
                 {phaseSummary.stats.loopsClosedCount} closed
               </span>
             )}
@@ -187,24 +223,30 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
         {phaseSummary?.echoes?.length > 0 && (
           <div style={{ marginTop: 12 }}>
             {phaseSummary.echoes.slice(0, 2).map((echo) => (
-              <div key={echo.id} style={{
-                fontSize: 11,
-                color: 'var(--color-focus)',
-                fontStyle: 'italic',
-                marginBottom: 4,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}>
-                &ldquo;{echo.text.slice(0, 60)}{echo.text.length > 60 ? '...' : ''}&rdquo;
+              <div
+                key={echo.id}
+                style={{
+                  fontSize: 11,
+                  color: 'var(--color-focus)',
+                  fontStyle: 'italic',
+                  marginBottom: 4,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                &ldquo;{echo.text.slice(0, 60)}
+                {echo.text.length > 60 ? '...' : ''}&rdquo;
               </div>
             ))}
             {phaseSummary.echoes.length > 2 && (
-              <div style={{
-                fontSize: 9,
-                color: 'var(--color-text-muted)',
-                fontFamily: 'monospace',
-              }}>
+              <div
+                style={{
+                  fontSize: 9,
+                  color: 'var(--color-text-muted)',
+                  fontFamily: 'monospace',
+                }}
+              >
                 +{phaseSummary.echoes.length - 2} more
               </div>
             )}
@@ -213,22 +255,26 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
       </div>
 
       {/* Part 2: Transition Preview */}
-      <div style={{
-        padding: '16px',
-        borderRadius: '0 0 14px 14px',
-        background: isImminent
-          ? 'rgba(252, 180, 80, 0.08)'
-          : isNextThreshold
-            ? 'var(--color-input-bg)'
-            : 'rgba(201, 168, 76, 0.04)',
-        border: `1px solid ${isImminent
-          ? 'rgba(252, 180, 80, 0.2)'
-          : isNextThreshold
-            ? 'rgba(245, 230, 200, 0.12)'
-            : 'rgba(201, 168, 76, 0.15)'}`,
-        borderTop: 'none',
-        position: 'relative',
-      }}>
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: '0 0 14px 14px',
+          background: isImminent
+            ? 'rgba(252, 180, 80, 0.08)'
+            : isNextThreshold
+              ? 'var(--color-input-bg)'
+              : 'rgba(201, 168, 76, 0.04)',
+          border: `1px solid ${
+            isImminent
+              ? 'rgba(252, 180, 80, 0.2)'
+              : isNextThreshold
+                ? 'rgba(245, 230, 200, 0.12)'
+                : 'rgba(201, 168, 76, 0.15)'
+          }`,
+          borderTop: 'none',
+          position: 'relative',
+        }}
+      >
         <button
           onClick={onDismiss}
           style={{
@@ -247,93 +293,109 @@ export function PhaseTransitionCard({ lunarData, onDismiss, onOpenEchoes, transi
           ×
         </button>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 12,
-        }}>
-          <span style={{
-            fontSize: 9,
-            fontFamily: 'monospace',
-            letterSpacing: '0.12em',
-            color: isImminent
-              ? 'rgba(252, 180, 80, 0.9)'
-              : 'var(--color-text-muted)',
-          }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 9,
+              fontFamily: 'monospace',
+              letterSpacing: '0.12em',
+              color: isImminent ? 'rgba(252, 180, 80, 0.9)' : 'var(--color-text-muted)',
+            }}
+          >
             {isImminent ? 'SHIFTING NOW' : 'APPROACHING'} · {timeText}
           </span>
-          <span style={{
-            fontSize: 8,
-            fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            padding: '2px 6px',
-            borderRadius: 3,
-            background: isNextThreshold
-              ? 'var(--color-border-light)'
-              : 'rgba(201, 168, 76, 0.12)',
-            color: isNextThreshold
-              ? 'var(--color-text-dim)'
-              : 'rgba(201, 168, 76, 0.8)',
-          }}>
+          <span
+            style={{
+              fontSize: 8,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              padding: '2px 6px',
+              borderRadius: 3,
+              background: isNextThreshold
+                ? 'var(--color-border-light)'
+                : 'rgba(201, 168, 76, 0.12)',
+              color: isNextThreshold ? 'var(--color-text-dim)' : 'rgba(201, 168, 76, 0.8)',
+            }}
+          >
             {isNextThreshold ? 'THRESHOLD' : 'FLOW'}
           </span>
         </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginBottom: 10,
-        }}>
-          <div style={{
-            filter: isImminent
-              ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
-              : isNextThreshold
-                ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
-                : 'none',
-          }}>
-            <MiniMoon size={28} phase={(PHASE_ORDER.indexOf(phase.key) + 1) % 8 / 8} phaseName={nextPhase} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
+          <div
+            style={{
+              filter: isImminent
+                ? 'drop-shadow(0 0 8px rgba(252, 180, 80, 0.4))'
+                : isNextThreshold
+                  ? 'drop-shadow(0 0 6px rgba(245, 230, 200, 0.3))'
+                  : 'none',
+            }}
+          >
+            <MiniMoon
+              size={28}
+              phase={((PHASE_ORDER.indexOf(phase.key) + 1) % 8) / 8}
+              phaseName={nextPhase}
+            />
           </div>
           <div>
-            <div style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 18,
-              color: 'var(--color-text)',
-            }}>
+            <div
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 18,
+                color: 'var(--color-text)',
+              }}
+            >
               {nextPhase}
             </div>
-            <div style={{
-              fontSize: 9,
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              color: 'var(--color-text-muted)',
-            }}>
+            <div
+              style={{
+                fontSize: 9,
+                fontFamily: 'monospace',
+                letterSpacing: '0.1em',
+                color: 'var(--color-text-muted)',
+              }}
+            >
               {nextEnergy?.toUpperCase()} · {nextPhaseDuration} DAYS
             </div>
           </div>
         </div>
 
-        <div style={{
-          fontSize: 12,
-          fontFamily: "'Cormorant Garamond', serif",
-          color: isNextThreshold
-            ? 'rgba(245, 230, 200, 0.65)'
-            : 'rgba(201, 168, 76, 0.7)',
-          marginBottom: 10,
-          lineHeight: 1.5,
-        }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontFamily: "'Cormorant Garamond', serif",
+            color: isNextThreshold ? 'rgba(245, 230, 200, 0.65)' : 'rgba(201, 168, 76, 0.7)',
+            marginBottom: 10,
+            lineHeight: 1.5,
+          }}
+        >
           {typeIntro}
         </div>
 
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 14,
-          fontStyle: 'italic',
-          color: 'var(--color-text)',
-          lineHeight: 1.6,
-          marginBottom: 14,
-        }}>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 14,
+            fontStyle: 'italic',
+            color: 'var(--color-text)',
+            lineHeight: 1.6,
+            marginBottom: 14,
+          }}
+        >
           {invitation}
         </div>
 

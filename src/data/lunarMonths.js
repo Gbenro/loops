@@ -1,34 +1,37 @@
 // Luna Loops - Lunar Month Names and Meanings
 
 export const lunarMonths = {
-  'Wolf': {
+  Wolf: {
     name: 'Wolf Moon',
     nameSouth: 'Fire Moon',
     timing: 'January',
     meaning: 'Deep cold. Wolves howl. Survival depends on community. Who is your pack?',
-    meaningSouth: 'Peak summer fire. The sun is at full force. What in you burns brightest right now?',
+    meaningSouth:
+      'Peak summer fire. The sun is at full force. What in you burns brightest right now?',
     keywords: ['Survival', 'Strength', 'Pack', 'Community'],
   },
 
-  'Snow': {
+  Snow: {
     name: 'Snow Moon',
     nameSouth: 'Abundance Moon',
     timing: 'February',
     meaning: 'Heavy snows fall. Patience and inner reflection. Trust the waiting.',
-    meaningSouth: 'Late summer abundance. The land is full. Gather and give thanks before the turn.',
+    meaningSouth:
+      'Late summer abundance. The land is full. Gather and give thanks before the turn.',
     keywords: ['Patience', 'Stillness', 'Reflection', 'Endurance'],
   },
 
-  'Worm': {
+  Worm: {
     name: 'Worm Moon',
     nameSouth: 'Harvest Moon',
     timing: 'March',
     meaning: 'Ground thaws. Life stirs below the surface. Renewal begins in the dark.',
-    meaningSouth: 'The main gathering. Autumn arrives with its gifts. Bring in what you have grown.',
+    meaningSouth:
+      'The main gathering. Autumn arrives with its gifts. Bring in what you have grown.',
     keywords: ['Awakening', 'Emergence', 'Renewal', 'Spring'],
   },
 
-  'Pink': {
+  Pink: {
     name: 'Pink Moon',
     nameSouth: 'Release Moon',
     timing: 'April',
@@ -37,7 +40,7 @@ export const lunarMonths = {
     keywords: ['Beauty', 'Bloom', 'Color', 'Growth'],
   },
 
-  'Flower': {
+  Flower: {
     name: 'Flower Moon',
     nameSouth: 'Stillness Moon',
     timing: 'May',
@@ -46,39 +49,43 @@ export const lunarMonths = {
     keywords: ['Abundance', 'Fertility', 'Celebration', 'Bloom'],
   },
 
-  'Strawberry': {
+  Strawberry: {
     name: 'Strawberry Moon',
     nameSouth: 'Seed Moon',
     timing: 'June',
-    meaning: 'First harvest ripens. Sweet rewards for patience. Taste what you\'ve grown.',
-    meaningSouth: 'Midwinter. The darkest point. Plant the seeds of what you wish to grow in spring.',
+    meaning: "First harvest ripens. Sweet rewards for patience. Taste what you've grown.",
+    meaningSouth:
+      'Midwinter. The darkest point. Plant the seeds of what you wish to grow in spring.',
     keywords: ['Harvest', 'Sweetness', 'Reward', 'Summer'],
   },
 
-  'Buck': {
+  Buck: {
     name: 'Buck Moon',
     nameSouth: 'Emergence Moon',
     timing: 'July',
     meaning: 'Antlers grow. Peak summer power. What natural strength are you developing?',
-    meaningSouth: 'The cold begins to lift. Something stirs. What is ready to emerge from within you?',
+    meaningSouth:
+      'The cold begins to lift. Something stirs. What is ready to emerge from within you?',
     keywords: ['Power', 'Growth', 'Peak', 'Renewal'],
   },
 
-  'Sturgeon': {
+  Sturgeon: {
     name: 'Sturgeon Moon',
     nameSouth: 'Bloom Moon',
     timing: 'August',
-    meaning: 'Harvest from deep waters. Abundance exists in places you can\'t see.',
-    meaningSouth: 'Spring blooms open. Life returns visibly. Let what is ready in you come forward.',
+    meaning: "Harvest from deep waters. Abundance exists in places you can't see.",
+    meaningSouth:
+      'Spring blooms open. Life returns visibly. Let what is ready in you come forward.',
     keywords: ['Abundance', 'Depth', 'Provision', 'Harvest'],
   },
 
-  'Harvest': {
+  Harvest: {
     name: 'Harvest Moon',
     nameSouth: 'Radiance Moon',
     timing: 'September',
-    meaning: 'The main gathering. Bring in what you\'ve grown before winter comes.',
-    meaningSouth: 'Full spring radiance. Light and warmth in abundance. Shine what you have been growing.',
+    meaning: "The main gathering. Bring in what you've grown before winter comes.",
+    meaningSouth:
+      'Full spring radiance. Light and warmth in abundance. Shine what you have been growing.',
     keywords: ['Harvest', 'Gratitude', 'Completion', 'Gathering'],
   },
 
@@ -91,7 +98,7 @@ export const lunarMonths = {
     keywords: ['Strategy', 'Preparation', 'Hunt', 'Focus'],
   },
 
-  'Beaver': {
+  Beaver: {
     name: 'Beaver Moon',
     nameSouth: 'Gathering Moon',
     timing: 'November',
@@ -100,21 +107,22 @@ export const lunarMonths = {
     keywords: ['Building', 'Preparation', 'Security', 'Industry'],
   },
 
-  'Cold': {
+  Cold: {
     name: 'Cold Moon',
     nameSouth: 'Deep Rest Moon',
     timing: 'December',
     meaning: 'Longest nights arrive. Go inward. Tend your inner fire. Trust returning light.',
-    meaningSouth: 'Peak summer heat begins to soften. A brief rest before the year completes its arc.',
+    meaningSouth:
+      'Peak summer heat begins to soften. A brief rest before the year completes its arc.',
     keywords: ['Cold', 'Inward', 'Rest', 'Darkness'],
   },
 
-  'Blue': {
+  Blue: {
     name: 'Blue Moon',
     nameSouth: 'Blue Moon',
     timing: 'Variable',
-    meaning: 'Rare second full moon. Unexpected magic. Don\'t waste it on ordinary wishes.',
-    meaningSouth: 'Rare second full moon. Unexpected magic. Don\'t waste it on ordinary wishes.',
+    meaning: "Rare second full moon. Unexpected magic. Don't waste it on ordinary wishes.",
+    meaningSouth: "Rare second full moon. Unexpected magic. Don't waste it on ordinary wishes.",
     keywords: ['Rare', 'Magic', 'Surprise', 'Opportunity'],
   },
 };

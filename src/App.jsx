@@ -7,7 +7,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
 import { migrateLocalToServer, getLoops, getEchoes, clearLocalCache } from './lib/storage.js';
 import { clearRhythmCache } from './lib/rhythm.js';
-import { getSessionPhrases, FALLBACK_PHRASES, clearPhraseCache, isCacheStale } from './lib/language.js';
+import {
+  getSessionPhrases,
+  FALLBACK_PHRASES,
+  clearPhraseCache,
+  isCacheStale,
+} from './lib/language.js';
 import { getLunarData } from './lib/lunar.js';
 import { getSolarData } from './lib/solar.js';
 import { detectLocation, getCachedLocation } from './lib/location.js';
@@ -21,7 +26,14 @@ import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
 import { useEncryption } from './lib/EncryptionContext.jsx';
 import { LunaLogo } from './components/LunaLogo.jsx';
-import { OnboardingProvider, WelcomeModal, TourOverlay, CeremonyPrompt, useCeremonyPrompt, useOnboarding } from './components/Onboarding/index.js';
+import {
+  OnboardingProvider,
+  WelcomeModal,
+  TourOverlay,
+  CeremonyPrompt,
+  useCeremonyPrompt,
+  useOnboarding,
+} from './components/Onboarding/index.js';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { ThemeProvider } from './lib/ThemeContext.jsx';
 
@@ -48,60 +60,101 @@ function UnlockModal({ verifyToken, userId }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(0, 0, 0, 0.7)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 20,
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 320,
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border-light)',
-        borderRadius: 16, padding: 28,
-      }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 320,
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border-light)',
+          borderRadius: 16,
+          padding: 28,
+        }}
+      >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>◎</div>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 20, color: 'var(--color-text)', marginBottom: 6,
-          }}>Encrypted content</div>
-          <div style={{
-            fontSize: 11, fontFamily: 'monospace',
-            color: 'var(--color-text-muted)', letterSpacing: '0.08em',
-          }}>ENTER PASSPHRASE TO DECRYPT</div>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 20,
+              color: 'var(--color-text)',
+              marginBottom: 6,
+            }}
+          >
+            Encrypted content
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: 'var(--color-text-muted)',
+              letterSpacing: '0.08em',
+            }}
+          >
+            ENTER PASSPHRASE TO DECRYPT
+          </div>
         </div>
         <form onSubmit={handleUnlock}>
           <input
             type="password"
             placeholder="Passphrase"
             value={passphrase}
-            onChange={e => setPassphrase(e.target.value)}
+            onChange={(e) => setPassphrase(e.target.value)}
             autoFocus
             required
             style={{
-              width: '100%', padding: '12px 14px', marginBottom: 12,
+              width: '100%',
+              padding: '12px 14px',
+              marginBottom: 12,
               background: 'var(--color-input-bg)',
               border: '1px solid var(--color-border-light)',
-              borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none',
+              borderRadius: 8,
+              color: 'var(--color-text)',
+              fontSize: 14,
+              outline: 'none',
             }}
           />
           {error && (
-            <div style={{
-              padding: '8px 12px', marginBottom: 12,
-              background: 'rgba(252, 129, 129, 0.1)',
-              border: '1px solid rgba(252, 129, 129, 0.3)',
-              borderRadius: 6, color: 'rgba(252, 129, 129, 0.9)', fontSize: 12,
-            }}>{error}</div>
+            <div
+              style={{
+                padding: '8px 12px',
+                marginBottom: 12,
+                background: 'rgba(252, 129, 129, 0.1)',
+                border: '1px solid rgba(252, 129, 129, 0.3)',
+                borderRadius: 6,
+                color: 'rgba(252, 129, 129, 0.9)',
+                fontSize: 12,
+              }}
+            >
+              {error}
+            </div>
           )}
-          <button type="submit" disabled={loading} style={{
-            width: '100%', padding: '12px',
-            background: 'var(--color-input-hover)',
-            border: '1px solid var(--color-border-mid)',
-            borderRadius: 8, color: 'var(--color-text)', fontSize: 13,
-            cursor: loading ? 'wait' : 'pointer',
-          }}>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: 'var(--color-input-hover)',
+              border: '1px solid var(--color-border-mid)',
+              borderRadius: 8,
+              color: 'var(--color-text)',
+              fontSize: 13,
+              cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
             {loading ? '...' : 'Unlock'}
           </button>
         </form>
@@ -117,9 +170,11 @@ function isIOS() {
 
 // Check if already running as installed PWA or inside native Capacitor
 function isInStandaloneMode() {
-  return window.matchMedia('(display-mode: standalone)').matches ||
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true ||
-    !!window.Capacitor;
+    !!window.Capacitor
+  );
 }
 
 function isMobile() {
@@ -138,38 +193,51 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
     onDismiss();
   };
 
-  const title = ios ? 'Add to Home Screen' : mobile ? 'Add to your home screen' : 'Install as an app';
+  const title = ios
+    ? 'Add to Home Screen'
+    : mobile
+      ? 'Add to your home screen'
+      : 'Install as an app';
   const body = ios
     ? 'Tap the share icon in Safari, then "Add to Home Screen" for the full experience.'
     : mobile
-    ? 'Install Lunar Loops for quick access and a distraction-free experience.'
-    : 'Install Lunar Loops to your desktop for instant, distraction-free access.';
+      ? 'Install Lunar Loops for quick access and a distraction-free experience.'
+      : 'Install Lunar Loops to your desktop for instant, distraction-free access.';
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 80,
-      // Stay within the app's 520px container
-      left: '50%',
-      transform: 'translateX(-50%)',
-      width: 'min(calc(100% - 32px), 488px)',
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border-light)',
-      borderRadius: 16, padding: '16px 18px',
-      zIndex: 500,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-      animation: 'fadeIn 0.3s ease-out',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 80,
+        // Stay within the app's 520px container
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'min(calc(100% - 32px), 488px)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border-light)',
+        borderRadius: 16,
+        padding: '16px 18px',
+        zIndex: 500,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        animation: 'fadeIn 0.3s ease-out',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ fontSize: 28, lineHeight: 1 }}>☽</div>
         <div style={{ flex: 1 }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 16, color: 'var(--color-text)', marginBottom: 4,
-          }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 16,
+              color: 'var(--color-text)',
+              marginBottom: 4,
+            }}
+          >
             {title}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--color-focus)', lineHeight: 1.5, marginBottom: 12 }}>
+          <div
+            style={{ fontSize: 12, color: 'var(--color-focus)', lineHeight: 1.5, marginBottom: 12 }}
+          >
             {body}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -177,10 +245,13 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
               <button
                 onClick={handleInstall}
                 style={{
-                  padding: '8px 16px', borderRadius: 8,
+                  padding: '8px 16px',
+                  borderRadius: 8,
                   background: 'var(--color-accent-bg)',
                   border: '1px solid var(--color-border-mid)',
-                  color: 'var(--color-accent)', fontSize: 12, cursor: 'pointer',
+                  color: 'var(--color-accent)',
+                  fontSize: 12,
+                  cursor: 'pointer',
                 }}
               >
                 Install
@@ -189,10 +260,13 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
             <button
               onClick={onDismiss}
               style={{
-                padding: '8px 16px', borderRadius: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
                 background: 'transparent',
                 border: '1px solid var(--color-border-light)',
-                color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer',
+                color: 'var(--color-text-muted)',
+                fontSize: 12,
+                cursor: 'pointer',
               }}
             >
               Not now
@@ -206,31 +280,53 @@ function InstallBanner({ onDismiss, deferredPrompt }) {
 
 function BetaGate({ onSignOut }) {
   return (
-    <div style={{
-      height: '100dvh', background: 'var(--color-bg)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 32, flexDirection: 'column', textAlign: 'center',
-    }}>
+    <div
+      style={{
+        height: '100dvh',
+        background: 'var(--color-bg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+        flexDirection: 'column',
+        textAlign: 'center',
+      }}
+    >
       <LunaLogo variant="icon" width={64} style={{ marginBottom: 20 }} />
-      <div style={{
-        fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 26, color: 'var(--color-text)', marginBottom: 12,
-      }}>
+      <div
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 26,
+          color: 'var(--color-text)',
+          marginBottom: 12,
+        }}
+      >
         Luna Loops v2
       </div>
-      <div style={{
-        fontSize: 14, color: 'var(--color-text-muted)',
-        lineHeight: 1.8, maxWidth: 280, marginBottom: 32,
-      }}>
-        This version is in private beta. You&apos;re on the list — we&apos;ll be in touch when your access is ready.
+      <div
+        style={{
+          fontSize: 14,
+          color: 'var(--color-text-muted)',
+          lineHeight: 1.8,
+          maxWidth: 280,
+          marginBottom: 32,
+        }}
+      >
+        This version is in private beta. You&apos;re on the list — we&apos;ll be in touch when your
+        access is ready.
       </div>
       <button
         onClick={onSignOut}
         style={{
-          background: 'none', border: '1px solid var(--color-border-mid)',
-          borderRadius: 8, color: 'var(--color-text-dim)',
-          fontSize: 11, fontFamily: 'monospace', padding: '10px 20px',
-          cursor: 'pointer', letterSpacing: '0.08em',
+          background: 'none',
+          border: '1px solid var(--color-border-mid)',
+          borderRadius: 8,
+          color: 'var(--color-text-dim)',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          padding: '10px 20px',
+          cursor: 'pointer',
+          letterSpacing: '0.08em',
         }}
       >
         SIGN OUT
@@ -273,18 +369,17 @@ function App() {
   const lunarData = useMemo(() => getLunarData(), []);
   // Hemisphere priority: manual profile setting > GPS > default north
   // Manual setting wins so users who explicitly choose south aren't overridden by GPS
-  const hemisphere = userProfile?.hemisphere
-    || location?.hemisphere
-    || 'north';
+  const hemisphere = userProfile?.hemisphere || location?.hemisphere || 'north';
   const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
 
   // Check if user has an active cycle loop for the current cycle
   const hasActiveCycleLoop = useMemo(() => {
     if (!loops.length || !lunarData?.cycleStart) return false;
-    return loops.some(loop =>
-      loop.scope === 'cycle' &&
-      loop.status !== 'released' &&
-      loop.cycleStart === lunarData.cycleStart
+    return loops.some(
+      (loop) =>
+        loop.scope === 'cycle' &&
+        loop.status !== 'released' &&
+        loop.cycleStart === lunarData.cycleStart
     );
   }, [loops, lunarData?.cycleStart]);
 
@@ -293,10 +388,7 @@ function App() {
 
   // Fetch loops and echoes for phase summaries
   const refreshLoopsAndEchoes = useCallback(async () => {
-    const [loopsData, echoesData] = await Promise.all([
-      getLoops(user?.id),
-      getEchoes(user?.id),
-    ]);
+    const [loopsData, echoesData] = await Promise.all([getLoops(user?.id), getEchoes(user?.id)]);
     setLoops(loopsData);
     setEchoes(echoesData);
   }, [user?.id]);
@@ -323,7 +415,10 @@ function App() {
   }, [userProfile, initFromProfile, loading]);
 
   const checkAccess = async (userEmail) => {
-    if (!userEmail) { setAccessStatus('denied'); return; }
+    if (!userEmail) {
+      setAccessStatus('denied');
+      return;
+    }
     const { data, error } = await supabase.rpc('check_my_access');
     if (error) {
       console.error('checkAccess error:', error);
@@ -344,11 +439,7 @@ function App() {
 
   const fetchProfile = async (userId) => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
       setUserProfile(data);
       if (data) {
         if (data.onboarding_completed) {
@@ -380,36 +471,49 @@ function App() {
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
         if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
           // Clean the tokens from the URL
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const u = session?.user || null;
 
       // If a different user is signing in, wipe the previous user's local cache
       const lastUserId = localStorage.getItem('last_user_id');
       if (u && lastUserId && lastUserId !== u.id) {
-        clearLocalCache(); clearRhythmCache();
+        clearLocalCache();
+        clearRhythmCache();
       }
       if (u) localStorage.setItem('last_user_id', u.id);
 
       setUser(u);
+      if (u) {
+        await fetchProfile(u.id);
+        await checkAccess(u.email);
+      } else {
+        setAccessStatus('allowed');
+      }
       setLoading(false);
-      if (u) checkAccess(u.email);
-      else setAccessStatus('allowed');
     };
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
 
       if (u) {
         const lastUserId = localStorage.getItem('last_user_id');
         if (lastUserId && lastUserId !== u.id) {
-          clearLocalCache(); clearRhythmCache();
+          clearLocalCache();
+          clearRhythmCache();
         }
         localStorage.setItem('last_user_id', u.id);
       }
@@ -433,7 +537,9 @@ function App() {
   useEffect(() => {
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session?.user) setUser(session.user);
       }
     };
@@ -461,7 +567,12 @@ function App() {
       setShowTutorial(true);
       // Clean up URL
       window.history.replaceState(null, '', window.location.pathname);
-    } else if (guideParam === 'app' || guideParam === 'guide' || hash === 'guide' || hash === 'app-guide') {
+    } else if (
+      guideParam === 'app' ||
+      guideParam === 'guide' ||
+      hash === 'guide' ||
+      hash === 'app-guide'
+    ) {
       setTutorialMode('guide');
       setShowTutorial(true);
       // Clean up URL
@@ -479,8 +590,9 @@ function App() {
       if (user) {
         const profile = userProfile;
         const _sameHemisphere = profile?.hemisphere === loc.hemisphere; // For future hemisphere validation
-        const sameCoords = Math.abs((profile?.latitude || 0) - loc.latitude) < 0.1
-          && Math.abs((profile?.longitude || 0) - loc.longitude) < 0.1;
+        const sameCoords =
+          Math.abs((profile?.latitude || 0) - loc.latitude) < 0.1 &&
+          Math.abs((profile?.longitude || 0) - loc.longitude) < 0.1;
         if (!sameCoords) {
           await supabase.from('profiles').upsert({
             id: user.id,
@@ -503,7 +615,7 @@ function App() {
       clearPhraseCache();
     }
 
-    getSessionPhrases(lunarData, solarData).then(p => {
+    getSessionPhrases(lunarData, solarData).then((p) => {
       setPhrases(p);
       setPhrasesLoading(false);
     });
@@ -516,7 +628,11 @@ function App() {
       setDeferredInstallPrompt(e);
       // Show banner for existing users who haven't dismissed
       if (!isInStandaloneMode() && !localStorage.getItem('install_dismissed')) {
-        setTimeout(() => setShowInstallBanner(true), 3000);
+        setTimeout(() => {
+          if (!localStorage.getItem('install_dismissed')) {
+            setShowInstallBanner(true);
+          }
+        }, 3000);
       }
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -560,7 +676,7 @@ function App() {
     if (user) {
       await supabase.from('profiles').upsert({
         id: user.id,
-        pwa_prompt_dismissed: true
+        pwa_prompt_dismissed: true,
       });
     }
   };
@@ -573,13 +689,15 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{
-        height: '100dvh',
-        background: 'var(--color-bg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      <div
+        style={{
+          height: '100dvh',
+          background: 'var(--color-bg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <LunaLogo variant="icon" width={72} />
       </div>
     );
@@ -588,7 +706,14 @@ function App() {
   // Beta gate: user is signed in but not on the allowlist
   if (user && accessStatus === 'denied') {
     return (
-      <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', display: 'flex', justifyContent: 'center' }}>
+      <div
+        style={{
+          minHeight: '100dvh',
+          background: 'var(--color-bg)',
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
         <div style={{ width: '100%', maxWidth: 520 }}>
           <BetaGate onSignOut={handleSignOut} />
         </div>
@@ -597,28 +722,32 @@ function App() {
   }
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: 'var(--color-bg)',
-      display: 'flex',
-      justifyContent: 'center',
-    }}>
-      {/* App Container - max width for desktop */}
-      <div style={{
-        width: '100%',
-        maxWidth: 520,
-        height: '100dvh',
+    <div
+      style={{
+        minHeight: '100dvh',
         background: 'var(--color-bg)',
-        color: 'var(--color-text)',
-        fontFamily: "'DM Sans', sans-serif",
         display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        position: 'relative',
-        boxShadow: 'inset 0 0 100px rgba(0,0,0,0.3)',
-      }}>
-      {/* Global Styles */}
-      <style>{`
+        justifyContent: 'center',
+      }}
+    >
+      {/* App Container - max width for desktop */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 520,
+          height: '100dvh',
+          background: 'var(--color-bg)',
+          color: 'var(--color-text)',
+          fontFamily: "'DM Sans', sans-serif",
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: 'inset 0 0 100px rgba(0,0,0,0.3)',
+        }}
+      >
+        {/* Global Styles */}
+        <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap');
 
         :root {
@@ -793,231 +922,231 @@ function App() {
         }
       `}</style>
 
-      {/* Auth Modal */}
-      {showAuth && (
-        <AuthModal
-          onClose={() => setShowAuth(false)}
-          onSuccess={handleAuthSuccess}
-        />
-      )}
+        {/* Auth Modal */}
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} onSuccess={handleAuthSuccess} />}
 
-      {/* Privacy Notice — shown once to new users (email or OAuth) */}
-      {showPrivacyNotice && (
-        <PrivacyNotice onAck={handlePrivacyAck} />
-      )}
+        {/* Privacy Notice — shown once to new users (email or OAuth) */}
+        {showPrivacyNotice && <PrivacyNotice onAck={handlePrivacyAck} />}
 
-      {/* Encryption unlock — shown when user has encryption set up but session key missing */}
-      {encryptionStatus === 'locked' && userProfile?.encryption_verify_token && (
-        <UnlockModal verifyToken={userProfile.encryption_verify_token} userId={user?.id} />
-      )}
+        {/* Encryption unlock — shown when user has encryption set up but session key missing */}
+        {encryptionStatus === 'locked' && userProfile?.encryption_verify_token && (
+          <UnlockModal verifyToken={userProfile.encryption_verify_token} userId={user?.id} />
+        )}
 
-      {/* PWA install banner */}
-      {showInstallBanner && (
-        <InstallBanner
-          onDismiss={handleInstallDismiss}
-          deferredPrompt={deferredInstallPrompt}
-        />
-      )}
+        {/* PWA install banner */}
+        {showInstallBanner && (
+          <InstallBanner onDismiss={handleInstallDismiss} deferredPrompt={deferredInstallPrompt} />
+        )}
 
-      {/* Admin Dashboard */}
-      {isAdmin && showAdmin && (
-        <AdminDashboard
-          isOpen={showAdmin}
-          onClose={() => setShowAdmin(false)}
-          currentUserEmail={user?.email}
-        />
-      )}
-
-      {/* Skip Navigation Link */}
-      <a
-        href="#main-content"
-        style={{
-          position: 'absolute',
-          top: '-100px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          padding: '12px 24px',
-          background: 'var(--color-text)',
-          color: 'var(--color-bg)',
-          borderRadius: 8,
-          fontSize: 14,
-          fontWeight: 500,
-          zIndex: 9999,
-          textDecoration: 'none',
-          transition: 'top 0.2s ease',
-        }}
-        onFocus={(e) => e.target.style.top = '12px'}
-        onBlur={(e) => e.target.style.top = '-100px'}
-      >
-        Skip to main content
-      </a>
-
-      {/* Tab Content */}
-      <div
-        id="main-content"
-        role="main"
-        style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: 'auto',
-        position: 'relative',
-      }}>
-        {activeTab === 'sky' && (
-          <Sky
-            user={user}
-            userProfile={userProfile}
-            onProfileUpdate={() => fetchProfile(user?.id)}
-            onSignIn={() => setShowAuth(true)}
-            onSignOut={handleSignOut}
-            onSwitchToEchoes={() => setActiveTab('echoes')}
-            phrases={phrases}
-            phrasesLoading={phrasesLoading}
-            lunarData={lunarData}
-            solarData={solarData}
-            loops={loops}
-            echoes={echoes}
-            onOpenTutorial={(mode = 'guide') => { setTutorialMode(mode); setShowTutorial(true); }}
+        {/* Admin Dashboard */}
+        {isAdmin && showAdmin && (
+          <AdminDashboard
+            isOpen={showAdmin}
+            onClose={() => setShowAdmin(false)}
+            currentUserEmail={user?.email}
           />
         )}
-        {activeTab === 'loops' && (
-          <Loops
-            userId={user?.id}
-            phrases={phrases}
-            phrasesLoading={phrasesLoading}
-            hemisphere={hemisphere}
-          />
-        )}
-        {activeTab === 'echoes' && (
-          <Echoes
-            userId={user?.id}
-            phrases={phrases}
-            phrasesLoading={phrasesLoading}
-            hemisphere={hemisphere}
-          />
-        )}
-        {IS_V2 && activeTab === 'rhythm' && (
-          <Rhythm
-            userId={user?.id}
-            lunarData={lunarData}
-            loops={loops}
-          />
-        )}
-      </div>
 
-      {/* Bottom Navigation */}
-      <nav
-        role="navigation"
-        aria-label="Main navigation"
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          borderTop: '1px solid var(--color-border)',
-          background: 'var(--color-bg)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0)',
-        }}
-      >
-        {TABS.map(tab => {
-          const isActive = activeTab === tab.id;
-          return (
+        {/* Skip Navigation Link */}
+        <a
+          href="#main-content"
+          style={{
+            position: 'absolute',
+            top: '-100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '12px 24px',
+            background: 'var(--color-text)',
+            color: 'var(--color-bg)',
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 500,
+            zIndex: 9999,
+            textDecoration: 'none',
+            transition: 'top 0.2s ease',
+          }}
+          onFocus={(e) => (e.target.style.top = '12px')}
+          onBlur={(e) => (e.target.style.top = '-100px')}
+        >
+          Skip to main content
+        </a>
+
+        {/* Tab Content */}
+        <div
+          id="main-content"
+          role="main"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            position: 'relative',
+          }}
+        >
+          {activeTab === 'sky' && (
+            <Sky
+              user={user}
+              userProfile={userProfile}
+              onProfileUpdate={() => fetchProfile(user?.id)}
+              onSignIn={() => setShowAuth(true)}
+              onSignOut={handleSignOut}
+              onSwitchToEchoes={() => setActiveTab('echoes')}
+              phrases={phrases}
+              phrasesLoading={phrasesLoading}
+              lunarData={lunarData}
+              solarData={solarData}
+              loops={loops}
+              echoes={echoes}
+              onOpenTutorial={(mode = 'guide') => {
+                setTutorialMode(mode);
+                setShowTutorial(true);
+              }}
+            />
+          )}
+          {activeTab === 'loops' && (
+            <Loops
+              userId={user?.id}
+              phrases={phrases}
+              phrasesLoading={phrasesLoading}
+              hemisphere={hemisphere}
+            />
+          )}
+          {activeTab === 'echoes' && (
+            <Echoes
+              userId={user?.id}
+              phrases={phrases}
+              phrasesLoading={phrasesLoading}
+              hemisphere={hemisphere}
+            />
+          )}
+          {IS_V2 && activeTab === 'rhythm' && (
+            <Rhythm userId={user?.id} lunarData={lunarData} loops={loops} />
+          )}
+        </div>
+
+        {/* Bottom Navigation */}
+        <nav
+          role="navigation"
+          aria-label="Main navigation"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            borderTop: '1px solid var(--color-border)',
+            background: 'var(--color-bg)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0)',
+          }}
+        >
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                data-tutorial={`tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                aria-label={`${tab.label} tab`}
+                aria-current={isActive ? 'page' : undefined}
+                style={{
+                  flex: 1,
+                  padding: '16px 0 12px',
+                  background: 'none',
+                  border: 'none',
+                  color: isActive ? 'var(--color-text)' : 'var(--color-text-faint)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 26,
+                    filter: isActive ? 'none' : 'grayscale(100%)',
+                    transition: 'filter 0.2s',
+                  }}
+                >
+                  {tab.icon}
+                </span>
+                <span
+                  style={{
+                    fontSize: 'var(--font-xs)',
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+          {isAdmin && (
             <button
-              key={tab.id}
-              data-tutorial={`tab-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              aria-label={`${tab.label} tab`}
-              aria-current={isActive ? 'page' : undefined}
+              onClick={() => setShowAdmin(true)}
+              aria-label="Admin dashboard"
               style={{
-                flex: 1,
-                padding: '16px 0 12px',
+                padding: '16px 14px 12px',
                 background: 'none',
                 border: 'none',
-                color: isActive ? 'var(--color-text)' : 'var(--color-text-faint)',
+                color: 'rgba(167,139,250,0.4)',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 6,
-                transition: 'all 0.2s ease',
-                transform: isActive ? 'scale(1.05)' : 'scale(1)',
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <span style={{
-                fontSize: 26,
-                filter: isActive ? 'none' : 'grayscale(100%)',
-                transition: 'filter 0.2s',
-              }}>
-                {tab.icon}
-              </span>
-              <span style={{
-                fontSize: 'var(--font-xs)',
-                fontFamily: 'monospace',
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-              }}>
-                {tab.label}
+              <span style={{ fontSize: 20 }}>⚡</span>
+              <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                ADMIN
               </span>
             </button>
-          );
-        })}
-        {isAdmin && (
-          <button
-            onClick={() => setShowAdmin(true)}
-            aria-label="Admin dashboard"
-            style={{
-              padding: '16px 14px 12px',
-              background: 'none', border: 'none',
-              color: 'rgba(167,139,250,0.4)',
-              cursor: 'pointer', display: 'flex',
-              flexDirection: 'column', alignItems: 'center', gap: 6,
-              WebkitTapHighlightColor: 'transparent',
+          )}
+        </nav>
+
+        {/* Tutorial — shown once to all users, re-openable from settings */}
+        {showTutorial && (
+          <Tutorial
+            activeTab={activeTab}
+            onSwitchTab={setActiveTab}
+            initialMode={tutorialMode}
+            onClose={async () => {
+              localStorage.setItem('tutorial_seen_v2', 'true');
+              setShowTutorial(false);
+              if (user) {
+                await supabase.from('profiles').upsert({
+                  id: user.id,
+                  tutorial_seen: true,
+                });
+              }
             }}
-          >
-            <span style={{ fontSize: 20 }}>⚡</span>
-            <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>ADMIN</span>
-          </button>
+          />
         )}
-      </nav>
 
-      {/* Tutorial — shown once to all users, re-openable from settings */}
-      {showTutorial && (
-        <Tutorial
-          activeTab={activeTab}
-          onSwitchTab={setActiveTab}
-          initialMode={tutorialMode}
-          onClose={async () => {
-            localStorage.setItem('tutorial_seen_v2', 'true');
-            setShowTutorial(false);
-            if (user) {
-              await supabase.from('profiles').upsert({
-                id: user.id,
-                tutorial_seen: true
-              });
-            }
-          }}
-        />
-      )}
+        {/* Interactive Onboarding */}
+        <WelcomeModal />
+        <TourOverlay />
 
-      {/* Interactive Onboarding */}
-      <WelcomeModal />
-      <TourOverlay />
-
-      {/* Phase Ceremony Prompts */}
-      {showCeremony && (
-        <CeremonyPrompt
-          type={showCeremony}
-          onAction={() => {
-            dismissCeremony();
-            if (showCeremony === 'new-moon') {
-              // Navigate to Loops tab to plant intention
-              setActiveTab('loops');
-            } else if (showCeremony === 'waning-crescent') {
-              // Navigate to Echoes tab for cycle review
-              setActiveTab('echoes');
-            }
-          }}
-          onDismiss={dismissCeremony}
-        />
-      )}
+        {/* Phase Ceremony Prompts */}
+        {showCeremony && (
+          <CeremonyPrompt
+            type={showCeremony}
+            onAction={() => {
+              dismissCeremony();
+              if (showCeremony === 'new-moon') {
+                // Navigate to Loops tab to plant intention
+                setActiveTab('loops');
+              } else if (showCeremony === 'waning-crescent') {
+                // Navigate to Echoes tab for cycle review
+                setActiveTab('echoes');
+              }
+            }}
+            onDismiss={dismissCeremony}
+          />
+        )}
       </div>
     </div>
   );

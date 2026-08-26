@@ -10,9 +10,7 @@ const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
 // ─── Supabase Storage ─────────────────────────────────────────────────────────
 
 function storagePath(userId, echoId, mimeType) {
-  const ext = mimeType?.includes('mp4') ? 'mp4'
-    : mimeType?.includes('ogg') ? 'ogg'
-    : 'webm';
+  const ext = mimeType?.includes('mp4') ? 'mp4' : mimeType?.includes('ogg') ? 'ogg' : 'webm';
   return `${userId}/${echoId}.${ext}`;
 }
 
@@ -26,12 +24,10 @@ export async function saveAudio(echoId, audioBlob, userId) {
   }
   try {
     const path = storagePath(userId, echoId, audioBlob.type);
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, audioBlob, {
-        contentType: audioBlob.type || 'audio/webm',
-        upsert: true,
-      });
+    const { error } = await supabase.storage.from(BUCKET).upload(path, audioBlob, {
+      contentType: audioBlob.type || 'audio/webm',
+      upsert: true,
+    });
     if (error) throw error;
     return path;
   } catch (_e) {
@@ -43,9 +39,7 @@ export async function saveAudio(echoId, audioBlob, userId) {
 export async function getAudioUrl(audioPath) {
   if (!audioPath) return null;
   try {
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(audioPath, 3600);
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(audioPath, 3600);
     if (error) throw error;
     return data.signedUrl;
   } catch (_e) {
@@ -71,9 +65,7 @@ export async function getAudio(audioPath) {
 export async function deleteAudio(audioPath) {
   if (!audioPath) return false;
   try {
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .remove([audioPath]);
+    const { error } = await supabase.storage.from(BUCKET).remove([audioPath]);
     if (error) throw error;
     return true;
   } catch (_e) {
@@ -101,8 +93,7 @@ export async function getLegacyAudioIds() {
     const db = await openLegacyDB();
     if (!db) return [];
     return new Promise((resolve) => {
-      const req = db.transaction(IDB_STORE, 'readonly')
-        .objectStore(IDB_STORE).getAllKeys();
+      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).getAllKeys();
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => resolve([]);
     });
@@ -116,8 +107,7 @@ export async function getLegacyAudioBlob(echoId) {
     const db = await openLegacyDB();
     if (!db) return null;
     return new Promise((resolve) => {
-      const req = db.transaction(IDB_STORE, 'readonly')
-        .objectStore(IDB_STORE).get(echoId);
+      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(echoId);
       req.onsuccess = () => resolve(req.result?.blob || null);
       req.onerror = () => resolve(null);
     });
@@ -136,5 +126,7 @@ export async function deleteLegacyAudio(echoId) {
       tx.oncomplete = resolve;
       tx.onerror = resolve;
     });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }

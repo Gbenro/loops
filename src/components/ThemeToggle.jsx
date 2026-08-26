@@ -1,11 +1,11 @@
 import { useTheme } from '../lib/ThemeContext.jsx';
 
 const OPTIONS = [
-  { value: 'dark',     label: '◑', title: 'Dark' },
-  { value: 'dim',      label: '◐', title: 'Dim' },
-  { value: 'light',    label: '○', title: 'Light' },
+  { value: 'dark', label: '◑', title: 'Dark' },
+  { value: 'dim', label: '◐', title: 'Dim' },
+  { value: 'light', label: '○', title: 'Light' },
   { value: 'sunlight', label: '☀️', title: 'Sunlight' },
-  { value: 'auto',     label: '◎', title: 'Auto' },
+  { value: 'auto', label: '◎', title: 'Auto' },
 ];
 
 export function ThemeToggle() {
@@ -25,7 +25,7 @@ export function ThemeToggle() {
         border: '1px solid var(--color-border-light)',
       }}
     >
-      {OPTIONS.map(opt => (
+      {OPTIONS.map((opt) => (
         <button
           key={opt.value}
           onClick={() => setTheme(opt.value)}

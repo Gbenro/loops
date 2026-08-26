@@ -5,10 +5,10 @@ import { PhaseRingThumb } from './PhaseRing.jsx';
 import { SCOPE_LABELS, ENGAGEMENT_LABEL } from '../lib/phases.js';
 
 const LEVEL_DOT = {
-  none:       { color: 'rgba(245,230,200,0.12)' },
-  light:      { color: 'var(--text-secondary)' },
-  moderate:   { color: 'rgba(245,230,200,0.6)' },
-  deep:       { color: 'rgba(245,230,200,0.85)' },
+  none: { color: 'rgba(245,230,200,0.12)' },
+  light: { color: 'var(--text-secondary)' },
+  moderate: { color: 'rgba(245,230,200,0.6)' },
+  deep: { color: 'rgba(245,230,200,0.85)' },
   ceremonial: { color: '#fefcbf' },
 };
 
@@ -16,18 +16,34 @@ function LevelPill({ level, accent }) {
   if (!level) return null;
   const dot = LEVEL_DOT[level];
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 5,
-      padding: '3px 8px', borderRadius: 20,
-      background: 'rgba(245,230,200,0.04)',
-      border: '1px solid rgba(245,230,200,0.08)',
-    }}>
-      <div style={{
-        width: 5, height: 5, borderRadius: '50%',
-        background: level === 'ceremonial' ? accent : dot.color,
-        boxShadow: level === 'ceremonial' ? `0 0 4px ${accent}` : 'none',
-      }} />
-      <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(245,230,200,0.4)', letterSpacing: '0.08em' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '3px 8px',
+        borderRadius: 20,
+        background: 'rgba(245,230,200,0.04)',
+        border: '1px solid rgba(245,230,200,0.08)',
+      }}
+    >
+      <div
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: level === 'ceremonial' ? accent : dot.color,
+          boxShadow: level === 'ceremonial' ? `0 0 4px ${accent}` : 'none',
+        }}
+      />
+      <span
+        style={{
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: 'rgba(245,230,200,0.4)',
+          letterSpacing: '0.08em',
+        }}
+      >
         {(ENGAGEMENT_LABEL[level] || level).toUpperCase()}
       </span>
     </div>
@@ -39,8 +55,8 @@ export function RhythmCard({
   instance,
   currentPhaseKey,
   pastPhaseKeys = [],
-  currentObservation = null,   // level logged for current phase
-  currentIntention = null,     // intended level for current phase
+  currentObservation = null, // level logged for current phase
+  currentIntention = null, // intended level for current phase
   phaseAccent = 'rgba(245,230,200,0.6)',
   onClick,
   tourId,
@@ -51,7 +67,16 @@ export function RhythmCard({
 
   if (instance) {
     if (instance.intentionType === 'whole' && instance.wholeIntention) {
-      for (const p of ['new','waxing-crescent','first-quarter','waxing-gibbous','full','waning-gibbous','last-quarter','waning-crescent']) {
+      for (const p of [
+        'new',
+        'waxing-crescent',
+        'first-quarter',
+        'waxing-gibbous',
+        'full',
+        'waning-gibbous',
+        'last-quarter',
+        'waning-crescent',
+      ]) {
         intentionMap[p] = instance.wholeIntention;
       }
     } else if (instance.intentionType === 'phase') {
@@ -64,12 +89,16 @@ export function RhythmCard({
       data-tour={tourId}
       onClick={onClick}
       style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        width: '100%', padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        width: '100%',
+        padding: '16px',
         background: 'rgba(245,230,200,0.03)',
         border: '1px solid rgba(245,230,200,0.08)',
         borderRadius: 14,
-        cursor: 'pointer', textAlign: 'left',
+        cursor: 'pointer',
+        textAlign: 'left',
         WebkitTapHighlightColor: 'transparent',
         transition: 'background 0.15s ease',
       }}
@@ -86,22 +115,34 @@ export function RhythmCard({
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 18, fontWeight: 300, color: 'var(--color-text)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 18,
+              fontWeight: 300,
+              color: 'var(--color-text)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {rhythm.name}
           </div>
-          <div style={{
-            fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.12em',
-            color: rhythm.scope === 'ongoing' ? '#C9A84C' : 'rgba(245,230,200,0.3)',
-            padding: '2px 6px', borderRadius: 4,
-            border: rhythm.scope === 'ongoing'
-              ? '1px solid rgba(201,168,76,0.2)'
-              : '1px solid rgba(245,230,200,0.08)',
-            flexShrink: 0,
-          }}>
+          <div
+            style={{
+              fontSize: 8,
+              fontFamily: 'monospace',
+              letterSpacing: '0.12em',
+              color: rhythm.scope === 'ongoing' ? '#C9A84C' : 'rgba(245,230,200,0.3)',
+              padding: '2px 6px',
+              borderRadius: 4,
+              border:
+                rhythm.scope === 'ongoing'
+                  ? '1px solid rgba(201,168,76,0.2)'
+                  : '1px solid rgba(245,230,200,0.08)',
+              flexShrink: 0,
+            }}
+          >
             {SCOPE_LABELS[rhythm.scope]}
           </div>
         </div>

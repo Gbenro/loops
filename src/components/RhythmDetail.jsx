@@ -11,9 +11,15 @@ import {
   getObservationsForInstance,
   saveObservation,
 } from '../lib/rhythm.js';
-import { PHASES_ORDERED, PHASE_KEYS as ALL_PHASE_KEYS, ENGAGEMENT_LEVELS, ENGAGEMENT_LABEL, SCOPE_LABELS } from '../lib/phases.js';
+import {
+  PHASES_ORDERED,
+  PHASE_KEYS as ALL_PHASE_KEYS,
+  ENGAGEMENT_LEVELS,
+  ENGAGEMENT_LABEL,
+  SCOPE_LABELS,
+} from '../lib/phases.js';
 
-const LEVELS = ENGAGEMENT_LEVELS.map(l => l.value);
+const LEVELS = ENGAGEMENT_LEVELS.map((l) => l.value);
 
 // ── Intention setter ──────────────────────────────────────────────────────────
 
@@ -27,8 +33,8 @@ function IntentionSetter({ instance, onSave, onClose }) {
     setSaving(true);
     const updated = {
       ...instance,
-      intentionType:   mode,
-      wholeIntention:  mode === 'whole' ? whole : null,
+      intentionType: mode,
+      wholeIntention: mode === 'whole' ? whole : null,
       phaseIntentions: mode === 'phase' ? byPhase : {},
     };
     await onSave(updated);
@@ -38,38 +44,87 @@ function IntentionSetter({ instance, onSave, onClose }) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 500,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,8,16,0.7)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(4,8,16,0.7)',
+          backdropFilter: 'blur(4px)',
+        }}
+        onClick={onClose}
+      />
 
-      <div style={{
-        position: 'relative', width: '100%', maxWidth: 520,
-        background: 'var(--color-surface)',
-        borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        padding: '24px 20px 40px',
-        maxHeight: '85vh', overflowY: 'auto',
-        animation: 'slideUp 0.25s ease-out',
-      }}>
-        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--color-border-mid)', margin: '0 auto 20px' }} />
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 520,
+          background: 'var(--color-surface)',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          padding: '24px 20px 40px',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          animation: 'slideUp 0.25s ease-out',
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 3,
+            borderRadius: 2,
+            background: 'var(--color-border-mid)',
+            margin: '0 auto 20px',
+          }}
+        />
 
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, color: 'var(--color-text)', marginBottom: 20 }}>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 22,
+            fontWeight: 300,
+            color: 'var(--color-text)',
+            marginBottom: 20,
+          }}
+        >
           Set intention
         </div>
 
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[['whole','Whole cycle'],['phase','Phase by phase'],['none','No intention']].map(([v, l]) => (
+          {[
+            ['whole', 'Whole cycle'],
+            ['phase', 'Phase by phase'],
+            ['none', 'No intention'],
+          ].map(([v, l]) => (
             <button
               key={v}
               onClick={() => setMode(v)}
               style={{
-                flex: 1, padding: '9px 4px', borderRadius: 8,
+                flex: 1,
+                padding: '9px 4px',
+                borderRadius: 8,
                 background: mode === v ? 'var(--color-border-light)' : 'var(--color-input-bg)',
                 color: mode === v ? 'var(--color-text)' : 'var(--color-text-muted)',
-                fontSize: 11, cursor: 'pointer',
+                fontSize: 11,
+                cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif",
-                border: mode === v ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
+                border:
+                  mode === v
+                    ? '1px solid var(--color-border-mid)'
+                    : '1px solid var(--color-border-light)',
               }}
             >
               {l}
@@ -79,16 +134,22 @@ function IntentionSetter({ instance, onSave, onClose }) {
 
         {mode === 'whole' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-            {LEVELS.map(lv => (
+            {LEVELS.map((lv) => (
               <button
                 key={lv}
                 onClick={() => setWhole(lv)}
                 style={{
-                  padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
                   background: whole === lv ? 'var(--color-border-light)' : 'var(--color-input-bg)',
                   color: whole === lv ? 'var(--color-text)' : 'var(--color-text-dim)',
-                  fontSize: 14, textAlign: 'left',
-                  border: whole === lv ? '1px solid var(--color-border-mid)' : '1px solid var(--color-border-light)',
+                  fontSize: 14,
+                  textAlign: 'left',
+                  border:
+                    whole === lv
+                      ? '1px solid var(--color-border-mid)'
+                      : '1px solid var(--color-border-light)',
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
@@ -100,39 +161,60 @@ function IntentionSetter({ instance, onSave, onClose }) {
 
         {mode === 'phase' && (
           <div style={{ marginBottom: 20 }}>
-            {PHASES_ORDERED.map(ph => (
-              <div key={ph.key} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 0',
-                borderBottom: '1px solid var(--color-border-light)',
-              }}>
-                <div style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: ph.accent, flexShrink: 0,
-                }} />
-                <div style={{
-                  fontSize: 12, color: 'var(--color-text-dim)',
-                  width: 110, flexShrink: 0,
-                }}>
+            {PHASES_ORDERED.map((ph) => (
+              <div
+                key={ph.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--color-border-light)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: ph.accent,
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--color-text-dim)',
+                    width: 110,
+                    flexShrink: 0,
+                  }}
+                >
                   {ph.label}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {LEVELS.map(lv => {
+                  {LEVELS.map((lv) => {
                     const sel = byPhase[ph.key] === lv;
                     return (
                       <button
                         key={lv}
-                        onClick={() => setByPhase(prev => ({ ...prev, [ph.key]: sel ? null : lv }))}
+                        onClick={() =>
+                          setByPhase((prev) => ({ ...prev, [ph.key]: sel ? null : lv }))
+                        }
                         style={{
-                          padding: '4px 8px', borderRadius: 6,
-                          fontSize: 10, fontFamily: 'monospace', cursor: 'pointer',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          cursor: 'pointer',
                           background: sel ? `${ph.accent}22` : 'transparent',
-                          border: sel ? `1px solid ${ph.accent}44` : '1px solid var(--color-border-light)',
+                          border: sel
+                            ? `1px solid ${ph.accent}44`
+                            : '1px solid var(--color-border-light)',
                           color: sel ? ph.accent : 'var(--color-text-muted)',
                           letterSpacing: '0.05em',
                         }}
                       >
-                        {lv.toUpperCase().slice(0,3)}
+                        {lv.toUpperCase().slice(0, 3)}
                       </button>
                     );
                   })}
@@ -143,7 +225,14 @@ function IntentionSetter({ instance, onSave, onClose }) {
         )}
 
         {mode === 'none' && (
-          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--color-text-muted)',
+              marginBottom: 20,
+              lineHeight: 1.6,
+            }}
+          >
             Pure observation mode — just log what actually happens. Intention can be set any time.
           </div>
         )}
@@ -152,10 +241,14 @@ function IntentionSetter({ instance, onSave, onClose }) {
           onClick={handleSave}
           disabled={saving}
           style={{
-            width: '100%', padding: '14px', borderRadius: 12,
+            width: '100%',
+            padding: '14px',
+            borderRadius: 12,
             background: 'var(--color-input-bg)',
             border: '1px solid var(--color-border-mid)',
-            color: 'var(--color-text)', fontSize: 14, cursor: 'pointer',
+            color: 'var(--color-text)',
+            fontSize: 14,
+            cursor: 'pointer',
             fontFamily: "'DM Sans', sans-serif",
           }}
         >
@@ -170,23 +263,24 @@ function IntentionSetter({ instance, onSave, onClose }) {
 
 export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
   const currentPhaseKey = lunarData?.phase?.key || null;
-  const cycleStart      = lunarData?.cycleStart  || null;
-  const dayInPhase      = lunarData?.phase?.dayInPhase ?? 0;
-  const phaseDuration   = lunarData?.phase?.phaseDuration ?? 0;
+  const cycleStart = lunarData?.cycleStart || null;
+  const dayInPhase = lunarData?.phase?.dayInPhase ?? 0;
+  const phaseDuration = lunarData?.phase?.phaseDuration ?? 0;
 
-  const [instance, setInstance]         = useState(null);
+  const [instance, setInstance] = useState(null);
   const [observations, setObservations] = useState([]);
   const [checkInPhase, setCheckInPhase] = useState(null);
   const [showIntention, setShowIntention] = useState(false);
-  const [loading, setLoading]           = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const currentPhaseIndex = currentPhaseKey ? ALL_PHASE_KEYS.indexOf(currentPhaseKey) : -1;
-  const pastPhaseKeys = currentPhaseIndex > 0
-    ? ALL_PHASE_KEYS.slice(0, currentPhaseIndex)
-    : [];
+  const pastPhaseKeys = currentPhaseIndex > 0 ? ALL_PHASE_KEYS.slice(0, currentPhaseIndex) : [];
 
   const loadData = useCallback(async () => {
-    if (!cycleStart) { setLoading(false); return; }
+    if (!cycleStart) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const inst = await getOrCreateCurrentInstance(rhythm, cycleStart, userId);
     setInstance(inst);
@@ -196,7 +290,9 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rhythm.id, cycleStart, userId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const intentionMap = {};
   if (instance?.intentionType === 'whole' && instance.wholeIntention) {
@@ -213,19 +309,19 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
     const loggedAt = new Date().toISOString();
     const dateKey = loggedAt.slice(0, 10); // YYYY-MM-DD
     const obs = {
-      id:              crypto.randomUUID(),
+      id: crypto.randomUUID(),
       cycleInstanceId: instance.id,
       phase,
       engagement,
-      note:       note || null,
+      note: note || null,
       loggedAt,
       dateKey,
       dayInPhase: phase === currentPhaseKey ? Math.floor(dayInPhase) + 1 : null,
     };
     await saveObservation(obs, userId);
-    setObservations(prev => {
+    setObservations((prev) => {
       // Remove existing observation for same phase + date (daily dedup)
-      const filtered = prev.filter(o => !(o.phase === phase && o.dateKey === dateKey));
+      const filtered = prev.filter((o) => !(o.phase === phase && o.dateKey === dateKey));
       return [...filtered, obs];
     });
   };
@@ -237,32 +333,70 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
 
   // Determine which phases are available to log (current + recent past with no check-in)
   const loggablePhases = currentPhaseKey
-    ? [currentPhaseKey, ...pastPhaseKeys.slice(-2)].filter(k => !observationMap[k])
+    ? [currentPhaseKey, ...pastPhaseKeys.slice(-2)].filter((k) => !observationMap[k])
     : [];
 
-  if (loading) return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Loading…</div>
-    </div>
-  );
+  if (loading)
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 400,
+          background: 'var(--color-bg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Loading…</div>
+      </div>
+    );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'var(--color-bg)', overflowY: 'auto' }}>
-      {/* Nav */}
-      <div style={{
-        position: 'sticky', top: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 20px',
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 400,
         background: 'var(--color-bg)',
-        zIndex: 10,
-      }}>
+        overflowY: 'auto',
+      }}
+    >
+      {/* Nav */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 20px',
+          background: 'var(--color-bg)',
+          zIndex: 10,
+        }}
+      >
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: 'var(--color-text-dim)', fontSize: 14, cursor: 'pointer', padding: 0 }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-text-dim)',
+            fontSize: 14,
+            cursor: 'pointer',
+            padding: 0,
+          }}
         >
           ← Back
         </button>
-        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.08em' }}>
+        <div
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 12,
+            color: 'var(--color-text-muted)',
+            letterSpacing: '0.08em',
+          }}
+        >
           {SCOPE_LABELS[rhythm.scope] || rhythm.scope.toUpperCase()}
         </div>
       </div>
@@ -270,29 +404,40 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
       <div style={{ padding: '0 20px 60px', maxWidth: 520, margin: '0 auto' }}>
         {/* Title */}
         <div style={{ padding: '16px 0 24px' }}>
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 28, fontWeight: 300, color: 'var(--color-text)',
-            marginBottom: 8,
-          }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 28,
+              fontWeight: 300,
+              color: 'var(--color-text)',
+              marginBottom: 8,
+            }}
+          >
             {rhythm.name}
           </div>
           {/* Day in phase context */}
           {currentPhaseKey && phaseDuration > 0 && (
-            <div style={{
-              fontSize: 11, fontFamily: 'monospace',
-              color: 'var(--color-text-muted)',
-              letterSpacing: '0.08em',
-              marginBottom: 8,
-            }}>
-              Day {Math.floor(dayInPhase) + 1} of {Math.ceil(phaseDuration)} in {PHASES_ORDERED.find(p => p.key === currentPhaseKey)?.label || currentPhaseKey}
+            <div
+              style={{
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: 'var(--color-text-muted)',
+                letterSpacing: '0.08em',
+                marginBottom: 8,
+              }}
+            >
+              Day {Math.floor(dayInPhase) + 1} of {Math.ceil(phaseDuration)} in{' '}
+              {PHASES_ORDERED.find((p) => p.key === currentPhaseKey)?.label || currentPhaseKey}
             </div>
           )}
           <button
             onClick={() => instance && setShowIntention(true)}
             style={{
-              background: 'none', border: 'none', padding: 0,
-              fontSize: 11, fontFamily: 'monospace',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              fontSize: 11,
+              fontFamily: 'monospace',
               color: instance ? 'var(--color-text-dim)' : 'var(--color-text-faint)',
               letterSpacing: '0.1em',
               cursor: instance ? 'pointer' : 'default',
@@ -307,7 +452,10 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         </div>
 
         {/* Phase ring */}
-        <div data-tour="phase-ring" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+        <div
+          data-tour="phase-ring"
+          style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}
+        >
           <div>
             <PhaseRing
               size={220}
@@ -316,20 +464,22 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
               currentPhaseKey={currentPhaseKey}
               pastPhaseKeys={pastPhaseKeys}
               showLabels={true}
-              onPhaseClick={phaseKey => {
+              onPhaseClick={(phaseKey) => {
                 // Allow logging for current phase or recently missed phases
                 if (loggablePhases.includes(phaseKey) || observationMap[phaseKey]) {
                   setCheckInPhase(phaseKey);
                 }
               }}
             />
-            <div style={{
-              fontFamily: 'monospace',
-              fontSize: 9,
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              marginTop: 12,
-            }}>
+            <div
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 9,
+                color: 'var(--text-secondary)',
+                textAlign: 'center',
+                marginTop: 12,
+              }}
+            >
               Inner ring = Intention &nbsp;•&nbsp; Outer ring = Observed
             </div>
           </div>
@@ -338,19 +488,25 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         {/* Quick log prompt for today */}
         {(() => {
           const todayKey = new Date().toISOString().slice(0, 10);
-          const hasTodayCheckIn = observations.some(o => o.phase === currentPhaseKey && o.dateKey === todayKey);
+          const hasTodayCheckIn = observations.some(
+            (o) => o.phase === currentPhaseKey && o.dateKey === todayKey
+          );
           if (!currentPhaseKey || hasTodayCheckIn) return null;
           return (
             <button
               data-tour="rhythm-checkin"
               onClick={() => setCheckInPhase(currentPhaseKey)}
               style={{
-                display: 'block', width: '100%',
-                padding: '14px 16px', borderRadius: 12,
+                display: 'block',
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: 12,
                 background: 'var(--color-input-bg)',
                 border: '1px solid var(--color-border-light)',
-                color: 'var(--color-text-dim)', fontSize: 13,
-                cursor: 'pointer', marginBottom: 24,
+                color: 'var(--color-text-dim)',
+                fontSize: 13,
+                cursor: 'pointer',
+                marginBottom: 24,
                 fontFamily: "'DM Sans', sans-serif",
                 textAlign: 'center',
               }}
@@ -361,127 +517,221 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         })()}
 
         {/* Check-in log - grouped by phase, showing daily entries */}
-        {observations.length > 0 && (() => {
-          // Group observations by phase
-          const phaseGroups = {};
-          for (const obs of observations) {
-            if (!phaseGroups[obs.phase]) phaseGroups[obs.phase] = [];
-            phaseGroups[obs.phase].push(obs);
-          }
-          // Sort within each phase by date (most recent first)
-          for (const phase of Object.keys(phaseGroups)) {
-            phaseGroups[phase].sort((a, b) => (b.dateKey || '').localeCompare(a.dateKey || ''));
-          }
+        {observations.length > 0 &&
+          (() => {
+            // Group observations by phase
+            const phaseGroups = {};
+            for (const obs of observations) {
+              if (!phaseGroups[obs.phase]) phaseGroups[obs.phase] = [];
+              phaseGroups[obs.phase].push(obs);
+            }
+            // Sort within each phase by date (most recent first)
+            for (const phase of Object.keys(phaseGroups)) {
+              phaseGroups[phase].sort((a, b) => (b.dateKey || '').localeCompare(a.dateKey || ''));
+            }
 
-          // Current phase observations first, then others in phase order
-          const currentPhaseObs = currentPhaseKey && phaseGroups[currentPhaseKey] ? phaseGroups[currentPhaseKey] : [];
-          const otherPhases = ALL_PHASE_KEYS.filter(k => k !== currentPhaseKey && phaseGroups[k]);
+            // Current phase observations first, then others in phase order
+            const currentPhaseObs =
+              currentPhaseKey && phaseGroups[currentPhaseKey] ? phaseGroups[currentPhaseKey] : [];
+            const otherPhases = ALL_PHASE_KEYS.filter(
+              (k) => k !== currentPhaseKey && phaseGroups[k]
+            );
 
-          return (
-            <div style={{ marginBottom: 24 }}>
-              {/* Current phase daily check-ins */}
-              {currentPhaseObs.length > 0 && (
-                <>
-                  <div style={{
-                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
-                    color: 'var(--text-disabled)', marginBottom: 12,
-                  }}>
-                    THIS PHASE
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 20 }}>
-                    {currentPhaseObs.map(obs => {
-                      const ph = PHASES_ORDERED.find(p => p.key === obs.phase);
-                      const dayLabel = obs.dayInPhase ? `Day ${obs.dayInPhase}` : obs.dateKey || '';
-                      return (
-                        <button
-                          key={obs.id || `${obs.phase}-${obs.dateKey}`}
-                          onClick={() => setCheckInPhase(obs.phase)}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 12,
-                            padding: '12px 0',
-                            borderBottom: '1px solid var(--color-border-light)',
-                            background: 'none', border: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                          }}
-                        >
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: obs.note ? 3 : 0 }}>
-                              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>{dayLabel}</span>
-                              <span style={{
-                                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                                color: obs.engagement === 'ceremonial' ? '#FBBF24' : 'var(--color-text-muted)',
-                              }}>
-                                {(ENGAGEMENT_LABEL[obs.engagement] || obs.engagement).toUpperCase()}
-                              </span>
-                            </div>
-                            {obs.note && (
-                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                                &ldquo;{obs.note}&rdquo;
+            return (
+              <div style={{ marginBottom: 24 }}>
+                {/* Current phase daily check-ins */}
+                {currentPhaseObs.length > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.15em',
+                        color: 'var(--text-disabled)',
+                        marginBottom: 12,
+                      }}
+                    >
+                      THIS PHASE
+                    </div>
+                    <div
+                      style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 20 }}
+                    >
+                      {currentPhaseObs.map((obs) => {
+                        const ph = PHASES_ORDERED.find((p) => p.key === obs.phase);
+                        const dayLabel = obs.dayInPhase
+                          ? `Day ${obs.dayInPhase}`
+                          : obs.dateKey || '';
+                        return (
+                          <button
+                            key={obs.id || `${obs.phase}-${obs.dateKey}`}
+                            onClick={() => setCheckInPhase(obs.phase)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 12,
+                              padding: '12px 0',
+                              borderBottom: '1px solid var(--color-border-light)',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: ph?.accent || '#718096',
+                                marginTop: 5,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  marginBottom: obs.note ? 3 : 0,
+                                }}
+                              >
+                                <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                                  {dayLabel}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: '0.08em',
+                                    color:
+                                      obs.engagement === 'ceremonial'
+                                        ? '#FBBF24'
+                                        : 'var(--color-text-muted)',
+                                  }}
+                                >
+                                  {(
+                                    ENGAGEMENT_LABEL[obs.engagement] || obs.engagement
+                                  ).toUpperCase()}
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              {/* Earlier phases */}
-              {otherPhases.length > 0 && (
-                <>
-                  <div style={{
-                    fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em',
-                    color: 'var(--text-disabled)', marginBottom: 12,
-                  }}>
-                    EARLIER PHASES
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {otherPhases.map(k => {
-                      const phaseObs = phaseGroups[k];
-                      const ph = PHASES_ORDERED.find(p => p.key === k);
-                      // Show summary for earlier phases (count of check-ins)
-                      const latestObs = phaseObs[0];
-                      const checkInCount = phaseObs.length;
-                      return (
-                        <button
-                          key={k}
-                          onClick={() => setCheckInPhase(k)}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 12,
-                            padding: '12px 0',
-                            borderBottom: '1px solid var(--color-border-light)',
-                            background: 'none', border: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                          }}
-                        >
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: ph?.accent || '#718096', marginTop: 5, flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: latestObs.note ? 3 : 0 }}>
-                              <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>{ph?.label || k}</span>
-                              <span style={{
-                                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                                color: 'var(--color-text-muted)',
-                              }}>
-                                {checkInCount > 1 ? `${checkInCount} check-ins` : (ENGAGEMENT_LABEL[latestObs.engagement] || latestObs.engagement).toUpperCase()}
-                              </span>
+                              {obs.note && (
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--text-secondary)',
+                                    fontStyle: 'italic',
+                                    lineHeight: 1.5,
+                                  }}
+                                >
+                                  &ldquo;{obs.note}&rdquo;
+                                </div>
+                              )}
                             </div>
-                            {latestObs.note && checkInCount === 1 && (
-                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                                &ldquo;{latestObs.note}&rdquo;
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* Earlier phases */}
+                {otherPhases.length > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.15em',
+                        color: 'var(--text-disabled)',
+                        marginBottom: 12,
+                      }}
+                    >
+                      EARLIER PHASES
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {otherPhases.map((k) => {
+                        const phaseObs = phaseGroups[k];
+                        const ph = PHASES_ORDERED.find((p) => p.key === k);
+                        // Show summary for earlier phases (count of check-ins)
+                        const latestObs = phaseObs[0];
+                        const checkInCount = phaseObs.length;
+                        return (
+                          <button
+                            key={k}
+                            onClick={() => setCheckInPhase(k)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 12,
+                              padding: '12px 0',
+                              borderBottom: '1px solid var(--color-border-light)',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: ph?.accent || '#718096',
+                                marginTop: 5,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  marginBottom: latestObs.note ? 3 : 0,
+                                }}
+                              >
+                                <span style={{ fontSize: 12, color: 'var(--color-text-dim)' }}>
+                                  {ph?.label || k}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: '0.08em',
+                                    color: 'var(--color-text-muted)',
+                                  }}
+                                >
+                                  {checkInCount > 1
+                                    ? `${checkInCount} check-ins`
+                                    : (
+                                        ENGAGEMENT_LABEL[latestObs.engagement] ||
+                                        latestObs.engagement
+                                      ).toUpperCase()}
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })()}
+                              {latestObs.note && checkInCount === 1 && (
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--text-secondary)',
+                                    fontStyle: 'italic',
+                                    lineHeight: 1.5,
+                                  }}
+                                >
+                                  &ldquo;{latestObs.note}&rdquo;
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {/* Sheets */}
@@ -489,7 +739,11 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
         <CheckInSheet
           phaseKey={checkInPhase}
           rhythmName={rhythm.name}
-          existing={observations.find(o => o.phase === checkInPhase && o.dateKey === new Date().toISOString().slice(0, 10)) || null}
+          existing={
+            observations.find(
+              (o) => o.phase === checkInPhase && o.dateKey === new Date().toISOString().slice(0, 10)
+            ) || null
+          }
           dayInPhase={checkInPhase === currentPhaseKey ? dayInPhase : null}
           phaseDuration={checkInPhase === currentPhaseKey ? phaseDuration : null}
           onSave={handleCheckIn}

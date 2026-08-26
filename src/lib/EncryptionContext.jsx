@@ -25,7 +25,7 @@ export function EncryptionProvider({ children }) {
       return;
     }
     // Token exists — need passphrase to derive key
-    setStatus(prev => prev === 'unlocked' ? 'unlocked' : 'locked');
+    setStatus((prev) => (prev === 'unlocked' ? 'unlocked' : 'locked'));
   }, []);
 
   // Setup encryption for the first time (userId passed at call time)
@@ -57,10 +57,7 @@ export function EncryptionProvider({ children }) {
   // Disable encryption — clears token from profile, key from session
   const disableEncryption = useCallback(async (userId) => {
     if (!userId) return;
-    await supabase
-      .from('profiles')
-      .update({ encryption_verify_token: null })
-      .eq('id', userId);
+    await supabase.from('profiles').update({ encryption_verify_token: null }).eq('id', userId);
     setSessionKey(null);
     setStatus('disabled');
   }, []);
@@ -75,17 +72,19 @@ export function EncryptionProvider({ children }) {
   const decryptField = useCallback((text) => decryptText(text, sessionKey), [sessionKey]);
 
   return (
-    <EncryptionContext.Provider value={{
-      sessionKey,
-      status,
-      initFromProfile,
-      setupEncryption,
-      unlock,
-      disableEncryption,
-      lock,
-      encryptField,
-      decryptField,
-    }}>
+    <EncryptionContext.Provider
+      value={{
+        sessionKey,
+        status,
+        initFromProfile,
+        setupEncryption,
+        unlock,
+        disableEncryption,
+        lock,
+        encryptField,
+        decryptField,
+      }}
+    >
       {children}
     </EncryptionContext.Provider>
   );

@@ -3,7 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
-import { requestPermission, canNotify, getNotificationPrefs, saveNotificationPrefs } from '../lib/notifications.js';
+import {
+  requestPermission,
+  canNotify,
+  getNotificationPrefs,
+  saveNotificationPrefs,
+} from '../lib/notifications.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 import { LunaLogo } from './LunaLogo.jsx';
 import { useOnboarding } from './Onboarding/index.js';
@@ -37,7 +42,14 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [notifPrefs, setNotifPrefs] = useState(getNotificationPrefs());
 
   // Encryption
-  const { status: encStatus, setupEncryption, disableEncryption, lock, decryptField, sessionKey } = useEncryption();
+  const {
+    status: encStatus,
+    setupEncryption,
+    disableEncryption,
+    lock,
+    decryptField,
+    sessionKey,
+  } = useEncryption();
 
   // Onboarding
   const { resetOnboarding } = useOnboarding();
@@ -47,8 +59,18 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   const [encLoading, setEncLoading] = useState(false);
 
   const ZODIAC_SIGNS = [
-    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+    'Aries',
+    'Taurus',
+    'Gemini',
+    'Cancer',
+    'Leo',
+    'Virgo',
+    'Libra',
+    'Scorpio',
+    'Sagittarius',
+    'Capricorn',
+    'Aquarius',
+    'Pisces',
   ];
 
   const [digestStats, setDigestStats] = useState(null);
@@ -72,23 +94,31 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     setStatsLoading(true);
     try {
       const [echoesRes, loopsRes] = await Promise.all([
-        supabase.from('echoes').select('source, lunar_month, phase_name, tags').eq('user_id', user.id).is('deleted_at', null),
-        supabase.from('loops').select('id, title, status').eq('user_id', user.id).is('deleted_at', null),
+        supabase
+          .from('echoes')
+          .select('source, lunar_month, phase_name, tags')
+          .eq('user_id', user.id)
+          .is('deleted_at', null),
+        supabase
+          .from('loops')
+          .select('id, title, status')
+          .eq('user_id', user.id)
+          .is('deleted_at', null),
       ]);
 
       const echoes = echoesRes.data || [];
       const loops = loopsRes.data || [];
 
       // Unique moons
-      const uniqueMoons = [...new Set(echoes.map(e => e.lunar_month).filter(Boolean))];
+      const uniqueMoons = [...new Set(echoes.map((e) => e.lunar_month).filter(Boolean))];
 
       // Voice vs Text
-      const voiceCount = echoes.filter(e => e.source === 'voice').length;
-      const textCount = echoes.filter(e => e.source === 'text').length;
+      const voiceCount = echoes.filter((e) => e.source === 'voice').length;
+      const textCount = echoes.filter((e) => e.source === 'text').length;
 
       // Tags frequency
       const tagFreq = {};
-      echoes.forEach(e => {
+      echoes.forEach((e) => {
         let tagArray = [];
         try {
           tagArray = typeof e.tags === 'string' ? JSON.parse(e.tags) : e.tags;
@@ -96,7 +126,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           tagArray = Array.isArray(e.tags) ? e.tags : [];
         }
         if (Array.isArray(tagArray)) {
-          tagArray.forEach(t => {
+          tagArray.forEach((t) => {
             tagFreq[t] = (tagFreq[t] || 0) + 1;
           });
         }
@@ -108,7 +138,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
       // Phase frequency
       const phaseFreq = {};
-      echoes.forEach(e => {
+      echoes.forEach((e) => {
         const name = e.phase_name || 'Unknown';
         phaseFreq[name] = (phaseFreq[name] || 0) + 1;
       });
@@ -126,7 +156,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         topTags,
         topPhases,
         loopsCount: loops.length,
-        activeLoopsCount: loops.filter(l => l.status === 'active').length,
+        activeLoopsCount: loops.filter((l) => l.status === 'active').length,
       });
     } catch (e) {
       console.error('Error loading digest stats:', e);
@@ -185,9 +215,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert(profileData);
+      const { error } = await supabase.from('profiles').upsert(profileData);
 
       if (error) throw error;
 
@@ -239,17 +267,19 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
       ]);
 
       // Decrypt echoes if encrypted and sessionKey is present
-      const decryptedEchoes = await Promise.all((echoesRes.data || []).map(async echo => {
-        if (echo.is_encrypted && sessionKey) {
-          try {
-            const plainText = await decryptField(echo.text);
-            return { ...echo, text: plainText, is_decrypted_in_export: true };
-          } catch (err) {
-            console.error("Could not decrypt echo during backup export:", echo.id, err);
+      const decryptedEchoes = await Promise.all(
+        (echoesRes.data || []).map(async (echo) => {
+          if (echo.is_encrypted && sessionKey) {
+            try {
+              const plainText = await decryptField(echo.text);
+              return { ...echo, text: plainText, is_decrypted_in_export: true };
+            } catch (err) {
+              console.error('Could not decrypt echo during backup export:', echo.id, err);
+            }
           }
-        }
-        return echo;
-      }));
+          return echo;
+        })
+      );
 
       const exportData = {
         exportedAt: new Date().toISOString(),
@@ -283,25 +313,37 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
     try {
       // Fetch echoes
       const [, echoesRes] = await Promise.all([
-        supabase.from('loops').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
-        supabase.from('echoes').select('*').eq('user_id', user.id).is('deleted_at', null).order('created_at', { ascending: false }),
+        supabase
+          .from('loops')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('echoes')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false }),
       ]);
 
-      const echoes = await Promise.all((echoesRes.data || []).map(async echo => {
-        let text = echo.text;
-        if (echo.is_encrypted && sessionKey) {
-          try {
-            text = await decryptField(echo.text);
-          } catch (_) {
-            // ignore decryption failure
+      const echoes = await Promise.all(
+        (echoesRes.data || []).map(async (echo) => {
+          let text = echo.text;
+          if (echo.is_encrypted && sessionKey) {
+            try {
+              text = await decryptField(echo.text);
+            } catch (_) {
+              // ignore decryption failure
+            }
           }
-        }
-        return { ...echo, text };
-      }));
+          return { ...echo, text };
+        })
+      );
 
       // Group echoes by lunar_month
       const groupedByMonth = {};
-      echoes.forEach(echo => {
+      echoes.forEach((echo) => {
         const month = echo.lunar_month || 'Seed/Transition Moon';
         if (!groupedByMonth[month]) groupedByMonth[month] = [];
         groupedByMonth[month].push(echo);
@@ -316,21 +358,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         md += `# ☽ ${month} Cycle\n\n`;
 
         // Sort echoes within this month chronologically
-        const sorted = [...monthEchoes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const sorted = [...monthEchoes].sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
 
-        sorted.forEach(echo => {
+        sorted.forEach((echo) => {
           const dateStr = new Date(echo.created_at).toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
           });
           const phaseName = (echo.phase_name || echo.phase || '').toUpperCase();
           const zodiac = echo.zodiac ? `in ${echo.zodiac}` : '';
           const dayOfCycle = echo.day_of_cycle != null ? `· Day ${echo.day_of_cycle}` : '';
-          
+
           let tags = '';
           if (echo.tags) {
             let tagArray = [];
@@ -340,7 +384,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               tagArray = Array.isArray(echo.tags) ? echo.tags : [];
             }
             if (tagArray.length > 0) {
-              tags = `\n*Tags: ${tagArray.map(t => `#${t}`).join(', ')}*`;
+              tags = `\n*Tags: ${tagArray.map((t) => `#${t}`).join(', ')}*`;
             }
           }
 
@@ -403,14 +447,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'flex-end',
-      justifyContent: 'center',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -423,18 +469,20 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
       />
 
       {/* Sheet */}
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        maxWidth: 520,
-        maxHeight: '80vh',
-        background: 'var(--color-surface)',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        display: 'flex',
-        flexDirection: 'column',
-        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      }}>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 520,
+          maxHeight: '80vh',
+          background: 'var(--color-surface)',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         {/* Drag handle */}
         <div
           onClick={onClose}
@@ -445,19 +493,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             cursor: 'pointer',
           }}
         >
-          <div style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            background: 'var(--color-border-mid)',
-          }} />
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: 'var(--color-border-mid)',
+            }}
+          />
         </div>
 
         {/* Header */}
-        <div style={{
-          padding: '0 20px 16px',
-          textAlign: 'center',
-        }}>
+        <div
+          style={{
+            padding: '0 20px 16px',
+            textAlign: 'center',
+          }}
+        >
           <div
             onClick={() => {
               const next = devTapCount + 1;
@@ -480,11 +532,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
         </div>
 
         {/* Section tabs */}
-        <div style={{
-          display: 'flex',
-          gap: 6,
-          padding: '0 20px 16px',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            padding: '0 20px 16px',
+          }}
+        >
           {[
             { id: 'account', label: 'Account', icon: '◯' },
             { id: 'digest', label: 'Digest', icon: '✦' },
@@ -492,7 +546,7 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
             { id: 'notifs', label: 'Alerts', icon: '◉' },
             { id: 'privacy', label: 'Privacy', icon: '◎' },
             { id: 'about', label: 'About', icon: '✧' },
-          ].map(s => (
+          ].map((s) => (
             <button
               key={s.id}
               onClick={() => setActiveSection(s.id)}
@@ -502,12 +556,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 padding: '10px 4px',
                 borderRadius: 10,
                 border: 'none',
-                background: activeSection === s.id
-                  ? 'var(--color-border-mid)'
-                  : 'var(--color-input-bg)',
-                color: activeSection === s.id
-                  ? 'var(--color-text)'
-                  : 'var(--color-text-muted)',
+                background:
+                  activeSection === s.id ? 'var(--color-border-mid)' : 'var(--color-input-bg)',
+                color: activeSection === s.id ? 'var(--color-text)' : 'var(--color-text-muted)',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -518,82 +569,103 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               }}
             >
               <span style={{ fontSize: 16 }}>{s.icon}</span>
-              <span style={{
-                fontSize: 9, fontFamily: 'monospace',
-                letterSpacing: '0.05em', whiteSpace: 'nowrap',
-                overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: '100%',
-              }}>{s.label}</span>
+              <span
+                style={{
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                }}
+              >
+                {s.label}
+              </span>
             </button>
           ))}
         </div>
 
         {/* Content */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '0 20px 40px',
-        }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '0 20px 40px',
+          }}
+        >
           {/* Account Section */}
           {activeSection === 'account' && (
             <div>
               {user ? (
                 <>
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border-light)',
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 6,
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 6,
+                      }}
+                    >
                       SIGNED IN AS
                     </div>
-                    <div style={{
-                      fontSize: 14,
-                      color: 'var(--color-text)',
-                      wordBreak: 'break-all',
-                    }}>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: 'var(--color-text)',
+                        wordBreak: 'break-all',
+                      }}
+                    >
                       {user.email}
                     </div>
                   </div>
 
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'rgba(52, 211, 153, 0.06)',
-                    border: '1px solid rgba(52, 211, 153, 0.15)',
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      fontSize: 12,
-                      color: 'rgba(52, 211, 153, 0.8)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'rgba(52, 211, 153, 0.06)',
+                      border: '1px solid rgba(52, 211, 153, 0.15)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'rgba(52, 211, 153, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
                       <span>●</span>
                       <span>Data synced to cloud</span>
                     </div>
                   </div>
 
                   {/* Data Management */}
-                  <div style={{
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: 12,
-                    letterSpacing: '0.1em',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     DATA MANAGEMENT
                   </div>
 
-                   <button
+                  <button
                     onClick={handleExportMarkdown}
                     disabled={exporting}
                     style={{
@@ -665,11 +737,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   </button>
                 </>
               ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-focus)',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-focus)',
+                  }}
+                >
                   <p>Sign in to sync your data across devices</p>
                 </div>
               )}
@@ -677,13 +751,15 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {/* Dev Tools - Test Data (dev mode or tap 5x on Settings title) */}
               {showDevTools && (
                 <div style={{ marginTop: 24 }}>
-                  <div style={{
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: 'rgba(167, 139, 250, 0.5)',
-                    marginBottom: 12,
-                    letterSpacing: '0.1em',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'rgba(167, 139, 250, 0.5)',
+                      marginBottom: 12,
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     DEV TOOLS
                   </div>
 
@@ -693,7 +769,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       setSeedResult(null);
                       try {
                         const result = seedAllData({ cycleCount: 3, clearExisting: true });
-                        setSeedResult(`Loaded ${result.loops.length} loops, ${result.echoes.length} echoes, ${result.rhythms.length} rhythms`);
+                        setSeedResult(
+                          `Loaded ${result.loops.length} loops, ${result.echoes.length} echoes, ${result.rhythms.length} rhythms`
+                        );
                       } catch (err) {
                         setSeedResult(`Error: ${err.message}`);
                       }
@@ -736,14 +814,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   </button>
 
                   {seedResult && (
-                    <div style={{
-                      fontSize: 11,
-                      color: 'rgba(167, 139, 250, 0.6)',
-                      fontFamily: 'monospace',
-                      padding: '8px 12px',
-                      background: 'rgba(167, 139, 250, 0.06)',
-                      borderRadius: 8,
-                    }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: 'rgba(167, 139, 250, 0.6)',
+                        fontFamily: 'monospace',
+                        padding: '8px 12px',
+                        background: 'rgba(167, 139, 250, 0.06)',
+                        borderRadius: 8,
+                      }}
+                    >
                       {seedResult}
                     </div>
                   )}
@@ -755,139 +835,197 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* Reflections Digest Section */}
           {activeSection === 'digest' && (
             <div>
-              <div style={{
-                fontSize: 13,
-                color: 'var(--color-text-dim)',
-                marginBottom: 20,
-                lineHeight: 1.6,
-              }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-text-dim)',
+                  marginBottom: 20,
+                  lineHeight: 1.6,
+                }}
+              >
                 A high-level view of your reflections and habits accumulated across all your cycles.
               </div>
 
               {!user ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-focus)',
-                  fontStyle: 'italic',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-focus)',
+                    fontStyle: 'italic',
+                  }}
+                >
                   Sign in to view your Reflections Digest
                 </div>
               ) : statsLoading ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-text-muted)',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   Calculating cosmic metrics...
                 </div>
               ) : digestStats ? (
                 <div>
                   {/* Total reflections card */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 12,
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      background: 'var(--color-input-bg)',
-                      border: '1px solid var(--color-border-light)',
-                      textAlign: 'center',
-                    }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: 'var(--color-input-bg)',
+                        border: '1px solid var(--color-border-light)',
+                        textAlign: 'center',
+                      }}
+                    >
                       <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
                         {digestStats.totalEchoes}
                       </div>
-                      <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          color: 'var(--color-text-muted)',
+                          marginTop: 4,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
                         TOTAL REFLECTIONS
                       </div>
                     </div>
 
-                    <div style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      background: 'var(--color-input-bg)',
-                      border: '1px solid var(--color-border-light)',
-                      textAlign: 'center',
-                    }}>
+                    <div
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: 'var(--color-input-bg)',
+                        border: '1px solid var(--color-border-light)',
+                        textAlign: 'center',
+                      }}
+                    >
                       <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
                         {digestStats.uniqueMoonsCount}
                       </div>
-                      <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          color: 'var(--color-text-muted)',
+                          marginTop: 4,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
                         MOONS EXPERIENCED
                       </div>
                     </div>
                   </div>
 
                   {/* Voice vs Text progress bar */}
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border-light)',
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 8,
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 8,
+                      }}
+                    >
                       <span>VOICE ({digestStats.voiceCount})</span>
                       <span>TEXT ({digestStats.textCount})</span>
                     </div>
-                    <div style={{
-                      height: 8,
-                      borderRadius: 4,
-                      background: 'var(--color-border-light)',
-                      display: 'flex',
-                      overflow: 'hidden',
-                    }}>
-                      <div style={{
-                        width: `${digestStats.totalEchoes > 0 ? (digestStats.voiceCount / digestStats.totalEchoes) * 100 : 50}%`,
-                        background: 'var(--color-accent)',
-                      }} />
-                      <div style={{
-                        width: `${digestStats.totalEchoes > 0 ? (digestStats.textCount / digestStats.totalEchoes) * 100 : 50}%`,
-                        background: 'var(--color-border-mid)',
-                      }} />
+                    <div
+                      style={{
+                        height: 8,
+                        borderRadius: 4,
+                        background: 'var(--color-border-light)',
+                        display: 'flex',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${digestStats.totalEchoes > 0 ? (digestStats.voiceCount / digestStats.totalEchoes) * 100 : 50}%`,
+                          background: 'var(--color-accent)',
+                        }}
+                      />
+                      <div
+                        style={{
+                          width: `${digestStats.totalEchoes > 0 ? (digestStats.textCount / digestStats.totalEchoes) * 100 : 50}%`,
+                          background: 'var(--color-border-mid)',
+                        }}
+                      />
                     </div>
                   </div>
 
                   {/* Lunar Phase Alignment */}
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border-light)',
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 12,
-                      letterSpacing: '0.05em',
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 12,
+                        letterSpacing: '0.05em',
+                      }}
+                    >
                       LUNAR ALIGNMENT (Most Active Phases)
                     </div>
                     {digestStats.topPhases.length === 0 ? (
-                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--color-text-dim)',
+                          fontStyle: 'italic',
+                        }}
+                      >
                         No reflections recorded yet.
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {digestStats.topPhases.map(({ phase, count }) => (
-                          <div key={phase} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+                          <div
+                            key={phase}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: 13,
+                            }}
+                          >
                             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 16 }}>{getMoonEmoji(phase)}</span>
                               <span style={{ color: 'var(--color-text)' }}>{phase}</span>
                             </span>
-                            <span style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+                            <span
+                              style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace' }}
+                            >
                               {count} {count === 1 ? 'reflection' : 'reflections'}
                             </span>
                           </div>
@@ -897,24 +1035,34 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   </div>
 
                   {/* Top Tags / Emotional Signature */}
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border-light)',
-                    marginBottom: 16,
-                  }}>
-                    <div style={{
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 12,
-                      letterSpacing: '0.05em',
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 12,
+                        letterSpacing: '0.05em',
+                      }}
+                    >
                       TOP TAGS (Emotional Signatures)
                     </div>
                     {digestStats.topTags.length === 0 ? (
-                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--color-text-dim)',
+                          fontStyle: 'italic',
+                        }}
+                      >
                         No tags used yet. Add tags to your reflections to see them here!
                       </div>
                     ) : (
@@ -936,11 +1084,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                             }}
                           >
                             #{tag}
-                            <span style={{
-                              opacity: 0.6,
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                            }}>
+                            <span
+                              style={{
+                                opacity: 0.6,
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                              }}
+                            >
                               ({count})
                             </span>
                           </span>
@@ -950,34 +1100,46 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   </div>
 
                   {/* Moons Experienced list */}
-                  <div style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border-light)',
-                  }}>
-                    <div style={{
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 12,
-                      letterSpacing: '0.05em',
-                    }}>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 12,
+                        letterSpacing: '0.05em',
+                      }}
+                    >
                       MOONS HISTORY
                     </div>
                     {digestStats.uniqueMoonsList.length === 0 ? (
-                      <div style={{ fontSize: 13, color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--color-text-dim)',
+                          fontStyle: 'italic',
+                        }}
+                      >
                         No moon history recorded.
                       </div>
                     ) : (
-                      <div style={{
-                        maxHeight: 120,
-                        overflowY: 'auto',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}>
-                        {digestStats.uniqueMoonsList.map(moon => (
+                      <div
+                        style={{
+                          maxHeight: 120,
+                          overflowY: 'auto',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}
+                      >
+                        {digestStats.uniqueMoonsList.map((moon) => (
                           <div key={moon} style={{ fontSize: 13, color: 'var(--color-text)' }}>
                             ☾ {moon}
                           </div>
@@ -987,11 +1149,13 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   </div>
                 </div>
               ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-text-muted)',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   No reflections recorded yet.
                 </div>
               )}
@@ -1001,51 +1165,62 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* Birth Data Section */}
           {activeSection === 'birth' && (
             <div>
-              <div style={{
-                fontSize: 13,
-                color: 'var(--color-text-dim)',
-                marginBottom: 20,
-                lineHeight: 1.6,
-              }}>
-                Enter your big three for personalized transits. Don&apos;t know yours? Look up your chart at cafeastrology.com
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-text-dim)',
+                  marginBottom: 20,
+                  lineHeight: 1.6,
+                }}
+              >
+                Enter your big three for personalized transits. Don&apos;t know yours? Look up your
+                chart at cafeastrology.com
               </div>
 
               {!user ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-focus)',
-                  fontStyle: 'italic',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-focus)',
+                    fontStyle: 'italic',
+                  }}
+                >
                   Sign in to save your zodiac signs
                 </div>
               ) : loading ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: 24,
-                  color: 'var(--color-text-muted)',
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 24,
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   Loading...
                 </div>
               ) : (
                 <>
                   {/* Big Three Header */}
-                  <div style={{
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: 'rgba(167, 139, 250, 0.7)',
-                    marginBottom: 12,
-                    letterSpacing: '0.1em',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'rgba(167, 139, 250, 0.7)',
+                      marginBottom: 12,
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     YOUR SIGNS
                   </div>
-                  <div style={{
-                    fontSize: 11,
-                    fontFamily: "'Cormorant Garamond', serif",
-                    color: 'var(--color-text-muted)',
-                    marginBottom: 16,
-                    fontStyle: 'italic',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "'Cormorant Garamond', serif",
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 16,
+                      fontStyle: 'italic',
+                    }}
+                  >
                     Sun and moon are enough. Rising is a bonus if you know it.{' '}
                     <a
                       href="https://horoscopes.astro-seek.com/birth-chart-horoscope-online"
@@ -1059,18 +1234,20 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
                   {/* Sun Sign */}
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 6,
-                    }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 6,
+                      }}
+                    >
                       ☉ SUN SIGN (your core identity)
                     </label>
                     <select
                       value={sunSign}
-                      onChange={e => setSunSign(e.target.value)}
+                      onChange={(e) => setSunSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -1082,26 +1259,30 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }}
                     >
                       <option value="">Select...</option>
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={sign} value={sign}>{sign}</option>
+                      {ZODIAC_SIGNS.map((sign) => (
+                        <option key={sign} value={sign}>
+                          {sign}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Moon Sign */}
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 6,
-                    }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 6,
+                      }}
+                    >
                       ☽ MOON SIGN (your emotional nature)
                     </label>
                     <select
                       value={moonSign}
-                      onChange={e => setMoonSign(e.target.value)}
+                      onChange={(e) => setMoonSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -1113,26 +1294,30 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }}
                     >
                       <option value="">Select...</option>
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={sign} value={sign}>{sign}</option>
+                      {ZODIAC_SIGNS.map((sign) => (
+                        <option key={sign} value={sign}>
+                          {sign}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Rising Sign */}
                   <div style={{ marginBottom: 24 }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 6,
-                    }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 6,
+                      }}
+                    >
                       ↑ RISING SIGN (optional · how others see you)
                     </label>
                     <select
                       value={risingSign}
-                      onChange={e => setRisingSign(e.target.value)}
+                      onChange={(e) => setRisingSign(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -1144,36 +1329,42 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }}
                     >
                       <option value="">Select...</option>
-                      {ZODIAC_SIGNS.map(sign => (
-                        <option key={sign} value={sign}>{sign}</option>
+                      {ZODIAC_SIGNS.map((sign) => (
+                        <option key={sign} value={sign}>
+                          {sign}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Hemisphere */}
-                  <div style={{
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: 'rgba(167, 139, 250, 0.7)',
-                    marginBottom: 12,
-                    marginTop: 24,
-                    letterSpacing: '0.1em',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'rgba(167, 139, 250, 0.7)',
+                      marginBottom: 12,
+                      marginTop: 24,
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     YOUR LOCATION
                   </div>
                   <div style={{ marginBottom: 24 }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: 'var(--color-text-muted)',
-                      marginBottom: 6,
-                    }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: 6,
+                      }}
+                    >
                       🌍 HEMISPHERE (for accurate seasons)
                     </label>
                     <select
                       value={hemisphere}
-                      onChange={e => setHemisphere(e.target.value)}
+                      onChange={(e) => setHemisphere(e.target.value)}
                       style={{
                         width: '100%',
                         padding: 12,
@@ -1197,12 +1388,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       padding: 14,
                       borderRadius: 10,
                       border: 'none',
-                      background: saving
-                        ? 'var(--color-border-light)'
-                        : 'rgba(167, 139, 250, 0.2)',
-                      color: saving
-                        ? 'var(--color-text-muted)'
-                        : '#A78BFA',
+                      background: saving ? 'var(--color-border-light)' : 'rgba(167, 139, 250, 0.2)',
+                      color: saving ? 'var(--color-text-muted)' : '#A78BFA',
                       fontSize: 13,
                       fontWeight: 500,
                       cursor: saving ? 'wait' : 'pointer',
@@ -1218,57 +1405,158 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* Privacy / Encryption Section */}
           {activeSection === 'privacy' && (
             <div>
-              <div style={{ fontSize: 13, color: 'var(--color-text-dim)', marginBottom: 20, lineHeight: 1.6 }}>
-                End-to-end encryption protects your loops and echoes. Only your passphrase can decrypt them — even we can&apos;t read them.
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-text-dim)',
+                  marginBottom: 20,
+                  lineHeight: 1.6,
+                }}
+              >
+                End-to-end encryption protects your loops and echoes. Only your passphrase can
+                decrypt them — even we can&apos;t read them.
               </div>
 
               {/* Status card */}
-              <div style={{
-                padding: 16, borderRadius: 12, marginBottom: 20,
-                background: encStatus === 'unlocked'
-                  ? 'rgba(52, 211, 153, 0.08)'
-                  : encStatus === 'locked'
-                  ? 'rgba(245, 200, 100, 0.08)'
-                  : 'var(--color-input-bg)',
-                border: `1px solid ${encStatus === 'unlocked'
-                  ? 'rgba(52, 211, 153, 0.2)'
-                  : encStatus === 'locked'
-                  ? 'rgba(245, 200, 100, 0.2)'
-                  : 'var(--color-input-hover)'}`,
-              }}>
-                <div style={{ fontSize: 12, color: encStatus === 'unlocked' ? 'rgba(52, 211, 153, 0.9)' : encStatus === 'locked' ? 'rgba(245, 200, 100, 0.9)' : 'var(--color-focus)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  marginBottom: 20,
+                  background:
+                    encStatus === 'unlocked'
+                      ? 'rgba(52, 211, 153, 0.08)'
+                      : encStatus === 'locked'
+                        ? 'rgba(245, 200, 100, 0.08)'
+                        : 'var(--color-input-bg)',
+                  border: `1px solid ${
+                    encStatus === 'unlocked'
+                      ? 'rgba(52, 211, 153, 0.2)'
+                      : encStatus === 'locked'
+                        ? 'rgba(245, 200, 100, 0.2)'
+                        : 'var(--color-input-hover)'
+                  }`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      encStatus === 'unlocked'
+                        ? 'rgba(52, 211, 153, 0.9)'
+                        : encStatus === 'locked'
+                          ? 'rgba(245, 200, 100, 0.9)'
+                          : 'var(--color-focus)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
                   <span>●</span>
-                  <span>{encStatus === 'unlocked' ? 'Encryption active — content is decrypted this session' : encStatus === 'locked' ? 'Encryption enabled — locked this session' : 'Encryption not enabled'}</span>
+                  <span>
+                    {encStatus === 'unlocked'
+                      ? 'Encryption active — content is decrypted this session'
+                      : encStatus === 'locked'
+                        ? 'Encryption enabled — locked this session'
+                        : 'Encryption not enabled'}
+                  </span>
                 </div>
               </div>
 
               {/* Setup form (disabled state) */}
               {encStatus === 'disabled' && user && (
                 <div>
-                  <div style={{ fontSize: 12, color: 'var(--color-focus)', marginBottom: 8, lineHeight: 1.6 }}>Choose a strong passphrase. You&apos;ll need it every time you open the app.</div>
-                  <div style={{ padding: '10px 12px', marginBottom: 12, background: 'rgba(252, 129, 129, 0.08)', border: '1px solid rgba(252, 129, 129, 0.2)', borderRadius: 8, fontSize: 12, color: 'rgba(252, 129, 129, 0.8)', lineHeight: 1.6 }}>
-                    If you forget your passphrase, your encrypted content cannot be recovered — not by you, not by us. There is no reset. Write it down somewhere safe.
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--color-focus)',
+                      marginBottom: 8,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Choose a strong passphrase. You&apos;ll need it every time you open the app.
+                  </div>
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      marginBottom: 12,
+                      background: 'rgba(252, 129, 129, 0.08)',
+                      border: '1px solid rgba(252, 129, 129, 0.2)',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      color: 'rgba(252, 129, 129, 0.8)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    If you forget your passphrase, your encrypted content cannot be recovered — not
+                    by you, not by us. There is no reset. Write it down somewhere safe.
                   </div>
                   <input
                     type="password"
                     placeholder="Passphrase"
                     value={encPassphrase}
-                    onChange={e => { setEncPassphrase(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 10, background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
+                    onChange={(e) => {
+                      setEncPassphrase(e.target.value);
+                      setEncError('');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      marginBottom: 10,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      borderRadius: 8,
+                      color: 'var(--color-text)',
+                      fontSize: 14,
+                      outline: 'none',
+                    }}
                   />
                   <input
                     type="password"
                     placeholder="Confirm passphrase"
                     value={encConfirm}
-                    onChange={e => { setEncConfirm(e.target.value); setEncError(''); }}
-                    style={{ width: '100%', padding: '11px 14px', marginBottom: 12, background: 'var(--color-input-bg)', border: '1px solid var(--color-border-light)', borderRadius: 8, color: 'var(--color-text)', fontSize: 14, outline: 'none' }}
+                    onChange={(e) => {
+                      setEncConfirm(e.target.value);
+                      setEncError('');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      marginBottom: 12,
+                      background: 'var(--color-input-bg)',
+                      border: '1px solid var(--color-border-light)',
+                      borderRadius: 8,
+                      color: 'var(--color-text)',
+                      fontSize: 14,
+                      outline: 'none',
+                    }}
                   />
-                  {encError && <div style={{ padding: '8px 12px', marginBottom: 12, background: 'rgba(252,129,129,0.1)', border: '1px solid rgba(252,129,129,0.3)', borderRadius: 6, color: 'rgba(252,129,129,0.9)', fontSize: 12 }}>{encError}</div>}
+                  {encError && (
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        marginBottom: 12,
+                        background: 'rgba(252,129,129,0.1)',
+                        border: '1px solid rgba(252,129,129,0.3)',
+                        borderRadius: 6,
+                        color: 'rgba(252,129,129,0.9)',
+                        fontSize: 12,
+                      }}
+                    >
+                      {encError}
+                    </div>
+                  )}
                   <button
                     disabled={encLoading}
                     onClick={async () => {
-                      if (encPassphrase.length < 4) { setEncError('Passphrase must be at least 4 characters'); return; }
-                      if (encPassphrase !== encConfirm) { setEncError('Passphrases do not match'); return; }
+                      if (encPassphrase.length < 4) {
+                        setEncError('Passphrase must be at least 4 characters');
+                        return;
+                      }
+                      if (encPassphrase !== encConfirm) {
+                        setEncError('Passphrases do not match');
+                        return;
+                      }
                       setEncLoading(true);
                       try {
                         await setupEncryption(encPassphrase, user.id);
@@ -1279,7 +1567,16 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       }
                       setEncLoading(false);
                     }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-input-bg)', color: 'var(--color-text)', fontSize: 13, cursor: encLoading ? 'wait' : 'pointer' }}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      borderRadius: 10,
+                      border: 'none',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text)',
+                      fontSize: 13,
+                      cursor: encLoading ? 'wait' : 'pointer',
+                    }}
                   >
                     {encLoading ? 'Setting up...' : 'Enable encryption'}
                   </button>
@@ -1290,17 +1587,43 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {encStatus === 'unlocked' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <button
-                    onClick={() => { lock(); onClose(); }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid var(--color-border-light)', background: 'var(--color-input-bg)', color: 'var(--color-text-dim)', fontSize: 13, cursor: 'pointer' }}
+                    onClick={() => {
+                      lock();
+                      onClose();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid var(--color-border-light)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-dim)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                    }}
                   >
                     Lock session
                   </button>
                   <button
                     onClick={async () => {
-                      if (!confirm('Disable encryption? Future content will be stored unencrypted. Existing encrypted content will remain unreadable without re-enabling.')) return;
+                      if (
+                        !confirm(
+                          'Disable encryption? Future content will be stored unencrypted. Existing encrypted content will remain unreadable without re-enabling.'
+                        )
+                      )
+                        return;
                       await disableEncryption(user?.id);
                     }}
-                    style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(252,129,129,0.2)', background: 'rgba(252,129,129,0.05)', color: 'rgba(252,129,129,0.7)', fontSize: 13, cursor: 'pointer' }}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid rgba(252,129,129,0.2)',
+                      background: 'rgba(252,129,129,0.05)',
+                      color: 'rgba(252,129,129,0.7)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                    }}
                   >
                     Disable encryption
                   </button>
@@ -1310,7 +1633,8 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {/* Locked state */}
               {encStatus === 'locked' && (
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.7 }}>
-                  Your content is encrypted. Re-open the app to be prompted for your passphrase, or close and reopen this menu.
+                  Your content is encrypted. Re-open the app to be prompted for your passphrase, or
+                  close and reopen this menu.
                 </div>
               )}
             </div>
@@ -1319,44 +1643,54 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* Notifications Section */}
           {activeSection === 'notifs' && (
             <div>
-              <div style={{
-                fontSize: 13,
-                color: 'var(--color-text-dim)',
-                marginBottom: 20,
-                lineHeight: 1.6,
-              }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-text-dim)',
+                  marginBottom: 20,
+                  lineHeight: 1.6,
+                }}
+              >
                 Get notified before phase transitions so you can prepare.
               </div>
 
               {/* Enable Notifications */}
-              <div style={{
-                padding: 16,
-                borderRadius: 12,
-                background: notifPrefs.enabled
-                  ? 'rgba(52, 211, 153, 0.08)'
-                  : 'var(--color-input-bg)',
-                border: `1px solid ${notifPrefs.enabled
-                  ? 'rgba(52, 211, 153, 0.2)'
-                  : 'var(--color-input-hover)'}`,
-                marginBottom: 16,
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}>
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  background: notifPrefs.enabled
+                    ? 'rgba(52, 211, 153, 0.08)'
+                    : 'var(--color-input-bg)',
+                  border: `1px solid ${
+                    notifPrefs.enabled ? 'rgba(52, 211, 153, 0.2)' : 'var(--color-input-hover)'
+                  }`,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <div>
-                    <div style={{
-                      fontSize: 14,
-                      color: 'var(--color-text)',
-                      marginBottom: 4,
-                    }}>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: 'var(--color-text)',
+                        marginBottom: 4,
+                      }}
+                    >
                       Enable Notifications
                     </div>
-                    <div style={{
-                      fontSize: 11,
-                      color: 'var(--color-text-muted)',
-                    }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--color-text-muted)',
+                      }}
+                    >
                       {canNotify() ? 'Notifications allowed' : 'Permission needed'}
                     </div>
                   </div>
@@ -1368,7 +1702,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                           return;
                         }
                         if (Notification.permission === 'denied') {
-                          alert('Notifications are blocked. Please enable them in your browser or device settings, then try again.');
+                          alert(
+                            'Notifications are blocked. Please enable them in your browser or device settings, then try again.'
+                          );
                           return;
                         }
                         const granted = await requestPermission();
@@ -1377,7 +1713,9 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                           setNotifPrefs(newPrefs);
                           saveNotificationPrefs(newPrefs);
                         } else {
-                          alert('Notification permission was not granted. Please check your browser settings.');
+                          alert(
+                            'Notification permission was not granted. Please check your browser settings.'
+                          );
                         }
                       } else {
                         const newPrefs = { ...notifPrefs, enabled: false };
@@ -1397,16 +1735,18 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       position: 'relative',
                     }}
                   >
-                    <div style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 11,
-                      background: notifPrefs.enabled ? '#34D399' : 'var(--color-focus)',
-                      position: 'absolute',
-                      top: 3,
-                      left: notifPrefs.enabled ? 25 : 3,
-                      transition: 'left 0.2s',
-                    }} />
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        background: notifPrefs.enabled ? '#34D399' : 'var(--color-focus)',
+                        position: 'absolute',
+                        top: 3,
+                        left: notifPrefs.enabled ? 25 : 3,
+                        transition: 'left 0.2s',
+                      }}
+                    />
                   </button>
                 </div>
               </div>
@@ -1414,13 +1754,15 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
               {/* Notification Types */}
               {notifPrefs.enabled && (
                 <>
-                  <div style={{
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: 12,
-                    letterSpacing: '0.1em',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.1em',
+                    }}
+                  >
                     NOTIFY ME FOR
                   </div>
 
@@ -1467,64 +1809,76 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
           {/* About Section */}
           {activeSection === 'about' && (
             <div>
-              <div style={{
-                textAlign: 'center',
-                marginBottom: 24,
-              }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  marginBottom: 24,
+                }}
+              >
                 <LunaLogo variant="wordmark" width={200} style={{ marginBottom: 4 }} />
-                <div style={{
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  color: 'var(--color-text-muted)',
-                }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   v1.0.0
                 </div>
               </div>
 
               {/* Theme Toggle */}
-              <div style={{
-                marginBottom: 24,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 10,
-              }}>
-                <div style={{
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.1em',
-                  color: 'var(--color-text-muted)',
-                }}>
+              <div
+                style={{
+                  marginBottom: 24,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.1em',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   THEME
                 </div>
                 <ThemeToggle />
               </div>
 
-              <div style={{
-                fontSize: 13,
-                color: 'var(--color-text-dim)',
-                lineHeight: 1.8,
-                textAlign: 'center',
-              }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-text-dim)',
+                  lineHeight: 1.8,
+                  textAlign: 'center',
+                }}
+              >
                 <p>Track your growth with lunar wisdom.</p>
-                <p style={{ marginTop: 12 }}>
-                  Built with intention under many moons.
-                </p>
+                <p style={{ marginTop: 12 }}>Built with intention under many moons.</p>
               </div>
 
-              <div style={{
-                marginTop: 24,
-                padding: 16,
-                borderRadius: 12,
-                background: 'var(--color-input-bg)',
-                border: '1px solid var(--color-border-light)',
-              }}>
-                <div style={{
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                  color: 'var(--color-text-muted)',
-                  textAlign: 'center',
-                }}>
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: 16,
+                  borderRadius: 12,
+                  background: 'var(--color-input-bg)',
+                  border: '1px solid var(--color-border-light)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: 'var(--color-text-muted)',
+                    textAlign: 'center',
+                  }}
+                >
                   DATA STORED LOCALLY + CLOUD (WHEN SIGNED IN)
                   <br />
                   VOICE TRANSCRIPTION VIA GROQ WHISPER
@@ -1538,15 +1892,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                 <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {IS_V2 && (
                     <button
-                      onClick={() => { resetOnboarding(); onClose(); }}
+                      onClick={() => {
+                        resetOnboarding();
+                        onClose();
+                      }}
                       style={{
-                        width: '100%', padding: '12px 16px',
-                        borderRadius: 10, border: '1px solid var(--color-border-light)',
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        border: '1px solid var(--color-border-light)',
                         background: 'var(--color-input-bg)',
                         color: 'var(--color-text-dim)',
-                        fontSize: 13, cursor: 'pointer',
+                        fontSize: 13,
+                        cursor: 'pointer',
                         fontFamily: "'DM Sans', sans-serif",
-                        display: 'flex', alignItems: 'center', gap: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
                       }}
                     >
                       <span style={{ fontSize: 16 }}>◎</span>
@@ -1554,15 +1916,23 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                     </button>
                   )}
                   <button
-                    onClick={() => { onOpenTutorial('phases'); onClose(); }}
+                    onClick={() => {
+                      onOpenTutorial('phases');
+                      onClose();
+                    }}
                     style={{
-                      width: '100%', padding: '12px 16px',
-                      borderRadius: 10, border: '1px solid var(--color-border-light)',
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-border-light)',
                       background: 'var(--color-input-bg)',
                       color: 'var(--color-text-dim)',
-                      fontSize: 13, cursor: 'pointer',
+                      fontSize: 13,
+                      cursor: 'pointer',
                       fontFamily: "'DM Sans', sans-serif",
-                      display: 'flex', alignItems: 'center', gap: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
                     }}
                   >
                     <span style={{ fontSize: 16 }}>☽</span>
@@ -1573,18 +1943,20 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 
               {/* Feedback */}
               <div style={{ marginTop: 32 }}>
-                <div style={{
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.1em',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.1em',
+                    color: 'var(--text-secondary)',
+                    marginBottom: 10,
+                  }}
+                >
                   SHARE FEEDBACK
                 </div>
                 <textarea
                   value={feedbackText}
-                  onChange={e => setFeedbackText(e.target.value)}
+                  onChange={(e) => setFeedbackText(e.target.value)}
                   placeholder="What's working? What's missing? What feels off?"
                   rows={4}
                   style={{
@@ -1648,25 +2020,31 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
 // Toggle component for notification settings
 function NotifToggle({ label, sublabel, checked, onChange }) {
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '12px 0',
-      borderBottom: '1px solid var(--color-border-light)',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 0',
+        borderBottom: '1px solid var(--color-border-light)',
+      }}
+    >
       <div>
-        <div style={{
-          fontSize: 13,
-          color: 'var(--color-text)',
-        }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: 'var(--color-text)',
+          }}
+        >
           {label}
         </div>
-        <div style={{
-          fontSize: 10,
-          color: 'var(--text-secondary)',
-          marginTop: 2,
-        }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-secondary)',
+            marginTop: 2,
+          }}
+        >
           {sublabel}
         </div>
       </div>
@@ -1677,23 +2055,23 @@ function NotifToggle({ label, sublabel, checked, onChange }) {
           height: 24,
           borderRadius: 12,
           border: 'none',
-          background: checked
-            ? 'rgba(167, 139, 250, 0.4)'
-            : 'var(--color-border-light)',
+          background: checked ? 'rgba(167, 139, 250, 0.4)' : 'var(--color-border-light)',
           cursor: 'pointer',
           position: 'relative',
         }}
       >
-        <div style={{
-          width: 18,
-          height: 18,
-          borderRadius: 9,
-          background: checked ? '#A78BFA' : 'var(--color-text-muted)',
-          position: 'absolute',
-          top: 3,
-          left: checked ? 23 : 3,
-          transition: 'left 0.2s',
-        }} />
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            background: checked ? '#A78BFA' : 'var(--color-text-muted)',
+            position: 'absolute',
+            top: 3,
+            left: checked ? 23 : 3,
+            transition: 'left 0.2s',
+          }}
+        />
       </button>
     </div>
   );

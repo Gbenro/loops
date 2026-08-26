@@ -33,7 +33,7 @@ export function StarField({ count = 60, opacity = 1 }) {
         opacity,
       }}
     >
-      {stars.map(star => (
+      {stars.map((star) => (
         <div
           key={star.id}
           style={{

@@ -14,13 +14,27 @@ function TestConsumer({ onReady }) {
       <span data-testid="active-tour">{context.activeTour || 'none'}</span>
       <span data-testid="step-index">{context.stepIndex}</span>
       <span data-testid="is-first-launch">{String(context.isFirstLaunch)}</span>
-      <button data-testid="start-sky" onClick={() => context.startTour('sky')}>Start Sky</button>
-      <button data-testid="start-loops" onClick={() => context.startTour('loops')}>Start Loops</button>
-      <button data-testid="end-tour" onClick={() => context.endTour(true)}>End Tour</button>
-      <button data-testid="reset" onClick={() => context.resetOnboarding()}>Reset</button>
-      <button data-testid="dismiss" onClick={() => context.dismissWelcome()}>Dismiss</button>
-      <button data-testid="skip" onClick={() => context.skipOnboarding()}>Skip</button>
-      <button data-testid="complete" onClick={() => context.completeOnboarding()}>Complete</button>
+      <button data-testid="start-sky" onClick={() => context.startTour('sky')}>
+        Start Sky
+      </button>
+      <button data-testid="start-loops" onClick={() => context.startTour('loops')}>
+        Start Loops
+      </button>
+      <button data-testid="end-tour" onClick={() => context.endTour(true)}>
+        End Tour
+      </button>
+      <button data-testid="reset" onClick={() => context.resetOnboarding()}>
+        Reset
+      </button>
+      <button data-testid="dismiss" onClick={() => context.dismissWelcome()}>
+        Dismiss
+      </button>
+      <button data-testid="skip" onClick={() => context.skipOnboarding()}>
+        Skip
+      </button>
+      <button data-testid="complete" onClick={() => context.completeOnboarding()}>
+        Complete
+      </button>
     </div>
   );
 }
@@ -52,33 +66,33 @@ describe('Onboarding', () => {
     });
 
     it('sky tour has correct structure', () => {
-       const skyTour = TOUR_DEFINITIONS.sky;
-       expect(skyTour.id).toBe('sky');
-       expect(skyTour.name).toBe('Sky Tour');
-       expect(skyTour.steps).toHaveLength(8);
-       expect(skyTour.steps[0]).toHaveProperty('target');
-       expect(skyTour.steps[0]).toHaveProperty('title');
-       expect(skyTour.steps[0]).toHaveProperty('content');
-       expect(skyTour.steps[0]).toHaveProperty('placement');
-     });
+      const skyTour = TOUR_DEFINITIONS.sky;
+      expect(skyTour.id).toBe('sky');
+      expect(skyTour.name).toBe('Sky Tour');
+      expect(skyTour.steps).toHaveLength(8);
+      expect(skyTour.steps[0]).toHaveProperty('target');
+      expect(skyTour.steps[0]).toHaveProperty('title');
+      expect(skyTour.steps[0]).toHaveProperty('content');
+      expect(skyTour.steps[0]).toHaveProperty('placement');
+    });
 
     it('loops tour has correct structure', () => {
-       const loopsTour = TOUR_DEFINITIONS.loops;
-       expect(loopsTour.id).toBe('loops');
-       expect(loopsTour.steps).toHaveLength(9);
-     });
+      const loopsTour = TOUR_DEFINITIONS.loops;
+      expect(loopsTour.id).toBe('loops');
+      expect(loopsTour.steps).toHaveLength(9);
+    });
 
     it('echoes tour has correct structure', () => {
-       const echoesTour = TOUR_DEFINITIONS.echoes;
-       expect(echoesTour.id).toBe('echoes');
-       expect(echoesTour.steps).toHaveLength(9);
-     });
+      const echoesTour = TOUR_DEFINITIONS.echoes;
+      expect(echoesTour.id).toBe('echoes');
+      expect(echoesTour.steps).toHaveLength(9);
+    });
 
     it('rhythm tour has correct structure', () => {
-       const rhythmTour = TOUR_DEFINITIONS.rhythm;
-       expect(rhythmTour.id).toBe('rhythm');
-       expect(rhythmTour.steps).toHaveLength(9);
-     });
+      const rhythmTour = TOUR_DEFINITIONS.rhythm;
+      expect(rhythmTour.id).toBe('rhythm');
+      expect(rhythmTour.steps).toHaveLength(9);
+    });
 
     it('all steps have data-tour targets', () => {
       Object.values(TOUR_DEFINITIONS).forEach((tour) => {
@@ -212,7 +226,11 @@ describe('Onboarding', () => {
       let contextRef;
       render(
         <OnboardingProvider>
-          <TestConsumer onReady={(ctx) => { contextRef = ctx; }} />
+          <TestConsumer
+            onReady={(ctx) => {
+              contextRef = ctx;
+            }}
+          />
         </OnboardingProvider>
       );
 
@@ -221,23 +239,27 @@ describe('Onboarding', () => {
       expect(contextRef.isTourCompleted('echoes')).toBe(false);
     });
 
-     it('getActiveTourSteps returns correct steps', async () => {
-       let contextRef;
-       render(
-         <OnboardingProvider>
-           <TestConsumer onReady={(ctx) => { contextRef = ctx; }} />
-         </OnboardingProvider>
-       );
+    it('getActiveTourSteps returns correct steps', async () => {
+      let contextRef;
+      render(
+        <OnboardingProvider>
+          <TestConsumer
+            onReady={(ctx) => {
+              contextRef = ctx;
+            }}
+          />
+        </OnboardingProvider>
+      );
 
-       // No active tour
-       expect(contextRef.getActiveTourSteps()).toEqual([]);
+      // No active tour
+      expect(contextRef.getActiveTourSteps()).toEqual([]);
 
-       // Start sky tour
-       fireEvent.click(screen.getByTestId('start-sky'));
+      // Start sky tour
+      fireEvent.click(screen.getByTestId('start-sky'));
 
-       expect(contextRef.getActiveTourSteps()).toHaveLength(8);
-       expect(contextRef.getActiveTourSteps()[0].title).toBe('This is now.');
-     });
+      expect(contextRef.getActiveTourSteps()).toHaveLength(8);
+      expect(contextRef.getActiveTourSteps()[0].title).toBe('This is now.');
+    });
 
     it('handles corrupted localStorage gracefully', async () => {
       mockStorage['toursCompleted'] = 'invalid json';
@@ -256,7 +278,11 @@ describe('Onboarding', () => {
       let contextRef;
       render(
         <OnboardingProvider>
-          <TestConsumer onReady={(ctx) => { contextRef = ctx; }} />
+          <TestConsumer
+            onReady={(ctx) => {
+              contextRef = ctx;
+            }}
+          />
         </OnboardingProvider>
       );
 
@@ -358,19 +384,19 @@ describe('Onboarding', () => {
       expect(screen.getByText('Skip for now')).toBeInTheDocument();
     });
 
-     it('Begin button dismisses modal and starts sky tour', () => {
-       render(
-         <OnboardingProvider>
-           <WelcomeModal />
-           <TestConsumer />
-         </OnboardingProvider>
-       );
+    it('Begin button dismisses modal and starts sky tour', () => {
+      render(
+        <OnboardingProvider>
+          <WelcomeModal />
+          <TestConsumer />
+        </OnboardingProvider>
+      );
 
-       fireEvent.click(screen.getByText('Begin'));
+      fireEvent.click(screen.getByText('Begin'));
 
-       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-       expect(screen.getByTestId('active-tour')).toHaveTextContent('navigation');
-     });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('active-tour')).toHaveTextContent('navigation');
+    });
 
     it('Skip button dismisses modal and skips onboarding', () => {
       render(
@@ -393,7 +419,9 @@ describe('Onboarding', () => {
         </OnboardingProvider>
       );
 
-      expect(screen.getByText(/Luna Loops is a way of living with the lunar cycle/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Luna Loops is a way of living with the lunar cycle/)
+      ).toBeInTheDocument();
       expect(screen.getByText(/Four tabs. Eight phases. One cycle at a time./)).toBeInTheDocument();
     });
 
@@ -436,7 +464,9 @@ describe('Onboarding', () => {
     });
 
     it('returns null for invalid type', () => {
-      const { container } = render(<CeremonyPrompt type="invalid" onAction={() => {}} onDismiss={() => {}} />);
+      const { container } = render(
+        <CeremonyPrompt type="invalid" onAction={() => {}} onDismiss={() => {}} />
+      );
       expect(container.firstChild).toBeNull();
     });
 

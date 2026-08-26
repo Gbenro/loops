@@ -228,10 +228,7 @@ describe('notifications.js', () => {
       const result = sendNotification('Test', 'Body', 'tag');
 
       expect(result).toBe(false);
-      expect(consoleWarn).toHaveBeenCalledWith(
-        'Failed to send notification:',
-        expect.any(Error)
-      );
+      expect(consoleWarn).toHaveBeenCalledWith('Failed to send notification:', expect.any(Error));
 
       consoleWarn.mockRestore();
     });

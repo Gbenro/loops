@@ -5,30 +5,30 @@
 import { PHASE_ACCENTS } from '../lib/phases.js';
 
 const PHASES = [
-  { key: 'new',             label: 'NM',  accent: PHASE_ACCENTS['new'] },
+  { key: 'new', label: 'NM', accent: PHASE_ACCENTS['new'] },
   { key: 'waxing-crescent', label: 'WxC', accent: PHASE_ACCENTS['waxing-crescent'] },
-  { key: 'first-quarter',   label: 'FQ',  accent: PHASE_ACCENTS['first-quarter'] },
-  { key: 'waxing-gibbous',  label: 'WxG', accent: PHASE_ACCENTS['waxing-gibbous'] },
-  { key: 'full',            label: 'FM',  accent: PHASE_ACCENTS['full'] },
-  { key: 'waning-gibbous',  label: 'WnG', accent: PHASE_ACCENTS['waning-gibbous'] },
-  { key: 'last-quarter',    label: 'LQ',  accent: PHASE_ACCENTS['last-quarter'] },
+  { key: 'first-quarter', label: 'FQ', accent: PHASE_ACCENTS['first-quarter'] },
+  { key: 'waxing-gibbous', label: 'WxG', accent: PHASE_ACCENTS['waxing-gibbous'] },
+  { key: 'full', label: 'FM', accent: PHASE_ACCENTS['full'] },
+  { key: 'waning-gibbous', label: 'WnG', accent: PHASE_ACCENTS['waning-gibbous'] },
+  { key: 'last-quarter', label: 'LQ', accent: PHASE_ACCENTS['last-quarter'] },
   { key: 'waning-crescent', label: 'WnC', accent: PHASE_ACCENTS['waning-crescent'] },
 ];
 
 // Engagement level → { fraction, opacity }
 const LEVEL_STYLE = {
-  none:       null,
-  light:      { f: 0.28, o: 0.45 },
-  moderate:   { f: 0.58, o: 0.65 },
-  deep:       { f: 0.85, o: 0.85 },
-  ceremonial: { f: 1.00, o: 1.00 },
+  none: null,
+  light: { f: 0.28, o: 0.45 },
+  moderate: { f: 0.58, o: 0.65 },
+  deep: { f: 0.85, o: 0.85 },
+  ceremonial: { f: 1.0, o: 1.0 },
 };
 
 // Radial bands (inner ring = intention, outer ring = observation)
-const INT_R_MIN  = 22;
-const INT_R_MAX  = 44;
-const OBS_R_MIN  = 50;
-const OBS_R_MAX  = 76;
+const INT_R_MIN = 22;
+const INT_R_MAX = 44;
+const OBS_R_MIN = 50;
+const OBS_R_MAX = 76;
 
 // Gap between segments in degrees (half on each side)
 const GAP_DEG = 3;
@@ -64,11 +64,7 @@ function ArcSegment({ cx, cy, rMin, rMax, startDeg, endDeg, level, color, isCere
 
   return (
     <>
-      <path
-        d={d}
-        fill={color}
-        opacity={style.o}
-      />
+      <path d={d} fill={color} opacity={style.o} />
       {isCeremonial && (
         <path
           d={d}
@@ -88,12 +84,12 @@ function generateAccessibleDescription(intention, observation, currentPhaseKey) 
   const parts = [];
 
   if (currentPhaseKey) {
-    const currentPhase = PHASES.find(p => p.key === currentPhaseKey);
+    const currentPhase = PHASES.find((p) => p.key === currentPhaseKey);
     parts.push(`Current phase: ${currentPhase?.key.replace('-', ' ') || currentPhaseKey}`);
   }
 
-  const intentionCount = Object.values(intention).filter(v => v && v !== 'none').length;
-  const observationCount = Object.values(observation).filter(v => v && v !== 'none').length;
+  const intentionCount = Object.values(intention).filter((v) => v && v !== 'none').length;
+  const observationCount = Object.values(observation).filter((v) => v && v !== 'none').length;
 
   if (intentionCount > 0) {
     parts.push(`${intentionCount} phase${intentionCount > 1 ? 's' : ''} with intention set`);
@@ -111,10 +107,10 @@ function generateAccessibleDescription(intention, observation, currentPhaseKey) 
 
 export function PhaseRing({
   size = 180,
-  intention = {},      // { phaseKey: level }  (from wholeIntention or phaseIntentions)
-  observation = {},    // { phaseKey: level }
+  intention = {}, // { phaseKey: level }  (from wholeIntention or phaseIntentions)
+  observation = {}, // { phaseKey: level }
   currentPhaseKey = null,
-  pastPhaseKeys = [],  // phases already completed this cycle
+  pastPhaseKeys = [], // phases already completed this cycle
   onPhaseClick = null, // called with phaseKey
   showLabels = true,
 }) {
@@ -129,7 +125,11 @@ export function PhaseRing({
   const intMax = INT_R_MAX * scale;
   const labelR = (INT_R_MAX + 10) * scale;
 
-  const accessibleDescription = generateAccessibleDescription(intention, observation, currentPhaseKey);
+  const accessibleDescription = generateAccessibleDescription(
+    intention,
+    observation,
+    currentPhaseKey
+  );
 
   return (
     <svg
@@ -152,9 +152,9 @@ export function PhaseRing({
 
       {PHASES.map((phase, i) => {
         const segStart = i * 45 + GAP_DEG;
-        const segEnd   = (i + 1) * 45 - GAP_DEG;
+        const segEnd = (i + 1) * 45 - GAP_DEG;
         const isActive = phase.key === currentPhaseKey;
-        const isPast   = pastPhaseKeys.includes(phase.key);
+        const isPast = pastPhaseKeys.includes(phase.key);
         const isFuture = !isActive && !isPast;
 
         const obsLevel = observation[phase.key] || null;
@@ -184,7 +184,14 @@ export function PhaseRing({
             {/* Current phase highlight ring */}
             {isActive && (
               <path
-                d={annularArcPath(cx, cy, obsMin - 2 * scale, intMax + 2 * scale, segStart - 1, segEnd + 1)}
+                d={annularArcPath(
+                  cx,
+                  cy,
+                  obsMin - 2 * scale,
+                  intMax + 2 * scale,
+                  segStart - 1,
+                  segEnd + 1
+                )}
                 fill="none"
                 stroke={phase.accent}
                 strokeWidth={1 * scale}
@@ -195,9 +202,12 @@ export function PhaseRing({
             {/* Intention arc (inner) */}
             {intLevel && intLevel !== 'none' && (
               <ArcSegment
-                cx={cx} cy={cy}
-                rMin={intMin} rMax={intMax}
-                startDeg={segStart} endDeg={segEnd}
+                cx={cx}
+                cy={cy}
+                rMin={intMin}
+                rMax={intMax}
+                startDeg={segStart}
+                endDeg={segEnd}
                 level={intLevel}
                 color={phase.accent}
                 isCeremonial={intLevel === 'ceremonial'}
@@ -207,9 +217,12 @@ export function PhaseRing({
             {/* Observation arc (outer) */}
             {obsLevel && obsLevel !== 'none' && (
               <ArcSegment
-                cx={cx} cy={cy}
-                rMin={obsMin} rMax={obsMax}
-                startDeg={segStart} endDeg={segEnd}
+                cx={cx}
+                cy={cy}
+                rMin={obsMin}
+                rMax={obsMax}
+                startDeg={segStart}
+                endDeg={segEnd}
                 level={obsLevel}
                 color={phase.accent}
                 isCeremonial={obsLevel === 'ceremonial'}
@@ -243,7 +256,13 @@ export function PhaseRing({
 }
 
 // Thumbnail variant — smaller, no labels, same ring
-export function PhaseRingThumb({ size = 52, intention = {}, observation = {}, currentPhaseKey = null, pastPhaseKeys = [] }) {
+export function PhaseRingThumb({
+  size = 52,
+  intention = {},
+  observation = {},
+  currentPhaseKey = null,
+  pastPhaseKeys = [],
+}) {
   return (
     <PhaseRing
       size={size}

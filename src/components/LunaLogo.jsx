@@ -27,11 +27,42 @@ export function LunaLogo({ variant = 'icon', width, className, style }) {
   // Orbital moon icon — centered at 0,0, fits in ±90
   const icon = (rx, ry, moonR, nodeR) => (
     <g>
-      <ellipse cx="0" cy="0" rx={rx} ry={ry} fill="none" stroke={`url(#${ringId})`} strokeWidth="0.9" strokeDasharray="2.5 5" />
-      <ellipse cx="0" cy="0" rx={rx * 0.756} ry={ry * 0.756} fill="none" stroke="#c4a882" strokeWidth="0.65" strokeOpacity="0.3" />
-      <ellipse cx="0" cy="0" rx={rx * 0.533} ry={ry * 0.533} fill="none" stroke="#c4a882" strokeWidth="0.5" strokeOpacity="0.15" />
+      <ellipse
+        cx="0"
+        cy="0"
+        rx={rx}
+        ry={ry}
+        fill="none"
+        stroke={`url(#${ringId})`}
+        strokeWidth="0.9"
+        strokeDasharray="2.5 5"
+      />
+      <ellipse
+        cx="0"
+        cy="0"
+        rx={rx * 0.756}
+        ry={ry * 0.756}
+        fill="none"
+        stroke="#c4a882"
+        strokeWidth="0.65"
+        strokeOpacity="0.3"
+      />
+      <ellipse
+        cx="0"
+        cy="0"
+        rx={rx * 0.533}
+        ry={ry * 0.533}
+        fill="none"
+        stroke="#c4a882"
+        strokeWidth="0.5"
+        strokeOpacity="0.15"
+      />
       <circle cx="0" cy="0" r={moonR} fill={`url(#${moonId})`} />
-      <path d={`M 0,${-moonR} A ${moonR},${moonR} 0 0,1 0,${moonR} A ${moonR * 0.567},${moonR} 0 0,0 0,${-moonR} Z`} fill="#040810" fillOpacity="0.78" />
+      <path
+        d={`M 0,${-moonR} A ${moonR},${moonR} 0 0,1 0,${moonR} A ${moonR * 0.567},${moonR} 0 0,0 0,${-moonR} Z`}
+        fill="#040810"
+        fillOpacity="0.78"
+      />
       <circle cx="0" cy={-ry} r={nodeR} fill="#c4a882" fillOpacity="0.9" />
       <circle cx="0" cy={-ry} r={nodeR * 2} fill="#c4a882" fillOpacity="0.1" />
       <circle cx={rx * 0.711} cy={-ry * 0.289} r={nodeR * 0.57} fill="#c4a882" fillOpacity="0.45" />
@@ -46,7 +77,8 @@ export function LunaLogo({ variant = 'icon', width, className, style }) {
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="-95 -95 190 190"
-        width={w} height={h}
+        width={w}
+        height={h}
         className={className}
         style={style}
         role="img"
@@ -65,29 +97,37 @@ export function LunaLogo({ variant = 'icon', width, className, style }) {
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="-120 -110 240 144"
-      width={w} height={h}
+      width={w}
+      height={h}
       className={className}
       style={style}
       role="img"
       aria-label="Luna Loops logo"
     >
       {defs}
-      <g transform="translate(0, -42)">
-        {icon(56, 56, 19, 2.2)}
-      </g>
+      <g transform="translate(0, -42)">{icon(56, 56, 19, 2.2)}</g>
       <text
-        x="0" y="30"
+        x="0"
+        y="30"
         fontFamily="'Cormorant Garamond', Georgia, serif"
-        fontSize="22" letterSpacing="5"
-        fill="#f5e6c8" textAnchor="middle" fontWeight="300"
+        fontSize="22"
+        letterSpacing="5"
+        fill="#f5e6c8"
+        textAnchor="middle"
+        fontWeight="300"
       >
         LUNA LOOPS
       </text>
       <text
-        x="0" y="46"
+        x="0"
+        y="46"
         fontFamily="'DM Sans', sans-serif"
-        fontSize="6.5" letterSpacing="3"
-        fill="#c4a882" fillOpacity="0.55" textAnchor="middle" fontWeight="300"
+        fontSize="6.5"
+        letterSpacing="3"
+        fill="#c4a882"
+        fillOpacity="0.55"
+        textAnchor="middle"
+        fontWeight="300"
       >
         entrain with the cycle
       </text>

@@ -7,7 +7,11 @@ import { LunaLogo } from '../LunaLogo.jsx';
 export function WelcomeModal() {
   const { showWelcome, dismissWelcome, skipOnboarding, startTour } = useOnboarding();
 
-  if (!showWelcome) return null;
+  const isDismissed =
+    localStorage.getItem('welcomeModalDismissed') === 'true' ||
+    localStorage.getItem('onboardingCompleted') === 'true';
+
+  if (!showWelcome || isDismissed) return null;
 
   const handleBeginTour = () => {
     dismissWelcome();
@@ -88,7 +92,8 @@ export function WelcomeModal() {
             marginBottom: 12,
           }}
         >
-          Luna Loops is a way of living with the lunar cycle — not tracking habits or optimizing productivity, but noticing how things move through you as the moon moves through the sky.
+          Luna Loops is a way of living with the lunar cycle — not tracking habits or optimizing
+          productivity, but noticing how things move through you as the moon moves through the sky.
         </p>
 
         <p

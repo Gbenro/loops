@@ -9,42 +9,47 @@ const SYNODIC = 29.53058867;
 // What each convergence actually invites — specific to aspect type × natal body
 const INVITATIONS = {
   'Moon:Moon': {
-    conjunction:   'Your emotional body is fully activated. What you feel right now is speaking truth.',
-    near:          'Your emotional nature is building toward activation. Notice what is rising.',
-    sextile:       'Emotional flow comes easily. Trust what you feel without needing to justify it.',
-    square:        'Tension in your emotional world. Let what is uncomfortable show you what matters.',
-    trine:         'Your feelings and your nature are in harmony. An easy day for inner work.',
-    opposition:    'Your emotions are at full stretch — between what you feel and what you know. Both are real.',
-    'same-sign':   'The moon is in your emotional home. You are more attuned than usual today.',
+    conjunction:
+      'Your emotional body is fully activated. What you feel right now is speaking truth.',
+    near: 'Your emotional nature is building toward activation. Notice what is rising.',
+    sextile: 'Emotional flow comes easily. Trust what you feel without needing to justify it.',
+    square: 'Tension in your emotional world. Let what is uncomfortable show you what matters.',
+    trine: 'Your feelings and your nature are in harmony. An easy day for inner work.',
+    opposition:
+      'Your emotions are at full stretch — between what you feel and what you know. Both are real.',
+    'same-sign': 'The moon is in your emotional home. You are more attuned than usual today.',
   },
   'Moon:Sun': {
-    conjunction:   'The sky is shining directly on your core. Visibility and identity are heightened.',
-    near:          'Your sense of self is building toward expression. Something wants to emerge.',
-    sextile:       'A quiet opening to express who you are. The sky supports showing up.',
-    square:        'Friction between your feeling self and your doing self. Let the tension clarify rather than frustrate.',
-    trine:         'You are in flow with your purpose. Act from identity today.',
-    opposition:    'Full awareness of who you are and what you feel. Let the polarity illuminate you.',
-    'same-sign':   'The moon passes through your solar field. Your core purpose is quietly lit.',
+    conjunction:
+      'The sky is shining directly on your core. Visibility and identity are heightened.',
+    near: 'Your sense of self is building toward expression. Something wants to emerge.',
+    sextile: 'A quiet opening to express who you are. The sky supports showing up.',
+    square:
+      'Friction between your feeling self and your doing self. Let the tension clarify rather than frustrate.',
+    trine: 'You are in flow with your purpose. Act from identity today.',
+    opposition: 'Full awareness of who you are and what you feel. Let the polarity illuminate you.',
+    'same-sign': 'The moon passes through your solar field. Your core purpose is quietly lit.',
   },
   'Full Moon:Moon': {
-    'full-moon-natal': 'The fullest light of the cycle meets your deepest emotional nature. What you have carried privately is ready to be seen.',
+    'full-moon-natal':
+      'The fullest light of the cycle meets your deepest emotional nature. What you have carried privately is ready to be seen.',
   },
 };
 
 // Zodiac sign to ecliptic longitude (midpoint of each sign)
 const SIGN_LONGITUDES = {
-  'Aries': 15,
-  'Taurus': 45,
-  'Gemini': 75,
-  'Cancer': 105,
-  'Leo': 135,
-  'Virgo': 165,
-  'Libra': 195,
-  'Scorpio': 225,
-  'Sagittarius': 255,
-  'Capricorn': 285,
-  'Aquarius': 315,
-  'Pisces': 345,
+  Aries: 15,
+  Taurus: 45,
+  Gemini: 75,
+  Cancer: 105,
+  Leo: 135,
+  Virgo: 165,
+  Libra: 195,
+  Scorpio: 225,
+  Sagittarius: 255,
+  Capricorn: 285,
+  Aquarius: 315,
+  Pisces: 345,
 };
 
 // Get natal data from user profile or fall back to default
@@ -203,7 +208,7 @@ export function getNatalResonance(date = new Date(), userProfile = null) {
   }
 
   // Sort by strength
-  const strengthOrder = { 'HIGH': 0, 'MEDIUM': 1, 'LOW': 2 };
+  const strengthOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
   resonances.sort((a, b) => strengthOrder[a.strength] - strengthOrder[b.strength]);
 
   return resonances;
@@ -221,7 +226,7 @@ export function getResonanceSummary(date = new Date(), userProfile = null) {
     };
   }
 
-  const hasHigh = resonances.some(r => r.strength === 'HIGH');
+  const hasHigh = resonances.some((r) => r.strength === 'HIGH');
   const strongest = resonances[0];
 
   return {

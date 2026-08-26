@@ -152,8 +152,18 @@ describe('lunar.js', () => {
   describe('getLunarMonthName', () => {
     it('returns valid lunar month name', () => {
       const validMonths = [
-        'Wolf', 'Snow', 'Worm', 'Pink', 'Flower', 'Strawberry',
-        'Buck', 'Sturgeon', 'Harvest', "Hunter's", 'Beaver', 'Cold',
+        'Wolf',
+        'Snow',
+        'Worm',
+        'Pink',
+        'Flower',
+        'Strawberry',
+        'Buck',
+        'Sturgeon',
+        'Harvest',
+        "Hunter's",
+        'Beaver',
+        'Cold',
       ];
       const monthName = getLunarMonthName(new Date());
       expect(validMonths).toContain(monthName);
@@ -204,9 +214,18 @@ describe('lunar.js', () => {
     it('returns valid zodiac sign and degree', () => {
       const zodiac = getMoonZodiac(new Date());
       const validSigns = [
-        'Aries', 'Taurus', 'Gemini', 'Cancer',
-        'Leo', 'Virgo', 'Libra', 'Scorpio',
-        'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+        'Aries',
+        'Taurus',
+        'Gemini',
+        'Cancer',
+        'Leo',
+        'Virgo',
+        'Libra',
+        'Scorpio',
+        'Sagittarius',
+        'Capricorn',
+        'Aquarius',
+        'Pisces',
       ];
       expect(validSigns).toContain(zodiac.sign);
       expect(zodiac.degree).toBeGreaterThanOrEqual(0);
@@ -292,7 +311,7 @@ describe('lunar.js', () => {
 
     it('each phase has required properties', () => {
       const phases = getAllPhases();
-      phases.forEach(phase => {
+      phases.forEach((phase) => {
         expect(phase).toHaveProperty('name');
         expect(phase).toHaveProperty('key');
         expect(phase).toHaveProperty('emoji');

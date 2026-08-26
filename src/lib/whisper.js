@@ -20,7 +20,7 @@ export async function transcribeAudio(audioBlob, onProgress) {
   const response = await fetch(TRANSCRIBE_URL, {
     method: 'POST',
     headers: {
-      'apikey': SUPABASE_ANON_KEY,
+      apikey: SUPABASE_ANON_KEY,
     },
     body: formData,
   });

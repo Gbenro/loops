@@ -7,14 +7,20 @@ import { MoonFace } from './MoonFace.jsx';
 
 const FALLBACK_QUESTION = 'What wants to be born through me this cycle?';
 
-export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQuestion, phrasesLoading, hemisphere = 'north' }) {
+export function NewMoonRitual({
+  lunarData,
+  onSetIntention,
+  onDismiss,
+  newMoonQuestion,
+  phrasesLoading,
+  hemisphere = 'north',
+}) {
   const [intention, setIntention] = useState('');
   const [isClosing, setIsClosing] = useState(false);
 
   // Use generated question if available and not null
-  const question = (newMoonQuestion && newMoonQuestion !== 'null')
-    ? newMoonQuestion
-    : FALLBACK_QUESTION;
+  const question =
+    newMoonQuestion && newMoonQuestion !== 'null' ? newMoonQuestion : FALLBACK_QUESTION;
 
   const handleSetIntention = () => {
     if (!intention.trim()) return;
@@ -30,174 +36,186 @@ export function NewMoonRitual({ lunarData, onSetIntention, onDismiss, newMoonQue
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 200,
-      background: 'var(--color-bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-    {/* Constrain content to app width */}
-    <div style={{
-      width: '100%',
-      maxWidth: 520,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-      position: 'relative',
-    }}>
-      {/* Ambient glow behind moon */}
-      <div style={{
-        position: 'absolute',
-        top: '20%',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 300,
-        height: 300,
-        background: 'radial-gradient(circle, var(--color-input-bg) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
-      {/* Moon glyph */}
-      <div style={{
-        marginBottom: 16,
-        filter: 'drop-shadow(0 0 30px var(--color-glow))',
-        animation: 'breathe 4s ease-in-out infinite',
-      }}>
-        <MoonFace size={120} phase={0} illumination={0} phaseName="New Moon" />
-      </div>
-
-      {/* Label */}
-      <div style={{
-        fontSize: 10,
-        fontFamily: 'monospace',
-        letterSpacing: '0.2em',
-        color: 'var(--color-text-muted)',
-        marginBottom: 40,
-      }}>
-        NEW MOON · {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()}
-      </div>
-
-      {/* The Question */}
-      {phrasesLoading ? (
-        <div style={{
-          width: '80%',
-          maxWidth: 280,
-          height: 32,
-          background: 'var(--color-border-light)',
-          borderRadius: 4,
-          opacity: 0.3,
-          marginBottom: 40,
-        }} />
-      ) : (
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 24,
-          fontStyle: 'italic',
-          color: 'var(--color-text)',
-          textAlign: 'center',
-          lineHeight: 1.5,
-          marginBottom: 40,
-          maxWidth: 320,
-          opacity: 1,
-          transition: 'opacity 0.4s ease',
-        }}>
-          {question}
-        </div>
-      )}
-
-      {/* Intention Input */}
-      <textarea
-        autoFocus
-        value={intention}
-        onChange={e => setIntention(e.target.value)}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 200,
+        background: 'var(--color-bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Constrain content to app width */}
+      <div
         style={{
           width: '100%',
-          maxWidth: 360,
-          minHeight: 120,
-          padding: 20,
-          background: 'transparent',
-          border: 'none',
-          borderBottom: '1px solid var(--color-border-light)',
-          color: 'var(--color-text)',
-          fontSize: 18,
-          fontFamily: "'Cormorant Garamond', serif",
-          lineHeight: 1.6,
-          textAlign: 'center',
-          outline: 'none',
-          resize: 'none',
-        }}
-        placeholder=""
-      />
-
-      {/* Set Intention Button */}
-      <button
-        onClick={handleSetIntention}
-        disabled={!intention.trim()}
-        style={{
-          marginTop: 40,
-          padding: '16px 40px',
-          background: intention.trim()
-            ? 'var(--color-input-hover)'
-            : 'transparent',
-          border: `1px solid ${intention.trim()
-            ? 'var(--color-border-mid)'
-            : 'var(--color-input-hover)'}`,
-          borderRadius: 30,
-          color: intention.trim()
-            ? 'var(--color-text)'
-            : 'var(--color-text-muted)',
-          fontSize: 12,
-          fontFamily: 'monospace',
-          letterSpacing: '0.15em',
-          cursor: intention.trim() ? 'pointer' : 'default',
-          transition: 'all 0.3s ease',
+          maxWidth: 520,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          position: 'relative',
         }}
       >
-        SET INTENTION
-      </button>
+        {/* Ambient glow behind moon */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '20%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 300,
+            height: 300,
+            background: 'radial-gradient(circle, var(--color-input-bg) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
 
-      {/* Dismiss option */}
-      <button
-        onClick={handleDismiss}
-        style={{
-          marginTop: 24,
-          padding: '10px 20px',
-          background: 'none',
-          border: 'none',
-          color: 'var(--color-border-mid)',
-          fontSize: 10,
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          cursor: 'pointer',
-        }}
-      >
-        NOT NOW
-      </button>
-
-      {/* Closing notice */}
-      {isClosing && (
-        <div style={{
-          position: 'absolute',
-          bottom: 60,
-          left: 20,
-          right: 20,
-          textAlign: 'center',
-          fontFamily: "'Cormorant Garamond', serif",
-          fontStyle: 'italic',
-          fontSize: 14,
-          color: 'var(--color-focus)',
-          lineHeight: 1.6,
-        }}>
-          The New Moon lasts until day {Math.ceil(1.85 - lunarData.age + 1)}. You can return.
+        {/* Moon glyph */}
+        <div
+          style={{
+            marginBottom: 16,
+            filter: 'drop-shadow(0 0 30px var(--color-glow))',
+            animation: 'breathe 4s ease-in-out infinite',
+          }}
+        >
+          <MoonFace size={120} phase={0} illumination={0} phaseName="New Moon" />
         </div>
-      )}
-    </div>
+
+        {/* Label */}
+        <div
+          style={{
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.2em',
+            color: 'var(--color-text-muted)',
+            marginBottom: 40,
+          }}
+        >
+          NEW MOON · {getLunarMonthInfo(lunarData.lunarMonth, hemisphere).name.toUpperCase()}
+        </div>
+
+        {/* The Question */}
+        {phrasesLoading ? (
+          <div
+            style={{
+              width: '80%',
+              maxWidth: 280,
+              height: 32,
+              background: 'var(--color-border-light)',
+              borderRadius: 4,
+              opacity: 0.3,
+              marginBottom: 40,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 24,
+              fontStyle: 'italic',
+              color: 'var(--color-text)',
+              textAlign: 'center',
+              lineHeight: 1.5,
+              marginBottom: 40,
+              maxWidth: 320,
+              opacity: 1,
+              transition: 'opacity 0.4s ease',
+            }}
+          >
+            {question}
+          </div>
+        )}
+
+        {/* Intention Input */}
+        <textarea
+          autoFocus
+          value={intention}
+          onChange={(e) => setIntention(e.target.value)}
+          style={{
+            width: '100%',
+            maxWidth: 360,
+            minHeight: 120,
+            padding: 20,
+            background: 'transparent',
+            border: 'none',
+            borderBottom: '1px solid var(--color-border-light)',
+            color: 'var(--color-text)',
+            fontSize: 18,
+            fontFamily: "'Cormorant Garamond', serif",
+            lineHeight: 1.6,
+            textAlign: 'center',
+            outline: 'none',
+            resize: 'none',
+          }}
+          placeholder=""
+        />
+
+        {/* Set Intention Button */}
+        <button
+          onClick={handleSetIntention}
+          disabled={!intention.trim()}
+          style={{
+            marginTop: 40,
+            padding: '16px 40px',
+            background: intention.trim() ? 'var(--color-input-hover)' : 'transparent',
+            border: `1px solid ${
+              intention.trim() ? 'var(--color-border-mid)' : 'var(--color-input-hover)'
+            }`,
+            borderRadius: 30,
+            color: intention.trim() ? 'var(--color-text)' : 'var(--color-text-muted)',
+            fontSize: 12,
+            fontFamily: 'monospace',
+            letterSpacing: '0.15em',
+            cursor: intention.trim() ? 'pointer' : 'default',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          SET INTENTION
+        </button>
+
+        {/* Dismiss option */}
+        <button
+          onClick={handleDismiss}
+          style={{
+            marginTop: 24,
+            padding: '10px 20px',
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-border-mid)',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            cursor: 'pointer',
+          }}
+        >
+          NOT NOW
+        </button>
+
+        {/* Closing notice */}
+        {isClosing && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 60,
+              left: 20,
+              right: 20,
+              textAlign: 'center',
+              fontFamily: "'Cormorant Garamond', serif",
+              fontStyle: 'italic',
+              fontSize: 14,
+              color: 'var(--color-focus)',
+              lineHeight: 1.6,
+            }}
+          >
+            The New Moon lasts until day {Math.ceil(1.85 - lunarData.age + 1)}. You can return.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

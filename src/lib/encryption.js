@@ -11,7 +11,7 @@ async function deriveKey(passphrase, userId) {
     enc.encode(passphrase),
     { name: 'PBKDF2' },
     false,
-    ['deriveKey'],
+    ['deriveKey']
   );
   return crypto.subtle.deriveKey(
     {
@@ -23,7 +23,7 @@ async function deriveKey(passphrase, userId) {
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt'],
+    ['encrypt', 'decrypt']
   );
 }
 
@@ -33,7 +33,7 @@ async function encrypt(plaintext, key) {
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
-    enc.encode(plaintext),
+    enc.encode(plaintext)
   );
   // Prepend IV to ciphertext, encode as base64
   const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
@@ -43,14 +43,10 @@ async function encrypt(plaintext, key) {
 }
 
 async function decrypt(ciphertextB64, key) {
-  const combined = Uint8Array.from(atob(ciphertextB64), c => c.charCodeAt(0));
+  const combined = Uint8Array.from(atob(ciphertextB64), (c) => c.charCodeAt(0));
   const iv = combined.slice(0, 12);
   const ciphertext = combined.slice(12);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    ciphertext,
-  );
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
   return new TextDecoder().decode(plaintext);
 }
 

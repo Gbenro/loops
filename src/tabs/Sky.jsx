@@ -16,7 +16,21 @@ import { getNatalResonance, getResonanceSummary } from '../lib/natal.js';
 import { getPhaseContent, pickForToday } from '../data/phaseContent.js';
 import { getZodiacInfo } from '../data/zodiacMeanings.js';
 
-export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, onSwitchToEchoes, phrases, phrasesLoading, lunarData, solarData, loops = [], echoes = [], onOpenTutorial }) {
+export function Sky({
+  user,
+  userProfile,
+  onProfileUpdate,
+  onSignIn,
+  onSignOut,
+  onSwitchToEchoes,
+  phrases,
+  phrasesLoading,
+  lunarData,
+  solarData,
+  loops = [],
+  echoes = [],
+  onOpenTutorial,
+}) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [transitionDismissed, setTransitionDismissed] = useState(false);
@@ -29,11 +43,17 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
   const resonanceSummary = useMemo(() => getResonanceSummary(now, userProfile), [userProfile]);
 
   const phaseContent = getPhaseContent(lunarData.phase.key);
-  const tideKey = lunarData.phaseProgress < 0.20 ? 'opening'
-    : lunarData.phaseProgress < 0.62 ? 'flowing'
-    : lunarData.phaseProgress < 0.88 ? 'completing'
-    : 'closing';
-  const typeOpening = pickForToday(phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening);
+  const tideKey =
+    lunarData.phaseProgress < 0.2
+      ? 'opening'
+      : lunarData.phaseProgress < 0.62
+        ? 'flowing'
+        : lunarData.phaseProgress < 0.88
+          ? 'completing'
+          : 'closing';
+  const typeOpening = pickForToday(
+    phaseContent.typeOpening[tideKey] || phaseContent.typeOpening.opening
+  );
   const _zodiacInfo = getZodiacInfo(lunarData.zodiac.sign); // For future zodiac details
   const allPhases = getAllPhases();
 
@@ -50,403 +70,473 @@ export function Sky({ user, userProfile, onProfileUpdate, onSignIn, onSignOut, o
   });
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--color-bg)',
-      position: 'relative',
-    }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--color-bg)',
+        position: 'relative',
+      }}
+    >
       <StarField count={50} />
 
       {/* Scrollable Content */}
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-      }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {/* Time & Location Header */}
-        <div style={{
-          padding: '18px 24px 10px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}>
-        <div style={{
-          fontSize: 'var(--font-xs)',
-          fontFamily: 'monospace',
-          letterSpacing: '0.12em',
-          color: 'var(--color-text-muted)',
-        }}>
-          {timeStr} · {dateStr.toUpperCase()}
-        </div>
-        <button
-          data-tour="sky-profile-menu"
-          onClick={() => user ? setMenuOpen(true) : onSignIn()}
-          style={{
-            background: 'none',
-            border: '1px solid var(--color-border-mid)',
-            borderRadius: 8,
-            padding: '8px 14px',
-            fontSize: 'var(--font-xs)',
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            color: user ? 'rgba(52, 211, 153, 0.7)' : 'var(--color-text-muted)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          {user ? (
-            <>
-              <span>●</span>
-              <span>MENU</span>
-            </>
-          ) : (
-            'SIGN IN'
-          )}
-        </button>
-      </div>
-
-        {/* Moon Display */}
-        <div style={{
-          minHeight: 280,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px',
-          flexShrink: 0,
-        }}>
-        {/* Tappable Moon */}
-        <button
-          data-tutorial="moon-display"
-          data-tour="moon-display"
-          onClick={() => setSheetOpen(true)}
-          aria-label={`${lunarData.phase.name}, ${lunarData.illumination}% illuminated. Tap to view cosmic details`}
-          style={{
-            cursor: 'pointer',
-            position: 'relative',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-          }}
-        >
-          <MoonFace
-            size={200}
-            phase={lunarData.age / 29.53}
-            illumination={lunarData.illumination}
-            phaseName={lunarData.phase.name}
-          />
-
-          {/* Tap hint */}
-          <div style={{
-            position: 'absolute',
-            bottom: -32,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: 'var(--font-xs)',
-            fontFamily: 'monospace',
-            letterSpacing: '0.15em',
-            color: 'var(--text-disabled)',
-            whiteSpace: 'nowrap',
-            animation: 'breathe 3s ease-in-out infinite',
-          }}>
-            {phrasesLoading ? 'TAP TO GO DEEPER' : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
-          </div>
-        </button>
-      </div>
-
-      {/* Phase Info */}
-      <div data-tour="phase-info" style={{
-        padding: '0 24px 24px',
-        textAlign: 'center',
-      }}>
-        {/* Phase Name */}
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 'var(--font-3xl)',
-          fontWeight: 600,
-          color: 'var(--color-text)',
-          marginBottom: 10,
-        }}>
-          {phaseContent.title}
-        </div>
-
-        {/* Stats Line */}
-        <div data-tour="zodiac-transit" style={{
-          fontSize: 'var(--font-sm)',
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          color: 'var(--color-focus)',
-          marginBottom: 10,
-        }}>
-          {lunarData.illumination}% · {getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name.toUpperCase()} · MOON IN {lunarData.zodiac.sign.toUpperCase()}
-        </div>
-
-        {/* Day Line */}
-        <div style={{
-          fontSize: 'var(--font-sm)',
-          fontFamily: 'monospace',
-          letterSpacing: '0.08em',
-          color: 'var(--text-secondary)',
-          marginBottom: 24,
-        }}>
-          DAY {lunarData.dayOfCycle} OF 29 · {lunarData.phase.isFull ? 'AT FULL' : lunarData.phase.isWaning ? `${lunarData.daysToNew}D TO NEW` : `${lunarData.daysToFull}D TO FULL`}
-        </div>
-
-        {/* Cosmic Energy Card */}
-        <div style={{
-          padding: '18px 22px',
-          borderRadius: 14,
-          background: lunarData.phase.isThreshold
-            ? 'var(--color-input-bg)'
-            : 'var(--color-input-bg)',
-          border: `1px solid ${lunarData.phase.isThreshold
-            ? 'var(--color-border-light)'
-            : 'var(--color-border-light)'}`,
-          marginBottom: 24,
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 10,
-          }}>
-            <span style={{
-              fontSize: 'var(--font-sm)',
-              fontFamily: 'monospace',
-              letterSpacing: '0.12em',
-              color: 'var(--color-focus)',
-            }}>
-              {phrasesLoading ? phaseContent.energy.toUpperCase() : phrases.energyDescription.toUpperCase()}
-            </span>
-            <span style={{
-              fontSize: 'var(--font-xs)',
-              fontFamily: 'monospace',
-              letterSpacing: '0.1em',
-              padding: '3px 8px',
-              borderRadius: 4,
-              background: lunarData.phase.isThreshold
-                ? 'var(--color-input-hover)'
-                : 'var(--color-input-hover)',
-              color: lunarData.phase.isThreshold
-                ? 'var(--color-focus)'
-                : 'var(--color-focus)',
-            }}>
-              {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
-            </span>
-          </div>
-          {/* Phase type opening */}
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 'var(--font-md)',
-            color: lunarData.phase.isThreshold
-              ? 'var(--color-text-dim)'
-              : 'var(--color-text-dim)',
-            marginBottom: 10,
-            lineHeight: 1.5,
-          }}>
-            {typeOpening}
-          </div>
-          {phrasesLoading ? (
-            <div style={{
-              height: 24,
-              background: 'var(--color-border-light)',
-              borderRadius: 4,
-              opacity: 0.3,
-              animation: 'breathe 2s ease-in-out infinite',
-            }} />
-          ) : (
-            <div style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 'var(--font-lg)',
-              fontStyle: 'italic',
-              color: 'var(--color-text-dim)',
-              lineHeight: 1.6,
-              opacity: 1,
-              transition: 'opacity 0.4s ease',
-            }}>
-              &ldquo;{phrases.phaseGuidance}&rdquo;
-            </div>
-          )}
-        </div>
-
-        {/* Cosmic Synthesis Line */}
-        {!phrasesLoading && phrases.cosmicSynthesis && (
-          <div style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontStyle: 'italic',
-            fontSize: '13px',
-            color: 'var(--color-text-muted)',
-            textAlign: 'center',
-            letterSpacing: '0.02em',
-            padding: '0 24px',
-            marginBottom: '16px',
-            opacity: 1,
-            transition: 'opacity 0.4s ease',
-          }}>
-            {phrases.cosmicSynthesis}
-          </div>
-        )}
-
-        {/* 8-Phase Timeline */}
         <div
-          role="img"
-          aria-label={`Lunar phase timeline showing ${lunarData.phase.name} as current phase`}
           style={{
+            padding: '18px 24px 10px',
             display: 'flex',
             justifyContent: 'space-between',
-            padding: '6px 0',
-            marginBottom: 16,
+            alignItems: 'center',
+            flexShrink: 0,
           }}
         >
-          {allPhases.map((p, i) => {
-            const isActive = p.key === lunarData.phase.key;
-            return (
-              <div
-                key={p.key}
-                aria-label={`${p.name}${isActive ? ' (current)' : ''}`}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 'var(--touch-min)',
-                  minHeight: 'var(--touch-min)',
-                  opacity: isActive ? 1 : 0.3,
-                  transform: isActive ? 'scale(1.15)' : 'scale(1)',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <MiniMoon size={20} phase={i / 8} phaseName={p.name} />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Phase Tide Bar */}
-        <div data-tutorial="phase-tide-bar" data-tour="phase-tide-bar" style={{ margin: '0 -20px 16px' }}>
-          <PhaseTideBar lunarData={lunarData} />
-        </div>
-
-        {/* Progress bar */}
-        <div style={{
-          height: 3,
-          borderRadius: 2,
-          background: 'var(--color-input-hover)',
-          overflow: 'hidden',
-          marginBottom: 20,
-        }}>
-          <div style={{
-            width: `${(lunarData.age / 29.53) * 100}%`,
-            height: '100%',
-            background: 'var(--color-focus)',
-            borderRadius: 2,
-            transition: 'width 0.5s ease',
-          }} />
-        </div>
-
-        {/* Phase Transition Card (< 24h before shift) */}
-        <div data-tutorial="phase-transition-card" data-tour="sky-phase-transition" style={{ display: 'contents' }}>
-        {lunarData.isApproaching && !transitionDismissed && (
-          <PhaseTransitionCard
-            lunarData={lunarData}
-            onDismiss={() => setTransitionDismissed(true)}
-            onOpenEchoes={onSwitchToEchoes}
-            transitionInvitation={phrases.transitionInvitation}
-            phrasesLoading={phrasesLoading}
-            loops={loops}
-            echoes={echoes}
-          />
-        )}
-        </div>{/* end data-tutorial="phase-transition-card" */}
-
-        {/* Personal Transit Card (if resonances active) */}
-        {resonanceSummary.hasResonance && (
           <div
-            data-tutorial="your-sky"
-            data-tour="sky-transit-card"
-            onClick={() => setSheetOpen(true)}
             style={{
-              padding: '14px 18px',
-              borderRadius: 12,
-              background: 'rgba(167, 139, 250, 0.08)',
-              border: '1px solid rgba(167, 139, 250, 0.2)',
-              marginBottom: 18,
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{
               fontSize: 'var(--font-xs)',
               fontFamily: 'monospace',
+              letterSpacing: '0.12em',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {timeStr} · {dateStr.toUpperCase()}
+          </div>
+          <button
+            data-tour="sky-profile-menu"
+            onClick={() => (user ? setMenuOpen(true) : onSignIn())}
+            style={{
+              background: 'none',
+              border: '1px solid var(--color-border-mid)',
+              borderRadius: 8,
+              padding: '8px 14px',
+              fontSize: 'var(--font-xs)',
+              fontFamily: 'monospace',
+              letterSpacing: '0.08em',
+              color: user ? 'rgba(52, 211, 153, 0.7)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            {user ? (
+              <>
+                <span>●</span>
+                <span>MENU</span>
+              </>
+            ) : (
+              'SIGN IN'
+            )}
+          </button>
+        </div>
+
+        {/* Moon Display */}
+        <div
+          style={{
+            minHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            flexShrink: 0,
+          }}
+        >
+          {/* Tappable Moon */}
+          <button
+            data-tutorial="moon-display"
+            data-tour="moon-display"
+            onClick={() => setSheetOpen(true)}
+            aria-label={`${lunarData.phase.name}, ${lunarData.illumination}% illuminated. Tap to view cosmic details`}
+            style={{
+              cursor: 'pointer',
+              position: 'relative',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+            }}
+          >
+            <MoonFace
+              size={200}
+              phase={lunarData.age / 29.53}
+              illumination={lunarData.illumination}
+              phaseName={lunarData.phase.name}
+            />
+
+            {/* Tap hint */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: -32,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: 'var(--font-xs)',
+                fontFamily: 'monospace',
+                letterSpacing: '0.15em',
+                color: 'var(--text-disabled)',
+                whiteSpace: 'nowrap',
+                animation: 'breathe 3s ease-in-out infinite',
+              }}
+            >
+              {phrasesLoading
+                ? 'TAP TO GO DEEPER'
+                : (phrases.tapDeeperInvitation || 'TAP TO GO DEEPER').toUpperCase()}
+            </div>
+          </button>
+        </div>
+
+        {/* Phase Info */}
+        <div
+          data-tour="phase-info"
+          style={{
+            padding: '0 24px 24px',
+            textAlign: 'center',
+          }}
+        >
+          {/* Phase Name */}
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 'var(--font-3xl)',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+              marginBottom: 10,
+            }}
+          >
+            {phaseContent.title}
+          </div>
+
+          {/* Stats Line */}
+          <div
+            data-tour="zodiac-transit"
+            style={{
+              fontSize: 'var(--font-sm)',
+              fontFamily: 'monospace',
               letterSpacing: '0.1em',
-              color: '#A78BFA',
-              marginBottom: 6,
-            }}>
-              {resonanceSummary.intensity === 'active' ? 'ACTIVE TRANSIT' : 'TRANSIT'}
+              color: 'var(--color-focus)',
+              marginBottom: 10,
+            }}
+          >
+            {lunarData.illumination}% ·{' '}
+            {getLunarMonthInfo(lunarData.lunarMonth, solarData?.hemisphere).name.toUpperCase()} ·
+            MOON IN {lunarData.zodiac.sign.toUpperCase()}
+          </div>
+
+          {/* Day Line */}
+          <div
+            style={{
+              fontSize: 'var(--font-sm)',
+              fontFamily: 'monospace',
+              letterSpacing: '0.08em',
+              color: 'var(--text-secondary)',
+              marginBottom: 24,
+            }}
+          >
+            DAY {lunarData.dayOfCycle} OF 29 ·{' '}
+            {lunarData.phase.isFull
+              ? 'AT FULL'
+              : lunarData.phase.isWaning
+                ? `${lunarData.daysToNew}D TO NEW`
+                : `${lunarData.daysToFull}D TO FULL`}
+          </div>
+
+          {/* Cosmic Energy Card */}
+          <div
+            style={{
+              padding: '18px 22px',
+              borderRadius: 14,
+              background: lunarData.phase.isThreshold
+                ? 'var(--color-input-bg)'
+                : 'var(--color-input-bg)',
+              border: `1px solid ${
+                lunarData.phase.isThreshold
+                  ? 'var(--color-border-light)'
+                  : 'var(--color-border-light)'
+              }`,
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                marginBottom: 10,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 'var(--font-sm)',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.12em',
+                  color: 'var(--color-focus)',
+                }}
+              >
+                {phrasesLoading
+                  ? phaseContent.energy.toUpperCase()
+                  : phrases.energyDescription.toUpperCase()}
+              </span>
+              <span
+                style={{
+                  fontSize: 'var(--font-xs)',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  padding: '3px 8px',
+                  borderRadius: 4,
+                  background: lunarData.phase.isThreshold
+                    ? 'var(--color-input-hover)'
+                    : 'var(--color-input-hover)',
+                  color: lunarData.phase.isThreshold ? 'var(--color-focus)' : 'var(--color-focus)',
+                }}
+              >
+                {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
+              </span>
             </div>
-            <div style={{
-              fontSize: 'var(--font-md)',
-              color: 'var(--color-text-dim)',
-              marginBottom: resonanceSummary.strongest?.invitation ? 6 : 0,
-            }}>
-              {resonanceSummary.message}
-            </div>
-            {resonanceSummary.strongest?.invitation && (
-              <div style={{
+            {/* Phase type opening */}
+            <div
+              style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontStyle: 'italic',
                 fontSize: 'var(--font-md)',
-                color: 'var(--color-text-dim)',
+                color: lunarData.phase.isThreshold
+                  ? 'var(--color-text-dim)'
+                  : 'var(--color-text-dim)',
+                marginBottom: 10,
                 lineHeight: 1.5,
-              }}>
-                {resonanceSummary.strongest.invitation}
+              }}
+            >
+              {typeOpening}
+            </div>
+            {phrasesLoading ? (
+              <div
+                style={{
+                  height: 24,
+                  background: 'var(--color-border-light)',
+                  borderRadius: 4,
+                  opacity: 0.3,
+                  animation: 'breathe 2s ease-in-out infinite',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 'var(--font-lg)',
+                  fontStyle: 'italic',
+                  color: 'var(--color-text-dim)',
+                  lineHeight: 1.6,
+                  opacity: 1,
+                  transition: 'opacity 0.4s ease',
+                }}
+              >
+                &ldquo;{phrases.phaseGuidance}&rdquo;
               </div>
             )}
           </div>
-        )}
 
-        {/* Go Deeper Button */}
-        <button
-          data-tour="sky-go-deeper"
-          onClick={() => setSheetOpen(true)}
-          style={{
-            width: '100%',
-            padding: '16px 24px',
-            borderRadius: 14,
-            background: 'var(--color-border)',
-            border: '1px solid var(--color-border-light)',
-            color: 'var(--color-text)',
-            fontSize: 'var(--font-sm)',
-            fontFamily: 'monospace',
-            letterSpacing: '0.1em',
-            cursor: 'pointer',
-            marginBottom: 18,
-          }}
-        >
-          GO DEEPER ↓
-        </button>
+          {/* Cosmic Synthesis Line */}
+          {!phrasesLoading && phrases.cosmicSynthesis && (
+            <div
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: 'italic',
+                fontSize: '13px',
+                color: 'var(--color-text-muted)',
+                textAlign: 'center',
+                letterSpacing: '0.02em',
+                padding: '0 24px',
+                marginBottom: '16px',
+                opacity: 1,
+                transition: 'opacity 0.4s ease',
+              }}
+            >
+              {phrases.cosmicSynthesis}
+            </div>
+          )}
 
-        {/* Waning Notice */}
-        {lunarData.phase.isWaning && (
-          <div style={{
-            fontSize: 'var(--font-md)',
-            fontStyle: 'italic',
-            color: 'rgba(252, 129, 129, 0.65)',
-            lineHeight: 1.6,
-          }}>
-            The moon is waning. A time for releasing, not starting.
+          {/* 8-Phase Timeline */}
+          <div
+            role="img"
+            aria-label={`Lunar phase timeline showing ${lunarData.phase.name} as current phase`}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 0',
+              marginBottom: 16,
+            }}
+          >
+            {allPhases.map((p, i) => {
+              const isActive = p.key === lunarData.phase.key;
+              return (
+                <div
+                  key={p.key}
+                  aria-label={`${p.name}${isActive ? ' (current)' : ''}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 'var(--touch-min)',
+                    minHeight: 'var(--touch-min)',
+                    opacity: isActive ? 1 : 0.3,
+                    transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <MiniMoon size={20} phase={i / 8} phaseName={p.name} />
+                </div>
+              );
+            })}
           </div>
-        )}
 
-        {/* Bottom padding for scroll */}
-        <div style={{ height: 20, flexShrink: 0 }} />
-      </div>
+          {/* Phase Tide Bar */}
+          <div
+            data-tutorial="phase-tide-bar"
+            data-tour="phase-tide-bar"
+            style={{ margin: '0 -20px 16px' }}
+          >
+            <PhaseTideBar lunarData={lunarData} />
+          </div>
+
+          {/* Progress bar */}
+          <div
+            style={{
+              height: 3,
+              borderRadius: 2,
+              background: 'var(--color-input-hover)',
+              overflow: 'hidden',
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                width: `${(lunarData.age / 29.53) * 100}%`,
+                height: '100%',
+                background: 'var(--color-focus)',
+                borderRadius: 2,
+                transition: 'width 0.5s ease',
+              }}
+            />
+          </div>
+
+          {/* Phase Transition Card (< 24h before shift) */}
+          <div
+            data-tutorial="phase-transition-card"
+            data-tour="sky-phase-transition"
+            style={{ display: 'contents' }}
+          >
+            {lunarData.isApproaching && !transitionDismissed && (
+              <PhaseTransitionCard
+                lunarData={lunarData}
+                onDismiss={() => setTransitionDismissed(true)}
+                onOpenEchoes={onSwitchToEchoes}
+                transitionInvitation={phrases.transitionInvitation}
+                phrasesLoading={phrasesLoading}
+                loops={loops}
+                echoes={echoes}
+              />
+            )}
+          </div>
+          {/* end data-tutorial="phase-transition-card" */}
+
+          {/* Personal Transit Card (if resonances active) */}
+          {resonanceSummary.hasResonance && (
+            <div
+              data-tutorial="your-sky"
+              data-tour="sky-transit-card"
+              onClick={() => setSheetOpen(true)}
+              style={{
+                padding: '14px 18px',
+                borderRadius: 12,
+                background: 'rgba(167, 139, 250, 0.08)',
+                border: '1px solid rgba(167, 139, 250, 0.2)',
+                marginBottom: 18,
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 'var(--font-xs)',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                  color: '#A78BFA',
+                  marginBottom: 6,
+                }}
+              >
+                {resonanceSummary.intensity === 'active' ? 'ACTIVE TRANSIT' : 'TRANSIT'}
+              </div>
+              <div
+                style={{
+                  fontSize: 'var(--font-md)',
+                  color: 'var(--color-text-dim)',
+                  marginBottom: resonanceSummary.strongest?.invitation ? 6 : 0,
+                }}
+              >
+                {resonanceSummary.message}
+              </div>
+              {resonanceSummary.strongest?.invitation && (
+                <div
+                  style={{
+                    fontFamily: "'Cormorant Garamond', serif",
+                    fontStyle: 'italic',
+                    fontSize: 'var(--font-md)',
+                    color: 'var(--color-text-dim)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {resonanceSummary.strongest.invitation}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Go Deeper Button */}
+          <button
+            data-tour="sky-go-deeper"
+            onClick={() => setSheetOpen(true)}
+            style={{
+              width: '100%',
+              padding: '16px 24px',
+              borderRadius: 14,
+              background: 'var(--color-border)',
+              border: '1px solid var(--color-border-light)',
+              color: 'var(--color-text)',
+              fontSize: 'var(--font-sm)',
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              cursor: 'pointer',
+              marginBottom: 18,
+            }}
+          >
+            GO DEEPER ↓
+          </button>
+
+          {/* Waning Notice */}
+          {lunarData.phase.isWaning && (
+            <div
+              style={{
+                fontSize: 'var(--font-md)',
+                fontStyle: 'italic',
+                color: 'rgba(252, 129, 129, 0.65)',
+                lineHeight: 1.6,
+              }}
+            >
+              The moon is waning. A time for releasing, not starting.
+            </div>
+          )}
+
+          {/* Bottom padding for scroll */}
+          <div style={{ height: 20, flexShrink: 0 }} />
+        </div>
       </div>
 
       {/* Deep Sheet */}

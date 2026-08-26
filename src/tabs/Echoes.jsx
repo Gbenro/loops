@@ -3,7 +3,15 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
-import { getEchoes, saveEcho as saveEchoToDb, deleteEcho as deleteEchoFromDb, updateEchoText, updateEchoAudioPath, updateEchoTags, generateId } from '../lib/storage.js';
+import {
+  getEchoes,
+  saveEcho as saveEchoToDb,
+  deleteEcho as deleteEchoFromDb,
+  updateEchoText,
+  updateEchoAudioPath,
+  updateEchoTags,
+  generateId,
+} from '../lib/storage.js';
 import { getLunarData, getLunarMonthName } from '../lib/lunar.js';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
@@ -14,11 +22,11 @@ import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
 const VOICE_PROMPTS = {
-  'new': 'Speak your intention...',
+  new: 'Speak your intention...',
   'waxing-crescent': 'What wants to move?',
   'first-quarter': 'What decision is forming?',
   'waxing-gibbous': 'What do you notice?',
-  'full': 'What is being revealed?',
+  full: 'What is being revealed?',
   'waning-gibbous': 'What wants to be shared?',
   'last-quarter': 'What are you releasing?',
   'waning-crescent': 'What needs to rest?',
@@ -26,11 +34,11 @@ const VOICE_PROMPTS = {
 
 // Phase type lookup - Threshold (pivotal) vs Flow (sustained)
 const PHASE_TYPES = {
-  'new': 'threshold',
+  new: 'threshold',
   'waxing-crescent': 'flow',
   'first-quarter': 'threshold',
   'waxing-gibbous': 'flow',
-  'full': 'threshold',
+  full: 'threshold',
   'waning-gibbous': 'flow',
   'last-quarter': 'threshold',
   'waning-crescent': 'flow',
@@ -87,7 +95,7 @@ function unlockChimeContext() {
 
 // Short bell chime between queue tracks
 function playChime() {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     try {
       if (!sharedChimeCtx) {
         sharedChimeCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -106,21 +114,47 @@ function playChime() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.7);
-      osc.onended = () => { resolve(); };
-    } catch { resolve(); }
+      osc.onended = () => {
+        resolve();
+      };
+    } catch {
+      resolve();
+    }
   });
 }
 
 const PHASE_ORDER = [
-  'new', 'waxing-crescent', 'first-quarter', 'waxing-gibbous',
-  'full', 'waning-gibbous', 'last-quarter', 'waning-crescent',
+  'new',
+  'waxing-crescent',
+  'first-quarter',
+  'waxing-gibbous',
+  'full',
+  'waning-gibbous',
+  'last-quarter',
+  'waning-crescent',
 ];
 
 const PRESET_TAGS = [
-  'clarity', 'release', 'grief', 'joy', 'fear',
-  'gratitude', 'tension', 'longing', 'body', 'work',
-  'relationship', 'dream', 'intention', 'shadow', 'insight',
-  'prayer', 'question', 'vision', 'rest', 'breakthrough',
+  'clarity',
+  'release',
+  'grief',
+  'joy',
+  'fear',
+  'gratitude',
+  'tension',
+  'longing',
+  'body',
+  'work',
+  'relationship',
+  'dream',
+  'intention',
+  'shadow',
+  'insight',
+  'prayer',
+  'question',
+  'vision',
+  'rest',
+  'breakthrough',
 ];
 const MAX_TAGS = 3;
 
@@ -146,7 +180,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
-  const pendingAudioBlobRef = useRef(null);  // Store audio blob until echo is saved
+  const pendingAudioBlobRef = useRef(null); // Store audio blob until echo is saved
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -171,19 +205,21 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Normalize echoes to ensure they all have a lunarMonth property (fallback for legacy/seeded data)
   const echoesWithCycle = useMemo(() => {
-    return echoes.map(e => ({
+    return echoes.map((e) => ({
       ...e,
-      lunarMonth: e.lunarMonth || (e.createdAt ? getLunarMonthName(new Date(e.createdAt)) : lunarData.lunarMonth)
+      lunarMonth:
+        e.lunarMonth ||
+        (e.createdAt ? getLunarMonthName(new Date(e.createdAt)) : lunarData.lunarMonth),
     }));
   }, [echoes, lunarData.lunarMonth]);
 
   // Derive all unique cycles from all echoes (base filter)
   const allUniqueCycles = useMemo(() => {
-    const cycles = [...new Set(echoesWithCycle.map(e => e.lunarMonth).filter(v => v != null))];
+    const cycles = [...new Set(echoesWithCycle.map((e) => e.lunarMonth).filter((v) => v != null))];
     // Sort with current cycle first, then reverse chronological by first appearance
     const currentCycle = lunarData.lunarMonth;
-    const currentFirst = cycles.filter(c => c === currentCycle);
-    const rest = cycles.filter(c => c !== currentCycle);
+    const currentFirst = cycles.filter((c) => c === currentCycle);
+    const rest = cycles.filter((c) => c !== currentCycle);
     return [...currentFirst, ...rest];
   }, [echoesWithCycle, lunarData.lunarMonth]);
 
@@ -191,21 +227,30 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const cycleFilteredEchoes = useMemo(() => {
     if (allUniqueCycles.length === 0) return echoesWithCycle;
     const targetCycle = allUniqueCycles[selectedCycleIndex];
-    return echoesWithCycle.filter(e => e.lunarMonth === targetCycle);
+    return echoesWithCycle.filter((e) => e.lunarMonth === targetCycle);
   }, [echoesWithCycle, allUniqueCycles, selectedCycleIndex]);
 
   // Derive sorted unique values within the selected cycle
-  const uniqueDays = useMemo(() =>
-    [...new Set(cycleFilteredEchoes.map(e => e.createdAt ? localDateStr(e.createdAt) : null).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
-  [cycleFilteredEchoes]);
+  const uniqueDays = useMemo(
+    () =>
+      [
+        ...new Set(
+          cycleFilteredEchoes
+            .map((e) => (e.createdAt ? localDateStr(e.createdAt) : null))
+            .filter(Boolean)
+        ),
+      ].sort((a, b) => b.localeCompare(a)),
+    [cycleFilteredEchoes]
+  );
 
-  const uniquePhases = useMemo(() =>
-    PHASE_ORDER.filter(p => cycleFilteredEchoes.some(e => e.phase === p)),
-  [cycleFilteredEchoes]);
+  const uniquePhases = useMemo(
+    () => PHASE_ORDER.filter((p) => cycleFilteredEchoes.some((e) => e.phase === p)),
+    [cycleFilteredEchoes]
+  );
 
   // Tags are cycle-scoped to align with the selected month cycle
   const uniqueTags = useMemo(() => {
-    const all = cycleFilteredEchoes.flatMap(e => e.tags || []);
+    const all = cycleFilteredEchoes.flatMap((e) => e.tags || []);
     return [...new Set(all)].sort();
   }, [cycleFilteredEchoes]);
 
@@ -221,7 +266,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Reset secondary filter when base cycle changes
   const switchCycle = (direction) => {
-    setSelectedCycleIndex(i => {
+    setSelectedCycleIndex((i) => {
       const next = direction === 'prev' ? i + 1 : i - 1;
       return Math.max(0, Math.min(next, allUniqueCycles.length - 1));
     });
@@ -232,40 +277,44 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   // Phase navigates in natural cycle order (‹ = earlier, › = later)
   // Day navigate newest-first (‹ = older, › = newer)
   // Tag navigates alphabetically (‹ = prev, › = next)
-  const navList = filterMode === 'day' ? uniqueDays
-    : filterMode === 'phase' ? uniquePhases
-    : uniqueTags;
+  const navList =
+    filterMode === 'day' ? uniqueDays : filterMode === 'phase' ? uniquePhases : uniqueTags;
   const isPhaseMode = filterMode === 'phase';
   const isTagMode = filterMode === 'tag';
-  const canNavPrev = (isPhaseMode || isTagMode) ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
-  const canNavNext = (isPhaseMode || isTagMode) ? filterNavIndex < navList.length - 1 : filterNavIndex > 0;
-  const onNavPrev = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i - 1 : i + 1);
-  const onNavNext = () => setFilterNavIndex(i => (isPhaseMode || isTagMode) ? i + 1 : i - 1);
+  const canNavPrev =
+    isPhaseMode || isTagMode ? filterNavIndex > 0 : filterNavIndex < navList.length - 1;
+  const canNavNext =
+    isPhaseMode || isTagMode ? filterNavIndex < navList.length - 1 : filterNavIndex > 0;
+  const onNavPrev = () => setFilterNavIndex((i) => (isPhaseMode || isTagMode ? i - 1 : i + 1));
+  const onNavNext = () => setFilterNavIndex((i) => (isPhaseMode || isTagMode ? i + 1 : i - 1));
 
   // Current nav label (secondary filter)
   const todayStr = localDateStr(new Date().toISOString());
-  const navPhaseKey = filterMode === 'phase' ? (uniquePhases[filterNavIndex] || null) : null;
+  const navPhaseKey = filterMode === 'phase' ? uniquePhases[filterNavIndex] || null : null;
   const navLabel = (() => {
     if (filterMode === 'day') return formatDayLabel(uniqueDays[filterNavIndex] || todayStr);
     if (filterMode === 'phase') {
       const p = uniquePhases[filterNavIndex];
-      return p ? p.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+      return p ? p.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
     }
     const t = uniqueTags[filterNavIndex];
     return t ? `# ${t}` : '';
   })();
 
-  const isCurrentNav = filterMode === 'day'
-    ? uniqueDays[filterNavIndex] === todayStr
-    : filterMode === 'phase'
-      ? uniquePhases[filterNavIndex] === lunarData.phase.key
-      : false;
+  const isCurrentNav =
+    filterMode === 'day'
+      ? uniqueDays[filterNavIndex] === todayStr
+      : filterMode === 'phase'
+        ? uniquePhases[filterNavIndex] === lunarData.phase.key
+        : false;
 
   // Cycle selector labels
-  const selectedCycleName = allUniqueCycles.length > 0
-    ? getLunarMonthInfo(allUniqueCycles[selectedCycleIndex], hemisphere).name
-    : '';
-  const isCurrentCycle = allUniqueCycles.length > 0 && allUniqueCycles[selectedCycleIndex] === lunarData.lunarMonth;
+  const selectedCycleName =
+    allUniqueCycles.length > 0
+      ? getLunarMonthInfo(allUniqueCycles[selectedCycleIndex], hemisphere).name
+      : '';
+  const isCurrentCycle =
+    allUniqueCycles.length > 0 && allUniqueCycles[selectedCycleIndex] === lunarData.lunarMonth;
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
   const canCycleNext = selectedCycleIndex > 0;
 
@@ -274,9 +323,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (navList.length === 0) return cycleFilteredEchoes;
     const target = navList[filterNavIndex];
     if (filterMode === 'tag') {
-      return cycleFilteredEchoes.filter(e => (e.tags || []).includes(target));
+      return cycleFilteredEchoes.filter((e) => (e.tags || []).includes(target));
     }
-    return cycleFilteredEchoes.filter(e => {
+    return cycleFilteredEchoes.filter((e) => {
       if (filterMode === 'day') return e.createdAt ? localDateStr(e.createdAt) === target : false;
       if (filterMode === 'phase') return e.phase === target;
       return true;
@@ -285,7 +334,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   // Echoes that have audio — the queue for the player
   const audioQueue = useMemo(() => {
-    const q = filteredEchoes.filter(e => !!e.audio_path);
+    const q = filteredEchoes.filter((e) => !!e.audio_path);
     return queueReversed ? [...q].reverse() : q;
   }, [filteredEchoes, queueReversed]);
 
@@ -295,9 +344,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (queueIndex >= audioQueue.length) setQueueIndex(0);
 
     // Pre-resolve first few tracks in background
-    audioQueue.slice(0, 5).forEach(item => {
+    audioQueue.slice(0, 5).forEach((item) => {
       if (item.audio_path && !resolvedUrlsRef.current[item.id]) {
-        getAudioUrl(item.audio_path).then(url => {
+        getAudioUrl(item.audio_path).then((url) => {
           if (url) resolvedUrlsRef.current[item.id] = url;
         });
       }
@@ -332,15 +381,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     return () => window.removeEventListener('luna-tutorial-action', handler);
   }, []);
 
-
   // Use generated prompts or fallbacks
   const voicePrompt = phrasesLoading
-    ? (VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...')
-    : (phrases.echoesVoicePrompt || VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...');
+    ? VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...'
+    : phrases.echoesVoicePrompt || VOICE_PROMPTS[lunarData.phase.key] || 'Speak your reflection...';
 
   const writePrompt = phrasesLoading
-    ? "What is alive in you right now? What arrived today? What are you noticing..."
-    : (phrases.echoesWritePrompt || "What is alive in you right now?");
+    ? 'What is alive in you right now? What arrived today? What are you noticing...'
+    : phrases.echoesWritePrompt || 'What is alive in you right now?';
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -355,7 +403,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
-        }
+        },
       });
 
       // Find supported mime type
@@ -385,7 +433,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
       mediaRecorder.onstop = async () => {
         // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
 
         // Create audio blob
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
@@ -398,7 +446,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           try {
             const text = await transcribeAudio(audioBlob, setModelProgress);
             if (text) {
-              setCurrentText(prev => prev + (prev ? ' ' : '') + text);
+              setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
             }
           } catch (error) {
             alert('Transcription failed: ' + error.message);
@@ -421,14 +469,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
       // Keep screen on while recording
       if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(lock => {
-          wakeLockRef.current = lock;
-        }).catch(() => {}); // silently ignore if denied
+        navigator.wakeLock
+          .request('screen')
+          .then((lock) => {
+            wakeLockRef.current = lock;
+          })
+          .catch(() => {}); // silently ignore if denied
       }
-
     } catch (error) {
       if (error.name === 'NotAllowedError') {
-        alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
+        alert(
+          'Microphone access denied. Please enable microphone permissions in your browser settings.'
+        );
       } else if (error.name === 'NotFoundError') {
         alert('No microphone found. Please connect a microphone and try again.');
       } else {
@@ -449,7 +501,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         wakeLockRef.current.release().catch(() => {});
         wakeLockRef.current = null;
       }
-
     }
   }, [isRecording]);
 
@@ -457,7 +508,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   useEffect(() => {
     if (!isRecording) return;
     setRecordingTime(0);
-    const interval = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    const interval = setInterval(() => setRecordingTime((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, [isRecording]);
 
@@ -488,13 +539,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   // Fetch echoes on mount; decrypt encrypted texts if key is available
   useEffect(() => {
     setLoading(true);
-    getEchoes(userId).then(async data => {
-      const updated = await Promise.all(data.map(async echo => {
-        const text = (echo.isEncrypted && sessionKey)
-          ? await decryptField(echo.text)
-          : echo.text;
-        return { ...echo, text };
-      }));
+    getEchoes(userId).then(async (data) => {
+      const updated = await Promise.all(
+        data.map(async (echo) => {
+          const text = echo.isEncrypted && sessionKey ? await decryptField(echo.text) : echo.text;
+          return { ...echo, text };
+        })
+      );
       setEchoes(updated);
       setLoading(false);
     });
@@ -531,7 +582,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       illumination: lunarData.illumination,
     };
 
-    setEchoes(prev => [newEcho, ...prev]);
+    setEchoes((prev) => [newEcho, ...prev]);
     setCurrentText('');
     setIsWriting(false);
     setSource('text');
@@ -547,9 +598,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (hasVoice && audioBlob && userId) {
       const audioPath = await saveAudio(echoId, audioBlob, userId);
       if (audioPath === 'TOO_LARGE') {
-        alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
+        alert(
+          `Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`
+        );
       } else if (audioPath) {
-        setEchoes(prev => prev.map(e => e.id === echoId ? { ...e, audio_path: audioPath } : e));
+        setEchoes((prev) =>
+          prev.map((e) => (e.id === echoId ? { ...e, audio_path: audioPath } : e))
+        );
         await updateEchoAudioPath(echoId, audioPath, userId);
       }
     }
@@ -557,20 +612,20 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   const deleteEcho = async (id) => {
     if (!window.confirm('Delete this echo? This cannot be undone.')) return;
-    const echo = echoes.find(e => e.id === id);
+    const echo = echoes.find((e) => e.id === id);
     if (echo?.audio_path) await deleteAudio(echo.audio_path);
-    setEchoes(prev => prev.filter(e => e.id !== id));
+    setEchoes((prev) => prev.filter((e) => e.id !== id));
     setExpandedId(null);
     await deleteEchoFromDb(id, userId);
   };
 
   const handleUpdateEchoText = async (id, newText) => {
-    setEchoes(prev => prev.map(e => e.id === id ? { ...e, text: newText } : e));
+    setEchoes((prev) => prev.map((e) => (e.id === id ? { ...e, text: newText } : e)));
     await updateEchoText(id, newText, userId);
   };
 
   const handleUpdateEchoTags = async (id, tags) => {
-    setEchoes(prev => prev.map(e => e.id === id ? { ...e, tags } : e));
+    setEchoes((prev) => prev.map((e) => (e.id === id ? { ...e, tags } : e)));
     await updateEchoTags(id, tags, userId);
   };
 
@@ -588,9 +643,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   // Wake lock helpers for playback
   const acquirePlaybackWakeLock = () => {
     if ('wakeLock' in navigator && !wakeLockRef.current) {
-      navigator.wakeLock.request('screen').then(lock => {
-        wakeLockRef.current = lock;
-      }).catch(() => {});
+      navigator.wakeLock
+        .request('screen')
+        .then((lock) => {
+          wakeLockRef.current = lock;
+        })
+        .catch(() => {});
     }
   };
   const releasePlaybackWakeLock = () => {
@@ -614,7 +672,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       releasePlaybackWakeLock();
       return;
     }
-    
+
     let audio = audioPlayerRef.current;
     if (!audio) {
       audio = new Audio();
@@ -630,7 +688,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     for (let i = index + 1; i <= index + 5; i++) {
       const nextItem = queue[i];
       if (nextItem && nextItem.audio_path && !resolvedUrlsRef.current[nextItem.id]) {
-        getAudioUrl(nextItem.audio_path).then(url => {
+        getAudioUrl(nextItem.audio_path).then((url) => {
           if (url) resolvedUrlsRef.current[nextItem.id] = url;
         });
       }
@@ -668,8 +726,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setPlayingId(echo.id);
     setQueuePlaying(true);
     acquirePlaybackWakeLock();
-    audio.play().catch(err => {
-      console.warn("Autoplay was blocked or failed:", err);
+    audio.play().catch((err) => {
+      console.warn('Autoplay was blocked or failed:', err);
     });
   };
 
@@ -738,8 +796,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     };
     setPlayingId(echoId);
     acquirePlaybackWakeLock();
-    audio.play().catch(err => {
-      console.warn("Single audio playback blocked:", err);
+    audio.play().catch((err) => {
+      console.warn('Single audio playback blocked:', err);
     });
   };
 
@@ -752,47 +810,64 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
   if (loading) {
     return (
-      <div style={{
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--color-bg)',
-        color: 'var(--color-text-muted)',
-        fontSize: 18,
-      }}>
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--color-bg)',
+          color: 'var(--color-text-muted)',
+          fontSize: 18,
+        }}
+      >
         〜
       </div>
     );
   }
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--color-bg)',
-    }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--color-bg)',
+      }}
+    >
       {/* Header */}
-      <div style={{
-        padding: '20px 20px 16px',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 26,
-          color: 'var(--color-text)',
-          marginBottom: 8,
-        }}>
+      <div
+        style={{
+          padding: '20px 20px 16px',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 26,
+            color: 'var(--color-text)',
+            marginBottom: 8,
+          }}
+        >
           Echoes
         </div>
-        <div style={{
-          fontSize: 10,
-          fontFamily: 'monospace',
-          letterSpacing: '0.1em',
-          color: 'var(--color-text-muted)',
-        }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MiniMoon size={14} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} /> {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}</span>
+        <div
+          style={{
+            fontSize: 10,
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <MiniMoon
+              size={14}
+              phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8}
+              phaseName={lunarData.phase.name}
+            />{' '}
+            {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}
+          </span>
         </div>
       </div>
 
@@ -800,7 +875,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       <div data-tour="echoes-tags" style={{ padding: '0 20px 0' }}>
         {/* Collapse toggle bar */}
         <button
-          onClick={() => setFiltersExpanded(f => !f)}
+          onClick={() => setFiltersExpanded((f) => !f)}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -813,37 +888,50 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             minHeight: 44,
           }}
         >
-          <span style={{
-            fontSize: 11,
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            color: 'var(--color-focus)',
-          }}>
-            {selectedCycleName || 'No Cycles'}{navLabel ? ` · ${navLabel}` : ''}
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: 'monospace',
+              letterSpacing: '0.08em',
+              color: 'var(--color-focus)',
+            }}
+          >
+            {selectedCycleName || 'No Cycles'}
+            {navLabel ? ` · ${navLabel}` : ''}
           </span>
-          <span style={{
-            fontSize: 14,
-            color: 'var(--color-text-muted)',
-            transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-            lineHeight: 1,
-          }}>⌄</span>
+          <span
+            style={{
+              fontSize: 14,
+              color: 'var(--color-text-muted)',
+              transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+              lineHeight: 1,
+            }}
+          >
+            ⌄
+          </span>
         </button>
       </div>
-      <div data-tour="echoes-tags-expanded" style={{
-        overflow: 'hidden',
-        maxHeight: filtersExpanded ? 300 : 0,
-        transition: 'max-height 0.25s ease',
-        padding: filtersExpanded ? '0 20px 14px' : '0 20px 0',
-      }}>
+      <div
+        data-tour="echoes-tags-expanded"
+        style={{
+          overflow: 'hidden',
+          maxHeight: filtersExpanded ? 300 : 0,
+          transition: 'max-height 0.25s ease',
+          padding: filtersExpanded ? '0 20px 14px' : '0 20px 0',
+        }}
+      >
         {/* Base cycle selector */}
-        <div data-tour="echoes-cycle-nav" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          marginBottom: 12,
-        }}>
+        <div
+          data-tour="echoes-cycle-nav"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
           <button
             onClick={() => switchCycle('prev')}
             disabled={!canCyclePrev}
@@ -859,22 +947,26 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             ‹
           </button>
           <div style={{ textAlign: 'center', minWidth: 120 }}>
-            <div style={{
-              fontSize: 15,
-              color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 600,
-            }}>
+            <div
+              style={{
+                fontSize: 15,
+                color: isCurrentCycle ? 'rgba(167, 139, 250, 0.9)' : 'var(--color-text)',
+                fontFamily: "'Cormorant Garamond', serif",
+                fontWeight: 600,
+              }}
+            >
               {selectedCycleName || 'No Cycles'}
             </div>
             {isCurrentCycle && (
-              <div style={{
-                fontSize: 8,
-                fontFamily: 'monospace',
-                color: 'rgba(167, 139, 250, 0.5)',
-                letterSpacing: '0.1em',
-                marginTop: 2,
-              }}>
+              <div
+                style={{
+                  fontSize: 8,
+                  fontFamily: 'monospace',
+                  color: 'rgba(167, 139, 250, 0.5)',
+                  letterSpacing: '0.1em',
+                  marginTop: 2,
+                }}
+              >
                 CURRENT CYCLE
               </div>
             )}
@@ -896,8 +988,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         </div>
 
         {/* Secondary filter mode toggle */}
-        <div data-tour="echoes-filter-modes" style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}>
-          {['day', 'phase', 'tag'].map(mode => (
+        <div
+          data-tour="echoes-filter-modes"
+          style={{ display: 'flex', gap: 4, marginBottom: 10, justifyContent: 'center' }}
+        >
+          {['day', 'phase', 'tag'].map((mode) => (
             <button
               key={mode}
               onClick={() => switchFilterMode(mode)}
@@ -920,12 +1015,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         </div>
 
         {/* Secondary arrow navigation */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 16,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+          }}
+        >
           <button
             onClick={onNavPrev}
             disabled={!canNavPrev}
@@ -941,26 +1038,36 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             ‹
           </button>
           <div style={{ textAlign: 'center', minWidth: 140 }}>
-            <div style={{
-              fontSize: 13,
-              color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
-              fontFamily: "'Cormorant Garamond', serif",
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }}>
-              {navPhaseKey && <MiniMoon size={14} phase={PHASE_ORDER.indexOf(navPhaseKey) / 8} phaseName={navLabel} />}
+            <div
+              style={{
+                fontSize: 13,
+                color: isCurrentNav ? 'rgba(167, 139, 250, 0.8)' : 'var(--color-text)',
+                fontFamily: "'Cormorant Garamond', serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              {navPhaseKey && (
+                <MiniMoon
+                  size={14}
+                  phase={PHASE_ORDER.indexOf(navPhaseKey) / 8}
+                  phaseName={navLabel}
+                />
+              )}
               {navLabel}
             </div>
             {isCurrentNav && (
-              <div style={{
-                fontSize: 8,
-                fontFamily: 'monospace',
-                color: 'rgba(167, 139, 250, 0.5)',
-                letterSpacing: '0.1em',
-                marginTop: 2,
-              }}>
+              <div
+                style={{
+                  fontSize: 8,
+                  fontFamily: 'monospace',
+                  color: 'rgba(167, 139, 250, 0.5)',
+                  letterSpacing: '0.1em',
+                  marginTop: 2,
+                }}
+              >
                 CURRENT
               </div>
             )}
@@ -983,36 +1090,49 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       </div>
 
       {/* Write Area */}
-      <div data-tutorial="echoes-write-area" data-tour="echoes-write-area" style={{ padding: '0 20px 20px' }}>
+      <div
+        data-tutorial="echoes-write-area"
+        data-tour="echoes-write-area"
+        style={{ padding: '0 20px 20px' }}
+      >
         {isWriting ? (
-          <div style={{
-            background: 'var(--color-input-bg)',
-            border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.3)' : isTranscribing ? 'rgba(167, 139, 250, 0.3)' : 'var(--color-border-light)'}`,
-            borderRadius: 12,
-            padding: 16,
-            transition: 'border-color 0.3s',
-          }}>
+          <div
+            style={{
+              background: 'var(--color-input-bg)',
+              border: `1px solid ${isRecording ? 'rgba(252, 129, 129, 0.3)' : isTranscribing ? 'rgba(167, 139, 250, 0.3)' : 'var(--color-border-light)'}`,
+              borderRadius: 12,
+              padding: 16,
+              transition: 'border-color 0.3s',
+            }}
+          >
             {/* Recording indicator */}
             {isRecording && (
-              <div data-tour="echoes-recording-state" style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 12,
-                color: '#FC8181',
-              }}>
-                <div style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#FC8181',
-                  animation: 'pulse 1s ease-in-out infinite',
-                }} />
-                <span style={{
-                  fontSize: 9,
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.1em',
-                }}>
+              <div
+                data-tour="echoes-recording-state"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 12,
+                  color: '#FC8181',
+                }}
+              >
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#FC8181',
+                    animation: 'pulse 1s ease-in-out infinite',
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.1em',
+                  }}
+                >
                   RECORDING {formatTime(recordingTime)} · TAP TO STOP
                 </span>
               </div>
@@ -1020,20 +1140,24 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
             {/* Transcribing indicator */}
             {isTranscribing && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 12,
-                color: '#A78BFA',
-              }}>
-                <div style={{
+              <div
+                style={{
                   display: 'flex',
-                  gap: 2,
                   alignItems: 'center',
-                  height: 16,
-                }}>
-                  {[1, 2, 3, 4, 5].map(i => (
+                  gap: 8,
+                  marginBottom: 12,
+                  color: '#A78BFA',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 2,
+                    alignItems: 'center',
+                    height: 16,
+                  }}
+                >
+                  {[1, 2, 3, 4, 5].map((i) => (
                     <div
                       key={i}
                       style={{
@@ -1046,11 +1170,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     />
                   ))}
                 </div>
-                <span style={{
-                  fontSize: 9,
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.1em',
-                }}>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.1em',
+                  }}
+                >
                   {!isModelLoaded() ? `LOADING WHISPER ${modelProgress}%` : 'TRANSCRIBING...'}
                 </span>
               </div>
@@ -1058,13 +1184,15 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
             {/* Voice prompt when recording with no text */}
             {isRecording && !currentText && (
-              <div style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 16,
-                fontStyle: 'italic',
-                color: 'rgba(252, 129, 129, 0.5)',
-                marginBottom: 12,
-              }}>
+              <div
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 16,
+                  fontStyle: 'italic',
+                  color: 'rgba(252, 129, 129, 0.5)',
+                  marginBottom: 12,
+                }}
+              >
                 {voicePrompt}
               </div>
             )}
@@ -1072,7 +1200,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             <textarea
               autoFocus={!isRecording}
               value={currentText}
-              onChange={e => {
+              onChange={(e) => {
                 setCurrentText(e.target.value);
                 // Only reset to text source if there's no pending voice audio
                 if (!pendingAudioBlobRef.current) setSource('text');
@@ -1094,37 +1222,54 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             />
 
             {/* Cosmic stamp with phase type */}
-            <div data-tutorial="echo-stamp" data-tour="echoes-phase-stamp" style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: 12,
-              marginBottom: 16,
-            }}>
-              <div style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                color: 'var(--text-secondary)',
+            <div
+              data-tutorial="echo-stamp"
+              data-tour="echoes-phase-stamp"
+              style={{
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: 6,
-              }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MiniMoon size={14} phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8} phaseName={lunarData.phase.name} /> {lunarData.phase.name}</span>
-                <span style={{
-                  padding: '1px 4px',
-                  borderRadius: 3,
-                  background: lunarData.phase.isThreshold
-                    ? 'var(--color-input-hover)'
-                    : 'rgba(201, 168, 76, 0.1)',
-                  color: lunarData.phase.isThreshold
-                    ? 'var(--color-focus)'
-                    : 'rgba(201, 168, 76, 0.7)',
-                  fontSize: 7,
-                  letterSpacing: '0.05em',
-                }}>
+                marginTop: 12,
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <MiniMoon
+                    size={14}
+                    phase={PHASE_ORDER.indexOf(lunarData.phase.key) / 8}
+                    phaseName={lunarData.phase.name}
+                  />{' '}
+                  {lunarData.phase.name}
+                </span>
+                <span
+                  style={{
+                    padding: '1px 4px',
+                    borderRadius: 3,
+                    background: lunarData.phase.isThreshold
+                      ? 'var(--color-input-hover)'
+                      : 'rgba(201, 168, 76, 0.1)',
+                    color: lunarData.phase.isThreshold
+                      ? 'var(--color-focus)'
+                      : 'rgba(201, 168, 76, 0.7)',
+                    fontSize: 7,
+                    letterSpacing: '0.05em',
+                  }}
+                >
                   {lunarData.phase.isThreshold ? 'THRESHOLD' : 'FLOW'}
                 </span>
-                <span>· {lunarData.zodiac.sign} · Day {lunarData.dayOfCycle}</span>
+                <span>
+                  · {lunarData.zodiac.sign} · Day {lunarData.dayOfCycle}
+                </span>
               </div>
 
               {/* Voice orb */}
@@ -1133,7 +1278,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 data-tour="echoes-voice-orb"
                 onClick={toggleRecording}
                 disabled={isTranscribing}
-                aria-label={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing audio' : 'Start voice recording'}
+                aria-label={
+                  isRecording
+                    ? 'Stop recording'
+                    : isTranscribing
+                      ? 'Transcribing audio'
+                      : 'Start voice recording'
+                }
                 aria-pressed={isRecording}
                 style={{
                   width: 36,
@@ -1156,39 +1307,48 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   justifyContent: 'center',
                   fontSize: 16,
                   position: 'relative',
-                  animation: isRecording ? 'voiceOrb 2s ease-in-out infinite' : isTranscribing ? 'none' : 'voiceIdle 3s ease-in-out infinite',
-                  boxShadow: isRecording
-                    ? '0 0 20px rgba(252, 129, 129, 0.3)'
-                    : 'none',
+                  animation: isRecording
+                    ? 'voiceOrb 2s ease-in-out infinite'
+                    : isTranscribing
+                      ? 'none'
+                      : 'voiceIdle 3s ease-in-out infinite',
+                  boxShadow: isRecording ? '0 0 20px rgba(252, 129, 129, 0.3)' : 'none',
                   transition: 'all 0.3s',
                 }}
               >
                 {isRecording ? '■' : isTranscribing ? '...' : '◎'}
                 {/* Ripple effect when recording */}
                 {isRecording && (
-                  <div style={{
-                    position: 'absolute',
-                    inset: -4,
-                    borderRadius: '50%',
-                    border: '2px solid rgba(252, 129, 129, 0.3)',
-                    animation: 'ripple 1.5s ease-out infinite',
-                  }} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: -4,
+                      borderRadius: '50%',
+                      border: '2px solid rgba(252, 129, 129, 0.3)',
+                      animation: 'ripple 1.5s ease-out infinite',
+                    }}
+                  />
                 )}
               </button>
             </div>
 
             {/* Audio ready indicator */}
-            {source === 'voice' && pendingAudioBlobRef.current && !isRecording && !isTranscribing && (
-              <div style={{
-                fontSize: 9,
-                fontFamily: 'monospace',
-                letterSpacing: '0.08em',
-                color: 'rgba(167, 139, 250, 0.6)',
-                marginBottom: 12,
-              }}>
-                ◉ VOICE RECORDING READY · WILL SAVE TO CLOUD
-              </div>
-            )}
+            {source === 'voice' &&
+              pendingAudioBlobRef.current &&
+              !isRecording &&
+              !isTranscribing && (
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.08em',
+                    color: 'rgba(167, 139, 250, 0.6)',
+                    marginBottom: 12,
+                  }}
+                >
+                  ◉ VOICE RECORDING READY · WILL SAVE TO CLOUD
+                </div>
+              )}
 
             {/* Actions */}
             <div data-tour="echoes-save-controls" style={{ display: 'flex', gap: 10 }}>
@@ -1214,15 +1374,18 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   flex: 1,
                   padding: '12px',
                   borderRadius: 8,
-                  background: (currentText.trim() && !isRecording && !isTranscribing)
-                    ? 'var(--color-border-light)'
-                    : 'var(--color-input-bg)',
+                  background:
+                    currentText.trim() && !isRecording && !isTranscribing
+                      ? 'var(--color-border-light)'
+                      : 'var(--color-input-bg)',
                   border: '1px solid var(--color-border-mid)',
-                  color: (currentText.trim() && !isRecording && !isTranscribing)
-                    ? 'var(--color-text)'
-                    : 'var(--color-text-muted)',
+                  color:
+                    currentText.trim() && !isRecording && !isTranscribing
+                      ? 'var(--color-text)'
+                      : 'var(--color-text-muted)',
                   fontSize: 12,
-                  cursor: (currentText.trim() && !isRecording && !isTranscribing) ? 'pointer' : 'default',
+                  cursor:
+                    currentText.trim() && !isRecording && !isTranscribing ? 'pointer' : 'default',
                 }}
               >
                 {isRecording ? 'STOP FIRST' : isTranscribing ? 'WAIT...' : 'ECHO ↩'}
@@ -1230,57 +1393,105 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => {
-              setIsWriting(true);
-              setSource('text');
-            }}
-            style={{
-              width: '100%',
-              padding: '20px',
-              borderRadius: 12,
-              background: 'var(--color-input-bg)',
-              border: '1px dashed var(--color-border-mid)',
-              color: 'var(--color-text-muted)',
-              fontSize: 14,
-              fontFamily: "'Cormorant Garamond', serif",
-              fontStyle: 'italic',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            &ldquo;{phaseContent.asks}&rdquo;
-          </button>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                setIsWriting(true);
+                setSource('text');
+              }}
+              style={{
+                flex: 1,
+                padding: '20px',
+                borderRadius: 12,
+                background: 'var(--color-input-bg)',
+                border: '1px dashed var(--color-border-mid)',
+                color: 'var(--color-text-muted)',
+                fontSize: 14,
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: 'italic',
+                cursor: 'pointer',
+                textAlign: 'left',
+                minHeight: 48,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              &ldquo;{phaseContent.asks}&rdquo;
+            </button>
+            <button
+              onClick={startRecording}
+              aria-label="Start voice recording"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border-mid)',
+                color: 'var(--color-focus)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+                flexShrink: 0,
+                position: 'relative',
+                transition: 'all 0.25s ease',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                animation: 'voiceIdle 3s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--color-input-hover)';
+                e.currentTarget.style.borderColor = 'var(--color-focus)';
+                e.currentTarget.style.boxShadow = '0 0 12px rgba(167, 139, 250, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-input-bg)';
+                e.currentTarget.style.borderColor = 'var(--color-border-mid)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+              }}
+            >
+              <span style={{ transform: 'scale(1.2)', display: 'inline-block' }}>◎</span>
+            </button>
+          </div>
         )}
       </div>
 
       {/* Echoes List */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: `0 20px ${audioQueue.length > 0 ? '100px' : '40px'}`,
-      }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: `0 20px ${audioQueue.length > 0 ? '100px' : '40px'}`,
+        }}
+      >
         {echoes.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: 'var(--color-text-muted)',
-            fontSize: 14,
-            fontStyle: 'italic',
-          }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              color: 'var(--color-text-muted)',
+              fontSize: 14,
+              fontStyle: 'italic',
+            }}
+          >
             {phrasesLoading
               ? resolvePhaseText('noEchoesMessage', lunarData.phase.key)
-              : (phrases.emptyStateGuidance || resolvePhaseText('noEchoesMessage', lunarData.phase.key))}
+              : phrases.emptyStateGuidance ||
+                resolvePhaseText('noEchoesMessage', lunarData.phase.key)}
           </div>
         ) : filteredEchoes.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: 'var(--color-text-muted)',
-            fontSize: 13,
-            fontStyle: 'italic',
-          }}>
-            {filterMode === 'tag' ? `No echoes tagged "${navList[filterNavIndex]}".` : `No echoes in this ${filterMode}.`}
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              color: 'var(--color-text-muted)',
+              fontSize: 13,
+              fontStyle: 'italic',
+            }}
+          >
+            {filterMode === 'tag'
+              ? `No echoes tagged "${navList[filterNavIndex]}".`
+              : `No echoes in this ${filterMode}.`}
           </div>
         ) : (
           filteredEchoes.map((echo, echoIndex) => (
@@ -1302,7 +1513,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               onDownloadAudio={async () => {
                 const blob = await getAudio(echo.audio_path);
                 if (!blob) return;
-                const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+                const ext = blob.type.includes('mp4')
+                  ? 'mp4'
+                  : blob.type.includes('ogg')
+                    ? 'ogg'
+                    : 'webm';
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -1326,17 +1541,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
       {/* Queue Player Bar */}
       {audioQueue.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: 'var(--color-surface)',
-          borderTop: '1px solid var(--color-border-light)',
-          backdropFilter: 'blur(12px)',
-          zIndex: 20,
-          transition: 'all 0.25s ease',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: 'var(--color-surface)',
+            borderTop: '1px solid var(--color-border-light)',
+            backdropFilter: 'blur(12px)',
+            zIndex: 20,
+            transition: 'all 0.25s ease',
+          }}
+        >
           {queueExpanded ? (
             /* Expanded */
             <div style={{ padding: '16px 20px 20px' }}>
@@ -1344,89 +1561,109 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               <div
                 onClick={() => setQueueExpanded(false)}
                 style={{
-                  display: 'flex', justifyContent: 'center',
-                  marginBottom: 12, cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  marginBottom: 12,
+                  cursor: 'pointer',
                 }}
               >
-                <div style={{
-                  width: 32, height: 3, borderRadius: 2,
-                  background: 'var(--color-border-mid)',
-                }} />
+                <div
+                  style={{
+                    width: 32,
+                    height: 3,
+                    borderRadius: 2,
+                    background: 'var(--color-border-mid)',
+                  }}
+                />
               </div>
 
               {/* Track info */}
-              <div style={{
-                textAlign: 'center',
-                fontFamily: 'monospace',
-                fontSize: 9,
-                letterSpacing: '0.12em',
-                color: 'var(--text-secondary)',
-                marginBottom: 6,
-              }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  letterSpacing: '0.12em',
+                  color: 'var(--text-secondary)',
+                  marginBottom: 6,
+                }}
+              >
                 {queuePlaying || queueIndex > 0
                   ? `VOICE ${queueIndex + 1} OF ${audioQueue.length}`
                   : `${audioQueue.length} VOICE ${audioQueue.length === 1 ? 'ECHO' : 'ECHOES'}`}
               </div>
 
-              {(queuePlaying || queueIndex > 0) && audioQueue[queueIndex] && (() => {
-                const eq = audioQueue[queueIndex];
-                const phType = eq.phaseType || getPhaseType(eq.phase);
-                const imprint = [
-                  (eq.phaseName || eq.phase || '').replace(/-/g, ' '),
-                  phType,
-                  eq.zodiac,
-                  eq.dayOfCycle != null ? `day ${eq.dayOfCycle}` : null,
-                ].filter(Boolean).join(' · ');
-                return (
-                  <>
-                    <div style={{
-                      textAlign: 'center',
-                      fontFamily: "'Cormorant Garamond', serif",
-                      fontSize: 13,
-                      fontStyle: 'italic',
-                      color: 'var(--color-text-dim)',
-                      marginBottom: 4,
-                      padding: '0 20px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      {eq.text || '—'}
-                    </div>
-                    {imprint && (
-                      <div style={{
-                        textAlign: 'center',
-                        fontFamily: 'monospace',
-                        fontSize: 9,
-                        letterSpacing: '0.08em',
-                        color: 'rgba(167, 139, 250, 0.5)',
-                        marginBottom: 16,
-                        padding: '0 20px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}>
-                        {imprint}
+              {(queuePlaying || queueIndex > 0) &&
+                audioQueue[queueIndex] &&
+                (() => {
+                  const eq = audioQueue[queueIndex];
+                  const phType = eq.phaseType || getPhaseType(eq.phase);
+                  const imprint = [
+                    (eq.phaseName || eq.phase || '').replace(/-/g, ' '),
+                    phType,
+                    eq.zodiac,
+                    eq.dayOfCycle != null ? `day ${eq.dayOfCycle}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ');
+                  return (
+                    <>
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          fontFamily: "'Cormorant Garamond', serif",
+                          fontSize: 13,
+                          fontStyle: 'italic',
+                          color: 'var(--color-text-dim)',
+                          marginBottom: 4,
+                          padding: '0 20px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {eq.text || '—'}
                       </div>
-                    )}
-                  </>
-                );
-              })()}
+                      {imprint && (
+                        <div
+                          style={{
+                            textAlign: 'center',
+                            fontFamily: 'monospace',
+                            fontSize: 9,
+                            letterSpacing: '0.08em',
+                            color: 'rgba(167, 139, 250, 0.5)',
+                            marginBottom: 16,
+                            padding: '0 20px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {imprint}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
               {/* Controls */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 24,
-              }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 24,
+                }}
+              >
                 <button
                   onClick={() => playQueueTrackRef.current(queueIndex - 1)}
                   disabled={queueIndex === 0}
                   style={{
-                    background: 'none', border: 'none',
+                    background: 'none',
+                    border: 'none',
                     color: queueIndex > 0 ? 'var(--color-text-dim)' : 'var(--color-border-mid)',
-                    fontSize: 20, cursor: queueIndex > 0 ? 'pointer' : 'default',
+                    fontSize: 20,
+                    cursor: queueIndex > 0 ? 'pointer' : 'default',
                     padding: '4px 8px',
                   }}
                 >
@@ -1446,14 +1683,17 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     }
                   }}
                   style={{
-                    width: 48, height: 48,
+                    width: 48,
+                    height: 48,
                     borderRadius: '50%',
                     border: '1px solid var(--color-border-mid)',
                     background: 'var(--color-input-hover)',
                     color: 'var(--color-text)',
                     fontSize: 18,
                     cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
                   {queuePlaying ? '⏸' : '▶'}
@@ -1463,8 +1703,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   onClick={() => playQueueTrackRef.current(queueIndex + 1)}
                   disabled={queueIndex >= audioQueue.length - 1}
                   style={{
-                    background: 'none', border: 'none',
-                    color: queueIndex < audioQueue.length - 1 ? 'var(--color-text-dim)' : 'var(--color-border-mid)',
+                    background: 'none',
+                    border: 'none',
+                    color:
+                      queueIndex < audioQueue.length - 1
+                        ? 'var(--color-text-dim)'
+                        : 'var(--color-border-mid)',
                     fontSize: 20,
                     cursor: queueIndex < audioQueue.length - 1 ? 'pointer' : 'default',
                     padding: '4px 8px',
@@ -1475,28 +1719,35 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               </div>
 
               {/* Duration + Reverse */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginTop: 12,
-              }}>
-                <div style={{
-                  fontSize: 9, fontFamily: 'monospace',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-text-muted)',
-                }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.08em',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   {audioDuration != null ? formatTime(Math.round(audioDuration)) : ''}
                 </div>
                 <button
                   onClick={() => {
-                    setQueueReversed(r => !r);
+                    setQueueReversed((r) => !r);
                     setQueueIndex(0);
                     if (queuePlaying) stopQueue();
                   }}
                   style={{
-                    background: 'none', border: 'none',
-                    fontSize: 9, fontFamily: 'monospace',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 9,
+                    fontFamily: 'monospace',
                     letterSpacing: '0.08em',
                     color: queueReversed ? 'rgba(167, 139, 250, 0.7)' : 'var(--color-text-muted)',
                     cursor: 'pointer',
@@ -1511,9 +1762,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             /* Minimized */
             <div
               style={{
-                display: 'flex', alignItems: 'center',
+                display: 'flex',
+                alignItems: 'center',
                 padding: '10px 16px',
-                gap: 12, cursor: 'pointer',
+                gap: 12,
+                cursor: 'pointer',
               }}
             >
               {/* Play/stop button */}
@@ -1531,14 +1784,17 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   }
                 }}
                 style={{
-                  width: 32, height: 32,
+                  width: 32,
+                  height: 32,
                   borderRadius: '50%',
                   border: '1px solid var(--color-border-mid)',
                   background: queuePlaying ? 'rgba(167, 139, 250, 0.15)' : 'var(--color-border)',
                   color: queuePlaying ? '#A78BFA' : 'var(--color-text-dim)',
                   fontSize: 12,
                   cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   flexShrink: 0,
                 }}
               >
@@ -1546,10 +1802,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               </button>
 
               {/* Label */}
-              <div
-                onClick={() => setQueueExpanded(true)}
-                style={{ flex: 1, overflow: 'hidden' }}
-              >
+              <div onClick={() => setQueueExpanded(true)} style={{ flex: 1, overflow: 'hidden' }}>
                 {queuePlaying && audioQueue[queueIndex] ? (
                   (() => {
                     const eq = audioQueue[queueIndex];
@@ -1559,41 +1812,56 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                       phType,
                       eq.zodiac,
                       eq.dayOfCycle != null ? `day ${eq.dayOfCycle}` : null,
-                    ].filter(Boolean).join(' · ');
+                    ]
+                      .filter(Boolean)
+                      .join(' · ');
                     return (
                       <>
-                        <div style={{
-                          fontSize: 12,
-                          fontFamily: "'Cormorant Garamond', serif",
-                          fontStyle: 'italic',
-                          color: 'var(--color-text)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          marginBottom: 2,
-                        }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontFamily: "'Cormorant Garamond', serif",
+                            fontStyle: 'italic',
+                            color: 'var(--color-text)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            marginBottom: 2,
+                          }}
+                        >
                           {eq.text || '—'}
                         </div>
-                        <div style={{
-                          fontSize: 9, fontFamily: 'monospace',
-                          letterSpacing: '0.08em',
-                          color: 'rgba(167, 139, 250, 0.55)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}>
-                          {queueIndex + 1}/{audioQueue.length}{audioDuration != null ? ` · ${formatTime(Math.round(audioDuration))}` : ''}{imprint ? ` · ${imprint}` : ''}
+                        <div
+                          style={{
+                            fontSize: 9,
+                            fontFamily: 'monospace',
+                            letterSpacing: '0.08em',
+                            color: 'rgba(167, 139, 250, 0.55)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {queueIndex + 1}/{audioQueue.length}
+                          {audioDuration != null
+                            ? ` · ${formatTime(Math.round(audioDuration))}`
+                            : ''}
+                          {imprint ? ` · ${imprint}` : ''}
                         </div>
                       </>
                     );
                   })()
                 ) : (
-                  <div style={{
-                    fontSize: 11, fontFamily: 'monospace',
-                    letterSpacing: '0.08em',
-                    color: 'var(--text-secondary)',
-                  }}>
-                    {audioQueue.length} VOICE {audioQueue.length === 1 ? 'ECHO' : 'ECHOES'} · PLAY ALL
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      letterSpacing: '0.08em',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {audioQueue.length} VOICE {audioQueue.length === 1 ? 'ECHO' : 'ECHOES'} · PLAY
+                    ALL
                   </div>
                 )}
               </div>
@@ -1602,9 +1870,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               <button
                 onClick={() => setQueueExpanded(true)}
                 style={{
-                  background: 'none', border: 'none',
+                  background: 'none',
+                  border: 'none',
                   color: 'var(--text-disabled)',
-                  fontSize: 14, cursor: 'pointer',
+                  fontSize: 14,
+                  cursor: 'pointer',
                   padding: '4px',
                   flexShrink: 0,
                 }}
@@ -1643,12 +1913,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   );
 }
 
-
 const TEXT_LIMIT = 180;
 
-function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateText, onUpdateTags, pastTags, isPlaying, playingDuration, isUnavailable, onDownloadAudio, phaseRelevantTags = [], tourId }) {
+function EchoCard({
+  echo,
+  isExpanded,
+  onToggle,
+  onDelete,
+  onPlayAudio,
+  onUpdateText,
+  onUpdateTags,
+  pastTags,
+  isPlaying,
+  playingDuration,
+  isUnavailable,
+  onDownloadAudio,
+  phaseRelevantTags = [],
+  tourId,
+}) {
   const [copied, setCopied] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
+  const [tagsExpanded, setTagsExpanded] = useState(false);
   const cardRef = useRef(null);
 
   // Scroll card back into view when collapsing long text
@@ -1666,16 +1951,21 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   const atMax = tags.length >= MAX_TAGS;
 
   const toggleTag = (tag) => {
-    const next = tags.includes(tag)
-      ? tags.filter(t => t !== tag)
-      : atMax ? tags : [...tags, tag];
+    const next = tags.includes(tag) ? tags.filter((t) => t !== tag) : atMax ? tags : [...tags, tag];
     onUpdateTags(echo.id, next);
   };
 
   const addCustomTag = () => {
     // Split on comma to support multi-tag entry; spaces already converted to hyphens by onChange
-    const parts = customTagInput.split(',')
-      .map(p => p.trim().replace(/^-+|-+$/g, '').toLowerCase().slice(0, 20))
+    const parts = customTagInput
+      .split(',')
+      .map((p) =>
+        p
+          .trim()
+          .replace(/^-+|-+$/g, '')
+          .toLowerCase()
+          .slice(0, 20)
+      )
       .filter(Boolean);
     if (parts.length === 0) return;
     const newTags = [...tags];
@@ -1688,17 +1978,20 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   };
 
   // Past tags the user has used, excluding presets and current tags — shown first
-  const userPastTags = (pastTags || []).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
+  const userPastTags = (pastTags || []).filter(
+    (t) => !PRESET_TAGS.includes(t) && !tags.includes(t)
+  );
   // Preset tags not already applied
-  const presetTagList = PRESET_TAGS.filter(t => !userPastTags.includes(t));
+  const presetTagList = PRESET_TAGS.filter((t) => !userPastTags.includes(t));
   const isLong = echo.text && echo.text.length > TEXT_LIMIT;
-  const displayText = isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
+  const displayText =
+    isLong && !textExpanded ? echo.text.slice(0, TEXT_LIMIT).trimEnd() + '…' : echo.text;
 
   const phaseNum = (echo.phase || 'new').includes('waxing')
-    ? echo.illumination / 100 * 0.5
+    ? (echo.illumination / 100) * 0.5
     : echo.phase === 'full'
       ? 0.5
-      : 0.5 + (100 - echo.illumination) / 100 * 0.5;
+      : 0.5 + ((100 - echo.illumination) / 100) * 0.5;
 
   // Derive phase type from stored value or phase key
   const phaseType = echo.phaseType || getPhaseType(echo.phase);
@@ -1713,42 +2006,55 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
   };
 
   return (
-    <div ref={cardRef} data-tour={tourId} style={{
-      background: 'var(--color-input-bg)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
+    <div
+      ref={cardRef}
+      data-tour={tourId}
+      style={{
+        background: 'var(--color-input-bg)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 12,
+        padding: 16,
         marginBottom: 12,
-      }}>
-        <MiniMoon size={20} phase={phaseNum} phaseName={echo.phaseName} />
-        <div style={{
-          flex: 1,
-          fontSize: 9,
-          fontFamily: 'monospace',
-          letterSpacing: '0.08em',
-          color: 'var(--color-text-muted)',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-        }}>
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <MiniMoon size={20} phase={phaseNum} phaseName={echo.phaseName} />
+        <div
+          style={{
+            flex: 1,
+            fontSize: 9,
+            fontFamily: 'monospace',
+            letterSpacing: '0.08em',
+            color: 'var(--color-text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
           <span>{echo.createdAt ? timeOfDayEmoji(echo.createdAt) : ''}</span>
-          <span>{(echo.phaseName || 'MOON').toUpperCase()} · {isThreshold ? 'THR' : 'FLW'} · {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}</span>
+          <span>
+            {(echo.phaseName || 'MOON').toUpperCase()} · {isThreshold ? 'THR' : 'FLW'} ·{' '}
+            {echo.zodiac || ''} · DAY {echo.dayOfCycle || '?'}
+          </span>
           {echo.source === 'voice' && (
-            <span style={{
-              padding: '1px 4px',
-              borderRadius: 3,
-              background: 'rgba(167, 139, 250, 0.15)',
-              color: 'rgba(167, 139, 250, 0.7)',
-              fontSize: 7,
-              letterSpacing: '0.05em',
-            }}>
+            <span
+              style={{
+                padding: '1px 4px',
+                borderRadius: 3,
+                background: 'rgba(167, 139, 250, 0.15)',
+                color: 'rgba(167, 139, 250, 0.7)',
+                fontSize: 7,
+                letterSpacing: '0.05em',
+              }}
+            >
               VOICE
             </span>
           )}
@@ -1774,7 +2080,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           <textarea
             autoFocus
             value={editText}
-            onChange={e => setEditText(e.target.value)}
+            onChange={(e) => setEditText(e.target.value)}
             style={{
               width: '100%',
               minHeight: 80,
@@ -1798,21 +2104,33 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 setIsEditing(false);
               }}
               style={{
-                background: 'none', border: '1px solid var(--color-border-mid)',
-                borderRadius: 6, color: 'var(--color-text)',
-                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                cursor: 'pointer', padding: '4px 10px',
+                background: 'none',
+                border: '1px solid var(--color-border-mid)',
+                borderRadius: 6,
+                color: 'var(--color-text)',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.08em',
+                cursor: 'pointer',
+                padding: '4px 10px',
               }}
             >
               SAVE
             </button>
             <button
-              onClick={() => { setEditText(echo.text || ''); setIsEditing(false); }}
+              onClick={() => {
+                setEditText(echo.text || '');
+                setIsEditing(false);
+              }}
               style={{
-                background: 'none', border: 'none',
+                background: 'none',
+                border: 'none',
                 color: 'var(--color-text-muted)',
-                fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.08em',
-                cursor: 'pointer', padding: '4px 8px',
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: '0.08em',
+                cursor: 'pointer',
+                padding: '4px 8px',
               }}
             >
               CANCEL
@@ -1820,16 +2138,18 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           </div>
         </div>
       ) : (
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 15,
-          lineHeight: 1.76,
-          color: 'var(--color-text-dim)',
-        }}>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 15,
+            lineHeight: 1.76,
+            color: 'var(--color-text-dim)',
+          }}
+        >
           {displayText}
           {isLong && (
             <span
-              onClick={() => setTextExpanded(e => !e)}
+              onClick={() => setTextExpanded((e) => !e)}
               style={{
                 marginLeft: 6,
                 fontSize: 11,
@@ -1846,8 +2166,18 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
       )}
 
       {/* Tags row */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, alignItems: 'center', maxHeight: 80, overflowY: 'auto' }}>
-        {tags.map(tag => (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          marginTop: 10,
+          alignItems: 'center',
+          maxHeight: 80,
+          overflowY: 'auto',
+        }}
+      >
+        {(isTagging || tagsExpanded || tags.length <= 3 ? tags : tags.slice(0, 2)).map((tag) => (
           <span
             key={tag}
             onClick={() => isTagging && toggleTag(tag)}
@@ -1865,11 +2195,52 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               alignItems: 'center',
             }}
           >
-            #{tag}{isTagging ? ' ×' : ''}
+            #{tag}
+            {isTagging ? ' ×' : ''}
           </span>
         ))}
+        {tags.length > 3 && !isTagging && !tagsExpanded && (
+          <button
+            onClick={() => setTagsExpanded(true)}
+            style={{
+              background: 'rgba(167, 139, 250, 0.05)',
+              border: '1px dashed rgba(167, 139, 250, 0.3)',
+              color: 'rgba(167, 139, 250, 0.6)',
+              padding: '8px 10px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 'var(--touch-min)',
+            }}
+          >
+            +{tags.length - 2} more
+          </button>
+        )}
+        {tagsExpanded && !isTagging && tags.length > 3 && (
+          <button
+            onClick={() => setTagsExpanded(false)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(167, 139, 250, 0.5)',
+              padding: '8px 10px',
+              fontSize: 10,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 'var(--touch-min)',
+              textDecoration: 'underline',
+            }}
+          >
+            show less
+          </button>
+        )}
         <button
-          onClick={() => setIsTagging(t => !t)}
+          onClick={() => setIsTagging((t) => !t)}
           style={{
             background: 'none',
             border: 'none',
@@ -1892,16 +2263,27 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
 
       {/* Tag picker */}
       {isTagging && (
-        <div style={{
-          marginTop: 8,
-          padding: '10px 12px',
-          background: 'var(--color-input-bg)',
-          borderRadius: 8,
-          border: '1px solid var(--color-border-light)',
-        }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, maxHeight: 130, overflowY: 'auto' }}>
+        <div
+          style={{
+            marginTop: 8,
+            padding: '10px 12px',
+            background: 'var(--color-input-bg)',
+            borderRadius: 8,
+            border: '1px solid var(--color-border-light)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginBottom: 8,
+              maxHeight: 130,
+              overflowY: 'auto',
+            }}
+          >
             {/* Past user tags first (highlighted) */}
-            {userPastTags.map(tag => {
+            {userPastTags.map((tag) => {
               const selected = tags.includes(tag);
               const disabled = !selected && atMax;
               return (
@@ -1932,7 +2314,7 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
               );
             })}
             {/* Preset tags - phase-relevant ones highlighted */}
-            {presetTagList.map(tag => {
+            {presetTagList.map((tag) => {
               const selected = tags.includes(tag);
               const disabled = !selected && atMax;
               const isPhaseRelevant = phaseRelevantTags.includes(tag);
@@ -1944,9 +2326,8 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                     minHeight: 'var(--touch-min)',
                     padding: '10px 12px',
                     borderRadius: 6,
-                    border: isPhaseRelevant && !selected
-                      ? '1px solid rgba(201, 168, 76, 0.35)'
-                      : 'none',
+                    border:
+                      isPhaseRelevant && !selected ? '1px solid rgba(201, 168, 76, 0.35)' : 'none',
                     background: selected
                       ? 'rgba(167, 139, 250, 0.25)'
                       : isPhaseRelevant
@@ -1973,8 +2354,8 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={customTagInput}
-              onChange={e => setCustomTagInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addCustomTag()}
+              onChange={(e) => setCustomTagInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addCustomTag()}
               placeholder={atMax ? `max ${MAX_TAGS} tags` : 'tag or tag1, tag2'}
               disabled={atMax}
               style={{
@@ -2011,21 +2392,27 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
 
       {/* Expanded info */}
       {isExpanded && (
-        <div style={{
-          marginTop: 16,
-          paddingTop: 12,
-          borderTop: '1px solid var(--color-border-light)',
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div style={{
-              fontSize: 10,
-              fontFamily: 'monospace',
-              color: 'var(--color-text-muted)',
-            }}>
+        <div
+          style={{
+            marginTop: 16,
+            paddingTop: 12,
+            borderTop: '1px solid var(--color-border-light)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: 'var(--color-text-muted)',
+              }}
+            >
               {new Date(echo.createdAt).toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -2043,14 +2430,22 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: isUnavailable ? 'rgba(252, 129, 129, 0.7)' : isPlaying ? 'rgba(167, 139, 250, 0.9)' : 'rgba(167, 139, 250, 0.6)',
+                      color: isUnavailable
+                        ? 'rgba(252, 129, 129, 0.7)'
+                        : isPlaying
+                          ? 'rgba(167, 139, 250, 0.9)'
+                          : 'rgba(167, 139, 250, 0.6)',
                       fontSize: 10,
                       fontFamily: 'monospace',
                       cursor: 'pointer',
                       padding: '4px 8px',
                     }}
                   >
-                    {isUnavailable ? '✕ NOT FOUND' : isPlaying ? `■ ${playingDuration != null ? Math.round(playingDuration) + 's' : 'STOP'}` : '▶ PLAY'}
+                    {isUnavailable
+                      ? '✕ NOT FOUND'
+                      : isPlaying
+                        ? `■ ${playingDuration != null ? Math.round(playingDuration) + 's' : 'STOP'}`
+                        : '▶ PLAY'}
                   </button>
                   <button
                     onClick={() => onDownloadAudio()}
@@ -2069,7 +2464,10 @@ function EchoCard({ echo, isExpanded, onToggle, onDelete, onPlayAudio, onUpdateT
                 </>
               )}
               <button
-                onClick={() => { setEditText(echo.text || ''); setIsEditing(true); }}
+                onClick={() => {
+                  setEditText(echo.text || '');
+                  setIsEditing(true);
+                }}
                 style={{
                   background: 'none',
                   border: 'none',

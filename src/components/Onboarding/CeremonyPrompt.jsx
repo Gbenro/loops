@@ -11,14 +11,16 @@ const STORAGE_KEYS = {
 
 // Check if a ceremony has been shown for the current cycle
 function hasShownCeremony(type, cycleStart) {
-  const key = type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
+  const key =
+    type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
   const lastCycle = localStorage.getItem(key);
   return lastCycle === cycleStart;
 }
 
 // Mark a ceremony as shown for the current cycle
 function markCeremonyShown(type, cycleStart) {
-  const key = type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
+  const key =
+    type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
   localStorage.setItem(key, cycleStart);
 }
 
@@ -169,12 +171,11 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
             style={{
               padding: '14px 24px',
               borderRadius: 12,
-              background: type === 'new-moon'
-                ? 'var(--color-accent-bg)'
-                : 'var(--color-border-light)',
-              border: `1px solid ${type === 'new-moon'
-                ? 'var(--color-accent)'
-                : 'var(--color-border-mid)'}`,
+              background:
+                type === 'new-moon' ? 'var(--color-accent-bg)' : 'var(--color-border-light)',
+              border: `1px solid ${
+                type === 'new-moon' ? 'var(--color-accent)' : 'var(--color-border-mid)'
+              }`,
               color: type === 'new-moon' ? 'var(--color-accent)' : 'var(--color-text)',
               fontSize: 15,
               fontFamily: "'DM Sans', sans-serif",

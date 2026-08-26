@@ -109,13 +109,15 @@ describe('storage.js', () => {
       });
 
       it('updates existing summary for same phase/month', () => {
-        const existing = [{
-          id: 'ps1',
-          phaseKey: 'new',
-          phaseName: 'New Moon',
-          lunarMonth: 'Wolf',
-          stats: { echoCount: 1 },
-        }];
+        const existing = [
+          {
+            id: 'ps1',
+            phaseKey: 'new',
+            phaseName: 'New Moon',
+            lunarMonth: 'Wolf',
+            stats: { echoCount: 1 },
+          },
+        ];
         localStorageMock.getItem.mockReturnValue(JSON.stringify(existing));
 
         const updated = {
@@ -163,7 +165,13 @@ describe('storage.js', () => {
         ];
 
         const loops = [
-          { id: 'l1', title: 'Loop 1', type: 'phase', phaseOpened: 'new', lunarMonthOpened: 'Wolf' },
+          {
+            id: 'l1',
+            title: 'Loop 1',
+            type: 'phase',
+            phaseOpened: 'new',
+            lunarMonthOpened: 'Wolf',
+          },
           { id: 'l2', title: 'Loop 2', type: 'cycle', phaseClosed: 'new', status: 'closed' },
           { id: 'l3', title: 'Loop 3', type: 'phase', phaseClosed: 'new', status: 'released' },
         ];
@@ -280,9 +288,36 @@ describe('storage.js', () => {
 
       it('counts phases with activity', () => {
         const phaseSummaries = [
-          { id: 'ps1', lunarMonth: 'Wolf', stats: { echoCount: 5, loopsOpenedCount: 0, loopsClosedCount: 0, loopsReleasedCount: 0 } },
-          { id: 'ps2', lunarMonth: 'Wolf', stats: { echoCount: 0, loopsOpenedCount: 1, loopsClosedCount: 0, loopsReleasedCount: 0 } },
-          { id: 'ps3', lunarMonth: 'Wolf', stats: { echoCount: 0, loopsOpenedCount: 0, loopsClosedCount: 0, loopsReleasedCount: 0 } },
+          {
+            id: 'ps1',
+            lunarMonth: 'Wolf',
+            stats: {
+              echoCount: 5,
+              loopsOpenedCount: 0,
+              loopsClosedCount: 0,
+              loopsReleasedCount: 0,
+            },
+          },
+          {
+            id: 'ps2',
+            lunarMonth: 'Wolf',
+            stats: {
+              echoCount: 0,
+              loopsOpenedCount: 1,
+              loopsClosedCount: 0,
+              loopsReleasedCount: 0,
+            },
+          },
+          {
+            id: 'ps3',
+            lunarMonth: 'Wolf',
+            stats: {
+              echoCount: 0,
+              loopsOpenedCount: 0,
+              loopsClosedCount: 0,
+              loopsReleasedCount: 0,
+            },
+          },
         ];
 
         const summary = generateCycleSummary('Wolf', phaseSummaries);
@@ -303,7 +338,7 @@ describe('storage.js', () => {
         const wolfSummaries = getCurrentCyclePhaseSummaries('Wolf');
 
         expect(wolfSummaries).toHaveLength(2);
-        expect(wolfSummaries.every(s => s.lunarMonth === 'Wolf')).toBe(true);
+        expect(wolfSummaries.every((s) => s.lunarMonth === 'Wolf')).toBe(true);
       });
     });
   });

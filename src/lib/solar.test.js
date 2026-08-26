@@ -216,14 +216,14 @@ describe('solar.js', () => {
 
     it('includes Winter Solstice at day 1', () => {
       const thresholds = getSolarThresholds();
-      const winterSolstice = thresholds.find(t => t.name === 'Winter Solstice');
+      const winterSolstice = thresholds.find((t) => t.name === 'Winter Solstice');
       expect(winterSolstice).toBeDefined();
       expect(winterSolstice.solarDay).toBe(1);
     });
 
     it('includes all major solar events', () => {
       const thresholds = getSolarThresholds();
-      const names = thresholds.map(t => t.name);
+      const names = thresholds.map((t) => t.name);
       expect(names).toContain('Winter Solstice');
       expect(names).toContain('Spring Equinox');
       expect(names).toContain('Summer Solstice');
@@ -232,7 +232,7 @@ describe('solar.js', () => {
 
     it('includes cross-quarter days', () => {
       const thresholds = getSolarThresholds();
-      const names = thresholds.map(t => t.name);
+      const names = thresholds.map((t) => t.name);
       expect(names).toContain('Imbolc');
       expect(names).toContain('Beltane');
       expect(names).toContain('Lughnasadh');

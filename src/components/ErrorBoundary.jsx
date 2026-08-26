@@ -17,32 +17,42 @@ export class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'var(--color-bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          fontFamily: "'Cormorant Garamond', serif",
-        }}>
-          <div style={{
-            textAlign: 'center',
-            maxWidth: 400,
-          }}>
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'var(--color-bg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            fontFamily: "'Cormorant Garamond', serif",
+          }}
+        >
+          <div
+            style={{
+              textAlign: 'center',
+              maxWidth: 400,
+            }}
+          >
             <div style={{ fontSize: 48, marginBottom: 16 }}>☽</div>
-            <h1 style={{
-              fontSize: 24,
-              color: 'var(--color-text)',
-              marginBottom: 12,
-              fontWeight: 400,
-            }}>Something went wrong</h1>
-            <p style={{
-              fontSize: 14,
-              color: 'var(--color-text-dim)',
-              marginBottom: 24,
-              lineHeight: 1.5,
-            }}>
+            <h1
+              style={{
+                fontSize: 24,
+                color: 'var(--color-text)',
+                marginBottom: 12,
+                fontWeight: 400,
+              }}
+            >
+              Something went wrong
+            </h1>
+            <p
+              style={{
+                fontSize: 14,
+                color: 'var(--color-text-dim)',
+                marginBottom: 24,
+                lineHeight: 1.5,
+              }}
+            >
               The stars are misaligned. Please try refreshing the page.
             </p>
             <button

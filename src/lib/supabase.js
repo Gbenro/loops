@@ -26,8 +26,7 @@ const idbStorage = {
     try {
       const db = await openIDB();
       return new Promise((resolve) => {
-        const req = db.transaction(IDB_STORE, 'readonly')
-          .objectStore(IDB_STORE).get(key);
+        const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
         req.onsuccess = () => resolve(req.result ?? null);
         req.onerror = () => resolve(localStorage.getItem(key)); // fallback
       });

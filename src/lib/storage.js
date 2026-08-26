@@ -48,7 +48,7 @@ export async function getLoops(userId) {
       throw error;
     }
 
-    const serverLoops = data.map(row => ({
+    const serverLoops = data.map((row) => ({
       id: row.id,
       title: row.title,
       type: row.type || 'phase',
@@ -78,8 +78,8 @@ export async function getLoops(userId) {
     }));
 
     // Merge: keep local loops not on server (failed to sync)
-    const serverIds = new Set(serverLoops.map(l => l.id));
-    const unsyncedLocal = localLoops.filter(l => !serverIds.has(l.id));
+    const serverIds = new Set(serverLoops.map((l) => l.id));
+    const unsyncedLocal = localLoops.filter((l) => !serverIds.has(l.id));
     const merged = [...serverLoops, ...unsyncedLocal];
 
     setLocal(LOOPS_KEY, merged);
@@ -98,7 +98,7 @@ export async function getLoops(userId) {
 
 export async function saveLoop(loop, userId) {
   const loops = getLocal(LOOPS_KEY);
-  const idx = loops.findIndex(l => l.id === loop.id);
+  const idx = loops.findIndex((l) => l.id === loop.id);
   if (idx >= 0) {
     loops[idx] = loop;
   } else {
@@ -152,16 +152,13 @@ export async function saveLoop(loop, userId) {
 }
 
 export async function deleteLoop(loopId, userId) {
-  const loops = getLocal(LOOPS_KEY).filter(l => l.id !== loopId);
+  const loops = getLocal(LOOPS_KEY).filter((l) => l.id !== loopId);
   setLocal(LOOPS_KEY, loops);
 
   if (!userId) return;
 
   try {
-    await supabase
-      .from('loops')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', loopId);
+    await supabase.from('loops').update({ deleted_at: new Date().toISOString() }).eq('id', loopId);
   } catch (e) {
     console.warn('Failed to soft-delete loop from server:', e);
   }
@@ -182,7 +179,7 @@ export async function getEchoes(userId) {
 
     if (error) throw error;
 
-    const echoes = data.map(row => ({
+    const echoes = data.map((row) => ({
       id: row.id,
       text: row.text,
       source: row.source || 'text',
@@ -201,9 +198,9 @@ export async function getEchoes(userId) {
     }));
 
     // Merge: keep local echoes not on server (e.g. save failed due to missing column)
-    const serverIds = new Set(echoes.map(e => e.id));
+    const serverIds = new Set(echoes.map((e) => e.id));
     const localEchoes = getLocal(ECHOES_KEY);
-    const unsyncedLocal = localEchoes.filter(e => !serverIds.has(e.id));
+    const unsyncedLocal = localEchoes.filter((e) => !serverIds.has(e.id));
     const merged = [...echoes, ...unsyncedLocal];
     setLocal(ECHOES_KEY, merged);
 
@@ -227,25 +224,23 @@ export async function saveEcho(echo, userId) {
   if (!userId) return echo;
 
   try {
-    const { error } = await supabase
-      .from('echoes')
-      .insert({
-        id: echo.id,
-        user_id: userId,
-        text: echo.text,
-        source: echo.source || 'text',
-        phase: echo.phase,
-        phase_name: echo.phaseName,
-        phase_type: echo.phaseType,
-        lunar_month: echo.lunarMonth,
-        day_of_cycle: echo.dayOfCycle,
-        zodiac: echo.zodiac,
-        illumination: echo.illumination,
-        is_encrypted: echo.isEncrypted || false,
-        audio_path: echo.audio_path || null,
-        linked_loop_id: echo.linkedLoopId || null,
-        created_at: echo.createdAt,
-      });
+    const { error } = await supabase.from('echoes').insert({
+      id: echo.id,
+      user_id: userId,
+      text: echo.text,
+      source: echo.source || 'text',
+      phase: echo.phase,
+      phase_name: echo.phaseName,
+      phase_type: echo.phaseType,
+      lunar_month: echo.lunarMonth,
+      day_of_cycle: echo.dayOfCycle,
+      zodiac: echo.zodiac,
+      illumination: echo.illumination,
+      is_encrypted: echo.isEncrypted || false,
+      audio_path: echo.audio_path || null,
+      linked_loop_id: echo.linkedLoopId || null,
+      created_at: echo.createdAt,
+    });
 
     if (error) throw error;
   } catch (e) {
@@ -257,7 +252,7 @@ export async function saveEcho(echo, userId) {
 
 export async function updateEchoAudioPath(echoId, audioPath, userId) {
   const echoes = getLocal(ECHOES_KEY);
-  const idx = echoes.findIndex(e => e.id === echoId);
+  const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
     echoes[idx] = { ...echoes[idx], audio_path: audioPath };
     setLocal(ECHOES_KEY, echoes);
@@ -266,10 +261,7 @@ export async function updateEchoAudioPath(echoId, audioPath, userId) {
   if (!userId) return;
 
   try {
-    await supabase
-      .from('echoes')
-      .update({ audio_path: audioPath })
-      .eq('id', echoId);
+    await supabase.from('echoes').update({ audio_path: audioPath }).eq('id', echoId);
   } catch (e) {
     console.warn('Failed to update echo audio_path on server:', e);
   }
@@ -277,7 +269,7 @@ export async function updateEchoAudioPath(echoId, audioPath, userId) {
 
 export async function updateEchoTags(echoId, tags, userId) {
   const echoes = getLocal(ECHOES_KEY);
-  const idx = echoes.findIndex(e => e.id === echoId);
+  const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
     echoes[idx] = { ...echoes[idx], tags };
     setLocal(ECHOES_KEY, echoes);
@@ -286,10 +278,7 @@ export async function updateEchoTags(echoId, tags, userId) {
   if (!userId) return;
 
   try {
-    await supabase
-      .from('echoes')
-      .update({ tags })
-      .eq('id', echoId);
+    await supabase.from('echoes').update({ tags }).eq('id', echoId);
   } catch (e) {
     console.warn('Failed to update echo tags on server:', e);
   }
@@ -297,7 +286,7 @@ export async function updateEchoTags(echoId, tags, userId) {
 
 export async function updateEchoText(echoId, newText, userId) {
   const echoes = getLocal(ECHOES_KEY);
-  const idx = echoes.findIndex(e => e.id === echoId);
+  const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
     echoes[idx] = { ...echoes[idx], text: newText };
     setLocal(ECHOES_KEY, echoes);
@@ -306,26 +295,20 @@ export async function updateEchoText(echoId, newText, userId) {
   if (!userId) return;
 
   try {
-    await supabase
-      .from('echoes')
-      .update({ text: newText })
-      .eq('id', echoId);
+    await supabase.from('echoes').update({ text: newText }).eq('id', echoId);
   } catch (e) {
     console.warn('Failed to update echo text on server:', e);
   }
 }
 
 export async function deleteEcho(echoId, userId) {
-  const echoes = getLocal(ECHOES_KEY).filter(e => e.id !== echoId);
+  const echoes = getLocal(ECHOES_KEY).filter((e) => e.id !== echoId);
   setLocal(ECHOES_KEY, echoes);
 
   if (!userId) return;
 
   try {
-    await supabase
-      .from('echoes')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', echoId);
+    await supabase.from('echoes').update({ deleted_at: new Date().toISOString() }).eq('id', echoId);
   } catch (e) {
     console.warn('Failed to soft-delete echo from server:', e);
   }
@@ -344,11 +327,7 @@ export async function migrateLocalToServer(userId) {
   const localEchoes = getLocal(ECHOES_KEY);
   for (const echo of localEchoes) {
     // Check if echo already exists
-    const { data } = await supabase
-      .from('echoes')
-      .select('id')
-      .eq('id', echo.id)
-      .single();
+    const { data } = await supabase.from('echoes').select('id').eq('id', echo.id).single();
 
     if (!data) {
       await saveEcho(echo, userId);
@@ -365,8 +344,8 @@ export function getPhaseSummaries() {
 export function savePhaseSummary(summary) {
   const summaries = getLocal(PHASE_SUMMARIES_KEY);
   // Check if summary for this phase/cycle already exists
-  const existingIdx = summaries.findIndex(s =>
-    s.phaseKey === summary.phaseKey && s.lunarMonth === summary.lunarMonth
+  const existingIdx = summaries.findIndex(
+    (s) => s.phaseKey === summary.phaseKey && s.lunarMonth === summary.lunarMonth
   );
   if (existingIdx >= 0) {
     summaries[existingIdx] = summary;
@@ -381,20 +360,14 @@ export function savePhaseSummary(summary) {
 // Generate a phase summary from echoes and loops
 export function generatePhaseSummary(phaseKey, phaseName, lunarMonth, echoes, loops) {
   // Filter echoes from this phase
-  const phaseEchoes = echoes.filter(e =>
-    e.phase === phaseKey && e.lunarMonth === lunarMonth
-  );
+  const phaseEchoes = echoes.filter((e) => e.phase === phaseKey && e.lunarMonth === lunarMonth);
 
   // Filter loops opened or closed in this phase
-  const loopsOpened = loops.filter(l =>
-    l.phaseOpened === phaseKey && l.lunarMonthOpened === lunarMonth
+  const loopsOpened = loops.filter(
+    (l) => l.phaseOpened === phaseKey && l.lunarMonthOpened === lunarMonth
   );
-  const loopsClosed = loops.filter(l =>
-    l.phaseClosed === phaseKey && l.status === 'closed'
-  );
-  const loopsReleased = loops.filter(l =>
-    l.phaseClosed === phaseKey && l.status === 'released'
-  );
+  const loopsClosed = loops.filter((l) => l.phaseClosed === phaseKey && l.status === 'closed');
+  const loopsReleased = loops.filter((l) => l.phaseClosed === phaseKey && l.status === 'released');
 
   return {
     id: generateId('ps'),
@@ -402,22 +375,22 @@ export function generatePhaseSummary(phaseKey, phaseName, lunarMonth, echoes, lo
     phaseName,
     lunarMonth,
     createdAt: new Date().toISOString(),
-    echoes: phaseEchoes.map(e => ({
+    echoes: phaseEchoes.map((e) => ({
       id: e.id,
       text: e.text,
       source: e.source,
     })),
-    loopsOpened: loopsOpened.map(l => ({
+    loopsOpened: loopsOpened.map((l) => ({
       id: l.id,
       title: l.title,
       type: l.type,
     })),
-    loopsClosed: loopsClosed.map(l => ({
+    loopsClosed: loopsClosed.map((l) => ({
       id: l.id,
       title: l.title,
       type: l.type,
     })),
-    loopsReleased: loopsReleased.map(l => ({
+    loopsReleased: loopsReleased.map((l) => ({
       id: l.id,
       title: l.title,
       type: l.type,
@@ -447,13 +420,22 @@ export function saveCycleSummary(summary) {
 
 // Generate a lunar cycle summary from phase summaries
 export function generateCycleSummary(lunarMonth, phaseSummaries) {
-  const cyclePhaseSummaries = phaseSummaries.filter(s => s.lunarMonth === lunarMonth);
+  const cyclePhaseSummaries = phaseSummaries.filter((s) => s.lunarMonth === lunarMonth);
 
   // Aggregate stats
   const totalEchoes = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.echoCount, 0);
-  const totalLoopsOpened = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsOpenedCount, 0);
-  const totalLoopsClosed = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsClosedCount, 0);
-  const totalLoopsReleased = cyclePhaseSummaries.reduce((sum, s) => sum + s.stats.loopsReleasedCount, 0);
+  const totalLoopsOpened = cyclePhaseSummaries.reduce(
+    (sum, s) => sum + s.stats.loopsOpenedCount,
+    0
+  );
+  const totalLoopsClosed = cyclePhaseSummaries.reduce(
+    (sum, s) => sum + s.stats.loopsClosedCount,
+    0
+  );
+  const totalLoopsReleased = cyclePhaseSummaries.reduce(
+    (sum, s) => sum + s.stats.loopsReleasedCount,
+    0
+  );
 
   return {
     id: generateId('cs'),
@@ -465,8 +447,8 @@ export function generateCycleSummary(lunarMonth, phaseSummaries) {
       totalLoopsOpened,
       totalLoopsClosed,
       totalLoopsReleased,
-      phasesWithActivity: cyclePhaseSummaries.filter(s =>
-        s.stats.echoCount > 0 || s.stats.loopsOpenedCount > 0
+      phasesWithActivity: cyclePhaseSummaries.filter(
+        (s) => s.stats.echoCount > 0 || s.stats.loopsOpenedCount > 0
       ).length,
     },
   };
@@ -475,13 +457,17 @@ export function generateCycleSummary(lunarMonth, phaseSummaries) {
 // Get phase summaries for current lunar month
 export function getCurrentCyclePhaseSummaries(lunarMonth) {
   const summaries = getLocal(PHASE_SUMMARIES_KEY);
-  return summaries.filter(s => s.lunarMonth === lunarMonth);
+  return summaries.filter((s) => s.lunarMonth === lunarMonth);
 }
 
 // Clear all local cache — called when a different user signs in
 export function clearLocalCache() {
-  [LOOPS_KEY, ECHOES_KEY, PHASE_SUMMARIES_KEY, CYCLE_SUMMARIES_KEY].forEach(key => {
-    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  [LOOPS_KEY, ECHOES_KEY, PHASE_SUMMARIES_KEY, CYCLE_SUMMARIES_KEY].forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
   });
 }
 
