@@ -69,6 +69,9 @@ const ALLOWED_ORIGINS = [
   "https://www.lunaloops.app",
   "http://localhost:5173",
   "http://localhost:4173",
+  "http://localhost",
+  "https://localhost",
+  "capacitor://localhost",
 ];
 
 function getCorsHeaders(req: Request) {

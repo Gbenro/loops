@@ -1,16 +1,49 @@
 // Luna Loops - Notifications
-// Web Push Notifications for phase transitions
+// Web Push Notifications & Capacitor Local Notifications for phase transitions
 
 const NOTIFICATION_KEY = 'cosmic_notifications_v1';
 const LAST_NOTIFIED_KEY = 'cosmic_last_notified_v1';
 
+let LocalNotifications = null;
+const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+let capacitorPermissionGranted = false;
+
+if (isCapacitor) {
+  import('@capacitor/local-notifications').then((module) => {
+    LocalNotifications = module.LocalNotifications;
+    LocalNotifications.checkPermissions().then((status) => {
+      capacitorPermissionGranted = status.display === 'granted';
+    });
+  }).catch(err => {
+    console.warn('Failed to load Capacitor LocalNotifications module:', err);
+  });
+}
+
 // Check if notifications are supported and permitted
 export function canNotify() {
+  if (isCapacitor) {
+    return capacitorPermissionGranted;
+  }
   return 'Notification' in window && Notification.permission === 'granted';
 }
 
 // Request notification permission
 export async function requestPermission() {
+  if (isCapacitor) {
+    try {
+      if (!LocalNotifications) {
+        const module = await import('@capacitor/local-notifications');
+        LocalNotifications = module.LocalNotifications;
+      }
+      const status = await LocalNotifications.requestPermissions();
+      capacitorPermissionGranted = status.display === 'granted';
+      return capacitorPermissionGranted;
+    } catch (e) {
+      console.warn('Capacitor requestPermissions failed:', e);
+      return false;
+    }
+  }
+
   if (!('Notification' in window)) {
     return false;
   }
@@ -83,8 +116,59 @@ function wasNotified(phaseKey, type, withinMs = 12 * 60 * 60 * 1000) {
   return Date.now() - lastTime < withinMs;
 }
 
-// Send a notification
+// Helper to generate simple hash from string tag for numeric notification ID
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+}
+
+// Send a notification (synchronous signature, async schedule)
 export function sendNotification(title, body, tag) {
+  if (isCapacitor) {
+    const numericId = Math.abs(tag ? hashString(tag) : Math.floor(Math.random() * 1000000));
+    
+    if (!LocalNotifications) {
+      import('@capacitor/local-notifications').then((module) => {
+        LocalNotifications = module.LocalNotifications;
+        LocalNotifications.schedule({
+          notifications: [
+            {
+              title,
+              body,
+              id: numericId,
+              extra: { tag },
+            }
+          ]
+        }).catch(e => console.warn('Failed to schedule local notification:', e));
+      }).catch(err => {
+        console.warn('Failed to load Capacitor LocalNotifications module:', err);
+      });
+      return true;
+    }
+
+    try {
+      LocalNotifications.schedule({
+        notifications: [
+          {
+            title,
+            body,
+            id: numericId,
+            extra: { tag },
+          }
+        ]
+      }).catch(e => console.warn('Failed to schedule local notification:', e));
+      return true;
+    } catch (e) {
+      console.warn('Failed to schedule local notification:', e);
+      return false;
+    }
+  }
+
   if (!canNotify()) return false;
 
   try {

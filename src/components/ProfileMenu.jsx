@@ -1697,11 +1697,12 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                   <button
                     onClick={async () => {
                       if (!notifPrefs.enabled) {
-                        if (!('Notification' in window)) {
+                        const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+                        if (!isCapacitor && !('Notification' in window)) {
                           alert('Notifications are not supported on this browser.');
                           return;
                         }
-                        if (Notification.permission === 'denied') {
+                        if (!isCapacitor && Notification.permission === 'denied') {
                           alert(
                             'Notifications are blocked. Please enable them in your browser or device settings, then try again.'
                           );

@@ -1841,7 +1841,7 @@ function DetailPanel({
       >
         {/* Header */}
         <div
-          style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--color-border-light)' }}
+          style={{ padding: '12px 20px 12px', borderBottom: '1px solid var(--color-border-light)' }}
         >
           <div
             style={{
@@ -1849,7 +1849,7 @@ function DetailPanel({
               height: 4,
               borderRadius: 2,
               background: 'var(--color-border-mid)',
-              margin: '0 auto 20px',
+              margin: '0 auto 10px',
             }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1913,7 +1913,7 @@ function DetailPanel({
         </div>
 
         {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 80px' }}>
           {/* Phase Journey — cycle loops only */}
           {isCycle && phaseCheckpoints.length > 0 && (
             <div style={{ marginBottom: 24 }}>
@@ -2420,7 +2420,7 @@ function DetailPanel({
         <div
           data-tour="loop-actions"
           style={{
-            padding: '16px 20px 24px',
+            padding: '16px 20px calc(16px + env(safe-area-inset-bottom))',
             borderTop: '1px solid var(--color-border-light)',
             display: 'flex',
             gap: 10,

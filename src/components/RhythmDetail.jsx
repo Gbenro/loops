@@ -371,7 +371,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 20px',
+          padding: 'calc(16px + env(safe-area-inset-top)) 20px 16px',
           background: 'var(--color-bg)',
           zIndex: 10,
         }}
