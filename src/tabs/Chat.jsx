@@ -94,8 +94,8 @@ export function Chat({ userId, lunarData }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      // Get base URL for backend API (from Vite environment)
-      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+      // Get base URL for backend API (from Vite environment, fallback to active Railway)
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
 
       // Call Express API chat endpoint
       const response = await fetch(`${apiBaseUrl}/api/chat`, {
