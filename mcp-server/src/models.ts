@@ -1,6 +1,6 @@
 export interface ModelConfig {
   key: string;            // internal identifier, e.g., 'anthropic-frontier'
-  provider: 'anthropic' | 'openai';
+  provider: 'anthropic' | 'openai' | 'google';
   modelId: string;        // official API identifier, e.g., 'claude-3-5-sonnet-20240620'
   displayName: string;
   enabled: boolean;
@@ -42,6 +42,16 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     tier: 'balanced',
     capabilities: { tools: true },
     defaultPriority: 80
+  },
+  {
+    key: 'google-frontier',
+    provider: 'google',
+    modelId: 'gemini-1.5-pro',
+    displayName: 'Google — Frontier (Gemini 1.5 Pro)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true },
+    defaultPriority: 95
   }
 ];
 

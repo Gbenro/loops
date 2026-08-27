@@ -210,6 +210,7 @@ export function Chat({ userId, lunarData }) {
           <option value="anthropic-frontier">Claude 3.5 Sonnet</option>
           <option value="openai-frontier">GPT-4o</option>
           <option value="openai-balanced">GPT-4o-mini</option>
+          <option value="google-frontier">Gemini 1.5 Pro</option>
         </select>
       </header>
 

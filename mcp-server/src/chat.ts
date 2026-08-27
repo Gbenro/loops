@@ -127,6 +127,78 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
   return response.json();
 }
 
+// Map standard MCP schemas to Gemini tool format
+const getGeminiTools = () => {
+  return [
+    {
+      functionDeclarations: TOOL_DEFINITIONS_COMPAT.map(t => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema
+      }))
+    }
+  ];
+};
+
+// Orchestration helper: call Gemini (Google)
+async function callGemini(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured on server');
+
+  const contents = messages.map(m => {
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    if (m.role === 'tool' || m.role === 'tool_result') {
+      return {
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              name: m.name || m.tool_use_id,
+              response: { name: m.name || m.tool_use_id, content: m.content }
+            }
+          }
+        ]
+      };
+    }
+    if (m.tool_calls) {
+      return {
+        role: 'model',
+        parts: m.tool_calls.map((c: any) => ({
+          functionCall: {
+            name: c.function.name,
+            args: typeof c.function.arguments === 'string' ? JSON.parse(c.function.arguments) : c.function.arguments
+          }
+        }))
+      };
+    }
+    return {
+      role,
+      parts: [{ text: m.content }]
+    };
+  });
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: contents,
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      tools: tools.length > 0 ? tools : undefined
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+  }
+
+  return response.json();
+}
+
 export function registerChatRoutes(app: Express, authenticateRest: any) {
   // 1. GET /api/chat/models - Lists all models authorized for the active user
   app.get('/api/chat/models', authenticateRest, async (req: Request, res: Response) => {
@@ -345,6 +417,68 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                     content: toolResultText
                   }
                 ]
+              });
+            }
+            loopCount++;
+            continue;
+          }
+        } else if (provider === 'google') {
+          const geminiTools = getGeminiTools();
+          aiResult = await callGemini(modelId, agentMessages, systemPrompt, geminiTools);
+
+          const candidate = aiResult.candidates?.[0];
+          const part = candidate?.content?.parts?.[0];
+
+          if (part?.text) {
+            finalResponseText = part.text;
+          }
+
+          const functionCalls = candidate?.content?.parts?.filter((p: any) => p.functionCall);
+          if (functionCalls && functionCalls.length > 0) {
+            agentMessages.push({
+              role: 'assistant',
+              content: part?.text || '',
+              tool_calls: functionCalls.map((fc: any) => ({
+                id: `fc_${Math.random().toString(36).substr(2, 4)}`,
+                type: 'function',
+                function: {
+                  name: fc.functionCall.name,
+                  arguments: JSON.stringify(fc.functionCall.args)
+                }
+              }))
+            });
+
+            for (const call of functionCalls) {
+              const toolName = call.functionCall.name;
+              const toolArgs = call.functionCall.args || {};
+
+              console.log(`[Agent-Gemini] Calling tool: ${toolName}`, toolArgs);
+              let toolResultText = '';
+              let isError = false;
+
+              try {
+                const outcome = await executeTool(supabase, toolName, toolArgs);
+                toolResultText = outcome.content[0].text;
+                isError = !!(outcome as any).isError;
+
+                const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
+                if (idMatches) retrievedContextIds.push(...idMatches);
+              } catch (err: any) {
+                toolResultText = `Error running tool: ${err.message}`;
+                isError = true;
+              }
+
+              toolCallsTracked.push({
+                tool: toolName,
+                args: toolArgs,
+                success: !isError,
+                resultSummary: toolResultText.substring(0, 150)
+              });
+
+              agentMessages.push({
+                role: 'tool',
+                name: toolName,
+                content: toolResultText
               });
             }
             loopCount++;
