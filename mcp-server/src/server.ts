@@ -53,10 +53,12 @@ const activeSessions = new Map<string, {
 
 // 1. Authorize endpoint
 app.get('/oauth/authorize', (req, res) => {
+  console.log('[OAuth Authorize Query Callback Received]:', req.query);
   const { client_id, redirect_uri, response_type, state, scope } = req.query;
 
   if (!client_id || !redirect_uri || !state) {
-    res.status(400).send('Missing required OAuth parameters: client_id, redirect_uri, or state.');
+    console.error('[OAuth Error] Missing parameter. client_id:', client_id, 'redirect_uri:', redirect_uri, 'state:', state);
+    res.status(400).send(`Missing required OAuth parameters: client_id, redirect_uri, or state. Received query parameters: ${JSON.stringify(req.query)}`);
     return;
   }
 
