@@ -21,6 +21,7 @@ import { Sky } from './tabs/Sky.jsx';
 import { Loops } from './tabs/Loops.jsx';
 import { Echoes } from './tabs/Echoes.jsx';
 import { Rhythm } from './tabs/Rhythm.jsx';
+import { Chat } from './tabs/Chat.jsx';
 import { AuthModal, PrivacyNotice } from './components/AuthModal.jsx';
 import { AdminDashboard } from './components/AdminDashboard.jsx';
 import { Tutorial } from './components/Tutorial.jsx';
@@ -41,7 +42,10 @@ const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
   { id: 'loops', label: 'Loops', icon: '◯' },
   { id: 'echoes', label: 'Echoes', icon: '〜' },
-  ...(IS_V2 ? [{ id: 'rhythm', label: 'Rhythm', icon: '◎' }] : []),
+  ...(IS_V2 ? [
+    { id: 'rhythm', label: 'Rhythm', icon: '◎' },
+    { id: 'chat', label: 'Chat', icon: '✦' }
+  ] : []),
 ];
 
 function UnlockModal({ verifyToken, userId }) {
@@ -1020,6 +1024,9 @@ function App() {
           )}
           {IS_V2 && activeTab === 'rhythm' && (
             <Rhythm userId={user?.id} lunarData={lunarData} loops={loops} />
+          )}
+          {IS_V2 && activeTab === 'chat' && (
+            <Chat userId={user?.id} lunarData={lunarData} />
           )}
         </div>
 

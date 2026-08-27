@@ -11,6 +11,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { getUserIdFromToken, getSupabaseForUser } from './db.js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
+import { registerChatRoutes } from './chat.js';
 
 dotenv.config();
 
@@ -838,6 +839,8 @@ app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+registerChatRoutes(app, authenticateRest);
 
 app.get('/status', (req, res) => {
   res.json({
