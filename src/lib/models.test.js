@@ -3,6 +3,27 @@ import { describe, it, expect } from 'vitest';
 // Simulated registry for testing frontend client expectations
 const MODEL_REGISTRY = [
   {
+    key: 'anthropic-fable',
+    provider: 'anthropic',
+    modelId: 'claude-fable-5',
+    enabled: true,
+    defaultPriority: 120
+  },
+  {
+    key: 'openai-sol',
+    provider: 'openai',
+    modelId: 'gpt-5.6-sol',
+    enabled: true,
+    defaultPriority: 115
+  },
+  {
+    key: 'openai-o3',
+    provider: 'openai',
+    modelId: 'o3-pro',
+    enabled: true,
+    defaultPriority: 110
+  },
+  {
     key: 'anthropic-frontier',
     provider: 'anthropic',
     modelId: 'claude-3-5-sonnet-20240620',
@@ -46,6 +67,8 @@ describe('Model Configuration Registry & Entitlements', () => {
     expect(keys).toContain('anthropic-frontier');
     expect(keys).toContain('openai-frontier');
     expect(keys).toContain('openai-balanced');
+    expect(keys).toContain('anthropic-fable');
+    expect(keys).toContain('openai-sol');
     expect(MODEL_REGISTRY.every(m => m.enabled)).toBe(true);
   });
 
@@ -62,7 +85,6 @@ describe('Model Configuration Registry & Entitlements', () => {
   });
 
   it('correctly maps to custom GPT Action endpoint labels', () => {
-    // Assert keys map to expected values
     const map = {
       listChatSessions: 'listChatSessions',
       getChatSession: 'getChatSession',

@@ -14,10 +14,40 @@ export interface ModelConfig {
 
 export const MODEL_REGISTRY: ModelConfig[] = [
   {
+    key: 'anthropic-fable',
+    provider: 'anthropic',
+    modelId: 'claude-fable-5',
+    displayName: 'Anthropic — Fable 5 (Frontier Agent)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true },
+    defaultPriority: 120
+  },
+  {
+    key: 'openai-sol',
+    provider: 'openai',
+    modelId: 'gpt-5.6-sol',
+    displayName: 'OpenAI — Sol 5.6 (Frontier Agent)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true },
+    defaultPriority: 115
+  },
+  {
+    key: 'openai-o3',
+    provider: 'openai',
+    modelId: 'o3-pro',
+    displayName: 'OpenAI — o3-pro (Reasoning)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true },
+    defaultPriority: 110
+  },
+  {
     key: 'anthropic-frontier',
     provider: 'anthropic',
     modelId: 'claude-3-5-sonnet-20240620',
-    displayName: 'Anthropic — Frontier (Claude 3.5 Sonnet)',
+    displayName: 'Anthropic — Claude 3.5 Sonnet',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },
@@ -27,7 +57,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     key: 'openai-frontier',
     provider: 'openai',
     modelId: 'gpt-4o',
-    displayName: 'OpenAI — Frontier (GPT-4o)',
+    displayName: 'OpenAI — GPT-4o',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },
@@ -37,7 +67,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     key: 'openai-balanced',
     provider: 'openai',
     modelId: 'gpt-4o-mini',
-    displayName: 'OpenAI — Balanced (GPT-4o-mini)',
+    displayName: 'OpenAI — GPT-4o-mini',
     enabled: true,
     tier: 'balanced',
     capabilities: { tools: true },
@@ -47,7 +77,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     key: 'google-frontier',
     provider: 'google',
     modelId: 'gemini-1.5-pro',
-    displayName: 'Google — Frontier (Gemini 1.5 Pro)',
+    displayName: 'Google — Gemini 1.5 Pro',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },

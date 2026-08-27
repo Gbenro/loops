@@ -8,7 +8,7 @@ export function Chat({ userId, lunarData }) {
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState(null);
   const [selectedModel, setSelectedModel] = useState(
-    localStorage.getItem('luna_model_key') || 'anthropic-frontier'
+    localStorage.getItem('luna_model_key') || 'anthropic-fable'
   );
   
   const chatEndRef = useRef(null);
@@ -207,6 +207,9 @@ export function Chat({ userId, lunarData }) {
             textAlign: 'center'
           }}
         >
+          <option value="anthropic-fable">Claude Fable 5</option>
+          <option value="openai-sol">GPT Sol 5.6</option>
+          <option value="openai-o3">GPT o3-pro</option>
           <option value="anthropic-frontier">Claude 3.5 Sonnet</option>
           <option value="openai-frontier">GPT-4o</option>
           <option value="openai-balanced">GPT-4o-mini</option>
