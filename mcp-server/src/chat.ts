@@ -1,7 +1,8 @@
-import { Express, Request, Response, NextFunction } from 'express';
+import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 import { getLunarData } from './lunar.js';
+import { resolveModel, getUserAllowedModels } from './models.js';
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -56,11 +57,10 @@ Tool-Use & Action Rules:
 };
 
 // Orchestration helper: call Claude (Anthropic)
-async function callClaude(messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+async function callClaude(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured on server');
 
-  // Format messages for Anthropic. Anthropic requires alternating user/assistant messages.
   const formattedMessages = messages.map(m => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: m.content
@@ -74,7 +74,7 @@ async function callClaude(messages: any[], systemPrompt: string, tools: any[]): 
       'content-type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20240620',
+      model: modelId,
       max_tokens: 4000,
       system: systemPrompt,
       messages: formattedMessages,
@@ -90,12 +90,11 @@ async function callClaude(messages: any[], systemPrompt: string, tools: any[]): 
   return response.json();
 }
 
-// Orchestration helper: call GPT-4o (OpenAI)
-async function callGpt(messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+// Orchestration helper: call GPT (OpenAI)
+async function callGpt(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+  if (!apiKey) throw new Error('OPENAI_API_KEY not configured on server');
 
-  // OpenAI includes system prompt inside the messages array
   const formattedMessages = [
     { role: 'system', content: systemPrompt },
     ...messages.map(m => ({
@@ -114,7 +113,7 @@ async function callGpt(messages: any[], systemPrompt: string, tools: any[]): Pro
       'content-type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: modelId,
       messages: formattedMessages,
       tools: tools.length > 0 ? tools : undefined
     })
@@ -129,43 +128,103 @@ async function callGpt(messages: any[], systemPrompt: string, tools: any[]): Pro
 }
 
 export function registerChatRoutes(app: Express, authenticateRest: any) {
-  // 1. GET /api/chat/sessions
-  app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
+  // 1. GET /api/chat/models - Lists all models authorized for the active user
+  app.get('/api/chat/models', authenticateRest, async (req: Request, res: Response) => {
     try {
-      const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-      res.json(data);
+      const { data: { user } } = await req.body.supabaseClient.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
+      const allowed = await getUserAllowedModels(user.id);
+      res.json({ models: allowed });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 2. GET /api/chat/sessions/:id/messages
-  app.get('/api/chat/sessions/:id/messages', authenticateRest, async (req: Request, res: Response) => {
+  // 2. GET /api/chat/sessions - List chat sessions for GPT actions & PWA sidebar
+  app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    try {
+      const { data, error, count } = await supabase
+        .from('chat_sessions')
+        .select('*', { count: 'exact' })
+        .order('updated_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+      res.json({ sessions: data, count, limit, offset });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 3. GET /api/chat/sessions/:id - Get a specific chat session with ordered messages
+  app.get('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data, error } = await supabase
+      // 1. Retrieve session metadata
+      const { data: session, error: sessErr } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', req.params.id)
+        .single();
+
+      if (sessErr || !session) throw new Error('Session not found');
+
+      // 2. Retrieve messages
+      const { data: messages, error: msgsErr } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('session_id', req.params.id)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      res.json(data);
+      if (msgsErr) throw msgsErr;
+
+      res.json({
+        ...session,
+        messages: messages || []
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 3. POST /api/chat
+  // 4. GET /api/chat/messages - Search and filter chat messages
+  app.get('/api/chat/messages', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const query = req.query.query as string;
+    const sessionId = req.query.sessionId as string;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    try {
+      let builder = supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (sessionId) {
+        builder = builder.eq('session_id', sessionId);
+      }
+      if (query) {
+        builder = builder.ilike('content', `%${query}%`);
+      }
+
+      const { data, error } = await builder;
+      if (error) throw error;
+      res.json({ messages: data || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 5. POST /api/chat - Orchestration endpoint
   app.post('/api/chat', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const { message, sessionId: clientSessionId } = req.body;
+    const { message, sessionId: clientSessionId, modelKey } = req.body;
 
     if (!message || !message.trim()) {
       res.status(400).json({ error: 'Message content is required' });
@@ -174,21 +233,23 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
     const startTime = Date.now();
     let sessionId = clientSessionId;
-    let modelUsed = 'unknown';
-    let promptVersion = '1.0';
     let status: 'success' | 'failed' = 'success';
     let errorMessage: string | null = null;
     let toolCallsTracked: any[] = [];
     let retrievedContextIds: string[] = [];
+    let modelConfig;
 
     try {
-      // 1. Resolve Auth User ID
+      // 1. Resolve User
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('User session not authenticated');
 
-      // 2. Resolve Session ID (Ensure default session exists for user)
+      // 2. Resolve Model via Config Registry
+      modelConfig = await resolveModel(modelKey, user.id);
+      const { provider, modelId, key: resolvedKey } = modelConfig;
+
+      // 3. Resolve Session ID
       if (!sessionId) {
-        // Query if they have a session
         const { data: existingSessions } = await supabase
           .from('chat_sessions')
           .select('id')
@@ -197,7 +258,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         if (existingSessions && existingSessions.length > 0) {
           sessionId = existingSessions[0].id;
         } else {
-          // Create new default session
           sessionId = generateId('session');
           await supabase.from('chat_sessions').insert({
             id: sessionId,
@@ -217,7 +277,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         content: message.trim()
       });
 
-      // Load previous chat history
+      // Load conversation history
       const { data: history } = await supabase
         .from('chat_messages')
         .select('role, content')
@@ -226,44 +286,33 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       const conversationMessages = history ? [...history] : [{ role: 'user', content: message }];
 
-      // 3. Determine LLM Provider
-      const hasClaude = !!process.env.ANTHROPIC_API_KEY;
-      const hasGpt = !!process.env.OPENAI_API_KEY;
-      if (!hasClaude && !hasGpt) {
-        throw new Error('No AI provider configured (missing ANTHROPIC_API_KEY and OPENAI_API_KEY)');
-      }
-
       const lunar = getLunarData();
       const systemPrompt = getSystemPrompt(lunar);
       let loopCount = 0;
       let finalResponseText = '';
       const agentMessages: any[] = [...conversationMessages];
 
-      // 4. Agentic Loop (Max 5 tool hops)
+      // 4. Agentic Loop (Max 5 hops)
       while (loopCount < 5) {
         let aiResult: any;
 
-        if (hasClaude) {
-          modelUsed = 'claude-3-5-sonnet';
+        if (provider === 'anthropic') {
           const anthropicTools = getAnthropicTools();
-          aiResult = await callClaude(agentMessages, systemPrompt, anthropicTools);
+          aiResult = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
 
-          // Check for final message text
           const textContent = aiResult.content.find((c: any) => c.type === 'text');
           if (textContent) {
             finalResponseText = textContent.text;
           }
 
-          // Check for tool calls
           const toolUseCalls = aiResult.content.filter((c: any) => c.type === 'tool_use');
           if (toolUseCalls.length > 0) {
             agentMessages.push({ role: 'assistant', content: aiResult.content });
 
-            // Execute all requested tools
             for (const call of toolUseCalls) {
               const toolName = call.name;
               const toolArgs = call.input;
-              console.log(`[Agent] Calling tool: ${toolName}`, toolArgs);
+              console.log(`[Agent-Claude] Calling tool: ${toolName}`, toolArgs);
 
               let toolResultText = '';
               let isError = false;
@@ -273,7 +322,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                 toolResultText = outcome.content[0].text;
                 isError = !!(outcome as any).isError;
 
-                // Extract IDs from retrieved data (if any matches stable string pattern)
                 const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
                 if (idMatches) retrievedContextIds.push(...idMatches);
               } catch (err: any) {
@@ -300,13 +348,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
               });
             }
             loopCount++;
-            continue; // hop back to LLM
+            continue;
           }
-        } else {
-          // OpenAI fallback
-          modelUsed = 'gpt-4o';
+        } else if (provider === 'openai') {
           const openAiTools = getOpenAiTools();
-          aiResult = await callGpt(agentMessages, systemPrompt, openAiTools);
+          aiResult = await callGpt(modelId, agentMessages, systemPrompt, openAiTools);
 
           const choice = aiResult.choices[0];
           const responseMsg = choice.message;
@@ -315,7 +361,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             finalResponseText = responseMsg.content;
           }
 
-          // Check for tool calls
           const openAiToolCalls = responseMsg.tool_calls;
           if (openAiToolCalls && openAiToolCalls.length > 0) {
             agentMessages.push({
@@ -324,7 +369,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
               tool_calls: openAiToolCalls
             });
 
-            // Execute all requested tools
             for (const call of openAiToolCalls) {
               const toolName = call.function.name;
               let toolArgs = {};
@@ -332,7 +376,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                 toolArgs = JSON.parse(call.function.arguments);
               } catch {}
 
-              console.log(`[Agent] Calling tool: ${toolName}`, toolArgs);
+              console.log(`[Agent-GPT] Calling tool: ${toolName}`, toolArgs);
               let toolResultText = '';
               let isError = false;
 
@@ -341,7 +385,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                 toolResultText = outcome.content[0].text;
                 isError = !!(outcome as any).isError;
 
-                // Extract IDs
                 const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
                 if (idMatches) retrievedContextIds.push(...idMatches);
               } catch (err: any) {
@@ -368,10 +411,10 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           }
         }
 
-        break; // no tool calls, loop ends
+        break;
       }
 
-      // 5. Save assistant reply to database
+      // Save assistant message to database
       const assistantMessageId = generateId('msg');
       await supabase.from('chat_messages').insert({
         id: assistantMessageId,
@@ -381,10 +424,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         content: finalResponseText.trim()
       });
 
-      // Deduplicate retrieved IDs
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
 
-      // 6. Log telemetry trace
+      // Log trace to telemetry table
       const latency = Date.now() - startTime;
       const telemetryId = generateId('trace');
       await supabase.from('chat_telemetry').insert({
@@ -392,20 +434,19 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         message_id: assistantMessageId,
         session_id: sessionId,
         user_id: user.id,
-        model: modelUsed,
-        prompt_version: promptVersion,
+        model: `${provider}:${modelId} (${resolvedKey})`,
+        prompt_version: '1.1-registry',
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
         latency_ms: latency,
         status: 'success'
       });
 
-      // Update session's updated_at timestamp
+      // Update session timestamp
       await supabase.from('chat_sessions')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', sessionId);
 
-      // Return response
       res.json({
         sessionId,
         message: {
@@ -419,9 +460,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     } catch (err: any) {
       status = 'failed';
       errorMessage = err.message;
-      console.error('[Chat Error]:', err);
+      console.error('[Orchestration loop failure]:', err);
 
-      // Log failed telemetry trace if user session is available
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -429,8 +469,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             id: generateId('trace'),
             user_id: user.id,
             session_id: sessionId || null,
-            model: modelUsed,
-            prompt_version: promptVersion,
+            model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
+            prompt_version: '1.1-registry',
             latency_ms: Date.now() - startTime,
             status: 'failed',
             error_message: errorMessage
@@ -442,7 +482,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 4. GET /api/chat/telemetry/:id
+  // 6. GET /api/chat/telemetry/:id - Turn bundle trace for GPT Actions
   app.get('/api/chat/telemetry/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
@@ -454,14 +494,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       if (telError || !telemetry) throw new Error('Telemetry trace not found');
 
-      // Fetch the assistant message
       const { data: msg } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('id', telemetry.message_id)
         .single();
 
-      // Fetch the user message immediately preceding it
       let userMsg = null;
       if (msg) {
         const { data: preceding } = await supabase
@@ -489,7 +527,23 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 5. POST /api/chat/telemetry/:id/evaluate
+  // 7. GET /api/chat/evaluations - Retrieve audits
+  app.get('/api/chat/evaluations', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { data, error } = await supabase
+        .from('chat_evaluations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json({ evaluations: data || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 8. POST /api/chat/telemetry/:id/evaluate - Attach critique to a trace
   app.post('/api/chat/telemetry/:id/evaluate', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { evaluator, rating, flags, comments } = req.body;

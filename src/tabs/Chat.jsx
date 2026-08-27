@@ -7,6 +7,9 @@ export function Chat({ userId, lunarData }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState(null);
+  const [selectedModel, setSelectedModel] = useState(
+    localStorage.getItem('luna_model_key') || 'anthropic-frontier'
+  );
   
   const chatEndRef = useRef(null);
 
@@ -100,7 +103,8 @@ export function Chat({ userId, lunarData }) {
         },
         body: JSON.stringify({
           message: userText,
-          sessionId: sessionId
+          sessionId: sessionId,
+          modelKey: selectedModel
         })
       });
 
@@ -181,6 +185,32 @@ export function Chat({ userId, lunarData }) {
             {moonEmoji} {moonLabel} | Moon in {lunarData?.zodiac?.sign || 'Aries'}
           </p>
         </div>
+
+        {/* Model Selector Dropdown */}
+        <select
+          value={selectedModel}
+          onChange={(e) => {
+            setSelectedModel(e.target.value);
+            localStorage.setItem('luna_model_key', e.target.value);
+          }}
+          style={{
+            background: '#080d1a',
+            border: '1px solid var(--color-border)',
+            color: '#f5e6c8',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            padding: '6px 10px',
+            borderRadius: '6px',
+            outline: 'none',
+            cursor: 'pointer',
+            WebkitAppearance: 'none',
+            textAlign: 'center'
+          }}
+        >
+          <option value="anthropic-frontier">Claude 3.5 Sonnet</option>
+          <option value="openai-frontier">GPT-4o</option>
+          <option value="openai-balanced">GPT-4o-mini</option>
+        </select>
       </header>
 
       {/* Message history */}
