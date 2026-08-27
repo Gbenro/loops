@@ -94,8 +94,11 @@ export function Chat({ userId, lunarData }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
+      // Get base URL for backend API (from Vite environment)
+      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+
       // Call Express API chat endpoint
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -109,8 +112,17 @@ export function Chat({ userId, lunarData }) {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Server error');
+        let errMsg = `Server error (${response.status})`;
+        try {
+          const errData = await response.json();
+          errMsg = errData.error || errMsg;
+        } catch {
+          try {
+            const txt = await response.text();
+            if (txt) errMsg = txt;
+          } catch {}
+        }
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
