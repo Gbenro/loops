@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { useVoiceRecorder } from '../lib/useVoiceRecorder.js';
 
 export function Chat({ userId, lunarData }) {
   const [messages, setMessages] = useState([]);
@@ -12,6 +13,35 @@ export function Chat({ userId, lunarData }) {
   );
   
   const chatEndRef = useRef(null);
+  const pendingVoiceMetaRef = useRef(null);
+
+  // Voice recording integration
+  const handleTranscriptReady = useCallback((transcript, metadata) => {
+    setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
+    pendingVoiceMetaRef.current = metadata;
+  }, []);
+
+  const {
+    state: voiceState,
+    isRecording,
+    isTranscribing,
+    recordingDuration,
+    errorMessage: voiceError,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    resetError: resetVoiceError,
+  } = useVoiceRecorder({
+    onTranscriptReady: handleTranscriptReady,
+    userId,
+  });
+
+  // Format seconds into m:ss
+  const formatDuration = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // 1. Fetch active session and messages
   useEffect(() => {
@@ -72,11 +102,15 @@ export function Chat({ userId, lunarData }) {
 
   // 3. Send message handler
   const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading || !sessionId) return;
+    if (e) e.preventDefault();
+    if (!input.trim() || loading || isRecording || isTranscribing || !sessionId) return;
 
     const userText = input.trim();
+    const voiceMeta = pendingVoiceMetaRef.current;
+    const inputType = voiceMeta ? 'voice' : 'text';
+
     setInput('');
+    pendingVoiceMetaRef.current = null;
     setError('');
     setLoading(true);
 
@@ -85,9 +119,10 @@ export function Chat({ userId, lunarData }) {
       id: `temp_${Date.now()}`,
       role: 'user',
       content: userText,
+      input_type: inputType,
       created_at: new Date().toISOString()
     };
-    setMessages(prev => [...prev, tempUserMsg]);
+    setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
       // Get auth session token for REST headers
@@ -107,7 +142,9 @@ export function Chat({ userId, lunarData }) {
         body: JSON.stringify({
           message: userText,
           sessionId: sessionId,
-          modelKey: selectedModel
+          modelKey: selectedModel,
+          inputType,
+          metadata: voiceMeta || {}
         })
       });
 
@@ -127,8 +164,7 @@ export function Chat({ userId, lunarData }) {
 
       const data = await response.json();
       
-      // Update messages list (replacing optimistic and appending assistant message)
-      // Fetch latest messages to stay perfectly in sync
+      // Update messages list (fetching latest to stay perfectly in sync)
       const { data: msgs, error: msgsErr } = await supabase
         .from('chat_messages')
         .select('*')
@@ -141,7 +177,7 @@ export function Chat({ userId, lunarData }) {
       console.error('Error sending message:', err);
       setError(err.message || 'Connection lost. Please try again.');
       // Remove the last optimistic message since it failed
-      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
     } finally {
       setLoading(false);
     }
@@ -198,47 +234,59 @@ export function Chat({ userId, lunarData }) {
           </p>
         </div>
 
-        {/* Model Selector Dropdown */}
-        <select
-          value={selectedModel}
-          onChange={(e) => {
-            setSelectedModel(e.target.value);
-            localStorage.setItem('luna_model_key', e.target.value);
-          }}
-          style={{
-            background: '#080d1a',
-            border: '1px solid var(--color-border)',
-            color: '#f5e6c8',
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            padding: '6px 10px',
-            borderRadius: '6px',
-            outline: 'none',
-            cursor: 'pointer',
-            WebkitAppearance: 'none',
-            textAlign: 'center'
-          }}
-        >
-          <option value="anthropic-fable">Claude Fable 5</option>
-          <option value="openai-sol">GPT Sol 5.6</option>
-          <option value="openai-o3">GPT o3-pro</option>
-          <option value="anthropic-frontier">Claude 3.5 Sonnet</option>
-          <option value="openai-frontier">GPT-4o</option>
-          <option value="openai-balanced">GPT-4o-mini</option>
-          <option value="google-frontier">Gemini 1.5 Pro</option>
-        </select>
+        {/* Model Selector Menu */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label
+            htmlFor="model-select"
+            style={{
+              fontSize: '10px',
+              fontFamily: 'monospace',
+              color: 'var(--color-text-faint)',
+              textTransform: 'uppercase'
+            }}
+          >
+            Model:
+          </label>
+          <select
+            id="model-select"
+            value={selectedModel}
+            onChange={(e) => {
+              const newModel = e.target.value;
+              setSelectedModel(newModel);
+              localStorage.setItem('luna_model_key', newModel);
+            }}
+            style={{
+              background: '#0e1626',
+              color: '#f5e6c8',
+              border: '1px solid var(--color-border)',
+              borderRadius: '8px',
+              padding: '4px 8px',
+              fontSize: 'var(--font-xs)',
+              outline: 'none',
+              cursor: 'pointer',
+              fontFamily: 'sans-serif'
+            }}
+          >
+            <option value="anthropic-fable">Anthropic Claude (Fable)</option>
+            <option value="anthropic-default">Anthropic Claude 3.5 Sonnet</option>
+            <option value="gemini-default">Google Gemini 2.5 Flash</option>
+            <option value="gemini-pro">Google Gemini 2.5 Pro</option>
+            <option value="openai-default">OpenAI GPT-4o</option>
+            <option value="openai-mini">OpenAI GPT-4o Mini</option>
+          </select>
+        </div>
       </header>
 
-      {/* Message history */}
+      {/* Messages area */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
           padding: '20px',
+          paddingBottom: '100px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
-          paddingBottom: '100px' // Leave space for sticky input
+          gap: '16px'
         }}
       >
         {messages.length === 0 && !loading && (
@@ -246,20 +294,20 @@ export function Chat({ userId, lunarData }) {
             style={{
               margin: 'auto',
               textAlign: 'center',
-              maxWidth: '300px',
-              color: 'var(--color-text-faint)',
-              fontSize: 'var(--font-sm)',
-              fontStyle: 'italic',
-              padding: '40px 20px',
-              lineHeight: '1.6'
+              maxWidth: '320px',
+              color: 'var(--color-text-faint)'
             }}
           >
-            "Speak to Luna to reflect on your field, recall previous circles, or log intentions and realizations."
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>✦</div>
+            <p style={{ fontSize: 'var(--font-sm)', lineHeight: '1.6' }}>
+              Speak or write to Luna. Reflections, ideas, questions, and observations become woven into continuous memory.
+            </p>
           </div>
         )}
 
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
+          const isVoice = msg.input_type === 'voice' || msg.metadata?.input_type === 'voice';
           return (
             <div
               key={msg.id}
@@ -279,10 +327,20 @@ export function Chat({ userId, lunarData }) {
                   color: 'var(--color-text-faint)',
                   fontFamily: 'monospace',
                   letterSpacing: '0.05em',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
               >
-                {isUser ? 'You' : '✦ Luna'}
+                {isUser ? (
+                  <>
+                    {isVoice && <span title="Recorded via voice" style={{ fontSize: '10px' }}>🎙</span>}
+                    You
+                  </>
+                ) : (
+                  '✦ Luna'
+                )}
               </span>
 
               <div
@@ -359,6 +417,144 @@ export function Chat({ userId, lunarData }) {
         <div ref={chatEndRef} />
       </div>
 
+      {/* Voice Recording / Transcribing Action Bar Overlay */}
+      {isRecording && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '80px',
+            left: '20px',
+            right: '20px',
+            padding: '12px 16px',
+            borderRadius: '14px',
+            background: 'rgba(18, 25, 45, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(244, 63, 94, 0.4)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            zIndex: 10
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#f43f5e',
+                display: 'inline-block',
+                animation: 'pulse 1s infinite'
+              }}
+            />
+            <span style={{ fontSize: 'var(--font-sm)', color: '#f5e6c8', fontWeight: '500' }}>
+              Listening...
+            </span>
+            <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
+              {formatDuration(recordingDuration)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={cancelRecording}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: 'none',
+                color: 'var(--color-text-faint)',
+                fontSize: 'var(--font-xs)',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                background: '#f43f5e',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: 'var(--font-xs)',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isTranscribing && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '80px',
+            left: '20px',
+            right: '20px',
+            padding: '12px 16px',
+            borderRadius: '14px',
+            background: 'rgba(18, 25, 45, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(167, 139, 250, 0.4)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 10
+          }}
+        >
+          <div className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1s infinite' }} />
+          <span style={{ fontSize: 'var(--font-sm)', color: '#c4b5fd' }}>
+            Transcribing speech to text...
+          </span>
+        </div>
+      )}
+
+      {voiceError && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '80px',
+            left: '20px',
+            right: '20px',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#fca5a5',
+            fontSize: 'var(--font-xs)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            zIndex: 10
+          }}
+        >
+          <span>{voiceError}</span>
+          <button
+            type="button"
+            onClick={resetVoiceError}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#fca5a5',
+              fontSize: 'var(--font-xs)',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Styled input bar */}
       <form
         onSubmit={handleSend}
@@ -370,21 +566,63 @@ export function Chat({ userId, lunarData }) {
           padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
           background: 'linear-gradient(to top, var(--color-bg) 70%, transparent)',
           display: 'flex',
-          gap: '10px'
+          gap: '8px',
+          alignItems: 'center'
         }}
       >
+        {/* Voice Input Microphone Button */}
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={loading || isTranscribing}
+          title={isRecording ? 'Stop recording' : 'Speak to Luna'}
+          aria-label="Voice input"
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            background: isRecording
+              ? 'rgba(244, 63, 94, 0.2)'
+              : 'rgba(245, 230, 200, 0.06)',
+            border: isRecording
+              ? '1px solid rgba(244, 63, 94, 0.5)'
+              : '1px solid rgba(245, 230, 200, 0.15)',
+            color: isRecording ? '#f43f5e' : '#f5e6c8',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: loading || isTranscribing ? 'default' : 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          {isRecording ? (
+            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#f43f5e' }} />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+            </svg>
+          )}
+        </button>
+
+        {/* Text Input Composer */}
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Speak to Luna..."
-          disabled={loading}
+          placeholder={isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Speak or type to Luna...'}
+          disabled={loading || isRecording || isTranscribing}
           style={{
             flex: 1,
             padding: '12px 16px',
             borderRadius: '12px',
             background: '#080d1a',
-            border: '1px solid var(--color-border)',
+            border: pendingVoiceMetaRef.current
+              ? '1px solid rgba(245, 230, 200, 0.5)'
+              : '1px solid var(--color-border)',
             color: 'var(--color-text)',
             fontSize: 'var(--font-sm)',
             outline: 'none',
@@ -392,13 +630,16 @@ export function Chat({ userId, lunarData }) {
             WebkitAppearance: 'none'
           }}
           onFocus={(e) => (e.target.style.borderColor = 'rgba(245, 230, 200, 0.4)')}
-          onBlur={(e) => (e.target.style.borderColor = 'var(--color-border)')}
+          onBlur={(e) => (e.target.style.borderColor = pendingVoiceMetaRef.current ? 'rgba(245, 230, 200, 0.5)' : 'var(--color-border)')}
         />
+
+        {/* Send Button */}
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || isRecording || isTranscribing || !input.trim()}
           style={{
-            padding: '0 20px',
+            padding: '0 18px',
+            height: '44px',
             borderRadius: '12px',
             background: input.trim() && !loading ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
             border: 'none',
@@ -407,7 +648,8 @@ export function Chat({ userId, lunarData }) {
             fontWeight: '600',
             cursor: input.trim() && !loading ? 'pointer' : 'default',
             transition: 'all 0.2s',
-            WebkitTapHighlightColor: 'transparent'
+            WebkitTapHighlightColor: 'transparent',
+            flexShrink: 0
           }}
         >
           Send
@@ -417,8 +659,8 @@ export function Chat({ userId, lunarData }) {
       {/* Inline styles for pulsing animation */}
       <style>{`
         @keyframes pulse {
-          0%, 100% { transform: scale(0.6); opacity: 0.4; }
-          50% { transform: scale(1.2); opacity: 1; }
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1.15); opacity: 1; }
         }
       `}</style>
     </div>

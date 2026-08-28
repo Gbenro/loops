@@ -432,7 +432,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
   // 5. POST /api/chat - Orchestration endpoint
   app.post('/api/chat', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const { message, sessionId: clientSessionId, modelKey } = req.body;
+    const { message, sessionId: clientSessionId, modelKey, inputType = 'text', metadata = {} } = req.body;
 
     if (!message || !message.trim()) {
       res.status(400).json({ error: 'Message content is required' });
@@ -476,14 +476,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         }
       }
 
-      // Save user message to database
+      // Save user message to database with input provenance
       const userMessageId = generateId('msg');
       await supabase.from('chat_messages').insert({
         id: userMessageId,
         session_id: sessionId,
         user_id: user.id,
         role: 'user',
-        content: message.trim()
+        content: message.trim(),
+        input_type: inputType === 'voice' ? 'voice' : 'text',
+        metadata: metadata || {}
       });
 
       // Load conversation history
