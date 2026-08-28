@@ -628,6 +628,7 @@ export function mapRelationalMemory(row: any): any {
     evidenceRecordIds: Array.isArray(row.evidence_record_ids) ? row.evidence_record_ids : [],
     confidence: row.confidence !== null && row.confidence !== undefined ? Number(row.confidence) : 0.7,
     strength: row.strength || 1,
+    recurrenceCount: row.recurrence_count !== undefined && row.recurrence_count !== null ? row.recurrence_count : (row.strength || 1),
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     lifecycleStatus: row.lifecycle_status,
@@ -1655,8 +1656,9 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     case 'propose_candidate_memory': {
       const id = generateServerId('rm');
       const provenance = args.provenance || 'observed';
-      // Explicit statements activate immediately; inferred patterns start as candidate
-      const lifecycle_status = provenance === 'explicit' ? 'active' : 'candidate';
+      // Immediate activation is reserved for explicit statements that establish a durable interaction preference, boundary, or orientation
+      const isDurableExplicit = provenance === 'explicit' && (args.type === 'interaction_preference' || args.type === 'orientation');
+      const lifecycle_status = isDurableExplicit ? 'active' : 'candidate';
       const confidence = typeof args.confidence === 'number' ? args.confidence : (provenance === 'explicit' ? 0.95 : 0.70);
       const evidence = Array.isArray(args.evidenceRecordIds) ? args.evidenceRecordIds : [];
 
@@ -1668,6 +1670,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         evidence_record_ids: evidence,
         confidence,
         strength: 1,
+        recurrence_count: 1,
         lifecycle_status,
         provenance,
         user_action_status: 'active',
@@ -1695,15 +1698,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         throw new Error(`Relational memory with ID "${args.id}" not found.`);
       }
 
+      const newRecurrence = (existing.recurrence_count !== undefined && existing.recurrence_count !== null ? existing.recurrence_count : (existing.strength || 1)) + 1;
       const newStrength = (existing.strength || 1) + 1;
       let newLifecycleStatus = existing.lifecycle_status;
 
       // Lifecycle progression: quiet/dormant -> resurfaced; candidate (2) -> emerging; emerging (3+) -> active
       if (existing.lifecycle_status === 'quiet' || existing.lifecycle_status === 'dormant') {
         newLifecycleStatus = 'resurfaced';
-      } else if (existing.lifecycle_status === 'candidate' && newStrength >= 2) {
+      } else if (existing.lifecycle_status === 'candidate' && newRecurrence >= 2) {
         newLifecycleStatus = 'emerging';
-      } else if (existing.lifecycle_status === 'emerging' && newStrength >= 3) {
+      } else if (existing.lifecycle_status === 'emerging' && newRecurrence >= 3) {
         newLifecycleStatus = 'active';
       }
 
@@ -1713,6 +1717,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       const updateData: any = {
         strength: newStrength,
+        recurrence_count: newRecurrence,
         lifecycle_status: newLifecycleStatus,
         evidence_record_ids: mergedEvidence,
         last_seen_at: new Date().toISOString(),

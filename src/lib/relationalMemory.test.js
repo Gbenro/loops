@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 // ─── Pure functions matching Relational Memory logic ───────────────────────────
 
 function createRelationalMemory({ id, statement, type, evidenceRecordIds = [], provenance = 'observed', confidence }) {
-  const lifecycleStatus = provenance === 'explicit' ? 'active' : 'candidate';
+  const isDurableExplicit = provenance === 'explicit' && (type === 'interaction_preference' || type === 'orientation');
+  const lifecycleStatus = isDurableExplicit ? 'active' : 'candidate';
   const defaultConfidence = confidence !== undefined ? confidence : (provenance === 'explicit' ? 0.95 : 0.70);
 
   return {
@@ -13,6 +14,7 @@ function createRelationalMemory({ id, statement, type, evidenceRecordIds = [], p
     evidenceRecordIds: Array.isArray(evidenceRecordIds) ? evidenceRecordIds : [],
     confidence: defaultConfidence,
     strength: 1,
+    recurrenceCount: 1,
     lifecycleStatus,
     provenance,
     userActionStatus: 'active',
@@ -22,14 +24,15 @@ function createRelationalMemory({ id, statement, type, evidenceRecordIds = [], p
 }
 
 function reinforceRelationalMemory(existing, newEvidenceIds = [], statementUpdate) {
+  const newRecurrence = (existing.recurrenceCount || existing.strength || 1) + 1;
   const newStrength = (existing.strength || 1) + 1;
   let newLifecycleStatus = existing.lifecycleStatus;
 
   if (existing.lifecycleStatus === 'quiet' || existing.lifecycleStatus === 'dormant') {
     newLifecycleStatus = 'resurfaced';
-  } else if (existing.lifecycleStatus === 'candidate' && newStrength >= 2) {
+  } else if (existing.lifecycleStatus === 'candidate' && newRecurrence >= 2) {
     newLifecycleStatus = 'emerging';
-  } else if (existing.lifecycleStatus === 'emerging' && newStrength >= 3) {
+  } else if (existing.lifecycleStatus === 'emerging' && newRecurrence >= 3) {
     newLifecycleStatus = 'active';
   }
 
@@ -39,6 +42,7 @@ function reinforceRelationalMemory(existing, newEvidenceIds = [], statementUpdat
   return {
     ...existing,
     strength: newStrength,
+    recurrenceCount: newRecurrence,
     lifecycleStatus: newLifecycleStatus,
     evidenceRecordIds: mergedEvidence,
     statement: statementUpdate || existing.statement,
@@ -84,7 +88,7 @@ function selectRelevantMemories(memories, currentMessage, history = [], maxTop =
 
 describe('Luna Relational Memory V1', () => {
   describe('Creation & Initial Lifecycle', () => {
-    it('creates an observed memory as candidate with strength 1', () => {
+    it('creates an observed memory as candidate with strength 1 and recurrenceCount 1', () => {
       const mem = createRelationalMemory({
         id: 'rm_1',
         statement: 'Still Unfolding functions as openness language',
@@ -95,12 +99,13 @@ describe('Luna Relational Memory V1', () => {
 
       expect(mem.lifecycleStatus).toBe('candidate');
       expect(mem.strength).toBe(1);
+      expect(mem.recurrenceCount).toBe(1);
       expect(mem.confidence).toBe(0.7);
       expect(mem.provenance).toBe('observed');
       expect(mem.evidenceRecordIds).toEqual(['e_101']);
     });
 
-    it('promotes explicit user statements immediately to active', () => {
+    it('promotes explicit durable interaction preferences immediately to active', () => {
       const mem = createRelationalMemory({
         id: 'rm_2',
         statement: 'User prefers concise summaries without extra lunar decoration',
@@ -111,6 +116,20 @@ describe('Luna Relational Memory V1', () => {
 
       expect(mem.lifecycleStatus).toBe('active');
       expect(mem.confidence).toBe(0.95);
+      expect(mem.provenance).toBe('explicit');
+    });
+
+    it('leaves non-preference explicit statements (such as language) as candidate until recurrence', () => {
+      const mem = createRelationalMemory({
+        id: 'rm_2b',
+        statement: 'User mentioned Still Unfolding in conversation',
+        type: 'language',
+        evidenceRecordIds: ['msg_202'],
+        provenance: 'explicit'
+      });
+
+      // Explicit language/distinctions do NOT automatically become active; they require recurrence
+      expect(mem.lifecycleStatus).toBe('candidate');
       expect(mem.provenance).toBe('explicit');
     });
   });
@@ -127,6 +146,7 @@ describe('Luna Relational Memory V1', () => {
 
       const reinforced = reinforceRelationalMemory(candidate, ['e_102']);
       expect(reinforced.strength).toBe(2);
+      expect(reinforced.recurrenceCount).toBe(2);
       expect(reinforced.lifecycleStatus).toBe('emerging');
       expect(reinforced.evidenceRecordIds).toEqual(['e_101', 'e_102']);
     });
@@ -139,10 +159,11 @@ describe('Luna Relational Memory V1', () => {
         evidenceRecordIds: ['e_101']
       });
 
-      mem = reinforceRelationalMemory(mem, ['e_102']); // strength 2: emerging
-      mem = reinforceRelationalMemory(mem, ['e_103']); // strength 3: active
+      mem = reinforceRelationalMemory(mem, ['e_102']); // recurrence 2: emerging
+      mem = reinforceRelationalMemory(mem, ['e_103']); // recurrence 3: active
 
       expect(mem.strength).toBe(3);
+      expect(mem.recurrenceCount).toBe(3);
       expect(mem.lifecycleStatus).toBe('active');
       expect(mem.evidenceRecordIds).toEqual(['e_101', 'e_102', 'e_103']);
     });
@@ -153,6 +174,7 @@ describe('Luna Relational Memory V1', () => {
         statement: 'Patience over hasty action',
         type: 'living_distinction',
         strength: 4,
+        recurrenceCount: 4,
         lifecycleStatus: 'quiet',
         evidenceRecordIds: ['e_1', 'e_2']
       };
@@ -160,6 +182,7 @@ describe('Luna Relational Memory V1', () => {
       const resurfaced = reinforceRelationalMemory(quietMem, ['e_50']);
       expect(resurfaced.lifecycleStatus).toBe('resurfaced');
       expect(resurfaced.strength).toBe(5);
+      expect(resurfaced.recurrenceCount).toBe(5);
       expect(resurfaced.evidenceRecordIds).toContain('e_50');
     });
   });
