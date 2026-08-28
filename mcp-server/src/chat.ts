@@ -40,12 +40,27 @@ Current Sky Context:
 - Current Season: ${lunar.season}
 
 Philosophy & Behavior Rules:
-1. Capture before interpretation: Allow experiences and reflections to exist before explaining or analyzing them.
-2. Let patterns earn significance: Do not categorize every recurrence as a meaningful pattern.
-3. Preserve original voice: The user's words belong to them. When summarizing or showing records, do not quietly overwrite their language.
-4. Gentle tagging: Suggest/apply enough tags to make searching easy, but do not categorize everything.
-5. Observation vs Interpretation: Clearly distinguish what actually happened from what you think it may mean.
-6. Return to life: Do not encourage endless loops of introspection. Sometimes the best reply is to guide them to "Go live".
+1. Grounding and Integrity:
+   - Capture/observe before interpretation: Expose raw facts/events before explaining, diagnosing, or analyzing them.
+   - Do not manufacture hidden causes: Never assume or invent underlying psychological, spiritual, or cosmic reasons for the user's state without direct evidence.
+   - Preserve open possibilities: Write in a way that opens questions rather than declaring final answers.
+   - Do not rank something "most alive" or "most active" without clear, empirical evidence from the retrieved records.
+   - Lunar context is a lens, not an authority: Use moon phases to illuminate rhythms, never to prescribe behavior, moods, or destiny.
+   - Avoid obligatory lunar decoration: Do not inject moon analogies or space metaphors in every sentence; let references emerge organically.
+   - Focus and rotate: Go deeply through one single lens of inquiry before rotating or switching focus.
+   - Earned significance: Let patterns earn significance over multiple cycles rather than declaring a trend on the first recurrence.
+   - Write restraint: Keep reflections brief, focused, and minimal. Do not talk for the sake of talking.
+   - Return to life: Do not encourage endless loops of introspection. Guide the user back to direct action and living.
+
+2. Precise Data Grounding & Semantic Rules:
+   - Understand Provenance: Records returned from the database will contain a "provenanceAuthor" ('user', 'ai', 'co-created') and a "provenanceKind" ('original_echo', 'ai_reflection', 'checkpoint', 'product_note').
+   - You must distinguish user-original, AI, and co-created language precisely.
+   - Semantic Definitions:
+     - "my latest Echo" or "the Echo I just recorded": The single newest record in the returned list where provenanceAuthor is 'user' (NOT 'ai') and provenanceKind is 'original_echo' (NOT 'ai_reflection').
+     - "your latest reflection" or "your last reflection": The single newest record where provenanceAuthor is 'ai' and provenanceKind is 'ai_reflection'.
+     - "new entries" or "recent echoes": Echoes created during the current phase or current cycle.
+     - "since X" or "since last circle": Filtered strictly by timestamps or cycle bounds.
+   - ABSOLUTE RULE ON AMBIGUITY: If you cannot confidently establish which exact record or record set the user is referring to (e.g. they say "that note", but there are multiple candidates, or "my latest Echo" but the retrieval query returned zero user echoes), you MUST ask for clarification. Do NOT reflect on the wrong records or manufacture a reflection. State clearly what you found and ask.
 
 Tool-Use & Action Rules:
 - Read liberally: You can search loops and echoes whenever you need context to answer questions.
@@ -255,9 +270,29 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       if (msgsErr) throw msgsErr;
 
+      // Map telemetry IDs
+      const msgIds = (messages || []).map(m => m.id);
+      const traceMap = new Map();
+      if (msgIds.length > 0) {
+        const { data: traces } = await supabase
+          .from('chat_telemetry')
+          .select('id, message_id')
+          .in('message_id', msgIds);
+        if (traces) {
+          for (const t of traces) {
+            if (t.message_id) traceMap.set(t.message_id, t.id);
+          }
+        }
+      }
+
+      const messagesWithTelemetry = (messages || []).map(m => ({
+        ...m,
+        telemetryId: traceMap.get(m.id) || null
+      }));
+
       res.json({
         ...session,
-        messages: messages || []
+        messages: messagesWithTelemetry
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -287,7 +322,28 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       const { data, error } = await builder;
       if (error) throw error;
-      res.json({ messages: data || [] });
+
+      // Map telemetry IDs
+      const msgIds = (data || []).map(m => m.id);
+      const traceMap = new Map();
+      if (msgIds.length > 0) {
+        const { data: traces } = await supabase
+          .from('chat_telemetry')
+          .select('id, message_id')
+          .in('message_id', msgIds);
+        if (traces) {
+          for (const t of traces) {
+            if (t.message_id) traceMap.set(t.message_id, t.id);
+          }
+        }
+      }
+
+      const messagesWithTelemetry = (data || []).map(m => ({
+        ...m,
+        telemetryId: traceMap.get(m.id) || null
+      }));
+
+      res.json({ messages: messagesWithTelemetry });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -309,6 +365,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     let errorMessage: string | null = null;
     let toolCallsTracked: any[] = [];
     let retrievedContextIds: string[] = [];
+    let databaseMutationsTracked: any[] = [];
     let modelConfig;
 
     try {
@@ -364,6 +421,51 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       let finalResponseText = '';
       const agentMessages: any[] = [...conversationMessages];
 
+      // Helper function to execute tools and track metadata/mutations
+      const executeAndTrackTool = async (toolName: string, toolArgs: any) => {
+        let toolResultText = '';
+        let isError = false;
+
+        try {
+          const outcome = await executeTool(supabase, toolName, toolArgs);
+          toolResultText = outcome.content[0].text;
+          isError = !!(outcome as any).isError;
+
+          // Parse retrieved IDs
+          const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
+          if (idMatches) retrievedContextIds.push(...idMatches);
+
+          // Extract database mutations
+          try {
+            const parsed = JSON.parse(toolResultText);
+            const recordId = parsed.id;
+            if (recordId) {
+              const table = recordId.startsWith('e') ? 'echoes' : (recordId.startsWith('l') ? 'loops' : (recordId.startsWith('r') ? 'echo_reflections' : (recordId.startsWith('t') ? 'threads' : 'unknown')));
+              if (toolName.startsWith('create_')) {
+                databaseMutationsTracked.push({ type: 'insert', table, id: recordId });
+              } else if (toolName.startsWith('update_') || toolName === 'close_loop' || toolName === 'reopen_loop' || toolName === 'archive_loop' || toolName === 'restore_loop' || toolName === 'archive_echo' || toolName === 'restore_echo') {
+                databaseMutationsTracked.push({ type: 'update', table, id: recordId });
+              } else if (toolName === 'carry_loop_forward') {
+                databaseMutationsTracked.push({ type: 'update', table: 'loops', id: toolArgs.id });
+                databaseMutationsTracked.push({ type: 'insert', table: 'loops', id: recordId });
+              }
+            }
+          } catch {}
+        } catch (err: any) {
+          toolResultText = `Error running tool: ${err.message}`;
+          isError = true;
+        }
+
+        toolCallsTracked.push({
+          tool: toolName,
+          args: toolArgs,
+          success: !isError,
+          resultSummary: toolResultText.substring(0, 150)
+        });
+
+        return { toolResultText, isError };
+      };
+
       // 4. Agentic Loop (Max 5 hops)
       while (loopCount < 5) {
         let aiResult: any;
@@ -386,27 +488,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
               const toolArgs = call.input;
               console.log(`[Agent-Claude] Calling tool: ${toolName}`, toolArgs);
 
-              let toolResultText = '';
-              let isError = false;
-
-              try {
-                const outcome = await executeTool(supabase, toolName, toolArgs);
-                toolResultText = outcome.content[0].text;
-                isError = !!(outcome as any).isError;
-
-                const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
-                if (idMatches) retrievedContextIds.push(...idMatches);
-              } catch (err: any) {
-                toolResultText = `Error running tool: ${err.message}`;
-                isError = true;
-              }
-
-              toolCallsTracked.push({
-                tool: toolName,
-                args: toolArgs,
-                success: !isError,
-                resultSummary: toolResultText.substring(0, 150)
-              });
+              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
 
               agentMessages.push({
                 role: 'user',
@@ -453,27 +535,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
               const toolArgs = call.functionCall.args || {};
 
               console.log(`[Agent-Gemini] Calling tool: ${toolName}`, toolArgs);
-              let toolResultText = '';
-              let isError = false;
-
-              try {
-                const outcome = await executeTool(supabase, toolName, toolArgs);
-                toolResultText = outcome.content[0].text;
-                isError = !!(outcome as any).isError;
-
-                const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
-                if (idMatches) retrievedContextIds.push(...idMatches);
-              } catch (err: any) {
-                toolResultText = `Error running tool: ${err.message}`;
-                isError = true;
-              }
-
-              toolCallsTracked.push({
-                tool: toolName,
-                args: toolArgs,
-                success: !isError,
-                resultSummary: toolResultText.substring(0, 150)
-              });
+              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
 
               agentMessages.push({
                 role: 'tool',
@@ -511,27 +573,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
               } catch {}
 
               console.log(`[Agent-GPT] Calling tool: ${toolName}`, toolArgs);
-              let toolResultText = '';
-              let isError = false;
-
-              try {
-                const outcome = await executeTool(supabase, toolName, toolArgs);
-                toolResultText = outcome.content[0].text;
-                isError = !!(outcome as any).isError;
-
-                const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
-                if (idMatches) retrievedContextIds.push(...idMatches);
-              } catch (err: any) {
-                toolResultText = `Error running tool: ${err.message}`;
-                isError = true;
-              }
-
-              toolCallsTracked.push({
-                tool: toolName,
-                args: toolArgs,
-                success: !isError,
-                resultSummary: toolResultText.substring(0, 150)
-              });
+              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
 
               agentMessages.push({
                 role: 'tool',
@@ -569,9 +611,10 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         session_id: sessionId,
         user_id: user.id,
         model: `${provider}:${modelId} (${resolvedKey})`,
-        prompt_version: '1.1-registry',
+        prompt_version: '1.2-provenance',
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
+        database_mutations: databaseMutationsTracked,
         latency_ms: latency,
         status: 'success'
       });
@@ -604,10 +647,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             user_id: user.id,
             session_id: sessionId || null,
             model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
-            prompt_version: '1.1-registry',
+            prompt_version: '1.2-provenance',
             latency_ms: Date.now() - startTime,
             status: 'failed',
-            error_message: errorMessage
+            error_message: errorMessage,
+            database_mutations: []
           });
         }
       } catch {}
@@ -652,8 +696,13 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           userQuery: userMsg?.content || null,
           retrievedContextIds: telemetry.retrieved_context_ids || [],
           toolCalls: telemetry.tool_calls || [],
+          databaseMutations: telemetry.database_mutations || [],
           assistantResponse: msg?.content || null,
-          latencyMs: telemetry.latency_ms
+          latencyMs: telemetry.latency_ms,
+          model: telemetry.model,
+          promptVersion: telemetry.prompt_version,
+          status: telemetry.status,
+          errorMessage: telemetry.error_message
         }
       });
     } catch (err: any) {

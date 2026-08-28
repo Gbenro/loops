@@ -69,7 +69,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         tags: { type: 'array', items: { type: 'string' }, description: 'Emotional signature tags' },
         loopIds: { type: 'array', items: { type: 'string' }, description: 'List of loop IDs to connect this reflection to' },
         energyState: { type: 'string', description: 'Energy signature (e.g. \'resting\', \'focused\')' },
-        metadata: { type: 'object', description: 'Optional custom client metadata' }
+        metadata: { type: 'object', description: 'Optional custom client metadata' },
+        provenanceAuthor: { type: 'string', enum: ['user', 'ai', 'co-created'], description: 'Origin source author' },
+        provenanceKind: { type: 'string', enum: ['original_echo', 'ai_reflection', 'checkpoint', 'product_note'], description: 'Type of record' },
+        parentId: { type: 'string', description: 'Parent echo ID this links to' }
       },
       required: ['text']
     }
@@ -84,7 +87,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         text: { type: 'string', description: 'Updated text content' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Updated tags list (overwrites existing)' },
         status: { type: 'string', enum: ['active', 'archived'], description: 'Change status (\'active\' or \'archived\')' },
-        loopIds: { type: 'array', items: { type: 'string' }, description: 'Updated list of associated loop IDs' }
+        loopIds: { type: 'array', items: { type: 'string' }, description: 'Updated list of associated loop IDs' },
+        provenanceAuthor: { type: 'string', enum: ['user', 'ai', 'co-created'], description: 'Updated origin source author' },
+        provenanceKind: { type: 'string', enum: ['original_echo', 'ai_reflection', 'checkpoint', 'product_note'], description: 'Updated type of record' },
+        parentId: { type: 'string', description: 'Updated parent echo ID connection' }
       },
       required: ['id']
     }
@@ -185,7 +191,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         attentionLevel: { type: 'string', description: 'Amount of awareness required (e.g. \'active\', \'background\')' },
         alivenessScore: { type: 'integer', description: 'Vitality score (1-10)' },
         parentLoopId: { type: 'string', description: 'Parent loop ID if transformed/carried forward' },
-        metadata: { type: 'object', description: 'Custom client metadata' }
+        metadata: { type: 'object', description: 'Custom client metadata' },
+        provenanceAuthor: { type: 'string', enum: ['user', 'ai', 'co-created'], description: 'Origin source author' },
+        provenanceKind: { type: 'string', enum: ['original_echo', 'ai_reflection', 'checkpoint', 'product_note'], description: 'Type of record' }
       },
       required: ['title']
     }
@@ -224,7 +232,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['title'] 
           }, 
           description: 'Alias for subtasks' 
-        }
+        },
+        provenanceAuthor: { type: 'string', enum: ['user', 'ai', 'co-created'], description: 'Updated origin source author' },
+        provenanceKind: { type: 'string', enum: ['original_echo', 'ai_reflection', 'checkpoint', 'product_note'], description: 'Updated type of record' }
       },
       required: ['id']
     }
@@ -463,7 +473,10 @@ function mapEcho(row: any): any {
     zodiacSign: row.zodiac,
     loopIds: Array.isArray(row.loop_ids) ? row.loop_ids : (row.linked_loop_id ? [row.linked_loop_id] : []),
     status: row.deleted_at ? 'archived' : 'active',
-    metadata: row.metadata || {}
+    metadata: row.metadata || {},
+    provenanceAuthor: row.provenance_author || 'user',
+    provenanceKind: row.provenance_kind || 'original_echo',
+    parentId: row.parent_id || null
   };
 }
 
@@ -512,7 +525,9 @@ function mapLoop(row: any, relatedEchoIds: string[] = []): any {
     updatedAt: row.updated_at || row.created_at,
     closedAt: row.closed_at || null,
     relatedEchoIds,
-    metadata: row.metadata || {}
+    metadata: row.metadata || {},
+    provenanceAuthor: row.provenance_author || 'user',
+    provenanceKind: row.provenance_kind || 'original_echo'
   };
 }
 
@@ -710,10 +725,17 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         zodiac: lunar.zodiac.sign,
         illumination: lunar.illumination,
         is_encrypted: false,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+
+        // Provenance tracking
+        provenance_author: args.provenanceAuthor || 'user',
+        provenance_kind: args.provenanceKind || 'original_echo',
+        parent_id: args.parentId || null
       };
 
-      let { error } = await supabase.from('echoes').insert(insertData);
+      let result = await supabase.from('echoes').insert(insertData).select();
+      let error = result.error;
+      let createdRow = result.data?.[0];
       
       // Undefined column schema fallback check
       if (error && error.code === '42703') {
@@ -735,21 +757,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           is_encrypted: insertData.is_encrypted,
           created_at: insertData.created_at
         };
-        const retryResult = await supabase.from('echoes').insert(baseInsertData);
+        const retryResult = await supabase.from('echoes').insert(baseInsertData).select();
         error = retryResult.error;
+        createdRow = retryResult.data?.[0];
       }
       
       if (error) throw error;
-
-      // Query and return the full created object
-      const { data: createdRow, error: fetchErr } = await supabase
-        .from('echoes')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', userId)
-        .single();
-      
-      if (fetchErr) throw fetchErr;
+      if (!createdRow) {
+        throw new Error(`Failed to confirm creation of Echo with ID "${id}"`);
+      }
 
       return { content: [{ type: 'text', text: JSON.stringify(mapEcho(createdRow), null, 2) }] };
     }
@@ -767,62 +783,77 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       if (args.status !== undefined) {
         updateData.deleted_at = args.status === 'archived' ? new Date().toISOString() : null;
       }
+      if (args.provenanceAuthor !== undefined) updateData.provenance_author = args.provenanceAuthor;
+      if (args.provenanceKind !== undefined) updateData.provenance_kind = args.provenanceKind;
+      if (args.parentId !== undefined) updateData.parent_id = args.parentId;
 
-      let { error } = await supabase
+      let result = await supabase
         .from('echoes')
         .update(updateData)
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
-      // Fallback in case loop_ids does not exist in their DB
-      if (error && error.code === '42703' && updateData.loop_ids !== undefined) {
-        delete updateData.loop_ids;
+      let error = result.error;
+      let data = result.data;
+
+      // Fallback in case columns do not exist in their DB
+      if (error && error.code === '42703') {
+        const cleanUpdateData = { ...updateData };
+        delete cleanUpdateData.loop_ids;
+        delete cleanUpdateData.provenance_author;
+        delete cleanUpdateData.provenance_kind;
+        delete cleanUpdateData.parent_id;
+
         const retryResult = await supabase
           .from('echoes')
-          .update(updateData)
+          .update(cleanUpdateData)
           .eq('id', args.id)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .select();
         error = retryResult.error;
+        data = retryResult.data;
       }
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Update failed: Echo with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      // Query and return the full updated object
-      const { data: updatedRow, error: fetchErr } = await supabase
-        .from('echoes')
-        .select('*')
-        .eq('id', args.id)
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchErr) throw fetchErr;
+      const updatedRow = data[0];
       return { content: [{ type: 'text', text: JSON.stringify(mapEcho(updatedRow), null, 2) }] };
     }
 
     case 'archive_echo': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('echoes')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Archive failed: Echo with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('echoes').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(data[0]), null, 2) }] };
     }
 
     case 'restore_echo': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('echoes')
         .update({ deleted_at: null })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Restore failed: Echo with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('echoes').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(data[0]), null, 2) }] };
     }
 
     case 'list_loops': {
@@ -968,10 +999,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         moon_age_opened: lunar.age,
         zodiac_opened: lunar.zodiac.sign,
         opened_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+
+        // Provenance tracking
+        provenance_author: args.provenanceAuthor || 'user',
+        provenance_kind: args.provenanceKind || 'original_echo'
       };
 
-      let { error } = await supabase.from('loops').insert(insertData);
+      let result = await supabase.from('loops').insert(insertData).select();
+      let error = result.error;
+      let createdRow = result.data?.[0];
       
       if (error && error.code === '42703') {
         console.warn('Metadata columns missing, retrying with core columns only.');
@@ -991,21 +1028,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           opened_at: insertData.opened_at,
           created_at: insertData.created_at
         };
-        const retryResult = await supabase.from('loops').insert(baseInsertData);
+        const retryResult = await supabase.from('loops').insert(baseInsertData).select();
         error = retryResult.error;
+        createdRow = retryResult.data?.[0];
       }
-
+ 
       if (error) throw error;
-
-      // Query and return the full created object
-      const { data: createdRow, error: fetchErr } = await supabase
-        .from('loops')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchErr) throw fetchErr;
+      if (!createdRow) {
+        throw new Error(`Failed to confirm creation of Loop with ID "${id}"`);
+      }
       return { content: [{ type: 'text', text: JSON.stringify(mapLoop(createdRow), null, 2) }] };
     }
 
@@ -1038,29 +1069,46 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           }
         }
       }
+      if (args.provenanceAuthor !== undefined) updateData.provenance_author = args.provenanceAuthor;
+      if (args.provenanceKind !== undefined) updateData.provenance_kind = args.provenanceKind;
 
-      const { error } = await supabase
+      let result = await supabase
         .from('loops')
         .update(updateData)
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
+
+      let error = result.error;
+      let data = result.data;
+
+      // Fallback in case columns do not exist in their DB
+      if (error && error.code === '42703') {
+        const cleanUpdateData = { ...updateData };
+        delete cleanUpdateData.provenance_author;
+        delete cleanUpdateData.provenance_kind;
+
+        const retryResult = await supabase
+          .from('loops')
+          .update(cleanUpdateData)
+          .eq('id', args.id)
+          .eq('user_id', userId)
+          .select();
+        error = retryResult.error;
+        data = retryResult.data;
+      }
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Update failed: Loop with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      // Query and return full updated object
-      const { data: updatedRow, error: fetchErr } = await supabase
-        .from('loops')
-        .select('*')
-        .eq('id', args.id)
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchErr) throw fetchErr;
+      const updatedRow = data[0];
       return { content: [{ type: 'text', text: JSON.stringify(mapLoop(updatedRow), null, 2) }] };
     }
 
     case 'close_loop': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('loops')
         .update({
           status: 'completed', // maps to closed status state in loop
@@ -1072,16 +1120,19 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           note: args.note || undefined
         })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Close failed: Loop with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(data[0]), null, 2) }] };
     }
 
     case 'reopen_loop': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('loops')
         .update({
           status: 'active',
@@ -1093,38 +1144,47 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           updated_at: new Date().toISOString()
         })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Reopen failed: Loop with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(data[0]), null, 2) }] };
     }
 
     case 'archive_loop': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('loops')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Archive failed: Loop with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(data[0]), null, 2) }] };
     }
 
     case 'restore_loop': {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('loops')
         .update({ deleted_at: null })
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Restore failed: Loop with ID "${args.id}" not found or unauthorized.`);
+      }
 
-      const { data: row } = await supabase.from('loops').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(row), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapLoop(data[0]), null, 2) }] };
     }
 
     case 'carry_loop_forward': {
@@ -1381,16 +1441,19 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       if (args.description !== undefined) updateData.description = args.description;
       if (args.status !== undefined) updateData.status = args.status;
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('threads')
         .update(updateData)
         .eq('id', args.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
+
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Update failed: Thread with ID "${args.id}" not found or unauthorized.`);
+      }
       
-      // Retrieve full object
-      const { data: thread } = await supabase.from('threads').select('*').eq('id', args.id).eq('user_id', userId).single();
-      return { content: [{ type: 'text', text: JSON.stringify(mapThread(thread), null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(mapThread(data[0]), null, 2) }] };
     }
 
     case 'connect_echo_to_thread': {

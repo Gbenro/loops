@@ -175,6 +175,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   // Voice state (Whisper-based)
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isOneTapEchoPendingRef = useRef(false);
   const [modelProgress, setModelProgress] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -390,6 +392,59 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     ? 'What is alive in you right now? What arrived today? What are you noticing...'
     : phrases.echoesWritePrompt || 'What is alive in you right now?';
 
+  const saveEchoDirect = async (textToSave, audioBlob) => {
+    if (!textToSave.trim()) return;
+
+    const echoId = generateId('e');
+    const isEncrypted = !!sessionKey;
+    const plainText = textToSave.trim();
+    const storedText = isEncrypted ? await encryptField(plainText) : plainText;
+
+    const newEcho = {
+      id: echoId,
+      text: plainText,
+      source: 'voice',
+      audio_path: null,
+      isEncrypted,
+      createdAt: new Date().toISOString(),
+      phase: lunarData.phase.key,
+      phaseName: lunarData.phase.name,
+      phaseType: lunarData.phase.phaseType,
+      lunarMonth: lunarData.lunarMonth,
+      dayOfCycle: lunarData.dayOfCycle,
+      zodiac: lunarData.zodiac.sign,
+      illumination: lunarData.illumination,
+    };
+
+    setEchoes((prev) => [newEcho, ...prev]);
+    setCurrentText('');
+    setIsWriting(false);
+    setSource('text');
+    setRecordingTime(0);
+
+    try {
+      await saveEchoToDb({ ...newEcho, text: storedText }, userId);
+      if (audioBlob && userId) {
+        const audioPath = await saveAudio(echoId, audioBlob, userId);
+        if (audioPath === 'TOO_LARGE') {
+          alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
+        } else if (audioPath) {
+          setEchoes((prev) =>
+            prev.map((e) => (e.id === echoId ? { ...e, audio_path: audioPath } : e))
+          );
+          await updateEchoAudioPath(echoId, audioPath, userId);
+        }
+      }
+    } catch (err) {
+      alert('Failed to save Echo: ' + err.message + '. Your draft has been preserved.');
+      setEchoes((prev) => prev.filter(e => e.id !== echoId));
+      setCurrentText(plainText);
+      pendingAudioBlobRef.current = audioBlob;
+      setIsWriting(true);
+      setSource('voice');
+    }
+  };
+
   // Start recording
   const startRecording = useCallback(async () => {
     if (!userId) {
@@ -446,14 +501,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           try {
             const text = await transcribeAudio(audioBlob, setModelProgress);
             if (text) {
-              setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
+              if (isOneTapEchoPendingRef.current) {
+                await saveEchoDirect(text, audioBlob);
+              } else {
+                setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
+              }
+            } else {
+              if (isOneTapEchoPendingRef.current) {
+                alert('No speech was detected. Your recording has been preserved in the draft editor.');
+              }
             }
           } catch (error) {
-            alert('Transcription failed: ' + error.message);
+            alert('Transcription failed: ' + error.message + '. Your recording has been preserved in the draft editor.');
+          } finally {
+            setIsTranscribing(false);
+            setIsSaving(false);
+            isOneTapEchoPendingRef.current = false;
           }
-          setIsTranscribing(false);
         } else {
           alert('No audio was recorded. Please try again.');
+          setIsSaving(false);
+          isOneTapEchoPendingRef.current = false;
         }
       };
 
@@ -554,60 +622,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const saveEcho = async () => {
     if (!currentText.trim()) return;
 
-    // Stop recording if active
     if (isRecording) {
       stopRecording();
     }
 
-    const echoId = generateId('e');
-    const hasVoice = source === 'voice' && pendingAudioBlobRef.current;
-
-    const isEncrypted = !!sessionKey;
-    const plainText = currentText.trim();
-    const storedText = isEncrypted ? await encryptField(plainText) : plainText;
-
-    const newEcho = {
-      id: echoId,
-      text: plainText, // plaintext in state
-      source,
-      audio_path: null,
-      isEncrypted,
-      createdAt: new Date().toISOString(),
-      phase: lunarData.phase.key,
-      phaseName: lunarData.phase.name,
-      phaseType: lunarData.phase.phaseType, // 'threshold' | 'flow'
-      lunarMonth: lunarData.lunarMonth,
-      dayOfCycle: lunarData.dayOfCycle,
-      zodiac: lunarData.zodiac.sign,
-      illumination: lunarData.illumination,
-    };
-
-    setEchoes((prev) => [newEcho, ...prev]);
-    setCurrentText('');
-    setIsWriting(false);
-    setSource('text');
-    setRecordingTime(0);
-
-    // Save echo record first, then upload audio
-    const audioBlob = pendingAudioBlobRef.current;
+    const blob = pendingAudioBlobRef.current;
     pendingAudioBlobRef.current = null;
-
-    await saveEchoToDb({ ...newEcho, text: storedText }, userId);
-
-    // Upload audio to cloud storage (requires login — already blocked in startRecording)
-    if (hasVoice && audioBlob && userId) {
-      const audioPath = await saveAudio(echoId, audioBlob, userId);
-      if (audioPath === 'TOO_LARGE') {
-        alert(
-          `Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`
-        );
-      } else if (audioPath) {
-        setEchoes((prev) =>
-          prev.map((e) => (e.id === echoId ? { ...e, audio_path: audioPath } : e))
-        );
-        await updateEchoAudioPath(echoId, audioPath, userId);
-      }
-    }
+    await saveEchoDirect(currentText, blob);
   };
 
   const deleteEcho = async (id) => {
@@ -638,6 +659,16 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     setSource('text');
     setRecordingTime(0);
     pendingAudioBlobRef.current = null;
+  };
+
+  const handleEchoClick = async () => {
+    if (isRecording) {
+      isOneTapEchoPendingRef.current = true;
+      setIsSaving(true);
+      stopRecording();
+    } else {
+      await saveEcho();
+    }
   };
 
   // Wake lock helpers for playback
@@ -1368,27 +1399,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                 Cancel
               </button>
               <button
-                onClick={saveEcho}
-                disabled={!currentText.trim() || isRecording || isTranscribing}
+                onClick={handleEchoClick}
+                disabled={(!currentText.trim() && !isRecording) || isTranscribing || isSaving}
                 style={{
                   flex: 1,
                   padding: '12px',
                   borderRadius: 8,
                   background:
-                    currentText.trim() && !isRecording && !isTranscribing
+                    (currentText.trim() || isRecording) && !isTranscribing && !isSaving
                       ? 'var(--color-border-light)'
                       : 'var(--color-input-bg)',
                   border: '1px solid var(--color-border-mid)',
                   color:
-                    currentText.trim() && !isRecording && !isTranscribing
+                    (currentText.trim() || isRecording) && !isTranscribing && !isSaving
                       ? 'var(--color-text)'
                       : 'var(--color-text-muted)',
                   fontSize: 12,
                   cursor:
-                    currentText.trim() && !isRecording && !isTranscribing ? 'pointer' : 'default',
+                    (currentText.trim() || isRecording) && !isTranscribing && !isSaving ? 'pointer' : 'default',
                 }}
               >
-                {isRecording ? 'STOP FIRST' : isTranscribing ? 'WAIT...' : 'ECHO ↩'}
+                {isSaving ? 'SAVING...' : isTranscribing ? 'WAIT...' : isRecording ? 'ECHO DIRECT ↩' : 'ECHO ↩'}
               </button>
             </div>
           </div>
