@@ -414,6 +414,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       dayOfCycle: lunarData.dayOfCycle,
       zodiac: lunarData.zodiac.sign,
       illumination: lunarData.illumination,
+      provenanceAuthor: 'user',
+      provenanceKind: 'original_echo',
+      parentId: null
     };
 
     setEchoes((prev) => [newEcho, ...prev]);
@@ -1966,6 +1969,7 @@ function EchoCard({
   const [textExpanded, setTextExpanded] = useState(false);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const cardRef = useRef(null);
+  const isPersonalEcho = (echo.provenanceAuthor || 'user') === 'user' && (echo.provenanceKind || 'original_echo') === 'original_echo';
 
   // Scroll card back into view when collapsing long text
   useEffect(() => {
@@ -2494,23 +2498,25 @@ function EchoCard({
                   </button>
                 </>
               )}
-              <button
-                onClick={() => {
-                  setEditText(echo.text || '');
-                  setIsEditing(true);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-text-muted)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  lineHeight: 1,
-                }}
-              >
-                ✎
-              </button>
+              {!isPersonalEcho && (
+                <button
+                  onClick={() => {
+                    setEditText(echo.text || '');
+                    setIsEditing(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-text-muted)',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✎
+                </button>
+              )}
               <button
                 onClick={copyText}
                 style={{

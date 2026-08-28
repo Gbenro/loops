@@ -167,7 +167,10 @@ export async function deleteLoop(loopId, userId) {
 // ============ ECHOES ============
 
 export async function getEchoes(userId) {
-  if (!userId) return getLocal(ECHOES_KEY);
+  if (!userId) {
+    const local = getLocal(ECHOES_KEY) || [];
+    return local.filter(e => (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
+  }
 
   try {
     const { data, error } = await supabase
@@ -175,6 +178,8 @@ export async function getEchoes(userId) {
       .select('*')
       .eq('user_id', userId)
       .is('deleted_at', null)
+      .or('provenance_author.eq.user,provenance_author.is.null')
+      .or('provenance_kind.eq.original_echo,provenance_kind.is.null')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -195,80 +200,89 @@ export async function getEchoes(userId) {
       tags: row.tags || [],
       linkedLoopId: row.linked_loop_id || null,
       createdAt: row.created_at,
+      provenanceAuthor: row.provenance_author || 'user',
+      provenanceKind: row.provenance_kind || 'original_echo',
+      parentId: row.parent_id || null
     }));
 
-    // Merge: keep local echoes not on server (e.g. save failed due to missing column)
+    // Merge: keep local echoes not on server
     const serverIds = new Set(echoes.map((e) => e.id));
-    const localEchoes = getLocal(ECHOES_KEY);
-    const unsyncedLocal = localEchoes.filter((e) => !serverIds.has(e.id));
+    const localEchoes = getLocal(ECHOES_KEY) || [];
+    const unsyncedLocal = localEchoes.filter((e) => !serverIds.has(e.id) && (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
     const merged = [...echoes, ...unsyncedLocal];
     setLocal(ECHOES_KEY, merged);
 
     // Retry syncing unsynced local echoes
     for (const echo of unsyncedLocal) {
-      saveEcho(echo, userId);
+      saveEcho(echo, userId).catch(() => {});
     }
 
     return merged;
   } catch (e) {
     console.warn('Failed to fetch echoes from server:', e);
-    return getLocal(ECHOES_KEY);
+    const local = getLocal(ECHOES_KEY) || [];
+    return local.filter(e => (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
   }
 }
 
 export async function saveEcho(echo, userId) {
-  const echoes = getLocal(ECHOES_KEY);
+  const echoes = getLocal(ECHOES_KEY) || [];
   echoes.unshift(echo);
   setLocal(ECHOES_KEY, echoes);
 
   if (!userId) return echo;
 
-  try {
-    const { error } = await supabase.from('echoes').insert({
-      id: echo.id,
-      user_id: userId,
-      text: echo.text,
-      source: echo.source || 'text',
-      phase: echo.phase,
-      phase_name: echo.phaseName,
-      phase_type: echo.phaseType,
-      lunar_month: echo.lunarMonth,
-      day_of_cycle: echo.dayOfCycle,
-      zodiac: echo.zodiac,
-      illumination: echo.illumination,
-      is_encrypted: echo.isEncrypted || false,
-      audio_path: echo.audio_path || null,
-      linked_loop_id: echo.linkedLoopId || null,
-      created_at: echo.createdAt,
-    });
+  const { error } = await supabase.from('echoes').insert({
+    id: echo.id,
+    user_id: userId,
+    text: echo.text,
+    source: echo.source || 'text',
+    phase: echo.phase,
+    phase_name: echo.phaseName,
+    phase_type: echo.phaseType,
+    lunar_month: echo.lunarMonth,
+    day_of_cycle: echo.dayOfCycle,
+    zodiac: echo.zodiac,
+    illumination: echo.illumination,
+    is_encrypted: echo.isEncrypted || false,
+    audio_path: echo.audio_path || null,
+    linked_loop_id: echo.linkedLoopId || null,
+    created_at: echo.createdAt,
+    provenance_author: echo.provenanceAuthor || 'user',
+    provenance_kind: echo.provenanceKind || 'original_echo',
+    parent_id: echo.parentId || null
+  });
 
-    if (error) throw error;
-  } catch (e) {
-    console.warn('Failed to save echo to server:', e);
+  if (error) {
+    throw new Error(`Failed to save echo to server: ${error.message}`);
   }
 
   return echo;
 }
 
 export async function updateEchoAudioPath(echoId, audioPath, userId) {
-  const echoes = getLocal(ECHOES_KEY);
+  const echoes = getLocal(ECHOES_KEY) || [];
   const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
+    const target = echoes[idx];
+    const isPersonal = (target.provenanceAuthor || 'user') === 'user' && (target.provenanceKind || 'original_echo') === 'original_echo';
+    if (isPersonal) {
+      throw new Error('Personal Echo audio reference is immutable and cannot be updated.');
+    }
     echoes[idx] = { ...echoes[idx], audio_path: audioPath };
     setLocal(ECHOES_KEY, echoes);
   }
 
   if (!userId) return;
 
-  try {
-    await supabase.from('echoes').update({ audio_path: audioPath }).eq('id', echoId);
-  } catch (e) {
-    console.warn('Failed to update echo audio_path on server:', e);
+  const { error } = await supabase.from('echoes').update({ audio_path: audioPath }).eq('id', echoId);
+  if (error) {
+    throw new Error(`Server update failed: ${error.message}`);
   }
 }
 
 export async function updateEchoTags(echoId, tags, userId) {
-  const echoes = getLocal(ECHOES_KEY);
+  const echoes = getLocal(ECHOES_KEY) || [];
   const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
     echoes[idx] = { ...echoes[idx], tags };
@@ -277,27 +291,30 @@ export async function updateEchoTags(echoId, tags, userId) {
 
   if (!userId) return;
 
-  try {
-    await supabase.from('echoes').update({ tags }).eq('id', echoId);
-  } catch (e) {
-    console.warn('Failed to update echo tags on server:', e);
+  const { error } = await supabase.from('echoes').update({ tags }).eq('id', echoId);
+  if (error) {
+    throw new Error(`Server update failed: ${error.message}`);
   }
 }
 
 export async function updateEchoText(echoId, newText, userId) {
-  const echoes = getLocal(ECHOES_KEY);
+  const echoes = getLocal(ECHOES_KEY) || [];
   const idx = echoes.findIndex((e) => e.id === echoId);
   if (idx !== -1) {
+    const target = echoes[idx];
+    const isPersonal = (target.provenanceAuthor || 'user') === 'user' && (target.provenanceKind || 'original_echo') === 'original_echo';
+    if (isPersonal) {
+      throw new Error('Personal Echo text content is immutable and cannot be updated.');
+    }
     echoes[idx] = { ...echoes[idx], text: newText };
     setLocal(ECHOES_KEY, echoes);
   }
 
   if (!userId) return;
 
-  try {
-    await supabase.from('echoes').update({ text: newText }).eq('id', echoId);
-  } catch (e) {
-    console.warn('Failed to update echo text on server:', e);
+  const { error } = await supabase.from('echoes').update({ text: newText }).eq('id', echoId);
+  if (error) {
+    throw new Error(`Server update failed: ${error.message}`);
   }
 }
 

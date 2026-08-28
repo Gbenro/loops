@@ -476,7 +476,8 @@ function mapEcho(row: any): any {
     metadata: row.metadata || {},
     provenanceAuthor: row.provenance_author || 'user',
     provenanceKind: row.provenance_kind || 'original_echo',
-    parentId: row.parent_id || null
+    parentId: row.parent_id || null,
+    audioPath: row.audio_path || null
   };
 }
 
@@ -771,6 +772,36 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'update_echo': {
+      // Fetch current record first to check immutability constraints
+      const { data: currentEcho, error: fetchErr } = await supabase
+        .from('echoes')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      if (!currentEcho) {
+        throw new Error(`Update failed: Echo with ID "${args.id}" not found or unauthorized.`);
+      }
+
+      // Enforce immutability for user personal echoes
+      const isPersonalEcho = currentEcho.provenance_author === 'user' && currentEcho.provenance_kind === 'original_echo';
+      if (isPersonalEcho) {
+        if (args.text !== undefined && args.text !== currentEcho.text) {
+          throw new Error('Personal Echo text content is immutable and cannot be updated.');
+        }
+        if (args.audioPath !== undefined && args.audioPath !== currentEcho.audio_path) {
+          throw new Error('Personal Echo audio reference is immutable and cannot be updated.');
+        }
+        if (args.provenanceAuthor !== undefined && args.provenanceAuthor !== currentEcho.provenance_author) {
+          throw new Error('Personal Echo authorship/provenance is immutable and cannot be updated.');
+        }
+        if (args.provenanceKind !== undefined && args.provenanceKind !== currentEcho.provenance_kind) {
+          throw new Error('Personal Echo authorship/provenance is immutable and cannot be updated.');
+        }
+      }
+
       const updateData: any = {
         updated_at: new Date().toISOString()
       };
