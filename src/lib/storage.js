@@ -266,7 +266,7 @@ export async function updateEchoAudioPath(echoId, audioPath, userId) {
   if (idx !== -1) {
     const target = echoes[idx];
     const isPersonal = (target.provenanceAuthor || 'user') === 'user' && (target.provenanceKind || 'original_echo') === 'original_echo';
-    if (isPersonal) {
+    if (isPersonal && target.audio_path) {
       throw new Error('Personal Echo audio reference is immutable and cannot be updated.');
     }
     echoes[idx] = { ...echoes[idx], audio_path: audioPath };

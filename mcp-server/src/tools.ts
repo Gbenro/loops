@@ -791,7 +791,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         if (args.text !== undefined && args.text !== currentEcho.text) {
           throw new Error('Personal Echo text content is immutable and cannot be updated.');
         }
-        if (args.audioPath !== undefined && args.audioPath !== currentEcho.audio_path) {
+        if (args.audioPath !== undefined && currentEcho.audio_path && args.audioPath !== currentEcho.audio_path) {
           throw new Error('Personal Echo audio reference is immutable and cannot be updated.');
         }
         if (args.provenanceAuthor !== undefined && args.provenanceAuthor !== currentEcho.provenance_author) {

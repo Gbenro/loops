@@ -400,11 +400,22 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     const plainText = textToSave.trim();
     const storedText = isEncrypted ? await encryptField(plainText) : plainText;
 
+    let audioPath = null;
+    let audioTooLarge = false;
+    if (audioBlob && userId) {
+      const path = await saveAudio(echoId, audioBlob, userId);
+      if (path === 'TOO_LARGE') {
+        audioTooLarge = true;
+      } else if (path) {
+        audioPath = path;
+      }
+    }
+
     const newEcho = {
       id: echoId,
       text: plainText,
       source: 'voice',
-      audio_path: null,
+      audio_path: audioPath,
       isEncrypted,
       createdAt: new Date().toISOString(),
       phase: lunarData.phase.key,
@@ -427,16 +438,8 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
     try {
       await saveEchoToDb({ ...newEcho, text: storedText }, userId);
-      if (audioBlob && userId) {
-        const audioPath = await saveAudio(echoId, audioBlob, userId);
-        if (audioPath === 'TOO_LARGE') {
-          alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
-        } else if (audioPath) {
-          setEchoes((prev) =>
-            prev.map((e) => (e.id === echoId ? { ...e, audio_path: audioPath } : e))
-          );
-          await updateEchoAudioPath(echoId, audioPath, userId);
-        }
+      if (audioTooLarge) {
+        alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
       }
     } catch (err) {
       alert('Failed to save Echo: ' + err.message + '. Your draft has been preserved.');
