@@ -2,6 +2,8 @@ import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
 import { getLunarData } from './lunar.js';
+import { getTimeContext, TimeContext } from './time.js';
+import { formatVoiceInputProvenance } from './voice.js';
 import { resolveModel, getUserAllowedModels } from './models.js';
 
 // Simple ID generator for chat session, messages, telemetry
@@ -28,8 +30,8 @@ const getAnthropicTools = () => {
   }));
 };
 
-// System Prompt enforcing the Luna Personality & Philosophy guidelines + Relational Memory Layer
-const getSystemPrompt = (lunar: any, relationalAttunements: any[] = []) => {
+// System Prompt enforcing the Luna Personality & Philosophy guidelines + Time Grounding + Relational Memory Layer
+const getSystemPrompt = (lunar: any, timeContext: TimeContext, relationalAttunements: any[] = []) => {
   const memoryBlock = relationalAttunements.length > 0
     ? `\nRelational Memory (What you have provisionally learned about how to meet this user):\n` +
       relationalAttunements.map((m: any, idx: number) => 
@@ -52,11 +54,21 @@ Architecture & Continuity Layers:
 8. Interchangeable Model: The underlying LLM provides reasoning capacity, while Luna continuity owns memory and state.
 ${memoryBlock}
 
+Current Authoritative Time & Temporal Grounding:
+- Local Date & Time: ${timeContext.localNow}
+- Today: ${timeContext.today} | Yesterday: ${timeContext.yesterday} | Tomorrow: ${timeContext.tomorrow}
+- Day of Week: ${timeContext.dayOfWeek}
+- Current Year: ${timeContext.currentYear} | UTC ISO: ${timeContext.utcNow} | Offset: ${timeContext.utcOffset}
+- Authoritative Timezone: ${timeContext.timezone}
+- CRITICAL TIME GROUNDING RULE:
+  * You MUST resolve all relative date queries ("today", "yesterday", "recent", "this week", "since last circle") from this authoritative clock (Current Year: ${timeContext.currentYear}).
+  * NEVER search database records against past years (such as 2025) unless the user explicitly requested a past year.
+
 Current Sky Context:
 - Lunar Cycle Day: ${lunar.dayOfCycle}
 - Moon Phase: ${lunar.phase.name} (${lunar.phase.emoji} ${lunar.illumination}% illumination)
 - Zodiac Sign: Moon in ${lunar.zodiac.sign}
-- Current Season: ${lunar.season}
+- Lunar Month: ${lunar.lunarMonth}
 
 Philosophy & Behavior Rules:
 1. Grounding and Integrity:
@@ -96,13 +108,21 @@ Philosophy & Behavior Rules:
    - Tool Truthfulness: Never claim a record was "Saved" or "Updated" unless the tool call completed successfully.`;
 };
 
+export interface RelationalMemorySelectionResult {
+  candidatesConsideredCount: number;
+  candidates: string[];
+  selected: any[];
+  injectedIds: string[];
+  memoriesForPrompt: any[];
+}
+
 // Selective retrieval helper: score and pick 0 to 3 relevant relational memories
 async function selectRelevantRelationalMemories(
   supabase: SupabaseClient,
   userId: string,
   currentMessage: string,
   history: any[] = []
-): Promise<any[]> {
+): Promise<RelationalMemorySelectionResult> {
   try {
     const { data: memories, error } = await supabase
       .from('relational_memories')
@@ -111,7 +131,17 @@ async function selectRelevantRelationalMemories(
       .in('lifecycle_status', ['active', 'emerging', 'resurfaced'])
       .eq('user_action_status', 'active');
 
-    if (error || !memories || memories.length === 0) return [];
+    if (error || !memories || memories.length === 0) {
+      return {
+        candidatesConsideredCount: 0,
+        candidates: [],
+        selected: [],
+        injectedIds: [],
+        memoriesForPrompt: []
+      };
+    }
+
+    const candidateIds = memories.map(m => m.id);
 
     // Extract search terms from current message + last user turn
     const contextText = (currentMessage + ' ' + (history.slice(-2).map(h => h.content).join(' '))).toLowerCase();
@@ -144,10 +174,32 @@ async function selectRelevantRelationalMemories(
 
     // Take top 0 to 3 memories
     const selected = scored.slice(0, 3);
-    return selected.map(mapRelationalMemory);
+    const mappedMemories = selected.map(mapRelationalMemory);
+
+    return {
+      candidatesConsideredCount: candidateIds.length,
+      candidates: candidateIds,
+      selected: selected.map(s => ({
+        id: s.id,
+        type: s.type,
+        statement: s.statement,
+        relevanceScore: s.score,
+        lifecycleStatus: s.lifecycle_status,
+        provenance: s.provenance,
+        strength: s.strength
+      })),
+      injectedIds: mappedMemories.map(m => m.id),
+      memoriesForPrompt: mappedMemories
+    };
   } catch (err) {
     console.warn('[RelationalMemory] Selection error:', err);
-    return [];
+    return {
+      candidatesConsideredCount: 0,
+      candidates: [],
+      selected: [],
+      injectedIds: [],
+      memoriesForPrompt: []
+    };
   }
 }
 
@@ -497,11 +549,19 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       const conversationMessages = history ? [...history] : [{ role: 'user', content: message }];
 
-      // Retrieve selective relational memories for attunement (Top 0–3 relevant)
-      const relevantRelationalMemories = await selectRelevantRelationalMemories(supabase, user.id, message, conversationMessages);
+      // 1. Authoritative Time Grounding (America/Chicago)
+      const timeContext = getTimeContext('America/Chicago');
 
+      // 2. Real-time Lunar Astronomical Data
       const lunar = getLunarData();
-      const systemPrompt = getSystemPrompt(lunar, relevantRelationalMemories);
+
+      // 3. Selective Relational Memories Attunement (Top 0–3 relevant)
+      const memorySelection = await selectRelevantRelationalMemories(supabase, user.id, message, conversationMessages);
+
+      // 4. Voice Input Provenance
+      const voiceProvenance = formatVoiceInputProvenance({ inputType, ...metadata });
+
+      const systemPrompt = getSystemPrompt(lunar, timeContext, memorySelection.memoriesForPrompt);
       let loopCount = 0;
       let finalResponseText = '';
       const agentMessages: any[] = [...conversationMessages];
@@ -551,98 +611,79 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         return { toolResultText, isError };
       };
 
-      // 4. Agentic Loop (Max 5 hops)
+      // Multi-step Tool Calling Loop
       while (loopCount < 5) {
-        let aiResult: any;
-
         if (provider === 'anthropic') {
           const anthropicTools = getAnthropicTools();
-          aiResult = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
+          const response = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
 
-          const textContent = aiResult.content.find((c: any) => c.type === 'text');
-          if (textContent) {
-            finalResponseText = textContent.text;
+          // Check for tool use blocks
+          const toolUseBlocks = response.content.filter((b: any) => b.type === 'tool_use');
+          const textBlocks = response.content.filter((b: any) => b.type === 'text');
+
+          if (textBlocks.length > 0) {
+            finalResponseText = textBlocks.map((b: any) => b.text).join('\n');
           }
 
-          const toolUseCalls = aiResult.content.filter((c: any) => c.type === 'tool_use');
-          if (toolUseCalls.length > 0) {
-            agentMessages.push({ role: 'assistant', content: aiResult.content });
+          if (toolUseBlocks.length > 0) {
+            agentMessages.push({
+              role: 'assistant',
+              content: response.content
+            });
 
-            for (const call of toolUseCalls) {
-              const toolName = call.name;
-              const toolArgs = call.input;
-              console.log(`[Agent-Claude] Calling tool: ${toolName}`, toolArgs);
+            const toolResults: any[] = [];
+            for (const toolUse of toolUseBlocks) {
+              console.log(`[Agent-Claude] Calling tool: ${toolUse.name}`, toolUse.input);
+              const { toolResultText, isError } = await executeAndTrackTool(toolUse.name, toolUse.input);
 
-              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
-
-              agentMessages.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'tool_result',
-                    tool_use_id: call.id,
-                    content: toolResultText
-                  }
-                ]
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUse.id,
+                content: toolResultText,
+                is_error: isError
               });
             }
+
+            agentMessages.push({
+              role: 'user',
+              content: toolResults
+            });
+
             loopCount++;
             continue;
           }
         } else if (provider === 'google') {
-          const geminiTools = getGeminiTools();
-          aiResult = await callGemini(modelId, agentMessages, systemPrompt, geminiTools);
+          const mcpTools = TOOL_DEFINITIONS_COMPAT;
+          const response = await callGemini(modelId, agentMessages, systemPrompt, mcpTools);
 
-          const candidate = aiResult.candidates?.[0];
-          const part = candidate?.content?.parts?.[0];
+          finalResponseText = response.text || '';
 
-          if (part?.text) {
-            finalResponseText = part.text;
-          }
-
-          const functionCalls = candidate?.content?.parts?.filter((p: any) => p.functionCall);
-          if (functionCalls && functionCalls.length > 0) {
+          if (response.functionCalls && response.functionCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
-              content: part?.text || '',
-              tool_calls: functionCalls.map((fc: any) => ({
-                id: `fc_${Math.random().toString(36).substr(2, 4)}`,
-                type: 'function',
-                function: {
-                  name: fc.functionCall.name,
-                  arguments: JSON.stringify(fc.functionCall.args)
-                }
-              }))
+              content: finalResponseText
             });
 
-            for (const call of functionCalls) {
-              const toolName = call.functionCall.name;
-              const toolArgs = call.functionCall.args || {};
-
-              console.log(`[Agent-Gemini] Calling tool: ${toolName}`, toolArgs);
-              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
+            for (const call of response.functionCalls) {
+              console.log(`[Agent-Gemini] Calling tool: ${call.name}`, call.args);
+              const { toolResultText } = await executeAndTrackTool(call.name, call.args);
 
               agentMessages.push({
-                role: 'tool',
-                name: toolName,
-                content: toolResultText
+                role: 'user',
+                content: `Tool Result for ${call.name}:\n${toolResultText}`
               });
             }
             loopCount++;
             continue;
           }
-        } else if (provider === 'openai') {
+        } else {
+          // Default: OpenAI Compatible
           const openAiTools = getOpenAiTools();
-          aiResult = await callGpt(modelId, agentMessages, systemPrompt, openAiTools);
+          const responseMsg = await callGpt(modelId, agentMessages, systemPrompt, openAiTools);
 
-          const choice = aiResult.choices[0];
-          const responseMsg = choice.message;
-
-          if (responseMsg.content) {
-            finalResponseText = responseMsg.content;
-          }
-
+          finalResponseText = responseMsg.content || '';
           const openAiToolCalls = responseMsg.tool_calls;
+
           if (openAiToolCalls && openAiToolCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
@@ -651,19 +692,18 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             });
 
             for (const call of openAiToolCalls) {
-              const toolName = call.function.name;
               let toolArgs = {};
               try {
                 toolArgs = JSON.parse(call.function.arguments);
               } catch {}
 
-              console.log(`[Agent-GPT] Calling tool: ${toolName}`, toolArgs);
-              const { toolResultText } = await executeAndTrackTool(toolName, toolArgs);
+              console.log(`[Agent-GPT] Calling tool: ${call.function.name}`, toolArgs);
+              const { toolResultText } = await executeAndTrackTool(call.function.name, toolArgs);
 
               agentMessages.push({
                 role: 'tool',
                 tool_call_id: call.id,
-                name: toolName,
+                name: call.function.name,
                 content: toolResultText
               });
             }
@@ -687,7 +727,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
 
-      // Log trace to telemetry table
+      // Log modular trace to telemetry table
       const latency = Date.now() - startTime;
       const telemetryId = generateId('trace');
       await supabase.from('chat_telemetry').insert({
@@ -696,10 +736,32 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         session_id: sessionId,
         user_id: user.id,
         model: `${provider}:${modelId} (${resolvedKey})`,
-        prompt_version: '1.3-relational-memory',
+        prompt_version: '1.4-observability',
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
         database_mutations: databaseMutationsTracked,
+        time_context: timeContext,
+        lunar_context: {
+          dayOfCycle: lunar.dayOfCycle,
+          phaseName: lunar.phase.name,
+          phaseKey: lunar.phase.key,
+          illumination: lunar.illumination,
+          zodiacSign: lunar.zodiac.sign,
+          lunarMonth: lunar.lunarMonth,
+          source: 'julian_astronomical_calculation'
+        },
+        relational_memory: {
+          candidatesConsideredCount: memorySelection.candidatesConsideredCount,
+          candidates: memorySelection.candidates,
+          selectedCount: memorySelection.selected.length,
+          selected: memorySelection.selected,
+          injectedIds: memorySelection.injectedIds
+        },
+        voice_input: voiceProvenance,
+        protocols: {
+          version: '1.0',
+          activeProtocols: ['epistemic_humility', 'three_six_nine_pacing', 'ambiguity_clarification']
+        },
         latency_ms: latency,
         status: 'success'
       });
@@ -727,12 +789,21 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          const timeCtx = getTimeContext('America/Chicago');
+          const lunarCtx = getLunarData();
           await supabase.from('chat_telemetry').insert({
             id: generateId('trace'),
             user_id: user.id,
             session_id: sessionId || null,
             model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
-            prompt_version: '1.3-relational-memory',
+            prompt_version: '1.4-observability',
+            time_context: timeCtx,
+            lunar_context: {
+              dayOfCycle: lunarCtx.dayOfCycle,
+              phaseName: lunarCtx.phase.name,
+              illumination: lunarCtx.illumination,
+              zodiacSign: lunarCtx.zodiac.sign,
+            },
             latency_ms: Date.now() - startTime,
             status: 'failed',
             error_message: errorMessage,
@@ -745,7 +816,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 6. GET /api/chat/telemetry/:id - Turn bundle trace for GPT Actions
+  // 6. GET /api/chat/telemetry/:id - Turn bundle trace for GPT Actions and Luna Observability
   app.get('/api/chat/telemetry/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
@@ -779,7 +850,14 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         telemetry,
         turnBundle: {
           userQuery: userMsg?.content || null,
-          retrievedContextIds: telemetry.retrieved_context_ids || [],
+          timeContext: telemetry.time_context || null,
+          lunarContext: telemetry.lunar_context || null,
+          relationalMemory: telemetry.relational_memory || null,
+          voiceInput: telemetry.voice_input || null,
+          protocols: telemetry.protocols || null,
+          fieldRetrieval: {
+            retrievedContextIds: telemetry.retrieved_context_ids || []
+          },
           toolCalls: telemetry.tool_calls || [],
           databaseMutations: telemetry.database_mutations || [],
           assistantResponse: msg?.content || null,
