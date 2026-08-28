@@ -67,17 +67,37 @@ export const MODEL_REGISTRY: ModelConfig[] = [
 
   // ─── Anthropic Claude Models ────────────────────────────────────────────────
   {
+    key: 'anthropic-3.7-sonnet',
+    provider: 'anthropic',
+    modelId: 'claude-3-7-sonnet-20250219',
+    displayName: 'Anthropic — Claude 3.7 Sonnet (Frontier Reasoning)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true, reasoning: true },
+    defaultPriority: 130
+  },
+  {
     key: 'anthropic-fable',
     provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20241022',
+    modelId: 'claude-3-7-sonnet-20250219',
     displayName: 'Anthropic — Fable (Frontier Agent)',
     enabled: true,
     tier: 'frontier',
-    capabilities: { tools: true },
-    defaultPriority: 105
+    capabilities: { tools: true, reasoning: true },
+    defaultPriority: 128
   },
   {
     key: 'anthropic-frontier',
+    provider: 'anthropic',
+    modelId: 'claude-3-7-sonnet-20250219',
+    displayName: 'Anthropic — Claude 3.7 Sonnet',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true, reasoning: true },
+    defaultPriority: 125
+  },
+  {
+    key: 'anthropic-3.5-sonnet',
     provider: 'anthropic',
     modelId: 'claude-3-5-sonnet-20241022',
     displayName: 'Anthropic — Claude 3.5 Sonnet',
@@ -122,8 +142,12 @@ const MODEL_ALIASES: Record<string, string> = {
   'google-gemini-pro': 'gemini-2.5-pro',
   
   // Anthropic & OpenAI Aliases
-  'anthropic-default': 'anthropic-frontier',
-  'claude-3-5-sonnet': 'anthropic-frontier',
+  'claude-3.7': 'anthropic-3.7-sonnet',
+  'claude-3-7': 'anthropic-3.7-sonnet',
+  'claude-3.7-sonnet': 'anthropic-3.7-sonnet',
+  'anthropic-3.7': 'anthropic-3.7-sonnet',
+  'anthropic-default': 'anthropic-3.7-sonnet',
+  'claude-3-5-sonnet': 'anthropic-3.5-sonnet',
   'openai-default': 'openai-frontier',
   'openai-mini': 'openai-balanced',
   'gpt-4o': 'openai-frontier',
