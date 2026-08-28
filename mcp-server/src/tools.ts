@@ -423,6 +423,64 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['query']
     }
+  },
+
+  // Relational Memory (Attunement & Continuity)
+  {
+    name: 'search_relational_memories',
+    description: 'Search or retrieve provisional Relational Memories (how Luna has learned to meet this user). Use to inspect what Luna holds regarding user language, interaction preferences, living distinctions, or orientations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Keyword filter matching statements' },
+        type: { type: 'string', enum: ['language', 'interaction_preference', 'living_distinction', 'orientation'], description: 'Filter by memory type' },
+        lifecycleStatus: { type: 'string', enum: ['candidate', 'emerging', 'active', 'quiet', 'dormant', 'resurfaced', 'all'], default: 'all', description: 'Filter by lifecycle state' },
+        provenance: { type: 'string', enum: ['explicit', 'observed', 'co_created'], description: 'Filter by origin provenance' },
+        limit: { type: 'integer', default: 10, description: 'Number of results (max 50)' }
+      }
+    }
+  },
+  {
+    name: 'propose_candidate_memory',
+    description: 'Propose a candidate relational memory based on conversation observations or explicit user preferences. Inferred patterns start as candidate or emerging, requiring recurrence to promote.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        statement: { type: 'string', description: 'Provisional attunement statement (e.g. "Still Unfolding" currently functions as meaningful language for openness...)' },
+        type: { type: 'string', enum: ['language', 'interaction_preference', 'living_distinction', 'orientation'], description: 'Memory category' },
+        evidenceRecordIds: { type: 'array', items: { type: 'string' }, description: 'IDs of messages, echoes, loops, or conversations providing empirical evidence for this memory' },
+        provenance: { type: 'string', enum: ['explicit', 'observed', 'co_created'], default: 'observed', description: 'Explicit (told directly), Observed (inferred across evidence), Co-created (conversationally developed)' },
+        confidence: { type: 'number', default: 0.7, description: 'Confidence score (0.0 to 1.0)' }
+      },
+      required: ['statement', 'type', 'evidenceRecordIds']
+    }
+  },
+  {
+    name: 'reinforce_relational_memory',
+    description: 'Reinforce an existing relational memory with new evidence, incrementing recurrence/strength and potentially promoting its lifecycle status (candidate -> emerging -> active, or quiet/dormant -> resurfaced).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID of the relational memory to reinforce' },
+        newEvidenceRecordIds: { type: 'array', items: { type: 'string' }, description: 'New evidence IDs to append' },
+        statementUpdate: { type: 'string', description: 'Optional refined statement reflecting recurring nuance' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'update_relational_memory_status',
+    description: 'Update the lifecycle status, user action status, or statement of a relational memory.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID of the relational memory' },
+        lifecycleStatus: { type: 'string', enum: ['candidate', 'emerging', 'active', 'quiet', 'dormant', 'resurfaced', 'dismissed'], description: 'New lifecycle status' },
+        userActionStatus: { type: 'string', enum: ['active', 'dismissed', 'pinned', 'corrected'], description: 'User action status' },
+        statement: { type: 'string', description: 'Corrected or updated statement' }
+      },
+      required: ['id']
+    }
   }
 ];
 
@@ -558,6 +616,25 @@ function mapReflection(row: any): any {
     conversationId: row.conversation_id || null,
     lunarContext: row.lunar_context || {},
     createdAt: row.created_at
+  };
+}
+
+export function mapRelationalMemory(row: any): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    statement: row.statement,
+    type: row.type,
+    evidenceRecordIds: Array.isArray(row.evidence_record_ids) ? row.evidence_record_ids : [],
+    confidence: row.confidence !== null && row.confidence !== undefined ? Number(row.confidence) : 0.7,
+    strength: row.strength || 1,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
+    lifecycleStatus: row.lifecycle_status,
+    provenance: row.provenance,
+    userActionStatus: row.user_action_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -1544,6 +1621,144 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { error } = await supabase.from('echo_reflections').insert(insertData);
       if (error) throw error;
       return { content: [{ type: 'text', text: JSON.stringify(mapReflection(insertData), null, 2) }] };
+    }
+
+    // ─── Relational Memory (Attunement & Continuity) ───────────────────────────
+
+    case 'search_relational_memories': {
+      let builder = supabase
+        .from('relational_memories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('strength', { ascending: false })
+        .order('last_seen_at', { ascending: false })
+        .limit(Math.min(args.limit || 10, 50));
+
+      if (args.lifecycleStatus && args.lifecycleStatus !== 'all') {
+        builder = builder.eq('lifecycle_status', args.lifecycleStatus);
+      }
+      if (args.type) {
+        builder = builder.eq('type', args.type);
+      }
+      if (args.provenance) {
+        builder = builder.eq('provenance', args.provenance);
+      }
+      if (args.query) {
+        builder = builder.ilike('statement', `%${args.query}%`);
+      }
+
+      const { data, error } = await builder;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify((data || []).map(mapRelationalMemory), null, 2) }] };
+    }
+
+    case 'propose_candidate_memory': {
+      const id = generateServerId('rm');
+      const provenance = args.provenance || 'observed';
+      // Explicit statements activate immediately; inferred patterns start as candidate
+      const lifecycle_status = provenance === 'explicit' ? 'active' : 'candidate';
+      const confidence = typeof args.confidence === 'number' ? args.confidence : (provenance === 'explicit' ? 0.95 : 0.70);
+      const evidence = Array.isArray(args.evidenceRecordIds) ? args.evidenceRecordIds : [];
+
+      const insertData = {
+        id,
+        user_id: userId,
+        statement: args.statement,
+        type: args.type,
+        evidence_record_ids: evidence,
+        confidence,
+        strength: 1,
+        lifecycle_status,
+        provenance,
+        user_action_status: 'active',
+        first_seen_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase.from('relational_memories').insert(insertData).select();
+      if (error) throw error;
+      const createdRow = data?.[0] || insertData;
+      return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(createdRow), null, 2) }] };
+    }
+
+    case 'reinforce_relational_memory': {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('relational_memories')
+        .select('*')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchErr || !existing) {
+        throw new Error(`Relational memory with ID "${args.id}" not found.`);
+      }
+
+      const newStrength = (existing.strength || 1) + 1;
+      let newLifecycleStatus = existing.lifecycle_status;
+
+      // Lifecycle progression: quiet/dormant -> resurfaced; candidate (2) -> emerging; emerging (3+) -> active
+      if (existing.lifecycle_status === 'quiet' || existing.lifecycle_status === 'dormant') {
+        newLifecycleStatus = 'resurfaced';
+      } else if (existing.lifecycle_status === 'candidate' && newStrength >= 2) {
+        newLifecycleStatus = 'emerging';
+      } else if (existing.lifecycle_status === 'emerging' && newStrength >= 3) {
+        newLifecycleStatus = 'active';
+      }
+
+      const existingEvidence = Array.isArray(existing.evidence_record_ids) ? existing.evidence_record_ids : [];
+      const newEvidence = Array.isArray(args.newEvidenceRecordIds) ? args.newEvidenceRecordIds : [];
+      const mergedEvidence = Array.from(new Set([...existingEvidence, ...newEvidence]));
+
+      const updateData: any = {
+        strength: newStrength,
+        lifecycle_status: newLifecycleStatus,
+        evidence_record_ids: mergedEvidence,
+        last_seen_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (args.statementUpdate) {
+        updateData.statement = args.statementUpdate;
+      }
+
+      const { data, error } = await supabase
+        .from('relational_memories')
+        .update(updateData)
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .select();
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Failed to update relational memory "${args.id}".`);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(data[0]), null, 2) }] };
+    }
+
+    case 'update_relational_memory_status': {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      if (args.lifecycleStatus) updateData.lifecycle_status = args.lifecycleStatus;
+      if (args.userActionStatus) updateData.user_action_status = args.userActionStatus;
+      if (args.statement) updateData.statement = args.statement;
+
+      const { data, error } = await supabase
+        .from('relational_memories')
+        .update(updateData)
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .select();
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`Failed to update relational memory "${args.id}".`);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(data[0]), null, 2) }] };
     }
 
     default:

@@ -1,6 +1,6 @@
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
+import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
 import { getLunarData } from './lunar.js';
 import { resolveModel, getUserAllowedModels } from './models.js';
 
@@ -28,10 +28,26 @@ const getAnthropicTools = () => {
   }));
 };
 
-// System Prompt enforcing the Luna Personality & Philosophy guidelines
-const getSystemPrompt = (lunar: any) => {
+// System Prompt enforcing the Luna Personality & Philosophy guidelines + Relational Memory Layer
+const getSystemPrompt = (lunar: any, relationalAttunements: any[] = []) => {
+  const memoryBlock = relationalAttunements.length > 0
+    ? `\nRelational Memory (What you have provisionally learned about how to meet this user):\n` +
+      relationalAttunements.map((m: any, idx: number) => 
+        `  ${idx + 1}. [${m.type} | provenance: ${m.provenance} | strength: ${m.strength} | status: ${m.lifecycleStatus}] "${m.statement}"`
+      ).join('\n') +
+      `\n  * Epistemic Rule: Memory informs recognition; it does not require expression. You may remember something without mentioning it. Never force catchphrases.`
+    : `\nRelational Memory: No specific relational attunement active for this turn; maintain open observation without forcing pre-conceived patterns.`;
+
   return `You are Luna, the guiding voice of Luna Loops.
 Your character: You write in the register of a poet who also understands astronomy — spare, grounded, warm. Never twee, never grandiose. Think Mary Oliver meets NASA mission control.
+
+Architecture & Layers of Context:
+1. Luna Identity & Behavioral Policy: Who you are, your voice, write restraint, and grounding rules.
+2. Current Conversation Context: What is happening right now in this chat session.
+3. Task-Relevant Field Memory: What the user has recorded in their actual life (Echoes, Loops, Rhythms). Use tools to search or fetch these whenever relevant.
+4. Relational Memory: Provisional knowledge about how to meet this person (language, preferences, distinctions, orientations).
+5. User Request: What the user is asking you now.
+${memoryBlock}
 
 Current Sky Context:
 - Lunar Cycle Day: ${lunar.dayOfCycle}
@@ -52,24 +68,85 @@ Philosophy & Behavior Rules:
    - Write restraint: Keep reflections brief, focused, and minimal. Do not talk for the sake of talking.
    - Return to life: Do not encourage endless loops of introspection. Guide the user back to direct action and living.
 
-2. Precise Data Grounding & Semantic Rules:
-   - Understand Provenance: Records returned from the database will contain a "provenanceAuthor" ('user', 'ai', 'co-created') and a "provenanceKind" ('original_echo', 'ai_reflection', 'checkpoint', 'product_note').
-   - You must distinguish user-original, AI, and co-created language precisely.
+2. Precise Data Grounding & Provenance Rules:
+   - Distinguish Record Types:
+     * Personal Echoes: user-authored, original reflections. Immutable once saved.
+     * AI Reflections: your own reflections or annotations attached via parent_id / relationships.
+     * Co-created Records: distinctions formed together conversationally.
    - Semantic Definitions:
-     - "my latest Echo" or "the Echo I just recorded": The single newest record in the returned list where provenanceAuthor is 'user' (NOT 'ai') and provenanceKind is 'original_echo' (NOT 'ai_reflection').
-     - "your latest reflection" or "your last reflection": The single newest record where provenanceAuthor is 'ai' and provenanceKind is 'ai_reflection'.
-     - "new entries" or "recent echoes": Echoes created during the current phase or current cycle.
-     - "since X" or "since last circle": Filtered strictly by timestamps or cycle bounds.
-   - ABSOLUTE RULE ON AMBIGUITY: If you cannot confidently establish which exact record or record set the user is referring to (e.g. they say "that note", but there are multiple candidates, or "my latest Echo" but the retrieval query returned zero user echoes), you MUST ask for clarification. Do NOT reflect on the wrong records or manufacture a reflection. State clearly what you found and ask.
+     * "my latest Echo" / "the Echo I just recorded": The single newest record where provenanceAuthor is 'user' and provenanceKind is 'original_echo'.
+     * "your latest reflection": The single newest record where provenanceAuthor is 'ai' and provenanceKind is 'ai_reflection'.
+     * "new entries" / "recent echoes": Echoes created during the current phase or current cycle.
+   - ABSOLUTE RULE ON AMBIGUITY: If you cannot confidently establish which record the user is referring to, ask for clarification instead of guessing or manufacturing a reflection.
 
-Tool-Use & Action Rules:
-- Read liberally: You can search loops and echoes whenever you need context to answer questions.
-- Write intentionally: Do NOT run create/update tools (like create_echo or create_loop) just because a user mentions an experience.
-  - CONVERSE when they say "I feel grateful today" or tell you about a meeting.
-  - WRITE only when they explicitly say "Save this", "Record that", "Create a loop", "Mark this complete", or "Archive".
-- Modify carefully & Delete conservatively: Always verify details or ask for confirmation before bulk actions or destructive operations.
-- Tool Truthfulness: Never claim a record was "Saved" or "Updated" unless the tool call actually completed successfully. If a tool fails, state the failure honestly.`;
+3. Relational Memory & Epistemic Humility:
+   - Memory informs recognition; it does not require expression. Luna can remember something without mentioning it.
+   - Attunement, not catchphrases: Never mechanically parrot or inject remembered phrases into conversations where they don't belong.
+   - Provisional knowledge: Relational memories represent what you have provisionally learned about how to meet this person, NOT a rigid psychological diagnosis or fixed profile of who they are.
+   - Let recurrence earn significance: Do not freely write permanent relational memories after every casual sentence. Propose candidate memories only for clear patterns, and let recurrence strengthen them.
+
+4. Tool-Use & Action Rules:
+   - Read liberally: Search loops, echoes, and relational memories whenever you need context.
+   - Write intentionally: Do NOT run create/update tools just because a user mentions an experience.
+     * CONVERSE when they share an experience, feeling, or reflection.
+     * WRITE only when they explicitly say "Save this", "Record that", "Create a loop", "Mark this complete", or "Archive".
+   - Tool Truthfulness: Never claim a record was "Saved" or "Updated" unless the tool call completed successfully.`;
 };
+
+// Selective retrieval helper: score and pick 0 to 3 relevant relational memories
+async function selectRelevantRelationalMemories(
+  supabase: SupabaseClient,
+  userId: string,
+  currentMessage: string,
+  history: any[] = []
+): Promise<any[]> {
+  try {
+    const { data: memories, error } = await supabase
+      .from('relational_memories')
+      .select('*')
+      .eq('user_id', userId)
+      .in('lifecycle_status', ['active', 'emerging', 'resurfaced'])
+      .eq('user_action_status', 'active');
+
+    if (error || !memories || memories.length === 0) return [];
+
+    // Extract search terms from current message + last user turn
+    const contextText = (currentMessage + ' ' + (history.slice(-2).map(h => h.content).join(' '))).toLowerCase();
+    const words = Array.from(new Set(contextText.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 3)));
+
+    const scored: any[] = [];
+
+    for (const m of memories) {
+      let keywordScore = 0;
+      const stmt = (m.statement || '').toLowerCase();
+      
+      for (const w of words) {
+        if (stmt.includes(w)) keywordScore += 3;
+      }
+
+      let generalScore = 0;
+      if (m.type === 'interaction_preference' && m.provenance === 'explicit') generalScore += 2;
+      if (m.lifecycle_status === 'active' || m.lifecycle_status === 'resurfaced') generalScore += 0.5;
+      generalScore += Math.min(m.strength || 1, 5) * 0.1;
+
+      const totalScore = keywordScore > 0 ? (keywordScore + generalScore) : (m.type === 'interaction_preference' && m.provenance === 'explicit' ? generalScore : 0);
+
+      if (totalScore >= 2) {
+        scored.push({ ...m, score: totalScore });
+      }
+    }
+
+    // Sort by relevance score descending
+    scored.sort((a, b) => b.score - a.score);
+
+    // Take top 0 to 3 memories
+    const selected = scored.slice(0, 3);
+    return selected.map(mapRelationalMemory);
+  } catch (err) {
+    console.warn('[RelationalMemory] Selection error:', err);
+    return [];
+  }
+}
 
 // Orchestration helper: call Claude (Anthropic)
 async function callClaude(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
@@ -415,8 +492,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       const conversationMessages = history ? [...history] : [{ role: 'user', content: message }];
 
+      // Retrieve selective relational memories for attunement (Top 0–3 relevant)
+      const relevantRelationalMemories = await selectRelevantRelationalMemories(supabase, user.id, message, conversationMessages);
+
       const lunar = getLunarData();
-      const systemPrompt = getSystemPrompt(lunar);
+      const systemPrompt = getSystemPrompt(lunar, relevantRelationalMemories);
       let loopCount = 0;
       let finalResponseText = '';
       const agentMessages: any[] = [...conversationMessages];
@@ -431,8 +511,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           toolResultText = outcome.content[0].text;
           isError = !!(outcome as any).isError;
 
-          // Parse retrieved IDs
-          const idMatches = toolResultText.match(/[le]\d{10,}\w{0,4}/g);
+          // Parse retrieved IDs (including relational memories)
+          const idMatches = toolResultText.match(/(?:rm_|rm|[le])\d{10,}\w{0,4}/g);
           if (idMatches) retrievedContextIds.push(...idMatches);
 
           // Extract database mutations
@@ -440,10 +520,10 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             const parsed = JSON.parse(toolResultText);
             const recordId = parsed.id;
             if (recordId) {
-              const table = recordId.startsWith('e') ? 'echoes' : (recordId.startsWith('l') ? 'loops' : (recordId.startsWith('r') ? 'echo_reflections' : (recordId.startsWith('t') ? 'threads' : 'unknown')));
-              if (toolName.startsWith('create_')) {
+              const table = recordId.startsWith('rm') ? 'relational_memories' : (recordId.startsWith('e') ? 'echoes' : (recordId.startsWith('l') ? 'loops' : (recordId.startsWith('r') ? 'echo_reflections' : (recordId.startsWith('t') ? 'threads' : 'unknown'))));
+              if (toolName.startsWith('create_') || toolName === 'propose_candidate_memory') {
                 databaseMutationsTracked.push({ type: 'insert', table, id: recordId });
-              } else if (toolName.startsWith('update_') || toolName === 'close_loop' || toolName === 'reopen_loop' || toolName === 'archive_loop' || toolName === 'restore_loop' || toolName === 'archive_echo' || toolName === 'restore_echo') {
+              } else if (toolName.startsWith('update_') || toolName === 'reinforce_relational_memory' || toolName === 'close_loop' || toolName === 'reopen_loop' || toolName === 'archive_loop' || toolName === 'restore_loop' || toolName === 'archive_echo' || toolName === 'restore_echo') {
                 databaseMutationsTracked.push({ type: 'update', table, id: recordId });
               } else if (toolName === 'carry_loop_forward') {
                 databaseMutationsTracked.push({ type: 'update', table: 'loops', id: toolArgs.id });
@@ -611,7 +691,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         session_id: sessionId,
         user_id: user.id,
         model: `${provider}:${modelId} (${resolvedKey})`,
-        prompt_version: '1.2-provenance',
+        prompt_version: '1.3-relational-memory',
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
         database_mutations: databaseMutationsTracked,
@@ -647,7 +727,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             user_id: user.id,
             session_id: sessionId || null,
             model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
-            prompt_version: '1.2-provenance',
+            prompt_version: '1.3-relational-memory',
             latency_ms: Date.now() - startTime,
             status: 'failed',
             error_message: errorMessage,
@@ -753,6 +833,58 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       if (error) throw error;
       res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 9. GET /api/chat/memories - List all provisional relational memories for user inspection
+  app.get('/api/chat/memories', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) throw new Error('Authentication required');
+
+      const { data, error } = await supabase
+        .from('relational_memories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('strength', { ascending: false })
+        .order('last_seen_at', { ascending: false });
+
+      if (error) throw error;
+      res.json({ memories: (data || []).map(mapRelationalMemory) });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 10. PATCH /api/chat/memories/:id - User agency: dismiss, pin, or correct a relational memory
+  app.patch('/api/chat/memories/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) throw new Error('Authentication required');
+
+      const { userActionStatus, lifecycleStatus, statement } = req.body;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (userActionStatus !== undefined) updateData.user_action_status = userActionStatus;
+      if (lifecycleStatus !== undefined) updateData.lifecycle_status = lifecycleStatus;
+      if (statement !== undefined) updateData.statement = statement;
+
+      const { data, error } = await supabase
+        .from('relational_memories')
+        .update(updateData)
+        .eq('id', req.params.id)
+        .eq('user_id', user.id)
+        .select();
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        return res.status(404).json({ error: 'Relational memory not found or unauthorized' });
+      }
+
+      res.json({ memory: mapRelationalMemory(data[0]) });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
