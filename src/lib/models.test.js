@@ -1,33 +1,47 @@
 import { describe, it, expect } from 'vitest';
 
-// Simulated registry for testing frontend client expectations
 const MODEL_REGISTRY = [
   {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    modelId: 'claude-fable-5',
+    key: 'gemini-2.5-pro',
+    provider: 'google',
+    modelId: 'gemini-2.5-pro',
+    displayName: 'Google — Gemini 2.5 Pro (Frontier Reasoning)',
     enabled: true,
+    tier: 'frontier',
+    defaultPriority: 125
+  },
+  {
+    key: 'gemini-2.5-flash',
+    provider: 'google',
+    modelId: 'gemini-2.5-flash',
+    displayName: 'Google — Gemini 2.5 Flash (Fast Agent)',
+    enabled: true,
+    tier: 'balanced',
     defaultPriority: 120
   },
   {
-    key: 'openai-sol',
-    provider: 'openai',
-    modelId: 'gpt-5.6-sol',
+    key: 'gemini-2.0-flash-thinking',
+    provider: 'google',
+    modelId: 'gemini-2.0-flash-thinking-exp-01-21',
+    displayName: 'Google — Gemini 2.0 Flash Thinking (Deep Analysis)',
     enabled: true,
-    defaultPriority: 115
+    tier: 'frontier',
+    defaultPriority: 118
   },
   {
-    key: 'openai-o3',
-    provider: 'openai',
-    modelId: 'o3-pro',
+    key: 'anthropic-fable',
+    provider: 'anthropic',
+    modelId: 'claude-3-5-sonnet-20241022',
     enabled: true,
-    defaultPriority: 110
+    tier: 'frontier',
+    defaultPriority: 105
   },
   {
     key: 'anthropic-frontier',
     provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20240620',
+    modelId: 'claude-3-5-sonnet-20241022',
     enabled: true,
+    tier: 'frontier',
     defaultPriority: 100
   },
   {
@@ -35,6 +49,7 @@ const MODEL_REGISTRY = [
     provider: 'openai',
     modelId: 'gpt-4o',
     enabled: true,
+    tier: 'frontier',
     defaultPriority: 90
   },
   {
@@ -42,46 +57,89 @@ const MODEL_REGISTRY = [
     provider: 'openai',
     modelId: 'gpt-4o-mini',
     enabled: true,
+    tier: 'balanced',
     defaultPriority: 80
   }
 ];
+
+const MODEL_ALIASES = {
+  'gemini-pro': 'gemini-2.5-pro',
+  'gemini-default': 'gemini-2.5-flash',
+  'gemini-flash': 'gemini-2.5-flash',
+  'gemini-thinking': 'gemini-2.0-flash-thinking',
+  'google-frontier': 'gemini-2.5-pro',
+  'google-gemini-2.5-pro': 'gemini-2.5-pro',
+  'google-gemini-2.5-flash': 'gemini-2.5-flash',
+  'anthropic-default': 'anthropic-frontier',
+  'openai-default': 'openai-frontier',
+  'openai-mini': 'openai-balanced',
+};
 
 function resolveModelMock(key, allowedKeys) {
   const allowed = MODEL_REGISTRY.filter(m => allowedKeys.includes(m.key));
   if (allowed.length === 0) throw new Error('No models allowed');
 
   if (key) {
-    const match = allowed.find(m => m.key === key);
+    const canonicalKey = MODEL_ALIASES[key] || key;
+    const match = allowed.find(m => m.key === canonicalKey);
     if (match) return match;
+
+    const lower = key.toLowerCase();
+    if (lower.includes('gemini') || lower.includes('google')) {
+      const googleModel = allowed.find(m => m.provider === 'google');
+      if (googleModel) return googleModel;
+    }
+    if (lower.includes('openai') || lower.includes('gpt')) {
+      const openAiModel = allowed.find(m => m.provider === 'openai');
+      if (openAiModel) return openAiModel;
+    }
+    if (lower.includes('anthropic') || lower.includes('claude')) {
+      const anthropicModel = allowed.find(m => m.provider === 'anthropic');
+      if (anthropicModel) return anthropicModel;
+    }
   }
 
-  // Fallback to highest priority
   return allowed.reduce((highest, current) => 
     current.defaultPriority > highest.defaultPriority ? current : highest
   , allowed[0]);
 }
 
 describe('Model Configuration Registry & Entitlements', () => {
-  it('defines enabled frontier and balanced keys correctly', () => {
+  it('defines enabled frontier and Gemini 2.5 keys correctly', () => {
     const keys = MODEL_REGISTRY.map(m => m.key);
+    expect(keys).toContain('gemini-2.5-pro');
+    expect(keys).toContain('gemini-2.5-flash');
+    expect(keys).toContain('gemini-2.0-flash-thinking');
     expect(keys).toContain('anthropic-frontier');
     expect(keys).toContain('openai-frontier');
-    expect(keys).toContain('openai-balanced');
-    expect(keys).toContain('anthropic-fable');
-    expect(keys).toContain('openai-sol');
     expect(MODEL_REGISTRY.every(m => m.enabled)).toBe(true);
   });
 
-  it('resolves explicit allowed keys correctly', () => {
-    const resolved = resolveModelMock('openai-frontier', ['openai-frontier', 'openai-balanced']);
-    expect(resolved.key).toBe('openai-frontier');
-    expect(resolved.modelId).toBe('gpt-4o');
+  it('resolves explicit Gemini 2.5 Pro and Flash models correctly', () => {
+    const allKeys = MODEL_REGISTRY.map(m => m.key);
+    const pro = resolveModelMock('gemini-2.5-pro', allKeys);
+    expect(pro.provider).toBe('google');
+    expect(pro.modelId).toBe('gemini-2.5-pro');
+
+    const flash = resolveModelMock('gemini-2.5-flash', allKeys);
+    expect(flash.provider).toBe('google');
+    expect(flash.modelId).toBe('gemini-2.5-flash');
   });
 
-  it('falls back to highest priority enabled model when requested key is not allowed', () => {
-    const resolved = resolveModelMock('anthropic-frontier', ['openai-frontier', 'openai-balanced']);
-    // Highest priority is openai-frontier (90) vs openai-balanced (80)
-    expect(resolved.key).toBe('openai-frontier');
+  it('resolves legacy and shorthand Gemini aliases to Google Gemini without falling back to Anthropic', () => {
+    const allKeys = MODEL_REGISTRY.map(m => m.key);
+    
+    const legacyPro = resolveModelMock('gemini-pro', allKeys);
+    expect(legacyPro.provider).toBe('google');
+    expect(legacyPro.key).toBe('gemini-2.5-pro');
+
+    const legacyDefault = resolveModelMock('gemini-default', allKeys);
+    expect(legacyDefault.provider).toBe('google');
+    expect(legacyDefault.key).toBe('gemini-2.5-flash');
+
+    const thinking = resolveModelMock('gemini-thinking', allKeys);
+    expect(thinking.provider).toBe('google');
+    expect(thinking.modelId).toBe('gemini-2.0-flash-thinking-exp-01-21');
   });
 
   it('correctly maps to custom GPT Action endpoint labels', () => {

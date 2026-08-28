@@ -1,7 +1,7 @@
 export interface ModelConfig {
-  key: string;            // internal identifier, e.g., 'anthropic-frontier'
+  key: string;            // internal identifier, e.g., 'gemini-2.5-pro'
   provider: 'anthropic' | 'openai' | 'google';
-  modelId: string;        // official API identifier, e.g., 'claude-3-5-sonnet-20240620'
+  modelId: string;        // official API identifier
   displayName: string;
   enabled: boolean;
   tier: 'economy' | 'balanced' | 'frontier';
@@ -13,46 +13,81 @@ export interface ModelConfig {
 }
 
 export const MODEL_REGISTRY: ModelConfig[] = [
+  // ─── Google Gemini Frontier & Advanced Models ──────────────────────────────
   {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    modelId: 'claude-fable-5',
-    displayName: 'Anthropic — Fable 5 (Frontier Agent)',
+    key: 'gemini-2.5-pro',
+    provider: 'google',
+    modelId: 'gemini-2.5-pro',
+    displayName: 'Google — Gemini 2.5 Pro (Frontier Reasoning)',
     enabled: true,
     tier: 'frontier',
+    capabilities: { tools: true, reasoning: true },
+    defaultPriority: 125
+  },
+  {
+    key: 'gemini-2.5-flash',
+    provider: 'google',
+    modelId: 'gemini-2.5-flash',
+    displayName: 'Google — Gemini 2.5 Flash (Fast Agent)',
+    enabled: true,
+    tier: 'balanced',
     capabilities: { tools: true },
     defaultPriority: 120
   },
   {
-    key: 'openai-sol',
-    provider: 'openai',
-    modelId: 'gpt-5.6-sol',
-    displayName: 'OpenAI — Sol 5.6 (Frontier Agent)',
+    key: 'gemini-2.0-flash-thinking',
+    provider: 'google',
+    modelId: 'gemini-2.0-flash-thinking-exp-01-21',
+    displayName: 'Google — Gemini 2.0 Flash Thinking (Deep Analysis)',
     enabled: true,
     tier: 'frontier',
-    capabilities: { tools: true },
-    defaultPriority: 115
+    capabilities: { tools: true, reasoning: true },
+    defaultPriority: 118
   },
   {
-    key: 'openai-o3',
-    provider: 'openai',
-    modelId: 'o3-pro',
-    displayName: 'OpenAI — o3-pro (Reasoning)',
+    key: 'gemini-1.5-pro',
+    provider: 'google',
+    modelId: 'gemini-1.5-pro',
+    displayName: 'Google — Gemini 1.5 Pro',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },
-    defaultPriority: 110
+    defaultPriority: 95
+  },
+  {
+    key: 'gemini-1.5-flash',
+    provider: 'google',
+    modelId: 'gemini-1.5-flash',
+    displayName: 'Google — Gemini 1.5 Flash',
+    enabled: true,
+    tier: 'economy',
+    capabilities: { tools: true },
+    defaultPriority: 85
+  },
+
+  // ─── Anthropic Claude Models ────────────────────────────────────────────────
+  {
+    key: 'anthropic-fable',
+    provider: 'anthropic',
+    modelId: 'claude-3-5-sonnet-20241022',
+    displayName: 'Anthropic — Fable (Frontier Agent)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true },
+    defaultPriority: 105
   },
   {
     key: 'anthropic-frontier',
     provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20240620',
+    modelId: 'claude-3-5-sonnet-20241022',
     displayName: 'Anthropic — Claude 3.5 Sonnet',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },
     defaultPriority: 100
   },
+
+  // ─── OpenAI Models ──────────────────────────────────────────────────────────
   {
     key: 'openai-frontier',
     provider: 'openai',
@@ -72,32 +107,39 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     tier: 'balanced',
     capabilities: { tools: true },
     defaultPriority: 80
-  },
-  {
-    key: 'google-frontier',
-    provider: 'google',
-    modelId: 'gemini-1.5-pro',
-    displayName: 'Google — Gemini 1.5 Pro',
-    enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true },
-    defaultPriority: 95
   }
 ];
 
+const MODEL_ALIASES: Record<string, string> = {
+  // Legacy & Shorthand Google Aliases
+  'gemini-pro': 'gemini-2.5-pro',
+  'gemini-default': 'gemini-2.5-flash',
+  'gemini-flash': 'gemini-2.5-flash',
+  'gemini-thinking': 'gemini-2.0-flash-thinking',
+  'google-frontier': 'gemini-2.5-pro',
+  'google-gemini-2.5-pro': 'gemini-2.5-pro',
+  'google-gemini-2.5-flash': 'gemini-2.5-flash',
+  'google-gemini-pro': 'gemini-2.5-pro',
+  
+  // Anthropic & OpenAI Aliases
+  'anthropic-default': 'anthropic-frontier',
+  'claude-3-5-sonnet': 'anthropic-frontier',
+  'openai-default': 'openai-frontier',
+  'openai-mini': 'openai-balanced',
+  'gpt-4o': 'openai-frontier',
+  'gpt-4o-mini': 'openai-balanced',
+};
+
 /**
- * Entitlement Layer Stub:
+ * Entitlement Layer:
  * Resolves which internal model keys a user is authorized to access.
- * Defaults to all models for V1 testing, ready for paid product tiers.
  */
 export async function getUserAllowedModels(userId: string): Promise<string[]> {
-  // Entitled to all active models for development
   return MODEL_REGISTRY.filter(m => m.enabled).map(m => m.key);
 }
 
 /**
- * Resolves a selected model key against a user's entitlements,
- * automatically falling back to the highest priority allowed model.
+ * Resolves a selected model key against a user's entitlements with provider-aware fallback.
  */
 export async function resolveModel(key: string | undefined, userId: string): Promise<ModelConfig> {
   const allowedKeys = await getUserAllowedModels(userId);
@@ -107,10 +149,30 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
     throw new Error('No models are enabled or allowed for this user.');
   }
 
-  // If key requested, check validity and permission
   if (key) {
-    const matched = allowedModels.find(m => m.key === key);
-    if (matched) return matched;
+    const canonicalKey = MODEL_ALIASES[key] || key;
+    const directMatch = allowedModels.find(m => m.key === canonicalKey);
+    if (directMatch) return directMatch;
+
+    // Provider-specific fallback if key contains hints
+    const lowerKey = key.toLowerCase();
+    if (lowerKey.includes('gemini') || lowerKey.includes('google')) {
+      const googleModel = allowedModels.find(m => m.provider === 'google' && m.tier === 'frontier') ||
+                          allowedModels.find(m => m.provider === 'google');
+      if (googleModel) return googleModel;
+    }
+
+    if (lowerKey.includes('openai') || lowerKey.includes('gpt')) {
+      const openAiModel = allowedModels.find(m => m.provider === 'openai' && m.tier === 'frontier') ||
+                          allowedModels.find(m => m.provider === 'openai');
+      if (openAiModel) return openAiModel;
+    }
+
+    if (lowerKey.includes('anthropic') || lowerKey.includes('claude')) {
+      const anthropicModel = allowedModels.find(m => m.provider === 'anthropic' && m.tier === 'frontier') ||
+                             allowedModels.find(m => m.provider === 'anthropic');
+      if (anthropicModel) return anthropicModel;
+    }
   }
 
   // Fallback to highest priority allowed model

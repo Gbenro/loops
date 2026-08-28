@@ -653,24 +653,39 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             continue;
           }
         } else if (provider === 'google') {
-          const mcpTools = TOOL_DEFINITIONS_COMPAT;
-          const response = await callGemini(modelId, agentMessages, systemPrompt, mcpTools);
+          const geminiTools = getGeminiTools();
+          const response = await callGemini(modelId, agentMessages, systemPrompt, geminiTools);
 
-          finalResponseText = response.text || '';
+          const candidate = response.candidates?.[0];
+          const parts = candidate?.content?.parts || [];
+          const textParts = parts.filter((p: any) => p.text);
+          const functionCalls = parts.filter((p: any) => p.functionCall).map((p: any) => p.functionCall);
 
-          if (response.functionCalls && response.functionCalls.length > 0) {
+          if (textParts.length > 0) {
+            finalResponseText = textParts.map((p: any) => p.text).join('\n');
+          }
+
+          if (functionCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
-              content: finalResponseText
+              content: finalResponseText,
+              tool_calls: functionCalls.map((fc: any) => ({
+                id: `fc_${Math.random().toString(36).substr(2, 4)}`,
+                function: {
+                  name: fc.name,
+                  arguments: typeof fc.args === 'string' ? fc.args : JSON.stringify(fc.args || {})
+                }
+              }))
             });
 
-            for (const call of response.functionCalls) {
+            for (const call of functionCalls) {
               console.log(`[Agent-Gemini] Calling tool: ${call.name}`, call.args);
-              const { toolResultText } = await executeAndTrackTool(call.name, call.args);
+              const { toolResultText } = await executeAndTrackTool(call.name, call.args || {});
 
               agentMessages.push({
-                role: 'user',
-                content: `Tool Result for ${call.name}:\n${toolResultText}`
+                role: 'tool',
+                name: call.name,
+                content: toolResultText
               });
             }
             loopCount++;

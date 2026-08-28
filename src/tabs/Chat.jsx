@@ -267,12 +267,15 @@ export function Chat({ userId, lunarData }) {
               fontFamily: 'sans-serif'
             }}
           >
+            <option value="gemini-2.5-pro">Google Gemini 2.5 Pro (Frontier)</option>
+            <option value="gemini-2.5-flash">Google Gemini 2.5 Flash (Fast)</option>
+            <option value="gemini-2.0-flash-thinking">Google Gemini 2.0 Flash Thinking</option>
+            <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
+            <option value="gemini-1.5-flash">Google Gemini 1.5 Flash</option>
             <option value="anthropic-fable">Anthropic Claude (Fable)</option>
-            <option value="anthropic-default">Anthropic Claude 3.5 Sonnet</option>
-            <option value="gemini-default">Google Gemini 2.5 Flash</option>
-            <option value="gemini-pro">Google Gemini 2.5 Pro</option>
-            <option value="openai-default">OpenAI GPT-4o</option>
-            <option value="openai-mini">OpenAI GPT-4o Mini</option>
+            <option value="anthropic-frontier">Anthropic Claude 3.5 Sonnet</option>
+            <option value="openai-frontier">OpenAI GPT-4o</option>
+            <option value="openai-balanced">OpenAI GPT-4o Mini</option>
           </select>
         </div>
       </header>
