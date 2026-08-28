@@ -61,8 +61,8 @@ Current Authoritative Time & Temporal Grounding:
 - Current Year: ${timeContext.currentYear} | UTC ISO: ${timeContext.utcNow} | Offset: ${timeContext.utcOffset}
 - Authoritative Timezone: ${timeContext.timezone}
 - CRITICAL TIME GROUNDING RULE:
-  * You MUST resolve all relative date queries ("today", "yesterday", "recent", "this week", "since last circle") from this authoritative clock (Current Year: ${timeContext.currentYear}).
-  * NEVER search database records against past years (such as 2025) unless the user explicitly requested a past year.
+  * When resolving relative/current temporal references ("today", "yesterday", "recent", "this week", "my latest echo", "since last circle"), resolve strictly from this authoritative clock (Current Year: ${timeContext.currentYear}). Never silently substitute a past year for current/relative queries.
+  * Longitudinal and historical searches across previous years and cycles remain fully permitted and encouraged whenever answering historical or pattern inquiries (e.g., "Have I felt this way before?", "When did I first mention consciousness?", multi-cycle pattern exploration).
 
 Current Sky Context:
 - Lunar Cycle Day: ${lunar.dayOfCycle}
@@ -558,8 +558,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       // 3. Selective Relational Memories Attunement (Top 0–3 relevant)
       const memorySelection = await selectRelevantRelationalMemories(supabase, user.id, message, conversationMessages);
 
-      // 4. Voice Input Provenance
-      const voiceProvenance = formatVoiceInputProvenance({ inputType, ...metadata });
+      // 4. Voice Input Provenance with runtime length
+      const voiceProvenance = formatVoiceInputProvenance({ inputType, ...metadata }, message.length);
 
       const systemPrompt = getSystemPrompt(lunar, timeContext, memorySelection.memoriesForPrompt);
       let loopCount = 0;
@@ -727,6 +727,30 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
 
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
 
+      // Calculate actual runtime protocol state
+      const turnDepth = conversationMessages.length + 1;
+      const turnInPacingCycle = (turnDepth % 9) || 9;
+      const pacingStage = turnInPacingCycle >= 8 ? 'return_to_life' : (turnInPacingCycle >= 6 ? 'grounding' : 'expansion');
+      const pacingActive = turnInPacingCycle >= 6;
+      const isClarifyingQuestion = finalResponseText.includes('?') && toolCallsTracked.length === 0;
+
+      const runtimeProtocols = {
+        version: '1.0',
+        turnDepthInSession: turnDepth,
+        threeSixNinePacing: {
+          activated: pacingActive,
+          stage: pacingStage,
+          turnInPacingCycle
+        },
+        epistemicRestraintApplied: true,
+        ambiguityClarificationTriggered: isClarifyingQuestion,
+        activeProtocols: [
+          'epistemic_humility',
+          pacingActive ? `three_six_nine_${pacingStage}` : 'conversational_expansion',
+          isClarifyingQuestion ? 'ambiguity_clarification' : 'direct_attunement'
+        ]
+      };
+
       // Log modular trace to telemetry table
       const latency = Date.now() - startTime;
       const telemetryId = generateId('trace');
@@ -758,10 +782,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           injectedIds: memorySelection.injectedIds
         },
         voice_input: voiceProvenance,
-        protocols: {
-          version: '1.0',
-          activeProtocols: ['epistemic_humility', 'three_six_nine_pacing', 'ambiguity_clarification']
-        },
+        protocols: runtimeProtocols,
         latency_ms: latency,
         status: 'success'
       });

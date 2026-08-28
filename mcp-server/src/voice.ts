@@ -3,13 +3,15 @@
 // Underlying STT (Whisper, etc.) and TTS providers supply interchangeable acoustic capacity.
 
 export interface VoiceInputProvenance {
+  participated: boolean;
   inputType: 'voice' | 'text';
   audioPath?: string | null;
   durationMs?: number;
-  provider: string; // e.g. 'groq_whisper'
+  provider: string; // e.g. 'groq_whisper' | 'keyboard'
   timestamp: string;
-  isOriginalAudioRetained: boolean;
-  status: 'success' | 'edited' | 'fallback';
+  originalAudioAvailable: boolean;
+  transcriptionLength?: number;
+  status: 'success' | 'edited' | 'fallback' | 'not_applicable';
 }
 
 export interface LunaVoiceExpressionPolicy {
@@ -38,25 +40,28 @@ export const DEFAULT_LUNA_VOICE_POLICY: LunaVoiceExpressionPolicy = {
   silenceRespect: true,
 };
 
-// Format voice provenance cleanly for storage and observability
-export function formatVoiceInputProvenance(raw: any): VoiceInputProvenance {
+// Format voice provenance cleanly for storage and observability with runtime state
+export function formatVoiceInputProvenance(raw: any, messageLength?: number): VoiceInputProvenance {
   if (!raw || raw.inputType !== 'voice') {
     return {
+      participated: false,
       inputType: 'text',
       provider: 'keyboard',
       timestamp: new Date().toISOString(),
-      isOriginalAudioRetained: false,
-      status: 'success'
+      originalAudioAvailable: false,
+      status: 'not_applicable'
     };
   }
 
   return {
+    participated: true,
     inputType: 'voice',
     audioPath: raw.audioPath || null,
     durationMs: typeof raw.durationMs === 'number' ? raw.durationMs : undefined,
     provider: raw.provider || 'groq_whisper',
     timestamp: raw.timestamp || new Date().toISOString(),
-    isOriginalAudioRetained: !!raw.audioPath,
+    originalAudioAvailable: !!raw.audioPath,
+    transcriptionLength: typeof messageLength === 'number' ? messageLength : undefined,
     status: raw.status || 'success'
   };
 }
