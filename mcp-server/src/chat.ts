@@ -129,6 +129,11 @@ Philosophy & Behavior Rules:
      * When evaluating longitudinal searches or phase patterns where retrieval returned a partial sample (or hasMore is true), ALWAYS explicitly soften your claims to reflect the sample:
        "Across the records retrieved...", "A strong recurring pattern appears in these notes...", "In most of the retrieved examples...".
      * Never turn recurrence into lunar causation (e.g. do not state "the phase is working as designed" or make predictive assertions about what future phases will do).
+   - Provenance Boundary (Conversational Context ≠ Field Fact):
+     * Conversation context alone cannot establish database completeness, total record counts, or historical extent.
+     * If you have NOT performed a retrieval search to establish the database record count or historical range, do NOT assert claims that depend on database completeness (e.g. "across five cycles of lived data", "in all your recorded history", "the only time you noted this", "your earliest record").
+     * If referencing items discussed earlier in the chat without an empirical Field search, explicitly ground the claim in conversational provenance: "Across the five cycles we've been discussing...", "In the examples we walked through earlier...".
+     * Only make claims about database extent or complete history when you have actually executed a Field retrieval sufficient to verify that fact.
    - Conversational Aperture & Resonance:
      * Good reflection creates conditions for reflection to continue unfolding rather than resolving and shutting down the inquiry.
      * Operational completion ≠ conversational completion: when performing a save, tag, or reflection attachment, acknowledge the action while continuing warm, open resonance without collapsing into a database clerk.`;
@@ -1451,25 +1456,34 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       if (messageId) {
         try {
           const voiceStatus = result.success ? (result.useClientFallback ? 'fallback' : 'completed') : 'error';
+          const voiceData = {
+            playbackRequested: true,
+            ttsProvider: result.provider,
+            ttsModel: result.model,
+            voiceId: result.voiceId,
+            characterCount: result.characterCount,
+            synthesisLatencyMs: result.latencyMs,
+            status: voiceStatus,
+            success: result.success,
+            error: result.error || null,
+            fallbackAttempted: !!result.useClientFallback,
+            fallbackResult: result.useClientFallback ? 'client_web_speech' : null,
+            cached: false
+          };
+
           await supabase
             .from('chat_telemetry')
             .update({
-              voice_output: {
-                playbackRequested: true,
-                ttsProvider: result.provider,
-                ttsModel: result.model,
-                voiceId: result.voiceId,
-                characterCount: result.characterCount,
-                synthesisLatencyMs: result.latencyMs,
+              voice_output: voiceData,
+              voice_feedback: {
                 status: voiceStatus,
-                success: result.success,
+                provider: result.provider,
+                synthesisLatencyMs: result.latencyMs,
                 error: result.error || null,
-                fallbackAttempted: !!result.useClientFallback,
-                fallbackResult: result.useClientFallback ? 'client_web_speech' : null,
-                cached: false
+                timestamp: new Date().toISOString()
               }
             })
-            .eq('message_id', messageId);
+            .or(`message_id.eq.${messageId},id.eq.${messageId}`);
         } catch (telErr) {
           console.warn('[Telemetry Voice Output Update error]:', telErr);
         }
@@ -1494,8 +1508,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     try {
       const { data: existing } = await supabase
         .from('chat_telemetry')
-        .select('voice_output')
-        .eq('message_id', messageId)
+        .select('voice_output, voice_feedback')
+        .or(`message_id.eq.${messageId},id.eq.${messageId}`)
         .maybeSingle();
 
       const currentVoice = existing?.voice_output || {};
@@ -1509,10 +1523,21 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         status: event === 'playback_failed' ? 'error' : (event === 'playback_ended' ? 'completed' : currentVoice.status || 'requested')
       };
 
+      const feedbackData = {
+        event,
+        provider: provider || currentVoice.ttsProvider,
+        error: error || null,
+        errorClass: errorClass || null,
+        timestamp: new Date().toISOString()
+      };
+
       await supabase
         .from('chat_telemetry')
-        .update({ voice_output: updatedVoice })
-        .eq('message_id', messageId);
+        .update({
+          voice_output: updatedVoice,
+          voice_feedback: feedbackData
+        })
+        .or(`message_id.eq.${messageId},id.eq.${messageId}`);
 
       res.json({ success: true });
     } catch (err: any) {

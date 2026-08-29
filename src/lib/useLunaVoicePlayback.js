@@ -142,6 +142,13 @@ export function useLunaVoicePlayback() {
       };
 
       utterance.onerror = (e) => {
+        // If the playback was intentionally cancelled or interrupted by another message, return to idle
+        if (e.error === 'interrupted' || e.error === 'canceled') {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+          setActiveMessageId(null);
+          return;
+        }
+
         console.warn('[Luna Voice Browser Speech error]:', e);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
         reportVoiceFeedback(messageId, 'playback_failed', { provider: 'web_speech', error: e.error || 'SpeechSynthesis error', errorClass: 'SpeechSynthesisError' });
@@ -174,6 +181,13 @@ export function useLunaVoicePlayback() {
 
     // Stop any other active playback
     stopPlayback();
+
+    // Synchronously prime the Web Speech engine on user click tick to preserve user activation
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.resume();
+      } catch {}
+    }
 
     setActiveMessageId(messageId);
     setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
