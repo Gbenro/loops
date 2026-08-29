@@ -285,10 +285,21 @@ describe('Luna Voice Input V1', () => {
     it('wraps raw PCM buffers in standard 44-byte RIFF WAV container', () => {
       const rawPcm = Buffer.alloc(48000); // 1 second of 24kHz 16-bit mono PCM
 
-      function ensureWav(buffer, sampleRate = 24000) {
-        if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF') {
+      function ensureAudioContainerPure(buffer, defaultSampleRate = 24000, expectedFormat = 'pcm') {
+        if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE') {
           return { buffer, contentType: 'audio/wav' };
         }
+        if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'OggS') {
+          return { buffer, contentType: 'audio/ogg' };
+        }
+        if (buffer.length >= 3 && buffer.toString('ascii', 0, 3) === 'ID3') {
+          return { buffer, contentType: 'audio/mpeg' };
+        }
+        if (expectedFormat === 'mp3') {
+          return { buffer, contentType: 'audio/mpeg' };
+        }
+
+        const sampleRate = defaultSampleRate;
         const numChannels = 1;
         const bitsPerSample = 16;
         const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
@@ -313,11 +324,22 @@ describe('Luna Voice Input V1', () => {
         };
       }
 
-      const packaged = ensureWav(rawPcm, 24000);
+      // Standard zero PCM
+      const packaged = ensureAudioContainerPure(rawPcm, 24000, 'pcm');
       expect(packaged.contentType).toBe('audio/wav');
       expect(packaged.buffer.length).toBe(48044);
       expect(packaged.buffer.toString('ascii', 0, 4)).toBe('RIFF');
       expect(packaged.buffer.toString('ascii', 8, 12)).toBe('WAVE');
+
+      // Regression check: Raw PCM starting with negative samples (0xFF 0xFF) MUST NEVER be treated as MP3!
+      const negativePcm = Buffer.alloc(693800);
+      negativePcm[0] = 0xff;
+      negativePcm[1] = 0xff; // -1 signed 16-bit PCM sample
+      const negativePackaged = ensureAudioContainerPure(negativePcm, 24000, 'pcm');
+      expect(negativePackaged.contentType).toBe('audio/wav');
+      expect(negativePackaged.buffer.length).toBe(693844);
+      expect(negativePackaged.buffer.toString('ascii', 0, 4)).toBe('RIFF');
+      expect(negativePackaged.buffer.toString('ascii', 8, 12)).toBe('WAVE');
     });
 
     it('records end-to-end layered lifecycle states and audio bandwidth metrics', () => {

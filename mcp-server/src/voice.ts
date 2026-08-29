@@ -152,24 +152,31 @@ export function formatVoiceInputProvenance(raw: any, messageLength?: number): Vo
   };
 }
 
-export function ensureAudioContainer(buffer: Buffer, defaultSampleRate = 24000): { buffer: Buffer; contentType: string } {
+export function ensureAudioContainer(
+  buffer: Buffer,
+  defaultSampleRate = 24000,
+  expectedFormat: 'pcm' | 'mp3' | 'wav' | 'auto' = 'pcm'
+): { buffer: Buffer; contentType: string } {
   // 1. Check for standard WAV RIFF header ('RIFF....WAVE')
   if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE') {
     return { buffer, contentType: 'audio/wav' };
   }
-  // 2. Check for standard MP3 ID3 header or sync frame (0xFFFB, 0xFFF3, 0xFFF2)
-  if (
-    buffer.length >= 3 &&
-    (buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0))
-  ) {
-    return { buffer, contentType: 'audio/mpeg' };
-  }
-  // 3. Check for Ogg container
+  // 2. Check for standard Ogg container ('OggS')
   if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'OggS') {
     return { buffer, contentType: 'audio/ogg' };
   }
+  // 3. Check for genuine MP3 container with ID3 header
+  if (buffer.length >= 3 && buffer.toString('ascii', 0, 3) === 'ID3') {
+    return { buffer, contentType: 'audio/mpeg' };
+  }
+  // 4. If explicitly specified as MP3 (e.g. OpenAI TTS fallback)
+  if (expectedFormat === 'mp3') {
+    return { buffer, contentType: 'audio/mpeg' };
+  }
 
-  // 4. Raw PCM (24000 Hz, 16-bit Mono) -> wrap in 44-byte standard RIFF WAV header
+  // 5. Default & Kokoro path: ALWAYS wrap raw PCM in standard 44-byte RIFF WAV header!
+  // Kokoro hexgrad/kokoro-82m on OpenRouter returns raw 24kHz 16-bit Mono PCM.
+  // Never allow raw PCM (even with negative 0xFF 0xFF samples) to be treated as MP3.
   const sampleRate = defaultSampleRate;
   const numChannels = 1;
   const bitsPerSample = 16;
@@ -262,7 +269,7 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
       if (response.ok) {
         const rawArrayBuffer = await response.arrayBuffer();
         const rawBuffer = Buffer.from(rawArrayBuffer);
-        const { buffer: packagedBuffer, contentType } = ensureAudioContainer(rawBuffer, 24000);
+        const { buffer: packagedBuffer, contentType } = ensureAudioContainer(rawBuffer, 24000, 'pcm');
         const rawByteCount = rawBuffer.length;
         const packagedByteCount = packagedBuffer.length;
         const audioBase64 = packagedBuffer.toString('base64');
@@ -270,6 +277,11 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
         const bytesPerSecond = audioDurationSec > 0 ? Number((packagedByteCount / audioDurationSec).toFixed(1)) : packagedByteCount;
         const bytesPerCharacter = characterCount > 0 ? Number((packagedByteCount / characterCount).toFixed(1)) : packagedByteCount;
         const costPerSpokenMinuteUsd = audioDurationSec > 0 ? Number(((estimatedCostUsd / audioDurationSec) * 60).toFixed(6)) : 0;
+
+        // Invariant assertion: OpenRouter/Kokoro raw PCM must always be packaged as WAV
+        if (contentType !== 'audio/wav' || packagedByteCount !== rawByteCount + 44) {
+          console.warn(`[Luna Voice Invariant Alert] Kokoro audio expected audio/wav (+44 bytes). Got: ${contentType}, raw=${rawByteCount}, packaged=${packagedByteCount}`);
+        }
 
         // Require byteCount > 0 before reporting synthesis success
         if (packagedByteCount > 0) {
