@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js';
+import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
 export function Chat({ userId, lunarData }) {
   const [messages, setMessages] = useState([]);
@@ -35,6 +36,9 @@ export function Chat({ userId, lunarData }) {
     onTranscriptReady: handleTranscriptReady,
     userId,
   });
+
+  // Voice playback integration (Luna Voice Output V0)
+  const { playbackStates, playMessage } = useLunaVoicePlayback();
 
   // Format seconds into m:ss
   const formatDuration = (sec) => {
@@ -267,15 +271,16 @@ export function Chat({ userId, lunarData }) {
               fontFamily: 'sans-serif'
             }}
           >
-            <option value="anthropic-3.7-sonnet">Anthropic Claude 3.7 Sonnet (Frontier)</option>
-            <option value="gemini-2.5-pro">Google Gemini 2.5 Pro (Frontier)</option>
-            <option value="gemini-2.5-flash">Google Gemini 2.5 Flash (Fast)</option>
-            <option value="gemini-2.0-flash-thinking">Google Gemini 2.0 Flash Thinking</option>
-            <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
-            <option value="gemini-1.5-flash">Google Gemini 1.5 Flash</option>
-            <option value="anthropic-frontier">Anthropic Claude 3.5 Sonnet</option>
-            <option value="openai-frontier">OpenAI GPT-4o</option>
-            <option value="openai-balanced">OpenAI GPT-4o Mini</option>
+            <option value="anthropic-3.7-sonnet">Anthropic — Claude 3.7 Sonnet (Frontier)</option>
+            <option value="openrouter-deepseek-r1">OpenRouter — DeepSeek R1 (Frontier Reasoning)</option>
+            <option value="openrouter-llama-3.3-70b">OpenRouter — Llama 3.3 70B (Standard Open)</option>
+            <option value="openrouter-mistral-large">OpenRouter — Mistral Large (Strong Open)</option>
+            <option value="openrouter-qwen-72b">OpenRouter — Qwen 2.5 72B (Strong Open)</option>
+            <option value="gemini-2.5-pro">Google — Gemini 2.5 Pro (Frontier)</option>
+            <option value="gemini-2.5-flash">Google — Gemini 2.5 Flash (Fast Agent)</option>
+            <option value="openrouter-gemini-flash">OpenRouter — Gemini 2.0 Flash (Fast Economy)</option>
+            <option value="openai-frontier">OpenAI — GPT-4o (Frontier)</option>
+            <option value="openai-balanced">OpenAI — GPT-4o Mini (Economy)</option>
           </select>
         </div>
       </header>
@@ -362,6 +367,40 @@ export function Chat({ userId, lunarData }) {
                 }}
               >
                 {msg.content}
+
+                {/* Luna Voice Output V0 Playback Control */}
+                {!isUser && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                    <button
+                      onClick={() => playMessage(msg.id, msg.content)}
+                      title={playbackStates[msg.id] === 'playing' ? 'Pause voice playback' : 'Listen to Luna aloud'}
+                      style={{
+                        background: playbackStates[msg.id] === 'playing' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: playbackStates[msg.id] === 'playing' ? '1px solid rgba(167, 139, 250, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        padding: '3px 8px',
+                        color: playbackStates[msg.id] === 'playing' ? '#c4b5fd' : 'var(--color-text-faint)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: playbackStates[msg.id] === 'playing' ? '0 0 8px rgba(167, 139, 250, 0.4)' : 'none'
+                      }}
+                    >
+                      {playbackStates[msg.id] === 'loading' ? (
+                        <span>⏳ Speaking...</span>
+                      ) : playbackStates[msg.id] === 'playing' ? (
+                        <span>🔊 Listening...</span>
+                      ) : playbackStates[msg.id] === 'error' ? (
+                        <span>⚠️ Voice error</span>
+                      ) : (
+                        <span>🔈 Listen</span>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );

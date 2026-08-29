@@ -1,113 +1,160 @@
 export interface ModelConfig {
-  key: string;            // internal identifier, e.g., 'gemini-2.5-pro'
-  provider: 'anthropic' | 'openai' | 'google';
-  modelId: string;        // official API identifier
+  key: string;            // internal identifier, e.g., 'openrouter-llama-3.3-70b'
+  provider: 'anthropic' | 'openai' | 'google' | 'openrouter';
+  modelId: string;        // official API identifier, e.g., 'meta-llama/llama-3.3-70b-instruct'
   displayName: string;
   enabled: boolean;
-  tier: 'economy' | 'balanced' | 'frontier';
+  tier: 'frontier' | 'standard' | 'medium' | 'economy' | 'specialist';
   capabilities: {
     tools: boolean;
     reasoning?: boolean;
+    multimodal?: boolean;
   };
+  contextWindow?: number;
+  speedClass?: 'fast' | 'moderate' | 'deliberate';
+  pricing?: {
+    inputCostPer1M: number;  // USD per million tokens
+    outputCostPer1M: number; // USD per million tokens
+    cachedInputCostPer1M?: number;
+  };
+  status?: 'preferred' | 'candidate' | 'experimental';
   defaultPriority: number;
 }
 
 export const MODEL_REGISTRY: ModelConfig[] = [
-  // ─── Google Gemini Frontier & Advanced Models ──────────────────────────────
+  // ─── Frontier Hybrid Reasoning ─────────────────────────────────────────────
+  {
+    key: 'anthropic-3.7-sonnet',
+    provider: 'anthropic',
+    modelId: 'claude-3-7-sonnet-20250219',
+    displayName: 'Anthropic — Claude 3.7 Sonnet (Frontier)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true, reasoning: true },
+    contextWindow: 200000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 3.00, outputCostPer1M: 15.00 },
+    status: 'preferred',
+    defaultPriority: 130
+  },
+  {
+    key: 'openrouter-deepseek-r1',
+    provider: 'openrouter',
+    modelId: 'deepseek/deepseek-r1',
+    displayName: 'OpenRouter — DeepSeek R1 (Frontier Reasoning)',
+    enabled: true,
+    tier: 'frontier',
+    capabilities: { tools: true, reasoning: true },
+    contextWindow: 128000,
+    speedClass: 'deliberate',
+    pricing: { inputCostPer1M: 0.55, outputCostPer1M: 2.19 },
+    status: 'candidate',
+    defaultPriority: 128
+  },
   {
     key: 'gemini-2.5-pro',
     provider: 'google',
     modelId: 'gemini-2.5-pro',
-    displayName: 'Google — Gemini 2.5 Pro (Frontier Reasoning)',
+    displayName: 'Google — Gemini 2.5 Pro (Frontier)',
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true, reasoning: true },
+    contextWindow: 1000000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 1.25, outputCostPer1M: 5.00 },
+    status: 'candidate',
     defaultPriority: 125
   },
+
+  // ─── Standard & Strong Open Engines ─────────────────────────────────────────
+  {
+    key: 'openrouter-llama-3.3-70b',
+    provider: 'openrouter',
+    modelId: 'meta-llama/llama-3.3-70b-instruct',
+    displayName: 'OpenRouter — Llama 3.3 70B (Standard Open)',
+    enabled: true,
+    tier: 'standard',
+    capabilities: { tools: true },
+    contextWindow: 128000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.12, outputCostPer1M: 0.30 },
+    status: 'candidate',
+    defaultPriority: 120
+  },
+  {
+    key: 'openrouter-mistral-large',
+    provider: 'openrouter',
+    modelId: 'mistralai/mistral-large-2411',
+    displayName: 'OpenRouter — Mistral Large (Strong Open)',
+    enabled: true,
+    tier: 'standard',
+    capabilities: { tools: true },
+    contextWindow: 128000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 2.00, outputCostPer1M: 6.00 },
+    status: 'experimental',
+    defaultPriority: 115
+  },
+  {
+    key: 'openrouter-qwen-72b',
+    provider: 'openrouter',
+    modelId: 'qwen/qwen-2.5-72b-instruct',
+    displayName: 'OpenRouter — Qwen 2.5 72B (Strong Open)',
+    enabled: true,
+    tier: 'standard',
+    capabilities: { tools: true },
+    contextWindow: 128000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.35, outputCostPer1M: 0.40 },
+    status: 'experimental',
+    defaultPriority: 112
+  },
+
+  // ─── Fast / Economy Engines ────────────────────────────────────────────────
   {
     key: 'gemini-2.5-flash',
     provider: 'google',
     modelId: 'gemini-2.5-flash',
     displayName: 'Google — Gemini 2.5 Flash (Fast Agent)',
     enabled: true,
-    tier: 'balanced',
+    tier: 'economy',
     capabilities: { tools: true },
-    defaultPriority: 120
+    contextWindow: 1000000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.075, outputCostPer1M: 0.30 },
+    status: 'preferred',
+    defaultPriority: 110
   },
   {
-    key: 'gemini-2.0-flash-thinking',
-    provider: 'google',
-    modelId: 'gemini-2.0-flash-thinking-exp-01-21',
-    displayName: 'Google — Gemini 2.0 Flash Thinking (Deep Analysis)',
-    enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true, reasoning: true },
-    defaultPriority: 118
-  },
-  {
-    key: 'gemini-1.5-pro',
-    provider: 'google',
-    modelId: 'gemini-1.5-pro',
-    displayName: 'Google — Gemini 1.5 Pro',
-    enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true },
-    defaultPriority: 95
-  },
-  {
-    key: 'gemini-1.5-flash',
-    provider: 'google',
-    modelId: 'gemini-1.5-flash',
-    displayName: 'Google — Gemini 1.5 Flash',
+    key: 'openrouter-gemini-flash',
+    provider: 'openrouter',
+    modelId: 'google/gemini-2.0-flash-001',
+    displayName: 'OpenRouter — Gemini 2.0 Flash (Fast Economy)',
     enabled: true,
     tier: 'economy',
     capabilities: { tools: true },
-    defaultPriority: 85
-  },
-
-  // ─── Anthropic Claude Models ────────────────────────────────────────────────
-  {
-    key: 'anthropic-3.7-sonnet',
-    provider: 'anthropic',
-    modelId: 'claude-3-7-sonnet-20250219',
-    displayName: 'Anthropic — Claude 3.7 Sonnet (Frontier Reasoning)',
-    enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true, reasoning: true },
-    defaultPriority: 130
+    contextWindow: 1000000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.10, outputCostPer1M: 0.40 },
+    status: 'candidate',
+    defaultPriority: 108
   },
   {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    modelId: 'claude-3-7-sonnet-20250219',
-    displayName: 'Anthropic — Fable (Frontier Agent)',
+    key: 'openai-balanced',
+    provider: 'openai',
+    modelId: 'gpt-4o-mini',
+    displayName: 'OpenAI — GPT-4o Mini',
     enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true, reasoning: true },
-    defaultPriority: 128
-  },
-  {
-    key: 'anthropic-frontier',
-    provider: 'anthropic',
-    modelId: 'claude-3-7-sonnet-20250219',
-    displayName: 'Anthropic — Claude 3.7 Sonnet',
-    enabled: true,
-    tier: 'frontier',
-    capabilities: { tools: true, reasoning: true },
-    defaultPriority: 125
-  },
-  {
-    key: 'anthropic-3.5-sonnet',
-    provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20241022',
-    displayName: 'Anthropic — Claude 3.5 Sonnet',
-    enabled: true,
-    tier: 'frontier',
+    tier: 'economy',
     capabilities: { tools: true },
-    defaultPriority: 100
+    contextWindow: 128000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.15, outputCostPer1M: 0.60 },
+    status: 'candidate',
+    defaultPriority: 90
   },
 
-  // ─── OpenAI Models ──────────────────────────────────────────────────────────
+  // ─── Direct Commercial Frontier ─────────────────────────────────────────────
   {
     key: 'openai-frontier',
     provider: 'openai',
@@ -116,38 +163,40 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     enabled: true,
     tier: 'frontier',
     capabilities: { tools: true },
-    defaultPriority: 90
-  },
-  {
-    key: 'openai-balanced',
-    provider: 'openai',
-    modelId: 'gpt-4o-mini',
-    displayName: 'OpenAI — GPT-4o-mini',
-    enabled: true,
-    tier: 'balanced',
-    capabilities: { tools: true },
-    defaultPriority: 80
+    contextWindow: 128000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 2.50, outputCostPer1M: 10.00 },
+    status: 'candidate',
+    defaultPriority: 95
   }
 ];
 
 const MODEL_ALIASES: Record<string, string> = {
-  // Legacy & Shorthand Google Aliases
+  // OpenRouter Shorthands
+  'openrouter-r1': 'openrouter-deepseek-r1',
+  'deepseek-r1': 'openrouter-deepseek-r1',
+  'llama-3.3': 'openrouter-llama-3.3-70b',
+  'llama-70b': 'openrouter-llama-3.3-70b',
+  'mistral-large': 'openrouter-mistral-large',
+  'qwen-72b': 'openrouter-qwen-72b',
+  
+  // Google Aliases
   'gemini-pro': 'gemini-2.5-pro',
   'gemini-default': 'gemini-2.5-flash',
   'gemini-flash': 'gemini-2.5-flash',
-  'gemini-thinking': 'gemini-2.0-flash-thinking',
+  'gemini-thinking': 'gemini-2.5-pro',
   'google-frontier': 'gemini-2.5-pro',
   'google-gemini-2.5-pro': 'gemini-2.5-pro',
   'google-gemini-2.5-flash': 'gemini-2.5-flash',
-  'google-gemini-pro': 'gemini-2.5-pro',
   
   // Anthropic & OpenAI Aliases
+  'anthropic-fable': 'anthropic-3.7-sonnet',
   'claude-3.7': 'anthropic-3.7-sonnet',
   'claude-3-7': 'anthropic-3.7-sonnet',
   'claude-3.7-sonnet': 'anthropic-3.7-sonnet',
   'anthropic-3.7': 'anthropic-3.7-sonnet',
+  'anthropic-frontier': 'anthropic-3.7-sonnet',
   'anthropic-default': 'anthropic-3.7-sonnet',
-  'claude-3-5-sonnet': 'anthropic-3.5-sonnet',
   'openai-default': 'openai-frontier',
   'openai-mini': 'openai-balanced',
   'gpt-4o': 'openai-frontier',
@@ -180,6 +229,12 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
 
     // Provider-specific fallback if key contains hints
     const lowerKey = key.toLowerCase();
+    if (lowerKey.includes('openrouter') || lowerKey.includes('llama') || lowerKey.includes('deepseek') || lowerKey.includes('mistral') || lowerKey.includes('qwen')) {
+      const openRouterModel = allowedModels.find(m => m.provider === 'openrouter' && m.tier === 'frontier') ||
+                              allowedModels.find(m => m.provider === 'openrouter');
+      if (openRouterModel) return openRouterModel;
+    }
+
     if (lowerKey.includes('gemini') || lowerKey.includes('google')) {
       const googleModel = allowedModels.find(m => m.provider === 'google' && m.tier === 'frontier') ||
                           allowedModels.find(m => m.provider === 'google');

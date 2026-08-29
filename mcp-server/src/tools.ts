@@ -756,12 +756,17 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const hasMore = results.length > limit;
       const paginatedData = hasMore ? results.slice(0, limit) : results;
       const nextCursor = hasMore ? encodeCursor(paginatedData[paginatedData.length - 1].created_at) : null;
+      const coverage = hasMore ? 'partial' : 'complete';
 
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             items: paginatedData.map(mapEcho),
+            recordsRetrieved: paginatedData.length,
+            limit,
+            hasMore,
+            coverage,
             nextCursor
           }, null, 2)
         }]
@@ -1035,11 +1040,17 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         return mapLoop(row, related);
       });
 
+      const coverage = hasMore ? 'partial' : 'complete';
+
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             items,
+            recordsRetrieved: paginatedData.length,
+            limit,
+            hasMore,
+            coverage,
             nextCursor
           }, null, 2)
         }]

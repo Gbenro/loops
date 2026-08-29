@@ -3,8 +3,8 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
 import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
-import { formatVoiceInputProvenance } from './voice.js';
-import { resolveModel, getUserAllowedModels } from './models.js';
+import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
+import { resolveModel, getUserAllowedModels, MODEL_REGISTRY } from './models.js';
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -28,6 +28,19 @@ const getAnthropicTools = () => {
     description: t.description,
     input_schema: t.inputSchema
   }));
+};
+
+// Map standard MCP schemas to Gemini tool format
+const getGeminiTools = () => {
+  return [
+    {
+      functionDeclarations: TOOL_DEFINITIONS_COMPAT.map(t => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema
+      }))
+    }
+  ];
 };
 
 // System Prompt enforcing the Luna Personality & Philosophy guidelines + Time Grounding + Relational Memory Layer
@@ -203,7 +216,148 @@ async function selectRelevantRelationalMemories(
   }
 }
 
-// Orchestration helper: call Claude (Anthropic)
+// ─── Context Breakdown & Budget Helpers ─────────────────────────────────────
+
+export interface ContextBreakdown {
+  identityAndPersonalityTokens: number;
+  protocolsTokens: number;
+  conversationContextTokens: number;
+  fieldRetrievalTokens: number;
+  relationalMemoryTokens: number;
+  lunarTimeTokens: number;
+  toolResultsTokens: number;
+  currentUserInputTokens: number;
+  estimatedTotalContextTokens: number;
+  estimationMethod: 'character_ratio_estimate_v1';
+}
+
+export function estimateContextBreakdown(
+  systemPrompt: string,
+  conversationMessages: any[],
+  relationalMemories: any[],
+  toolResultsText: string,
+  userMessage: string
+): ContextBreakdown {
+  const countTokens = (text: string) => Math.ceil((text || '').length / 4);
+
+  const identityAndPersonalityTokens = 220;
+  const protocolsTokens = 280;
+  const lunarTimeTokens = 90;
+  const relationalMemoryTokens = relationalMemories.length > 0
+    ? countTokens(JSON.stringify(relationalMemories))
+    : 0;
+  const conversationContextTokens = countTokens(
+    conversationMessages.slice(0, -1).map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join(' ')
+  );
+  const currentUserInputTokens = countTokens(userMessage);
+  const toolResultsTokens = countTokens(toolResultsText);
+  const fieldRetrievalTokens = toolResultsTokens > 0 ? Math.round(toolResultsTokens * 0.8) : 0;
+
+  const estimatedTotalContextTokens =
+    identityAndPersonalityTokens +
+    protocolsTokens +
+    lunarTimeTokens +
+    relationalMemoryTokens +
+    conversationContextTokens +
+    currentUserInputTokens +
+    toolResultsTokens;
+
+  return {
+    identityAndPersonalityTokens,
+    protocolsTokens,
+    conversationContextTokens,
+    fieldRetrievalTokens,
+    relationalMemoryTokens,
+    lunarTimeTokens,
+    toolResultsTokens,
+    currentUserInputTokens,
+    estimatedTotalContextTokens,
+    estimationMethod: 'character_ratio_estimate_v1'
+  };
+}
+
+export interface ContextBudget {
+  tier: 'small' | 'normal' | 'deep';
+  warrantedDepthRationale: string;
+  maxBudgetTokens: number;
+  estimatedContextTokens: number;
+}
+
+export function determineContextBudget(message: string, estimatedTokens: number): ContextBudget {
+  const lower = message.toLowerCase();
+  const isDeep = lower.includes('entire') || lower.includes('all cycle') || lower.includes('whole cycle') ||
+                 lower.includes('across cycles') || lower.includes('longitudinal') || lower.includes('history of') ||
+                 lower.includes('all echoes') || lower.includes('pattern across');
+  const isSmall = lower.includes('tag this') || lower.includes('close this') || lower.includes('archive') ||
+                  lower.includes('what phase') || lower.includes('current moon') || lower.length < 25;
+
+  if (isDeep) {
+    return {
+      tier: 'deep',
+      warrantedDepthRationale: 'Longitudinal or full-cycle reflection requires broader Field retrieval',
+      maxBudgetTokens: 32000,
+      estimatedContextTokens: estimatedTokens
+    };
+  }
+
+  if (isSmall) {
+    return {
+      tier: 'small',
+      warrantedDepthRationale: 'Focused state or CRUD operation requires minimal context',
+      maxBudgetTokens: 4000,
+      estimatedContextTokens: estimatedTokens
+    };
+  }
+
+  return {
+    tier: 'normal',
+    warrantedDepthRationale: 'Standard conversational reflection and selective Field attunement',
+    maxBudgetTokens: 16000,
+    estimatedContextTokens: estimatedTokens
+  };
+}
+
+export interface TokenUsageReport {
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens?: number;
+  reasoningTokens?: number;
+  totalTokens: number;
+  source: 'provider_reported' | 'estimated';
+}
+
+export interface InferenceCostReport {
+  estimatedCostUsd: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
+  rateBasisPer1M: {
+    input: number;
+    output: number;
+  };
+}
+
+export function calculateInferenceCost(usage: TokenUsageReport, modelConfig: any): InferenceCostReport {
+  const inputRate = modelConfig?.pricing?.inputCostPer1M || 1.0;
+  const outputRate = modelConfig?.pricing?.outputCostPer1M || 3.0;
+
+  const inputCost = (usage.inputTokens / 1000000) * inputRate;
+  const outputCost = (usage.outputTokens / 1000000) * outputRate;
+  const totalCost = Number((inputCost + outputCost).toFixed(6));
+
+  return {
+    estimatedCostUsd: totalCost,
+    inputCostUsd: Number(inputCost.toFixed(6)),
+    outputCostUsd: Number(outputCost.toFixed(6)),
+    rateBasisPer1M: {
+      input: inputRate,
+      output: outputRate
+    }
+  };
+}
+
+// ─── Provider Orchestration Adapters ────────────────────────────────────────
+
+// 1. Anthropic Claude Adapter
 async function callClaude(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured on server');
@@ -237,7 +391,7 @@ async function callClaude(modelId: string, messages: any[], systemPrompt: string
   return response.json();
 }
 
-// Orchestration helper: call GPT (OpenAI)
+// 2. OpenAI Compatible Adapter
 async function callGpt(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured on server');
@@ -274,20 +428,46 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
   return response.json();
 }
 
-// Map standard MCP schemas to Gemini tool format
-const getGeminiTools = () => {
-  return [
-    {
-      functionDeclarations: TOOL_DEFINITIONS_COMPAT.map(t => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.inputSchema
-      }))
-    }
-  ];
-};
+// 3. OpenRouter Adapter
+async function callOpenRouter(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured on server');
 
-// Orchestration helper: call Gemini (Google)
+  const formattedMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+      ...(m.name ? { name: m.name } : {}),
+      ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {})
+    }))
+  ];
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://lunaloops.app',
+      'X-Title': 'Luna Loops',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: formattedMessages,
+      tools: tools.length > 0 ? tools : undefined
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+  }
+
+  return response.json();
+}
+
+// 4. Google Gemini Adapter
 async function callGemini(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured on server');
@@ -320,7 +500,7 @@ async function callGemini(modelId: string, messages: any[], systemPrompt: string
     }
     return {
       role,
-      parts: [{ text: m.content }]
+      parts: [{ text: m.content || ' ' }]
     };
   });
 
@@ -346,6 +526,8 @@ async function callGemini(modelId: string, messages: any[], systemPrompt: string
   return response.json();
 }
 
+// ─── Route Registration ─────────────────────────────────────────────────────
+
 export function registerChatRoutes(app: Express, authenticateRest: any) {
   // 1. GET /api/chat/models - Lists all models authorized for the active user
   app.get('/api/chat/models', authenticateRest, async (req: Request, res: Response) => {
@@ -360,119 +542,80 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 2. GET /api/chat/sessions - List chat sessions for GPT actions & PWA sidebar
+  // 2. GET /api/chat/sessions - Lists recent continuous chat sessions
   app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
-
     try {
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from('chat_sessions')
-        .select('*', { count: 'exact' })
+        .select('*')
         .order('updated_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .limit(20);
 
       if (error) throw error;
-      res.json({ sessions: data, count, limit, offset });
+      res.json({ sessions: data || [] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 3. GET /api/chat/sessions/:id - Get a specific chat session with ordered messages
+  // 3. GET /api/chat/sessions/:id - Get specific session and recent message history
   app.get('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      // 1. Retrieve session metadata
-      const { data: session, error: sessErr } = await supabase
+      const { data: session, error: sError } = await supabase
         .from('chat_sessions')
         .select('*')
         .eq('id', req.params.id)
         .single();
 
-      if (sessErr || !session) throw new Error('Session not found');
+      if (sError || !session) throw new Error('Session not found');
 
-      // 2. Retrieve messages
-      const { data: messages, error: msgsErr } = await supabase
+      const { data: messages, error: mError } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('session_id', req.params.id)
         .order('created_at', { ascending: true });
 
-      if (msgsErr) throw msgsErr;
+      if (mError) throw mError;
 
-      // Map telemetry IDs
-      const msgIds = (messages || []).map(m => m.id);
-      const traceMap = new Map();
-      if (msgIds.length > 0) {
-        const { data: traces } = await supabase
-          .from('chat_telemetry')
-          .select('id, message_id')
-          .in('message_id', msgIds);
-        if (traces) {
-          for (const t of traces) {
-            if (t.message_id) traceMap.set(t.message_id, t.id);
-          }
-        }
-      }
-
-      const messagesWithTelemetry = (messages || []).map(m => ({
-        ...m,
-        telemetryId: traceMap.get(m.id) || null
-      }));
-
-      res.json({
-        ...session,
-        messages: messagesWithTelemetry
-      });
+      res.json({ session, messages: messages || [] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 4. GET /api/chat/messages - Search and filter chat messages
+  // 4. GET /api/chat/messages - Search conversation messages
   app.get('/api/chat/messages', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const query = req.query.query as string;
-    const sessionId = req.query.sessionId as string;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const { query, limit = 50 } = req.query;
 
     try {
-      let builder = supabase
+      let dbQuery = supabase
         .from('chat_messages')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .limit(Number(limit));
 
-      if (sessionId) {
-        builder = builder.eq('session_id', sessionId);
-      }
       if (query) {
-        builder = builder.ilike('content', `%${query}%`);
+        dbQuery = dbQuery.ilike('content', `%${query}%`);
       }
 
-      const { data, error } = await builder;
+      const { data: messages, error } = await dbQuery;
       if (error) throw error;
 
-      // Map telemetry IDs
-      const msgIds = (data || []).map(m => m.id);
-      const traceMap = new Map();
-      if (msgIds.length > 0) {
-        const { data: traces } = await supabase
-          .from('chat_telemetry')
-          .select('id, message_id')
-          .in('message_id', msgIds);
-        if (traces) {
-          for (const t of traces) {
-            if (t.message_id) traceMap.set(t.message_id, t.id);
-          }
-        }
-      }
+      // Join with telemetry traces if available
+      const messageIds = (messages || []).map(m => m.id);
+      const { data: telemetryList } = await supabase
+        .from('chat_telemetry')
+        .select('id, message_id, model, prompt_version, latency_ms, status')
+        .in('message_id', messageIds);
 
-      const messagesWithTelemetry = (data || []).map(m => ({
+      const telMap = new Map((telemetryList || []).map(t => [t.message_id, t]));
+
+      const messagesWithTelemetry = (messages || []).map(m => ({
         ...m,
-        telemetryId: traceMap.get(m.id) || null
+        telemetry: telMap.get(m.id) || null
       }));
 
       res.json({ messages: messagesWithTelemetry });
@@ -498,6 +641,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     let toolCallsTracked: any[] = [];
     let retrievedContextIds: string[] = [];
     let databaseMutationsTracked: any[] = [];
+    let rawToolResultsAccumulated = '';
+    let fieldCoverageData: any = { recordsMatched: 0, recordsRetrieved: 0, limit: 20, hasMore: false, coverage: 'none' };
+    let tokenUsageReport: TokenUsageReport = { inputTokens: 0, outputTokens: 0, totalTokens: 0, source: 'estimated' };
     let modelConfig;
 
     try {
@@ -558,7 +704,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       // 3. Selective Relational Memories Attunement (Top 0–3 relevant)
       const memorySelection = await selectRelevantRelationalMemories(supabase, user.id, message, conversationMessages);
 
-      // 4. Voice Input Provenance with runtime length
+      // 4. Voice Input Provenance with character length
       const voiceProvenance = formatVoiceInputProvenance({ inputType, ...metadata }, message.length);
 
       const systemPrompt = getSystemPrompt(lunar, timeContext, memorySelection.memoriesForPrompt);
@@ -575,14 +721,27 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           const outcome = await executeTool(supabase, toolName, toolArgs);
           toolResultText = outcome.content[0].text;
           isError = !!(outcome as any).isError;
+          rawToolResultsAccumulated += ' ' + toolResultText;
 
           // Parse retrieved IDs (including relational memories)
           const idMatches = toolResultText.match(/(?:rm_|rm|[le])\d{10,}\w{0,4}/g);
           if (idMatches) retrievedContextIds.push(...idMatches);
 
-          // Extract database mutations
+          // Extract database mutations and coverage metadata
           try {
             const parsed = JSON.parse(toolResultText);
+            
+            // Extract retrieval coverage
+            if (parsed.recordsRetrieved !== undefined) {
+              fieldCoverageData = {
+                recordsMatched: parsed.recordsRetrieved + (parsed.hasMore ? 1 : 0),
+                recordsRetrieved: parsed.recordsRetrieved,
+                limit: parsed.limit || 20,
+                hasMore: !!parsed.hasMore,
+                coverage: parsed.coverage || (parsed.hasMore ? 'partial' : 'complete')
+              };
+            }
+
             const recordId = parsed.id;
             if (recordId) {
               const table = recordId.startsWith('rm') ? 'relational_memories' : (recordId.startsWith('e') ? 'echoes' : (recordId.startsWith('l') ? 'loops' : (recordId.startsWith('r') ? 'echo_reflections' : (recordId.startsWith('t') ? 'threads' : 'unknown'))));
@@ -617,9 +776,18 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           const anthropicTools = getAnthropicTools();
           const response = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
 
-          // Check for tool use blocks
-          const toolUseBlocks = response.content.filter((b: any) => b.type === 'tool_use');
-          const textBlocks = response.content.filter((b: any) => b.type === 'text');
+          // Extract token usage
+          if (response.usage) {
+            tokenUsageReport = {
+              inputTokens: response.usage.input_tokens || 0,
+              outputTokens: response.usage.output_tokens || 0,
+              totalTokens: (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0),
+              source: 'provider_reported'
+            };
+          }
+
+          const toolUseBlocks = response.content?.filter((b: any) => b.type === 'tool_use') || [];
+          const textBlocks = response.content?.filter((b: any) => b.type === 'text') || [];
 
           if (textBlocks.length > 0) {
             finalResponseText = textBlocks.map((b: any) => b.text).join('\n');
@@ -656,6 +824,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           const geminiTools = getGeminiTools();
           const response = await callGemini(modelId, agentMessages, systemPrompt, geminiTools);
 
+          // Extract token usage
+          if (response.usageMetadata) {
+            tokenUsageReport = {
+              inputTokens: response.usageMetadata.promptTokenCount || 0,
+              outputTokens: response.usageMetadata.candidatesTokenCount || 0,
+              totalTokens: response.usageMetadata.totalTokenCount || 0,
+              source: 'provider_reported'
+            };
+          }
+
           const candidate = response.candidates?.[0];
           const parts = candidate?.content?.parts || [];
           const textParts = parts.filter((p: any) => p.text);
@@ -691,25 +869,87 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             loopCount++;
             continue;
           }
+        } else if (provider === 'openrouter') {
+          // OpenRouter Adapter
+          const openAiTools = getOpenAiTools();
+          const responseMsg = await callOpenRouter(modelId, agentMessages, systemPrompt, openAiTools);
+
+          // Extract token usage
+          if (responseMsg.usage) {
+            tokenUsageReport = {
+              inputTokens: responseMsg.usage.prompt_tokens || 0,
+              outputTokens: responseMsg.usage.completion_tokens || 0,
+              cachedInputTokens: responseMsg.usage.prompt_tokens_details?.cached_tokens,
+              reasoningTokens: responseMsg.usage.completion_tokens_details?.reasoning_tokens,
+              totalTokens: responseMsg.usage.total_tokens || 0,
+              source: 'provider_reported'
+            };
+          }
+
+          const choice = responseMsg.choices?.[0];
+          const messageObj = choice?.message;
+          finalResponseText = messageObj?.content || '';
+          const toolCalls = messageObj?.tool_calls;
+
+          if (toolCalls && toolCalls.length > 0) {
+            agentMessages.push({
+              role: 'assistant',
+              content: finalResponseText,
+              tool_calls: toolCalls
+            });
+
+            for (const call of toolCalls) {
+              let toolArgs = {};
+              try {
+                toolArgs = typeof call.function.arguments === 'string' ? JSON.parse(call.function.arguments) : call.function.arguments;
+              } catch {}
+
+              console.log(`[Agent-OpenRouter] Calling tool: ${call.function.name}`, toolArgs);
+              const { toolResultText } = await executeAndTrackTool(call.function.name, toolArgs);
+
+              agentMessages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                name: call.function.name,
+                content: toolResultText
+              });
+            }
+            loopCount++;
+            continue;
+          }
         } else {
           // Default: OpenAI Compatible
           const openAiTools = getOpenAiTools();
           const responseMsg = await callGpt(modelId, agentMessages, systemPrompt, openAiTools);
 
-          finalResponseText = responseMsg.content || '';
-          const openAiToolCalls = responseMsg.tool_calls;
+          // Extract token usage
+          if (responseMsg.usage) {
+            tokenUsageReport = {
+              inputTokens: responseMsg.usage.prompt_tokens || 0,
+              outputTokens: responseMsg.usage.completion_tokens || 0,
+              cachedInputTokens: responseMsg.usage.prompt_tokens_details?.cached_tokens,
+              reasoningTokens: responseMsg.usage.completion_tokens_details?.reasoning_tokens,
+              totalTokens: responseMsg.usage.total_tokens || 0,
+              source: 'provider_reported'
+            };
+          }
+
+          const choice = responseMsg.choices?.[0];
+          const messageObj = choice?.message;
+          finalResponseText = messageObj?.content || '';
+          const openAiToolCalls = messageObj?.tool_calls;
 
           if (openAiToolCalls && openAiToolCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
-              content: responseMsg.content || '',
+              content: finalResponseText,
               tool_calls: openAiToolCalls
             });
 
             for (const call of openAiToolCalls) {
               let toolArgs = {};
               try {
-                toolArgs = JSON.parse(call.function.arguments);
+                toolArgs = typeof call.function.arguments === 'string' ? JSON.parse(call.function.arguments) : call.function.arguments;
               } catch {}
 
               console.log(`[Agent-GPT] Calling tool: ${call.function.name}`, toolArgs);
@@ -741,6 +981,29 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       });
 
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
+
+      // Calculate context breakdown and context budget
+      const contextBreakdown = estimateContextBreakdown(
+        systemPrompt,
+        conversationMessages,
+        memorySelection.memoriesForPrompt,
+        rawToolResultsAccumulated,
+        message
+      );
+      const contextBudget = determineContextBudget(message, contextBreakdown.estimatedTotalContextTokens);
+
+      // If token usage wasn't reported by provider, calculate fallback estimate
+      if (tokenUsageReport.source === 'estimated') {
+        tokenUsageReport = {
+          inputTokens: contextBreakdown.estimatedTotalContextTokens,
+          outputTokens: Math.ceil(finalResponseText.length / 4),
+          totalTokens: contextBreakdown.estimatedTotalContextTokens + Math.ceil(finalResponseText.length / 4),
+          source: 'estimated'
+        };
+      }
+
+      // Calculate inference cost
+      const inferenceCost = calculateInferenceCost(tokenUsageReport, modelConfig);
 
       // Calculate actual runtime protocol state
       const turnDepth = conversationMessages.length + 1;
@@ -798,6 +1061,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         },
         voice_input: voiceProvenance,
         protocols: runtimeProtocols,
+        token_usage: tokenUsageReport,
+        inference_cost: inferenceCost,
+        context_breakdown: contextBreakdown,
+        context_budget: contextBudget,
+        field_coverage: fieldCoverageData,
+        voice_output: {
+          playbackRequested: false,
+          ttsProvider: 'none',
+          status: 'idle'
+        },
         latency_ms: latency,
         status: 'success'
       });
@@ -852,7 +1125,54 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 6. GET /api/chat/telemetry/:id - Turn bundle trace for GPT Actions and Luna Observability
+  // 6. POST /api/chat/synthesize-speech - Synthesize Luna voice output for an assistant response
+  app.post('/api/chat/synthesize-speech', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { text, messageId, voiceId, model } = req.body;
+
+    if (!text || !text.trim()) {
+      res.status(400).json({ error: 'Text is required for voice synthesis' });
+      return;
+    }
+
+    try {
+      const result = await synthesizeLunaVoice({
+        text,
+        voiceId,
+        model
+      });
+
+      // Update telemetry trace for this message if messageId provided
+      if (messageId) {
+        try {
+          await supabase
+            .from('chat_telemetry')
+            .update({
+              voice_output: {
+                playbackRequested: true,
+                ttsProvider: result.provider,
+                ttsModel: result.model,
+                voiceId: result.voiceId,
+                characterCount: result.characterCount,
+                synthesisLatencyMs: result.latencyMs,
+                success: result.success,
+                error: result.error || null,
+                cached: false
+              }
+            })
+            .eq('message_id', messageId);
+        } catch (telErr) {
+          console.warn('[Telemetry Voice Output Update error]:', telErr);
+        }
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 7. GET /api/chat/telemetry/:id - Modular turn trace bundle for Luna Observability
   app.get('/api/chat/telemetry/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
@@ -891,6 +1211,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
           relationalMemory: telemetry.relational_memory || null,
           voiceInput: telemetry.voice_input || null,
           protocols: telemetry.protocols || null,
+          tokenUsage: telemetry.token_usage || null,
+          inferenceCost: telemetry.inference_cost || null,
+          contextBreakdown: telemetry.context_breakdown || null,
+          contextBudget: telemetry.context_budget || null,
+          fieldCoverage: telemetry.field_coverage || null,
+          voiceOutput: telemetry.voice_output || null,
           fieldRetrieval: {
             retrievedContextIds: telemetry.retrieved_context_ids || []
           },
@@ -909,7 +1235,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 7. GET /api/chat/evaluations - Retrieve audits
+  // 8. GET /api/chat/evaluations - Retrieve audits
   app.get('/api/chat/evaluations', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
@@ -925,85 +1251,44 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  // 8. POST /api/chat/telemetry/:id/evaluate - Attach critique to a trace
-  app.post('/api/chat/telemetry/:id/evaluate', authenticateRest, async (req: Request, res: Response) => {
+  // 9. POST /api/chat/evaluations - Log rubric audit
+  app.post('/api/chat/evaluations', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const { evaluator, rating, flags, comments } = req.body;
-
-    if (!evaluator || !rating) {
-      res.status(400).json({ error: 'evaluator and rating are required fields' });
-      return;
-    }
+    const {
+      telemetryId,
+      groundingScore,
+      observingVsInterpreting,
+      earnedSignificance,
+      writeRestraint,
+      lunarRelevance,
+      toolDiscipline,
+      feedbackNotes
+    } = req.body;
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
       const evalId = generateId('eval');
       const { data, error } = await supabase
         .from('chat_evaluations')
         .insert({
           id: evalId,
-          telemetry_id: req.params.id,
-          evaluator,
-          rating,
-          flags: flags || [],
-          comments: comments || null
+          telemetry_id: telemetryId,
+          user_id: user.id,
+          grounding_score: groundingScore,
+          observing_vs_interpreting: observingVsInterpreting,
+          earned_significance: earnedSignificance,
+          write_restraint: writeRestraint,
+          lunar_relevance: lunarRelevance,
+          tool_discipline: toolDiscipline,
+          feedback_notes: feedbackNotes
         })
         .select()
         .single();
 
       if (error) throw error;
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // 9. GET /api/chat/memories - List all provisional relational memories for user inspection
-  app.get('/api/chat/memories', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
-    try {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) throw new Error('Authentication required');
-
-      const { data, error } = await supabase
-        .from('relational_memories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('strength', { ascending: false })
-        .order('last_seen_at', { ascending: false });
-
-      if (error) throw error;
-      res.json({ memories: (data || []).map(mapRelationalMemory) });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // 10. PATCH /api/chat/memories/:id - User agency: dismiss, pin, or correct a relational memory
-  app.patch('/api/chat/memories/:id', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
-    try {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) throw new Error('Authentication required');
-
-      const { userActionStatus, lifecycleStatus, statement } = req.body;
-      const updateData: any = { updated_at: new Date().toISOString() };
-      if (userActionStatus !== undefined) updateData.user_action_status = userActionStatus;
-      if (lifecycleStatus !== undefined) updateData.lifecycle_status = lifecycleStatus;
-      if (statement !== undefined) updateData.statement = statement;
-
-      const { data, error } = await supabase
-        .from('relational_memories')
-        .update(updateData)
-        .eq('id', req.params.id)
-        .eq('user_id', user.id)
-        .select();
-
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        return res.status(404).json({ error: 'Relational memory not found or unauthorized' });
-      }
-
-      res.json({ memory: mapRelationalMemory(data[0]) });
+      res.json({ evaluation: data });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

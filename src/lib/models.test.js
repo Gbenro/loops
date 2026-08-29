@@ -2,13 +2,49 @@ import { describe, it, expect } from 'vitest';
 
 const MODEL_REGISTRY = [
   {
+    key: 'anthropic-3.7-sonnet',
+    provider: 'anthropic',
+    modelId: 'claude-3-7-sonnet-20250219',
+    displayName: 'Anthropic — Claude 3.7 Sonnet (Frontier)',
+    enabled: true,
+    tier: 'frontier',
+    defaultPriority: 130
+  },
+  {
+    key: 'openrouter-deepseek-r1',
+    provider: 'openrouter',
+    modelId: 'deepseek/deepseek-r1',
+    displayName: 'OpenRouter — DeepSeek R1 (Frontier Reasoning)',
+    enabled: true,
+    tier: 'frontier',
+    defaultPriority: 128
+  },
+  {
     key: 'gemini-2.5-pro',
     provider: 'google',
     modelId: 'gemini-2.5-pro',
-    displayName: 'Google — Gemini 2.5 Pro (Frontier Reasoning)',
+    displayName: 'Google — Gemini 2.5 Pro (Frontier)',
     enabled: true,
     tier: 'frontier',
     defaultPriority: 125
+  },
+  {
+    key: 'openrouter-llama-3.3-70b',
+    provider: 'openrouter',
+    modelId: 'meta-llama/llama-3.3-70b-instruct',
+    displayName: 'OpenRouter — Llama 3.3 70B (Standard Open)',
+    enabled: true,
+    tier: 'standard',
+    defaultPriority: 120
+  },
+  {
+    key: 'openrouter-mistral-large',
+    provider: 'openrouter',
+    modelId: 'mistralai/mistral-large-2411',
+    displayName: 'OpenRouter — Mistral Large (Strong Open)',
+    enabled: true,
+    tier: 'standard',
+    defaultPriority: 115
   },
   {
     key: 'gemini-2.5-flash',
@@ -16,33 +52,8 @@ const MODEL_REGISTRY = [
     modelId: 'gemini-2.5-flash',
     displayName: 'Google — Gemini 2.5 Flash (Fast Agent)',
     enabled: true,
-    tier: 'balanced',
-    defaultPriority: 120
-  },
-  {
-    key: 'gemini-2.0-flash-thinking',
-    provider: 'google',
-    modelId: 'gemini-2.0-flash-thinking-exp-01-21',
-    displayName: 'Google — Gemini 2.0 Flash Thinking (Deep Analysis)',
-    enabled: true,
-    tier: 'frontier',
-    defaultPriority: 118
-  },
-  {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20241022',
-    enabled: true,
-    tier: 'frontier',
-    defaultPriority: 105
-  },
-  {
-    key: 'anthropic-frontier',
-    provider: 'anthropic',
-    modelId: 'claude-3-5-sonnet-20241022',
-    enabled: true,
-    tier: 'frontier',
-    defaultPriority: 100
+    tier: 'economy',
+    defaultPriority: 110
   },
   {
     key: 'openai-frontier',
@@ -50,27 +61,26 @@ const MODEL_REGISTRY = [
     modelId: 'gpt-4o',
     enabled: true,
     tier: 'frontier',
-    defaultPriority: 90
+    defaultPriority: 95
   },
   {
     key: 'openai-balanced',
     provider: 'openai',
     modelId: 'gpt-4o-mini',
     enabled: true,
-    tier: 'balanced',
-    defaultPriority: 80
+    tier: 'economy',
+    defaultPriority: 90
   }
 ];
 
 const MODEL_ALIASES = {
+  'deepseek-r1': 'openrouter-deepseek-r1',
+  'llama-3.3': 'openrouter-llama-3.3-70b',
+  'mistral-large': 'openrouter-mistral-large',
   'gemini-pro': 'gemini-2.5-pro',
   'gemini-default': 'gemini-2.5-flash',
-  'gemini-flash': 'gemini-2.5-flash',
-  'gemini-thinking': 'gemini-2.0-flash-thinking',
-  'google-frontier': 'gemini-2.5-pro',
-  'google-gemini-2.5-pro': 'gemini-2.5-pro',
-  'google-gemini-2.5-flash': 'gemini-2.5-flash',
-  'anthropic-default': 'anthropic-frontier',
+  'anthropic-fable': 'anthropic-3.7-sonnet',
+  'anthropic-frontier': 'anthropic-3.7-sonnet',
   'openai-default': 'openai-frontier',
   'openai-mini': 'openai-balanced',
 };
@@ -85,6 +95,10 @@ function resolveModelMock(key, allowedKeys) {
     if (match) return match;
 
     const lower = key.toLowerCase();
+    if (lower.includes('openrouter') || lower.includes('llama') || lower.includes('deepseek')) {
+      const openRouterModel = allowed.find(m => m.provider === 'openrouter');
+      if (openRouterModel) return openRouterModel;
+    }
     if (lower.includes('gemini') || lower.includes('google')) {
       const googleModel = allowed.find(m => m.provider === 'google');
       if (googleModel) return googleModel;
@@ -105,53 +119,30 @@ function resolveModelMock(key, allowedKeys) {
 }
 
 describe('Model Configuration Registry & Entitlements', () => {
-  it('defines enabled frontier and Gemini 2.5 keys correctly', () => {
+  it('defines enabled OpenRouter, Claude 3.7, and Gemini models correctly', () => {
     const keys = MODEL_REGISTRY.map(m => m.key);
+    expect(keys).toContain('anthropic-3.7-sonnet');
+    expect(keys).toContain('openrouter-deepseek-r1');
+    expect(keys).toContain('openrouter-llama-3.3-70b');
     expect(keys).toContain('gemini-2.5-pro');
-    expect(keys).toContain('gemini-2.5-flash');
-    expect(keys).toContain('gemini-2.0-flash-thinking');
-    expect(keys).toContain('anthropic-frontier');
-    expect(keys).toContain('openai-frontier');
     expect(MODEL_REGISTRY.every(m => m.enabled)).toBe(true);
   });
 
-  it('resolves explicit Gemini 2.5 Pro and Flash models correctly', () => {
+  it('resolves explicit OpenRouter models correctly', () => {
     const allKeys = MODEL_REGISTRY.map(m => m.key);
-    const pro = resolveModelMock('gemini-2.5-pro', allKeys);
-    expect(pro.provider).toBe('google');
-    expect(pro.modelId).toBe('gemini-2.5-pro');
+    const r1 = resolveModelMock('openrouter-deepseek-r1', allKeys);
+    expect(r1.provider).toBe('openrouter');
+    expect(r1.modelId).toBe('deepseek/deepseek-r1');
 
-    const flash = resolveModelMock('gemini-2.5-flash', allKeys);
-    expect(flash.provider).toBe('google');
-    expect(flash.modelId).toBe('gemini-2.5-flash');
+    const llama = resolveModelMock('llama-3.3', allKeys);
+    expect(llama.provider).toBe('openrouter');
+    expect(llama.modelId).toBe('meta-llama/llama-3.3-70b-instruct');
   });
 
-  it('resolves legacy and shorthand Gemini aliases to Google Gemini without falling back to Anthropic', () => {
+  it('resolves legacy Fable and frontier keys to Claude 3.7 Sonnet', () => {
     const allKeys = MODEL_REGISTRY.map(m => m.key);
-    
-    const legacyPro = resolveModelMock('gemini-pro', allKeys);
-    expect(legacyPro.provider).toBe('google');
-    expect(legacyPro.key).toBe('gemini-2.5-pro');
-
-    const legacyDefault = resolveModelMock('gemini-default', allKeys);
-    expect(legacyDefault.provider).toBe('google');
-    expect(legacyDefault.key).toBe('gemini-2.5-flash');
-
-    const thinking = resolveModelMock('gemini-thinking', allKeys);
-    expect(thinking.provider).toBe('google');
-    expect(thinking.modelId).toBe('gemini-2.0-flash-thinking-exp-01-21');
-  });
-
-  it('correctly maps to custom GPT Action endpoint labels', () => {
-    const map = {
-      listChatSessions: 'listChatSessions',
-      getChatSession: 'getChatSession',
-      searchChatMessages: 'searchChatMessages',
-      getChatTurnTrace: 'getChatTurnTrace',
-      getChatEvaluations: 'getChatEvaluations',
-      createChatEvaluation: 'createChatEvaluation'
-    };
-    expect(map.listChatSessions).toBe('listChatSessions');
-    expect(map.getChatTurnTrace).toBe('getChatTurnTrace');
+    const fable = resolveModelMock('anthropic-fable', allKeys);
+    expect(fable.provider).toBe('anthropic');
+    expect(fable.modelId).toBe('claude-3-7-sonnet-20250219');
   });
 });

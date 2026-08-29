@@ -25,10 +25,42 @@ export interface LunaVoiceExpressionPolicy {
 }
 
 export interface VoiceSynthesisCapacity {
-  provider: 'elevenlabs' | 'openai_tts' | 'google_tts' | 'local_tts';
+  provider: 'openai' | 'elevenlabs' | 'openrouter' | 'web_speech';
   modelId: string;
   voiceId: string;
   sampleRate: number;
+}
+
+export interface VoiceOutputRequest {
+  text: string;
+  voiceId?: string;
+  model?: string;
+  speed?: number;
+}
+
+export interface VoiceOutputResult {
+  audioBase64?: string;
+  contentType: string;
+  characterCount: number;
+  provider: string;
+  model: string;
+  voiceId: string;
+  latencyMs: number;
+  success: boolean;
+  error?: string;
+  useClientFallback?: boolean;
+}
+
+export interface VoiceOutputTelemetry {
+  playbackRequested: boolean;
+  ttsProvider: string;
+  ttsModel: string;
+  voiceId: string;
+  characterCount: number;
+  synthesisLatencyMs: number;
+  success: boolean;
+  error?: string;
+  cached: boolean;
 }
 
 export const DEFAULT_LUNA_VOICE_POLICY: LunaVoiceExpressionPolicy = {
@@ -63,5 +95,85 @@ export function formatVoiceInputProvenance(raw: any, messageLength?: number): Vo
     originalAudioAvailable: !!raw.audioPath,
     transcriptionLength: typeof messageLength === 'number' ? messageLength : undefined,
     status: raw.status || 'success'
+  };
+}
+
+/**
+ * Luna Voice Output V0: Synthesize speech for an assistant message response.
+ * Follows the principle: "Speak the response Luna actually produced without rewriting."
+ */
+export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<VoiceOutputResult> {
+  const startTime = Date.now();
+  const text = req.text?.trim() || '';
+  const characterCount = text.length;
+
+  if (!text) {
+    return {
+      contentType: 'audio/mpeg',
+      characterCount: 0,
+      provider: 'none',
+      model: 'none',
+      voiceId: 'none',
+      latencyMs: 0,
+      success: false,
+      error: 'Text is required for speech synthesis'
+    };
+  }
+
+  // 1. Try OpenAI TTS Provider if key configured
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    try {
+      const voice = req.voiceId || 'nova'; // warm, grounded tone
+      const model = req.model || 'tts-1';
+      const speed = req.speed || DEFAULT_LUNA_VOICE_POLICY.rateModifier;
+
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model,
+          input: text,
+          voice,
+          speed
+        })
+      });
+
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const audioBase64 = buffer.toString('base64');
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          audioBase64,
+          contentType: 'audio/mpeg',
+          characterCount,
+          provider: 'openai',
+          model,
+          voiceId: voice,
+          latencyMs,
+          success: true
+        };
+      }
+    } catch (err: any) {
+      console.warn('[Luna Voice TTS] OpenAI TTS failed, falling back:', err.message);
+    }
+  }
+
+  // 2. Client-side Web Speech fallback
+  const latencyMs = Date.now() - startTime;
+  return {
+    contentType: 'audio/web-speech',
+    characterCount,
+    provider: 'web_speech',
+    model: 'browser-native',
+    voiceId: 'default',
+    latencyMs,
+    success: true,
+    useClientFallback: true
   };
 }
