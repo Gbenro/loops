@@ -610,6 +610,19 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
   next();
 };
 
+const authenticateRestOptional = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    try {
+      const userId = await getUserIdFromToken(token);
+      if (userId) {
+        req.body.supabaseClient = getSupabaseForUser(token);
+      }
+    } catch {}
+  }
+  next();
+};
+
 app.get('/api/context', authenticateRest, async (req, res) => {
   try {
     const result = await executeTool(req.body.supabaseClient, 'get_ai_context', {});
@@ -842,7 +855,7 @@ app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
   }
 });
 
-registerChatRoutes(app, authenticateRest);
+registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 
 app.get('/status', (req, res) => {
   res.json({

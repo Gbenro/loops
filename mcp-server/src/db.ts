@@ -39,3 +39,13 @@ export function getSupabaseForUser(token: string): SupabaseClient {
     }
   });
 }
+
+/**
+ * Creates a server-scoped Supabase client for telemetry logging and public reads.
+ */
+export function getSupabaseAnon(): SupabaseClient {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+  return createClient(SUPABASE_URL, serviceKey, {
+    auth: { persistSession: false }
+  });
+}

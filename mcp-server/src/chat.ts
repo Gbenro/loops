@@ -1,6 +1,7 @@
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
+import { getSupabaseAnon } from './db.js';
 import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
 import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
@@ -795,7 +796,9 @@ async function callGemini(modelId: string, messages: any[], systemPrompt: string
 
 // ─── Route Registration ─────────────────────────────────────────────────────
 
-export function registerChatRoutes(app: Express, authenticateRest: any) {
+export function registerChatRoutes(app: Express, authenticateRest: any, authenticateRestOptional?: any) {
+  const authOpt = authenticateRestOptional || authenticateRest;
+
   // 1. GET /api/chat/models - Lists all models authorized for the active user
   app.get('/api/chat/models', authenticateRest, async (req: Request, res: Response) => {
     try {
@@ -1233,8 +1236,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         break;
       }
 
-      // Guarantee complete assistant response if loop exited right after tool calls
-      if (toolCallsTracked.length > 0 && (!finalResponseText || !finalResponseText.trim())) {
+      // Guarantee complete assistant response if response was empty or if loop exited right after tool calls
+      if (!finalResponseText || !finalResponseText.trim()) {
         try {
           if (provider === 'anthropic') {
             const finalResp = await callClaude(modelId, agentMessages, systemPrompt, []);
@@ -1247,14 +1250,19 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
           } else if (provider === 'openrouter') {
             const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
-            finalResponseText = finalResp.choices?.[0]?.message?.content || '';
+            finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
           } else {
             const finalResp = await callGpt(modelId, agentMessages, systemPrompt, []);
-            finalResponseText = finalResp.choices?.[0]?.message?.content || '';
+            finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
           }
         } catch (postErr) {
           console.warn('[Post-tool completion fallback]:', postErr);
         }
+      }
+
+      // STRICT VALIDATION: Never persist an empty assistant response and never mark empty inference as successful
+      if (!finalResponseText || !finalResponseText.trim()) {
+        throw new Error('Model produced an empty response. Inference aborted without persisting an empty turn.');
       }
 
       // Save assistant message to database
@@ -1423,8 +1431,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
   });
 
   // 6. POST /api/chat/synthesize-speech - Synthesize Luna voice output for an assistant response
-  app.post('/api/chat/synthesize-speech', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
+  app.post('/api/chat/synthesize-speech', authOpt, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient || getSupabaseAnon();
     const { text, messageId, voiceId, model } = req.body;
 
     if (!text || !text.trim()) {
@@ -1474,8 +1482,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
   });
 
   // 6b. POST /api/chat/telemetry/voice-feedback - Log client-side playback success or error
-  app.post('/api/chat/telemetry/voice-feedback', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
+  app.post('/api/chat/telemetry/voice-feedback', authOpt, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient || getSupabaseAnon();
     const { messageId, event, provider, error, errorClass } = req.body;
 
     if (!messageId) {
