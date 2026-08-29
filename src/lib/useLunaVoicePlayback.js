@@ -17,6 +17,26 @@ function cleanTextForSpeech(rawText) {
     .trim();
 }
 
+async function reportVoiceFeedback(messageId, event, details = {}) {
+  if (!messageId) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    await fetch(`${API_BASE_URL}/api/chat/telemetry/voice-feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        messageId,
+        event,
+        ...details
+      })
+    });
+  } catch {}
+}
+
 /**
  * Hook for Luna Voice Output V0: Playback assistant responses aloud.
  * Preserves the boundary: "Luna owns continuity. Providers supply vocal capacity."
@@ -54,6 +74,93 @@ export function useLunaVoicePlayback() {
       setActiveMessageId(null);
     }
   }, [activeMessageId]);
+
+  const playBase64Audio = useCallback((messageId, base64Data) => {
+    try {
+      const audioUrl = `data:audio/mpeg;base64,${base64Data}`;
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onplay = () => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
+        reportVoiceFeedback(messageId, 'playback_started', { provider: 'openai' });
+      };
+
+      audio.onended = () => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        setActiveMessageId(null);
+        audioRef.current = null;
+        reportVoiceFeedback(messageId, 'playback_ended', { provider: 'openai' });
+      };
+
+      audio.onerror = (e) => {
+        console.error('[Luna Voice Audio error]:', e);
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: 'HTMLAudioElement error event', errorClass: 'MediaPlaybackError' });
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
+        setActiveMessageId(null);
+        audioRef.current = null;
+      };
+
+      audio.play().catch(err => {
+        console.warn('[Luna Voice Play error]:', err);
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: err.message, errorClass: err.name });
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
+        setActiveMessageId(null);
+      });
+    } catch (err) {
+      setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+      reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: err.message, errorClass: err.name });
+      setTimeout(() => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      }, 2500);
+      setActiveMessageId(null);
+    }
+  }, []);
+
+  const playClientSpeech = useCallback((messageId, text) => {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95; // contemplative, grounded pacing
+      utterance.pitch = 1.0;
+
+      utterance.onstart = () => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
+        reportVoiceFeedback(messageId, 'playback_started', { provider: 'web_speech' });
+      };
+
+      utterance.onend = () => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        setActiveMessageId(null);
+        reportVoiceFeedback(messageId, 'playback_ended', { provider: 'web_speech' });
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('[Luna Voice Browser Speech error]:', e);
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'web_speech', error: e.error || 'SpeechSynthesis error', errorClass: 'SpeechSynthesisError' });
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
+        setActiveMessageId(null);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+      reportVoiceFeedback(messageId, 'playback_failed', { provider: 'web_speech', error: err.message, errorClass: err.name });
+      setTimeout(() => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      }, 2500);
+      setActiveMessageId(null);
+    }
+  }, []);
 
   const playMessage = useCallback(async (messageId, rawText) => {
     if (!rawText || !rawText.trim()) return;
@@ -115,91 +222,14 @@ export function useLunaVoicePlayback() {
         playClientSpeech(messageId, text);
       } else {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'none', error: err.message, errorClass: err.name });
         setTimeout(() => {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         }, 2500);
         setActiveMessageId(null);
       }
     }
-  }, [activeMessageId, playbackStates, stopPlayback]);
-
-  const playBase64Audio = (messageId, base64Data) => {
-    try {
-      const audioUrl = `data:audio/mpeg;base64,${base64Data}`;
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-      audio.onplay = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
-      };
-
-      audio.onended = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        setActiveMessageId(null);
-        audioRef.current = null;
-      };
-
-      audio.onerror = (e) => {
-        console.error('[Luna Voice Audio error]:', e);
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        setTimeout(() => {
-          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        }, 2500);
-        setActiveMessageId(null);
-        audioRef.current = null;
-      };
-
-      audio.play().catch(err => {
-        console.warn('[Luna Voice Play error]:', err);
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        setTimeout(() => {
-          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        }, 2500);
-        setActiveMessageId(null);
-      });
-    } catch (err) {
-      setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-      setTimeout(() => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-      }, 2500);
-      setActiveMessageId(null);
-    }
-  };
-
-  const playClientSpeech = (messageId, text) => {
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95; // contemplative, grounded pacing
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
-      };
-
-      utterance.onend = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        setActiveMessageId(null);
-      };
-
-      utterance.onerror = (e) => {
-        console.warn('[Luna Voice Browser Speech error]:', e);
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        setTimeout(() => {
-          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        }, 2500);
-        setActiveMessageId(null);
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (err) {
-      setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-      setTimeout(() => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-      }, 2500);
-      setActiveMessageId(null);
-    }
-  };
+  }, [activeMessageId, playbackStates, playBase64Audio, playClientSpeech, stopPlayback]);
 
   return {
     playbackStates,

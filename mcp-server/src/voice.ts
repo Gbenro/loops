@@ -58,8 +58,12 @@ export interface VoiceOutputTelemetry {
   voiceId: string;
   characterCount: number;
   synthesisLatencyMs: number;
+  status: 'idle' | 'requested' | 'completed' | 'fallback' | 'error';
   success: boolean;
-  error?: string;
+  error?: string | null;
+  errorClass?: string | null;
+  fallbackAttempted?: boolean;
+  fallbackResult?: string | null;
   cached: boolean;
 }
 
@@ -71,6 +75,21 @@ export const DEFAULT_LUNA_VOICE_POLICY: LunaVoiceExpressionPolicy = {
   returnToLifeGuidance: true,
   silenceRespect: true,
 };
+
+export function cleanTextForSpeech(rawText: string): string {
+  if (!rawText) return '';
+  return rawText
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/>\s+/g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 // Format voice provenance cleanly for storage and observability with runtime state
 export function formatVoiceInputProvenance(raw: any, messageLength?: number): VoiceInputProvenance {
@@ -104,7 +123,8 @@ export function formatVoiceInputProvenance(raw: any, messageLength?: number): Vo
  */
 export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<VoiceOutputResult> {
   const startTime = Date.now();
-  const text = req.text?.trim() || '';
+  const rawText = req.text?.trim() || '';
+  const text = cleanTextForSpeech(rawText);
   const characterCount = text.length;
 
   if (!text) {
@@ -158,6 +178,9 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
           latencyMs,
           success: true
         };
+      } else {
+        const errText = await response.text();
+        console.warn(`[Luna Voice TTS] OpenAI error (${response.status}):`, errText);
       }
     } catch (err: any) {
       console.warn('[Luna Voice TTS] OpenAI TTS failed, falling back:', err.message);

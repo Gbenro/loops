@@ -118,7 +118,19 @@ Philosophy & Behavior Rules:
    - Write intentionally: Do NOT run create/update tools just because a user mentions an experience.
      * CONVERSE when they share an experience, feeling, or reflection.
      * WRITE only when they explicitly say "Save this", "Record that", "Create a loop", "Mark this complete", or "Archive".
-   - Tool Truthfulness: Never claim a record was "Saved" or "Updated" unless the tool call completed successfully.`;
+   - Tool Truthfulness: Never claim a record was "Saved" or "Updated" unless the tool call completed successfully.
+
+5. Epistemic Restraint & Retrieval Coverage Constraints:
+   - Observed Recurrence vs Exhaustive Truth:
+     * An observed recurrence across retrieved notes is an empirical observation of past mentions, NOT an absolute law, destiny, or causal certainty.
+     * Never declare exhaustive claims such as "Every single waxing crescent...", "The record proves you...", "You've just lived the proof", or "The pattern, validated".
+   - Partial Coverage Softening:
+     * When evaluating longitudinal searches or phase patterns where retrieval returned a partial sample (or hasMore is true), ALWAYS explicitly soften your claims to reflect the sample:
+       "Across the records retrieved...", "A strong recurring pattern appears in these notes...", "In most of the retrieved examples...".
+     * Never turn recurrence into lunar causation (e.g. do not state "the phase is working as designed" or make predictive assertions about what future phases will do).
+   - Conversational Aperture & Resonance:
+     * Good reflection creates conditions for reflection to continue unfolding rather than resolving and shutting down the inquiry.
+     * Operational completion ≠ conversational completion: when performing a save, tag, or reflection attachment, acknowledge the action while continuing warm, open resonance without collapsing into a database clerk.`;
 };
 
 export interface RelationalMemorySelectionResult {
@@ -370,6 +382,244 @@ export function calculateInferenceCost(usage: TokenUsageReport, modelConfig: any
       output: outputRate
     }
   };
+}
+
+export type OperationClass = 'conversation' | 'field_lookup' | 'longitudinal_synthesis' | 'crud_mutation' | 'relational_memory' | 'deep_reflection';
+
+export function classifyOperation(toolCalls: any[], message: string, fieldCoverage?: any): OperationClass {
+  if (!toolCalls || toolCalls.length === 0) {
+    const lower = (message || '').toLowerCase();
+    if ((message && (message.length > 100 || message.includes('?'))) && (lower.includes('why') || lower.includes('reflect') || lower.includes('feel') || lower.includes('sense') || lower.includes('meaning') || lower.includes('wonder'))) {
+      return 'deep_reflection';
+    }
+    return 'conversation';
+  }
+
+  const toolNames = toolCalls.map(t => t.tool || t.name || '');
+  
+  if (toolNames.some(n => n.startsWith('create_') || n.startsWith('update_') || n.startsWith('archive_') || n.startsWith('restore_') || n === 'attach_reflection' || n === 'close_loop' || n === 'reopen_loop' || n === 'carry_loop_forward')) {
+    return 'crud_mutation';
+  }
+
+  if (toolNames.some(n => n.includes('relational_memory'))) {
+    return 'relational_memory';
+  }
+
+  const isLongitudinal = (fieldCoverage?.recordsRetrieved > 10) || 
+    toolNames.some(n => n === 'search_echoes' || n === 'search_luna' || n === 'list_loops') && 
+    /(pattern|cycle|history|before|phase|longitudinal|month|recur)/i.test(message);
+
+  if (isLongitudinal) {
+    return 'longitudinal_synthesis';
+  }
+
+  if (toolNames.some(n => n.startsWith('search_') || n.startsWith('list_') || n.startsWith('get_'))) {
+    return 'field_lookup';
+  }
+
+  return 'conversation';
+}
+
+export function extractDatabaseMutation(toolName: string, toolArgs: any, parsedResult: any): any | null {
+  if (!parsedResult || typeof parsedResult !== 'object') return null;
+
+  // 1. Reflection Attachment
+  if (toolName === 'attach_reflection') {
+    const entityId = parsedResult.id || toolArgs.id;
+    const parentEchoId = toolArgs.echoId || parsedResult.echoId;
+    return {
+      operation: 'create',
+      entityType: 'reflection',
+      entityId,
+      parentEchoId,
+      table: 'echo_reflections',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // 2. Echo CRUD
+  if (toolName === 'create_echo' || toolName === 'create_entry') {
+    return {
+      operation: 'create',
+      entityType: 'echo',
+      entityId: parsedResult.id,
+      tags: parsedResult.tags || toolArgs.tags,
+      loopIds: parsedResult.loopIds || toolArgs.loopIds,
+      table: 'echoes',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'update_echo') {
+    return {
+      operation: 'update',
+      entityType: 'echo',
+      entityId: parsedResult.id || toolArgs.id,
+      tags: parsedResult.tags || toolArgs.tags,
+      loopIds: parsedResult.loopIds || toolArgs.loopIds,
+      table: 'echoes',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'archive_echo') {
+    return {
+      operation: 'archive',
+      entityType: 'echo',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'echoes',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'restore_echo') {
+    return {
+      operation: 'restore',
+      entityType: 'echo',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'echoes',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // 3. Loop CRUD
+  if (toolName === 'create_loop') {
+    return {
+      operation: 'create',
+      entityType: 'loop',
+      entityId: parsedResult.id,
+      title: parsedResult.title || toolArgs.title,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'update_loop') {
+    return {
+      operation: 'update',
+      entityType: 'loop',
+      entityId: parsedResult.id || toolArgs.id,
+      title: parsedResult.title || toolArgs.title,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'close_loop') {
+    return {
+      operation: 'close',
+      entityType: 'loop',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'reopen_loop') {
+    return {
+      operation: 'reopen',
+      entityType: 'loop',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'archive_loop') {
+    return {
+      operation: 'archive',
+      entityType: 'loop',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'restore_loop') {
+    return {
+      operation: 'restore',
+      entityType: 'loop',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'carry_loop_forward') {
+    return {
+      operation: 'carry_forward',
+      entityType: 'loop',
+      entityId: parsedResult.id,
+      oldLoopId: toolArgs.id,
+      table: 'loops',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // 4. Threads
+  if (toolName === 'create_thread') {
+    return {
+      operation: 'create',
+      entityType: 'thread',
+      entityId: parsedResult.id,
+      title: parsedResult.title || toolArgs.title,
+      table: 'threads',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'update_thread') {
+    return {
+      operation: 'update',
+      entityType: 'thread',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'threads',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'connect_echo_to_thread') {
+    return {
+      operation: 'connect',
+      entityType: 'echo_thread',
+      echoId: toolArgs.echoId,
+      threadId: toolArgs.threadId,
+      table: 'echo_threads',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'disconnect_echo_from_thread') {
+    return {
+      operation: 'disconnect',
+      entityType: 'echo_thread',
+      echoId: toolArgs.echoId,
+      threadId: toolArgs.threadId,
+      table: 'echo_threads',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // 5. Relational Memories
+  if (toolName === 'propose_candidate_memory') {
+    return {
+      operation: 'create',
+      entityType: 'relational_memory',
+      entityId: parsedResult.id,
+      statement: parsedResult.statement || toolArgs.statement,
+      type: parsedResult.type || toolArgs.type,
+      table: 'relational_memories',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'reinforce_relational_memory') {
+    return {
+      operation: 'update',
+      entityType: 'relational_memory',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'relational_memories',
+      timestamp: new Date().toISOString()
+    };
+  }
+  if (toolName === 'update_relational_memory_status') {
+    return {
+      operation: 'update',
+      entityType: 'relational_memory',
+      entityId: parsedResult.id || toolArgs.id,
+      table: 'relational_memories',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  return null;
 }
 
 // ─── Provider Orchestration Adapters ────────────────────────────────────────
@@ -757,19 +1007,15 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                 hasMore: !!parsed.hasMore,
                 coverage: parsed.coverage || (parsed.hasMore ? 'partial' : 'complete')
               };
+
+              if (fieldCoverageData.coverage === 'partial' || fieldCoverageData.hasMore) {
+                toolResultText += `\n\n[Coverage Note: Retrieval returned a partial sample of ${parsed.recordsRetrieved} records. Apply epistemic softening (e.g. "Across the records retrieved...", "A recurring pattern appears..."). Do not make absolute or exhaustive claims.]`;
+              }
             }
 
-            const recordId = parsed.id;
-            if (recordId) {
-              const table = recordId.startsWith('rm') ? 'relational_memories' : (recordId.startsWith('e') ? 'echoes' : (recordId.startsWith('l') ? 'loops' : (recordId.startsWith('r') ? 'echo_reflections' : (recordId.startsWith('t') ? 'threads' : 'unknown'))));
-              if (toolName.startsWith('create_') || toolName === 'propose_candidate_memory') {
-                databaseMutationsTracked.push({ type: 'insert', table, id: recordId });
-              } else if (toolName.startsWith('update_') || toolName === 'reinforce_relational_memory' || toolName === 'close_loop' || toolName === 'reopen_loop' || toolName === 'archive_loop' || toolName === 'restore_loop' || toolName === 'archive_echo' || toolName === 'restore_echo') {
-                databaseMutationsTracked.push({ type: 'update', table, id: recordId });
-              } else if (toolName === 'carry_loop_forward') {
-                databaseMutationsTracked.push({ type: 'update', table: 'loops', id: toolArgs.id });
-                databaseMutationsTracked.push({ type: 'insert', table: 'loops', id: recordId });
-              }
+            const mutation = extractDatabaseMutation(toolName, toolArgs, parsed);
+            if (mutation) {
+              databaseMutationsTracked.push(mutation);
             }
           } catch {}
         } catch (err: any) {
@@ -787,8 +1033,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         return { toolResultText, isError };
       };
 
-      // Multi-step Tool Calling Loop
-      while (loopCount < 5) {
+      // Multi-step Tool Calling Loop (up to 8 steps for complex search + attach workflows)
+      while (loopCount < 8) {
         if (provider === 'anthropic') {
           const anthropicTools = getAnthropicTools();
           const response = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
@@ -987,6 +1233,30 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         break;
       }
 
+      // Guarantee complete assistant response if loop exited right after tool calls
+      if (toolCallsTracked.length > 0 && (!finalResponseText || !finalResponseText.trim())) {
+        try {
+          if (provider === 'anthropic') {
+            const finalResp = await callClaude(modelId, agentMessages, systemPrompt, []);
+            const textBlocks = finalResp.content?.filter((b: any) => b.type === 'text') || [];
+            if (textBlocks.length > 0) finalResponseText = textBlocks.map((b: any) => b.text).join('\n');
+          } else if (provider === 'google') {
+            const finalResp = await callGemini(modelId, agentMessages, systemPrompt, []);
+            const parts = finalResp.candidates?.[0]?.content?.parts || [];
+            const textParts = parts.filter((p: any) => p.text);
+            if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
+          } else if (provider === 'openrouter') {
+            const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
+            finalResponseText = finalResp.choices?.[0]?.message?.content || '';
+          } else {
+            const finalResp = await callGpt(modelId, agentMessages, systemPrompt, []);
+            finalResponseText = finalResp.choices?.[0]?.message?.content || '';
+          }
+        } catch (postErr) {
+          console.warn('[Post-tool completion fallback]:', postErr);
+        }
+      }
+
       // Save assistant message to database
       const assistantMessageId = generateId('msg');
       await supabase.from('chat_messages').insert({
@@ -1055,6 +1325,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       // Log modular trace to telemetry table
       const latency = Date.now() - startTime;
       const telemetryId = generateId('trace');
+      const operationClass = classifyOperation(toolCallsTracked, message, fieldCoverageData);
+
       await supabase.from('chat_telemetry').insert({
         id: telemetryId,
         message_id: assistantMessageId,
@@ -1062,6 +1334,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         user_id: user.id,
         model: `${provider}:${modelId} (${resolvedKey})`,
         prompt_version: '1.4-observability',
+        operation_class: operationClass,
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
         database_mutations: databaseMutationsTracked,
@@ -1129,6 +1402,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
             session_id: sessionId || null,
             model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
             prompt_version: '1.4-observability',
+            operation_class: 'conversation',
             time_context: timeCtx,
             lunar_context: {
               dayOfCycle: lunarCtx.dayOfCycle,
@@ -1168,6 +1442,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       // Update telemetry trace for this message if messageId provided
       if (messageId) {
         try {
+          const voiceStatus = result.success ? (result.useClientFallback ? 'fallback' : 'completed') : 'error';
           await supabase
             .from('chat_telemetry')
             .update({
@@ -1178,8 +1453,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
                 voiceId: result.voiceId,
                 characterCount: result.characterCount,
                 synthesisLatencyMs: result.latencyMs,
+                status: voiceStatus,
                 success: result.success,
                 error: result.error || null,
+                fallbackAttempted: !!result.useClientFallback,
+                fallbackResult: result.useClientFallback ? 'client_web_speech' : null,
                 cached: false
               }
             })
@@ -1190,6 +1468,125 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
       }
 
       res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 6b. POST /api/chat/telemetry/voice-feedback - Log client-side playback success or error
+  app.post('/api/chat/telemetry/voice-feedback', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { messageId, event, provider, error, errorClass } = req.body;
+
+    if (!messageId) {
+      res.status(400).json({ error: 'messageId is required' });
+      return;
+    }
+
+    try {
+      const { data: existing } = await supabase
+        .from('chat_telemetry')
+        .select('voice_output')
+        .eq('message_id', messageId)
+        .maybeSingle();
+
+      const currentVoice = existing?.voice_output || {};
+      const updatedVoice = {
+        ...currentVoice,
+        playbackRequested: true,
+        clientEvent: event, // e.g. 'playback_started', 'playback_ended', 'playback_failed'
+        clientTtsProvider: provider || currentVoice.ttsProvider,
+        clientError: error || null,
+        clientErrorClass: errorClass || null,
+        status: event === 'playback_failed' ? 'error' : (event === 'playback_ended' ? 'completed' : currentVoice.status || 'requested')
+      };
+
+      await supabase
+        .from('chat_telemetry')
+        .update({ voice_output: updatedVoice })
+        .eq('message_id', messageId);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 6c. GET /api/chat/inference-summary - Aggregate cost and usage metrics for inference receipts
+  app.get('/api/chat/inference-summary', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { sessionId, date } = req.query;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
+      let query = supabase
+        .from('chat_telemetry')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (sessionId) {
+        query = query.eq('session_id', sessionId as string);
+      }
+      if (date) {
+        query = query.gte('created_at', `${date}T00:00:00.000Z`).lte('created_at', `${date}T23:59:59.999Z`);
+      }
+
+      const { data: traces, error } = await query.limit(200);
+      if (error) throw error;
+
+      const items = traces || [];
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
+      let totalCostUsd = 0;
+      let totalLatencyMs = 0;
+      let totalToolCalls = 0;
+      const modelBreakdown: Record<string, { turns: number; costUsd: number; tokens: number }> = {};
+      const operationBreakdown: Record<string, { count: number; costUsd: number }> = {};
+
+      items.forEach(t => {
+        const inTokens = t.token_usage?.inputTokens || 0;
+        const outTokens = t.token_usage?.outputTokens || 0;
+        const cost = t.inference_cost?.estimatedCostUsd || 0;
+        const latency = t.latency_ms || 0;
+        const tools = (t.tool_calls || []).length;
+        const op = t.operation_class || 'conversation';
+        const model = t.model || 'unknown';
+
+        totalInputTokens += inTokens;
+        totalOutputTokens += outTokens;
+        totalCostUsd += cost;
+        totalLatencyMs += latency;
+        totalToolCalls += tools;
+
+        if (!modelBreakdown[model]) {
+          modelBreakdown[model] = { turns: 0, costUsd: 0, tokens: 0 };
+        }
+        modelBreakdown[model].turns += 1;
+        modelBreakdown[model].costUsd += cost;
+        modelBreakdown[model].tokens += (inTokens + outTokens);
+
+        if (!operationBreakdown[op]) {
+          operationBreakdown[op] = { count: 0, costUsd: 0 };
+        }
+        operationBreakdown[op].count += 1;
+        operationBreakdown[op].costUsd += cost;
+      });
+
+      res.json({
+        totalTurns: items.length,
+        totalInputTokens,
+        totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        totalCostUsd: Number(totalCostUsd.toFixed(6)),
+        averageLatencyMs: items.length > 0 ? Math.round(totalLatencyMs / items.length) : 0,
+        totalToolCalls,
+        modelBreakdown,
+        operationBreakdown,
+        period: date ? `day:${date}` : (sessionId ? `session:${sessionId}` : 'recent_200_turns')
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
