@@ -284,28 +284,31 @@ export function Chat({ userId, lunarData }) {
             }}
             style={{
               flex: 1,
-              background: 'transparent',
+              background: '#0d1527',
               color: '#f5e6c8',
-              border: 'none',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '6px',
+              padding: '3px 6px',
               fontSize: '11.5px',
               outline: 'none',
               cursor: 'pointer',
-              fontFamily: 'sans-serif',
-              textOverflow: 'ellipsis',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap'
+              fontFamily: 'sans-serif'
             }}
           >
-            <option value="anthropic-opus-5">Claude Opus 5 (Frontier)</option>
-            <option value="anthropic-fable">Claude Fable 5 (Agentic)</option>
-            <option value="openai-sol">GPT-5.6 Sol (Frontier)</option>
-            <option value="gemini-3.7-flash">Gemini 3.7 Flash (Fast)</option>
-            <option value="gemini-3.1-pro">Gemini 3.1 Pro (2M Context)</option>
-            <option value="openrouter-glm-5.3">GLM 5.3 (Open Frontier)</option>
-            <option value="openrouter-deepseek-v4-pro">DeepSeek V4 Pro (Open Frontier)</option>
-            <option value="openrouter-deepseek-v4-flash">DeepSeek V4 Flash (Open Economy)</option>
-            <option value="openrouter-qwen-3.8-max">Qwen 3.8 Max (Open Multimodal)</option>
-            <option value="openrouter-kimi-k2.5">Kimi K2.5 (Open Multimodal)</option>
+            <optgroup label="OpenRouter Models (Open Frontier)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
+              <option value="openrouter-deepseek-v4-pro">DeepSeek V4 Pro (Open Frontier)</option>
+              <option value="openrouter-deepseek-v4-flash">DeepSeek V4 Flash (Open Economy)</option>
+              <option value="openrouter-glm-5.3">GLM 5.3 (Open Frontier)</option>
+              <option value="openrouter-qwen-3.8-max">Qwen 3.8 Max (Open Multimodal)</option>
+              <option value="openrouter-kimi-k2.5">Kimi K2.5 (Open Multimodal)</option>
+            </optgroup>
+            <optgroup label="Direct Frontier Models" style={{ background: '#0d1527', color: '#f5e6c8', fontWeight: 'bold' }}>
+              <option value="anthropic-opus-5">Claude Opus 5 (Frontier)</option>
+              <option value="anthropic-fable">Claude Fable 5 (Agentic)</option>
+              <option value="openai-sol">GPT-5.6 Sol (Frontier)</option>
+              <option value="gemini-3.7-flash">Gemini 3.7 Flash (Fast)</option>
+              <option value="gemini-3.1-pro">Gemini 3.1 Pro (2M Context)</option>
+            </optgroup>
           </select>
         </div>
       </header>
