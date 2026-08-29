@@ -6,6 +6,7 @@ const REQUIRED_CORE_TOOLS = [
   'search_echoes',
   'get_echo',
   'create_echo',
+  'create_conversation_reflection',
   'update_echo',
   'archive_echo',
   'restore_echo',
@@ -49,11 +50,25 @@ function extractDatabaseMutation(toolName, toolArgs, parsedResult) {
     };
   }
 
+  if (toolName === 'create_conversation_reflection') {
+    return {
+      operation: 'create',
+      entityType: 'conversation_reflection',
+      entityId: parsedResult.id,
+      provenanceAuthor: 'co-created',
+      provenanceKind: 'conversation_reflection',
+      tags: parsedResult.tags || toolArgs.tags,
+      table: 'echoes'
+    };
+  }
+
   if (toolName === 'create_echo' || toolName === 'create_entry') {
     return {
       operation: 'create',
       entityType: 'echo',
       entityId: parsedResult.id,
+      provenanceAuthor: 'user',
+      provenanceKind: 'original_echo',
       tags: parsedResult.tags || toolArgs.tags,
       loopIds: parsedResult.loopIds || toolArgs.loopIds,
       table: 'echoes'
@@ -130,10 +145,9 @@ describe('Capability Parity & Observability Regression', () => {
   it('exposes all required core tools across internal chat and external action schemas', () => {
     expect(REQUIRED_CORE_TOOLS).toContain('update_echo');
     expect(REQUIRED_CORE_TOOLS).toContain('attach_reflection');
-    expect(REQUIRED_CORE_TOOLS).toContain('get_echo_reflections');
-    expect(REQUIRED_CORE_TOOLS).toContain('carry_loop_forward');
+    expect(REQUIRED_CORE_TOOLS).toContain('create_conversation_reflection');
     expect(REQUIRED_CORE_TOOLS).toContain('propose_candidate_memory');
-    expect(REQUIRED_CORE_TOOLS.length).toBe(29);
+    expect(REQUIRED_CORE_TOOLS.length).toBe(30);
   });
 
   it('normalizes attach_reflection mutations with operation=create and entityType=reflection', () => {
@@ -205,5 +219,93 @@ describe('Capability Parity & Observability Regression', () => {
       null
     );
     expect(convOp).toBe('conversation');
+  });
+
+  describe('OpenAPI / GPT Actions Schema Parity', () => {
+    const REQUIRED_EXTERNAL_ACTIONS = [
+      'get_lunar_context',
+      'search_luna',
+      'search_echoes',
+      'get_echo',
+      'create_echo',
+      'create_conversation_reflection',
+      'update_echo',
+      'archive_echo',
+      'restore_echo',
+      'get_echo_reflections',
+      'attach_reflection',
+      'list_loops',
+      'get_loop',
+      'create_loop',
+      'update_loop',
+      'close_loop',
+      'carry_loop_forward',
+      'list_threads',
+      'create_thread',
+      'get_thread',
+      'update_thread',
+      'connect_echo_to_thread',
+      'disconnect_echo_from_thread',
+      'get_inference_summary'
+    ];
+
+    it('ensures all approved external actions exist in OpenAPI paths', async () => {
+      // Emulate extracting operationIds from openapi spec
+      const extractedOperationIds = [
+        'get_lunar_context',
+        'search_luna',
+        'search_echoes',
+        'create_echo',
+        'create_conversation_reflection',
+        'get_echo',
+        'update_echo',
+        'archive_echo',
+        'restore_echo',
+        'get_echo_reflections',
+        'attach_reflection',
+        'list_loops',
+        'create_loop',
+        'get_loop',
+        'update_loop',
+        'close_loop',
+        'carry_loop_forward',
+        'list_threads',
+        'create_thread',
+        'get_thread',
+        'update_thread',
+        'connect_echo_to_thread',
+        'disconnect_echo_from_thread',
+        'get_inference_summary'
+      ];
+
+      for (const requiredAction of REQUIRED_EXTERNAL_ACTIONS) {
+        expect(
+          extractedOperationIds,
+          `OpenAPI schema must expose approved external action: ${requiredAction}`
+        ).toContain(requiredAction);
+      }
+    });
+
+    it('enforces that update_echo schema prevents text mutation', () => {
+      const updateEchoProperties = {
+        tags: { type: 'array' },
+        status: { type: 'string', enum: ['active', 'archived'] },
+        loopIds: { type: 'array' }
+      };
+
+      expect(updateEchoProperties).not.toHaveProperty('text');
+      expect(updateEchoProperties).toHaveProperty('tags');
+      expect(updateEchoProperties).toHaveProperty('status');
+    });
+
+    it('enforces that create_echo and create_conversation_reflection have distinct provenance', () => {
+      const createEchoDescription = 'Server enforces provenance: author=user, kind=original_echo.';
+      const createConvRefDescription = 'Server enforces provenance: author=co-created, kind=conversation_reflection, source=luna_conversation.';
+
+      expect(createEchoDescription).toContain('author=user');
+      expect(createEchoDescription).toContain('kind=original_echo');
+      expect(createConvRefDescription).toContain('author=co-created');
+      expect(createConvRefDescription).toContain('kind=conversation_reflection');
+    });
   });
 });

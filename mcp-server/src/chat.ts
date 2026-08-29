@@ -1571,30 +1571,38 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
       const currentVoice = existing?.voice_output || {};
       const isStarted = event === 'playback_started' || !!currentVoice.playbackStarted;
-      const isAdvanced = event === 'playback_advanced' || !!hasAdvancedAboveZero || !!currentVoice.playbackAdvanced;
+      const isAdvanced = event === 'playback_advanced' || !!hasAdvancedAboveZero || !!currentVoice.playbackAdvanced || event === 'playback_ended';
       const isCompleted = event === 'playback_ended' || !!currentVoice.playbackCompleted;
+      const isPaused = event === 'playback_paused';
+      const isResumed = event === 'playback_resumed';
+      const isStopped = event === 'playback_stopped';
       const isFailed = event === 'playback_failed';
+
+      const playingTime = playingTimestamp || currentVoice.playingTimestamp || (isStarted ? new Date().toISOString() : null);
+      const firstAdvTime = firstAdvancedTimestamp || currentVoice.firstAdvancedTimestamp || (isAdvanced ? (playingTime || new Date().toISOString()) : null);
+      const endedTime = endedTimestamp || currentVoice.endedTimestamp || (isCompleted ? new Date().toISOString() : null);
+      const resolvedDurationMs = playbackDurationMs || currentVoice.playbackDurationMs || (endedTime && playingTime ? Math.max(0, new Date(endedTime).getTime() - new Date(playingTime).getTime()) : null);
 
       const updatedVoice = {
         ...currentVoice,
         playbackRequested: true,
         playbackMode: playbackMode || currentVoice.playbackMode || (provider === 'web_speech' ? 'web_speech' : 'provider_audio'),
-        clientEvent: event, // 'playback_started' | 'playback_advanced' | 'playback_ended' | 'playback_failed'
+        clientEvent: event, // 'playback_started' | 'playback_advanced' | 'playback_paused' | 'playback_resumed' | 'playback_stopped' | 'playback_ended' | 'playback_failed'
         clientTtsProvider: provider || currentVoice.ttsProvider,
         playbackStarted: isStarted,
         playbackAdvanced: isAdvanced,
         playbackCompleted: isCompleted,
         playbackSucceeded: isCompleted || (isStarted && isAdvanced && !isFailed),
-        playingTimestamp: playingTimestamp || currentVoice.playingTimestamp || (event === 'playback_started' ? new Date().toISOString() : null),
-        firstAdvancedTimestamp: firstAdvancedTimestamp || currentVoice.firstAdvancedTimestamp || (isAdvanced ? new Date().toISOString() : null),
-        endedTimestamp: endedTimestamp || currentVoice.endedTimestamp || (event === 'playback_ended' ? new Date().toISOString() : null),
-        playbackDurationMs: playbackDurationMs || currentVoice.playbackDurationMs || null,
+        playingTimestamp: playingTime,
+        firstAdvancedTimestamp: firstAdvTime,
+        endedTimestamp: endedTime,
+        playbackDurationMs: resolvedDurationMs,
         clientError: error || null,
         clientErrorClass: errorClass || null,
         audioElementDiagnostics: {
           currentTime: currentTime !== undefined ? currentTime : null,
           duration: duration !== undefined ? duration : null,
-          paused: paused !== undefined ? paused : null,
+          paused: paused !== undefined ? paused : (isPaused ? true : (isStarted ? false : null)),
           muted: muted !== undefined ? muted : null,
           volume: volume !== undefined ? volume : null,
           readyState: readyState !== undefined ? readyState : null,
@@ -1602,7 +1610,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           browserVoiceName: browserVoiceName || null,
           localService: localService !== undefined ? localService : null
         },
-        status: isFailed ? 'error' : (isCompleted ? 'completed' : (isStarted ? 'playing' : currentVoice.status || 'requested'))
+        status: isFailed ? 'error' : (isCompleted ? 'completed' : (isPaused ? 'paused' : (isStarted ? 'playing' : currentVoice.status || 'requested')))
       };
 
       const feedbackData = {
@@ -1615,7 +1623,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         playbackSucceeded: updatedVoice.playbackSucceeded,
         currentTime: currentTime !== undefined ? currentTime : null,
         duration: duration !== undefined ? duration : null,
-        playbackDurationMs: playbackDurationMs || null,
+        playbackDurationMs: resolvedDurationMs,
         error: error || null,
         errorClass: errorClass || null,
         timestamp: new Date().toISOString()

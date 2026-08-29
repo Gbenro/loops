@@ -871,6 +871,13 @@ app.post('/api/reflections/conversation', authenticateRest, async (req, res) => 
 
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 
+import { LUNA_OPENAPI_SPEC } from './openapi.js';
+
+app.get(['/openapi.json', '/api/openapi.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json(LUNA_OPENAPI_SPEC);
+});
+
 app.get('/status', (req, res) => {
   res.json({
     status: 'healthy',

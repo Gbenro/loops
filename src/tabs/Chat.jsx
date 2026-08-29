@@ -38,7 +38,14 @@ export function Chat({ userId, lunarData }) {
   });
 
   // Voice playback integration (Luna Voice Output V0)
-  const { playbackStates, playMessage } = useLunaVoicePlayback();
+  const {
+    playbackStates,
+    playMessage,
+    pausePlayback,
+    resumePlayback,
+    stopPlayback,
+    replayPlayback
+  } = useLunaVoicePlayback();
 
   // Format seconds into m:ss
   const formatDuration = (sec) => {
@@ -385,37 +392,160 @@ export function Chat({ userId, lunarData }) {
               >
                 {msg.content}
 
-                {/* Luna Voice Output V0 Playback Control */}
+                {/* Luna Voice Output Playback Controls */}
                 {!isUser && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                    <button
-                      onClick={() => playMessage(msg.id, msg.content)}
-                      title={playbackStates[msg.id] === 'playing' ? 'Pause voice playback' : 'Listen to Luna aloud'}
-                      style={{
-                        background: playbackStates[msg.id] === 'playing' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                        border: playbackStates[msg.id] === 'playing' ? '1px solid rgba(167, 139, 250, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '10px',
-                        padding: '2px 7px',
-                        color: playbackStates[msg.id] === 'playing' ? '#c4b5fd' : 'var(--color-text-faint)',
-                        fontSize: '10.5px',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        transition: 'all 0.2s ease',
-                        boxShadow: playbackStates[msg.id] === 'playing' ? '0 0 8px rgba(167, 139, 250, 0.4)' : 'none'
-                      }}
-                    >
-                      {playbackStates[msg.id] === 'loading' ? (
-                        <span>⏳ Speaking...</span>
-                      ) : playbackStates[msg.id] === 'playing' ? (
-                        <span>🔊 Listening...</span>
-                      ) : playbackStates[msg.id] === 'error' ? (
-                        <span>⚠️ Voice error</span>
-                      ) : (
-                        <span>🔈 Listen</span>
-                      )}
-                    </button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                    {playbackStates[msg.id] === 'loading' && (
+                      <span style={{ fontSize: '10.5px', color: '#c4b5fd', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        ⏳ Preparing voice...
+                      </span>
+                    )}
+
+                    {playbackStates[msg.id] === 'playing' && (
+                      <>
+                        <button
+                          onClick={() => pausePlayback(msg.id)}
+                          title="Pause voice playback"
+                          style={{
+                            background: 'rgba(167, 139, 250, 0.25)',
+                            border: '1px solid rgba(167, 139, 250, 0.6)',
+                            borderRadius: '10px',
+                            padding: '2px 8px',
+                            color: '#c4b5fd',
+                            fontSize: '10.5px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: '0 0 8px rgba(167, 139, 250, 0.4)'
+                          }}
+                        >
+                          ⏸ Pause
+                        </button>
+                        <button
+                          onClick={() => stopPlayback(msg.id)}
+                          title="Stop voice playback"
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '10px',
+                            padding: '2px 8px',
+                            color: 'var(--color-text-faint)',
+                            fontSize: '10.5px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ⏹ Stop
+                        </button>
+                      </>
+                    )}
+
+                    {playbackStates[msg.id] === 'paused' && (
+                      <>
+                        <button
+                          onClick={() => resumePlayback(msg.id)}
+                          title="Resume voice playback"
+                          style={{
+                            background: 'rgba(52, 211, 153, 0.2)',
+                            border: '1px solid rgba(52, 211, 153, 0.5)',
+                            borderRadius: '10px',
+                            padding: '2px 8px',
+                            color: '#6ee7b7',
+                            fontSize: '10.5px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ▶️ Resume
+                        </button>
+                        <button
+                          onClick={() => replayPlayback(msg.id, msg.content)}
+                          title="Restart from beginning"
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '10px',
+                            padding: '2px 8px',
+                            color: 'var(--color-text-faint)',
+                            fontSize: '10.5px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          🔄 Replay
+                        </button>
+                        <button
+                          onClick={() => stopPlayback(msg.id)}
+                          title="Stop voice playback"
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '10px',
+                            padding: '2px 8px',
+                            color: 'var(--color-text-faint)',
+                            fontSize: '10.5px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ⏹ Stop
+                        </button>
+                      </>
+                    )}
+
+                    {playbackStates[msg.id] === 'error' && (
+                      <button
+                        onClick={() => playMessage(msg.id, msg.content)}
+                        title="Retry voice playback"
+                        style={{
+                          background: 'rgba(244, 63, 94, 0.15)',
+                          border: '1px solid rgba(244, 63, 94, 0.4)',
+                          borderRadius: '10px',
+                          padding: '2px 8px',
+                          color: '#fda4af',
+                          fontSize: '10.5px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        ⚠️ Retry Voice
+                      </button>
+                    )}
+
+                    {(!playbackStates[msg.id] || playbackStates[msg.id] === 'idle') && (
+                      <button
+                        onClick={() => playMessage(msg.id, msg.content)}
+                        title="Listen to Luna aloud"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '10px',
+                          padding: '2px 7px',
+                          color: 'var(--color-text-faint)',
+                          fontSize: '10.5px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        🔈 Listen
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

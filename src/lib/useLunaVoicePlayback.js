@@ -60,17 +60,77 @@ export function useLunaVoicePlayback() {
     };
   }, []);
 
-  const stopPlayback = useCallback(() => {
+  const pausePlayback = useCallback((messageId) => {
+    const id = messageId || activeMessageId;
+    if (!id) return;
+
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      setPlaybackStates(prev => ({ ...prev, [id]: 'paused' }));
+      reportVoiceFeedback(id, 'playback_paused', {
+        playbackMode: 'provider_audio',
+        currentTime: audioRef.current.currentTime,
+        duration: audioRef.current.duration
+      });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      setPlaybackStates(prev => ({ ...prev, [id]: 'paused' }));
+      reportVoiceFeedback(id, 'playback_paused', {
+        playbackMode: 'web_speech'
+      });
+    }
+  }, [activeMessageId]);
+
+  const resumePlayback = useCallback((messageId) => {
+    const id = messageId || activeMessageId;
+    if (!id) return;
+
+    if (audioRef.current && audioRef.current.paused) {
+      audioRef.current.play().then(() => {
+        setPlaybackStates(prev => ({ ...prev, [id]: 'playing' }));
+        reportVoiceFeedback(id, 'playback_resumed', {
+          playbackMode: 'provider_audio',
+          currentTime: audioRef.current.currentTime,
+          duration: audioRef.current.duration
+        });
+      }).catch(err => {
+        console.warn('[Luna Voice Resume error]:', err);
+      });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      setPlaybackStates(prev => ({ ...prev, [id]: 'playing' }));
+      reportVoiceFeedback(id, 'playback_resumed', {
+        playbackMode: 'web_speech'
+      });
+    }
+  }, [activeMessageId]);
+
+  const stopPlayback = useCallback((messageId) => {
+    const id = messageId || activeMessageId;
     if (audioRef.current) {
+      const pos = audioRef.current.currentTime;
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current = null;
+      if (id) {
+        reportVoiceFeedback(id, 'playback_stopped', {
+          playbackMode: 'provider_audio',
+          currentTime: pos
+        });
+      }
     }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (id) {
+        reportVoiceFeedback(id, 'playback_stopped', {
+          playbackMode: 'web_speech'
+        });
+      }
     }
-    if (activeMessageId) {
-      setPlaybackStates(prev => ({ ...prev, [activeMessageId]: 'idle' }));
+    if (id) {
+      setPlaybackStates(prev => ({ ...prev, [id]: 'idle' }));
+    }
+    if (activeMessageId === id || !messageId) {
       setActiveMessageId(null);
     }
   }, [activeMessageId]);
@@ -401,10 +461,20 @@ export function useLunaVoicePlayback() {
     }
   }, [activeMessageId, playbackStates, playBase64Audio, playClientSpeech, stopPlayback]);
 
+  const replayPlayback = useCallback((messageId, rawText) => {
+    stopPlayback(messageId);
+    setTimeout(() => {
+      playMessage(messageId, rawText);
+    }, 50);
+  }, [stopPlayback, playMessage]);
+
   return {
     playbackStates,
     activeMessageId,
     playMessage,
-    stopPlayback
+    pausePlayback,
+    resumePlayback,
+    stopPlayback,
+    replayPlayback
   };
 }
