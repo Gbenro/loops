@@ -130,6 +130,51 @@ export function formatVoiceInputProvenance(raw: any, messageLength?: number): Vo
   };
 }
 
+export function ensureAudioContainer(buffer: Buffer, defaultSampleRate = 24000): { buffer: Buffer; contentType: string } {
+  // 1. Check for standard WAV RIFF header ('RIFF....WAVE')
+  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE') {
+    return { buffer, contentType: 'audio/wav' };
+  }
+  // 2. Check for standard MP3 ID3 header or sync frame (0xFFFB, 0xFFF3, 0xFFF2)
+  if (
+    buffer.length >= 3 &&
+    (buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0))
+  ) {
+    return { buffer, contentType: 'audio/mpeg' };
+  }
+  // 3. Check for Ogg container
+  if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'OggS') {
+    return { buffer, contentType: 'audio/ogg' };
+  }
+
+  // 4. Raw PCM (24000 Hz, 16-bit Mono) -> wrap in 44-byte standard RIFF WAV header
+  const sampleRate = defaultSampleRate;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const wavHeader = Buffer.alloc(44);
+
+  wavHeader.write('RIFF', 0);
+  wavHeader.writeUInt32LE(36 + buffer.length, 4);
+  wavHeader.write('WAVE', 8);
+  wavHeader.write('fmt ', 12);
+  wavHeader.writeUInt32LE(16, 16); // SubChunk1Size (16 for PCM)
+  wavHeader.writeUInt16LE(1, 20);  // AudioFormat (1 for PCM)
+  wavHeader.writeUInt16LE(numChannels, 22);
+  wavHeader.writeUInt32LE(sampleRate, 24);
+  wavHeader.writeUInt32LE(byteRate, 28);
+  wavHeader.writeUInt16LE(blockAlign, 32);
+  wavHeader.writeUInt16LE(bitsPerSample, 34);
+  wavHeader.write('data', 36);
+  wavHeader.writeUInt32LE(buffer.length, 40);
+
+  return {
+    buffer: Buffer.concat([wavHeader, buffer]),
+    contentType: 'audio/wav'
+  };
+}
+
 /**
  * Luna Voice Output V0: Synthesize speech for an assistant message response.
  * Follows the principle: "Speak the response Luna actually produced without rewriting."
@@ -189,18 +234,19 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
       const estimatedCostUsd = Number(((characterCount * ttsModelConfig.costPer1MChars) / 1000000).toFixed(6));
 
       if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const audioBase64 = buffer.toString('base64');
-        const byteCount = buffer.length;
+        const rawArrayBuffer = await response.arrayBuffer();
+        const rawBuffer = Buffer.from(rawArrayBuffer);
+        const { buffer: packagedBuffer, contentType } = ensureAudioContainer(rawBuffer, 24000);
+        const audioBase64 = packagedBuffer.toString('base64');
+        const byteCount = packagedBuffer.length;
 
         // Require byteCount > 0 before reporting synthesis success
         if (byteCount > 0) {
-          console.log(`[Luna Voice Out] OpenRouter TTS successful: ${byteCount} bytes in ${latencyMs}ms (req: ${requestId})`);
+          console.log(`[Luna Voice Out] OpenRouter TTS successful: ${byteCount} bytes (${contentType}) in ${latencyMs}ms (req: ${requestId})`);
 
           return {
             audioBase64,
-            contentType: 'audio/mpeg',
+            contentType,
             byteCount,
             characterCount,
             provider: 'openrouter',

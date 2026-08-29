@@ -75,28 +75,87 @@ export function useLunaVoicePlayback() {
     }
   }, [activeMessageId]);
 
-  const playBase64Audio = useCallback((messageId, base64Data, provider = 'openrouter') => {
+  const playBase64Audio = useCallback((messageId, base64Data, provider = 'openrouter', contentType = 'audio/wav') => {
     try {
-      const audioUrl = `data:audio/mpeg;base64,${base64Data}`;
-      const audio = new Audio(audioUrl);
+      const audioUrl = `data:${contentType};base64,${base64Data}`;
+      const audio = new Audio();
+      audio.preload = 'auto';
       audioRef.current = audio;
 
-      audio.onplay = () => {
+      let hasReportedStarted = false;
+      let hasAdvancedAboveZero = false;
+
+      const getAudioSnapshot = () => ({
+        currentTime: audio.currentTime,
+        duration: isNaN(audio.duration) ? null : audio.duration,
+        paused: audio.paused,
+        muted: audio.muted,
+        volume: audio.volume,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        hasAdvancedAboveZero
+      });
+
+      audio.onloadstart = () => {
+        console.log('[Luna Voice Audio] loadstart:', getAudioSnapshot());
+      };
+
+      audio.onloadedmetadata = () => {
+        console.log('[Luna Voice Audio] loadedmetadata: duration=', audio.duration, getAudioSnapshot());
+      };
+
+      audio.oncanplay = () => {
+        console.log('[Luna Voice Audio] canplay:', getAudioSnapshot());
+      };
+
+      // Fired when playback actually begins audibly after buffering
+      audio.onplaying = () => {
+        console.log('[Luna Voice Audio] playing event fired:', getAudioSnapshot());
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
-        reportVoiceFeedback(messageId, 'playback_started', { provider });
+        if (!hasReportedStarted) {
+          hasReportedStarted = true;
+          reportVoiceFeedback(messageId, 'playback_started', {
+            provider,
+            contentType,
+            ...getAudioSnapshot()
+          });
+        }
+      };
+
+      audio.ontimeupdate = () => {
+        if (audio.currentTime > 0.05 && !hasAdvancedAboveZero) {
+          hasAdvancedAboveZero = true;
+          console.log('[Luna Voice Audio] timeupdate: currentTime advanced > 0:', audio.currentTime);
+        }
       };
 
       audio.onended = () => {
+        console.log('[Luna Voice Audio] playback ended cleanly:', getAudioSnapshot());
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         setActiveMessageId(null);
         audioRef.current = null;
-        reportVoiceFeedback(messageId, 'playback_ended', { provider });
+        reportVoiceFeedback(messageId, 'playback_ended', {
+          provider,
+          contentType,
+          ...getAudioSnapshot()
+        });
       };
 
       audio.onerror = (e) => {
-        console.error('[Luna Voice Audio error]:', e);
+        const mediaErr = audio.error;
+        const errCode = mediaErr ? mediaErr.code : 'UNKNOWN';
+        const errMsg = mediaErr ? (mediaErr.message || `MediaError code ${errCode}`) : 'HTMLAudioElement error event';
+        console.error('[Luna Voice Audio error]:', errCode, errMsg, e, getAudioSnapshot());
+
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        reportVoiceFeedback(messageId, 'playback_failed', { provider, error: 'HTMLAudioElement error event', errorClass: 'MediaPlaybackError' });
+        reportVoiceFeedback(messageId, 'playback_failed', {
+          provider,
+          contentType,
+          error: errMsg,
+          errorClass: `MediaError_${errCode}`,
+          ...getAudioSnapshot()
+        });
+
         setTimeout(() => {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         }, 2500);
@@ -104,10 +163,27 @@ export function useLunaVoicePlayback() {
         audioRef.current = null;
       };
 
+      audio.onstalled = () => {
+        console.warn('[Luna Voice Audio] stalled event:', getAudioSnapshot());
+      };
+
+      audio.onwaiting = () => {
+        console.warn('[Luna Voice Audio] waiting for data:', getAudioSnapshot());
+      };
+
+      audio.src = audioUrl;
+
+      // Play audio
       audio.play().catch(err => {
         console.warn('[Luna Voice Play error]:', err);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        reportVoiceFeedback(messageId, 'playback_failed', { provider, error: err.message, errorClass: err.name });
+        reportVoiceFeedback(messageId, 'playback_failed', {
+          provider,
+          contentType,
+          error: err.message,
+          errorClass: err.name,
+          ...getAudioSnapshot()
+        });
         setTimeout(() => {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         }, 2500);
@@ -115,7 +191,12 @@ export function useLunaVoicePlayback() {
       });
     } catch (err) {
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-      reportVoiceFeedback(messageId, 'playback_failed', { provider, error: err.message, errorClass: err.name });
+      reportVoiceFeedback(messageId, 'playback_failed', {
+        provider,
+        contentType,
+        error: err.message,
+        errorClass: err.name
+      });
       setTimeout(() => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
       }, 2500);
@@ -193,10 +274,12 @@ export function useLunaVoicePlayback() {
     setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
 
     try {
-      // 1. Check client audio cache
-      if (audioCacheRef.current.has(messageId)) {
-        const cachedBase64 = audioCacheRef.current.get(messageId);
-        playBase64Audio(messageId, cachedBase64);
+      // 1. Check client memory cache first
+      const cached = audioCacheRef.current.get(messageId);
+      if (cached) {
+        console.log('[Luna Voice Playback] Playing from client cache for message:', messageId);
+        const { audioBase64, contentType } = typeof cached === 'string' ? { audioBase64: cached, contentType: 'audio/wav' } : cached;
+        playBase64Audio(messageId, audioBase64, 'openrouter', contentType);
         return;
       }
 
@@ -223,8 +306,9 @@ export function useLunaVoicePlayback() {
       const result = await response.json();
 
       if (result.audioBase64) {
-        audioCacheRef.current.set(messageId, result.audioBase64);
-        playBase64Audio(messageId, result.audioBase64, result.provider || 'openrouter');
+        const contentType = result.contentType || 'audio/wav';
+        audioCacheRef.current.set(messageId, { audioBase64: result.audioBase64, contentType });
+        playBase64Audio(messageId, result.audioBase64, result.provider || 'openrouter', contentType);
       } else if (result.useClientFallback && typeof window !== 'undefined' && 'speechSynthesis' in window) {
         playClientSpeech(messageId, text);
       } else {

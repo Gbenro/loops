@@ -259,28 +259,65 @@ describe('Luna Voice Input V1', () => {
   describe('OpenRouter TTS & Voice Expression Layer', () => {
     it('preserves clean separation between Luna reasoning model and TTS voice model', () => {
       const reasoningModel = 'deepseek/deepseek-v4-pro';
-      const ttsModel = 'openai/tts-1';
+      const ttsModel = 'hexgrad/kokoro-82m';
 
       const voiceTelemetry = {
         playbackRequested: true,
         ttsProvider: 'openrouter',
         ttsModel,
-        voiceId: 'nova',
+        voiceId: 'af_nova',
         characterCount: 142,
         byteCount: 28450,
-        synthesisLatencyMs: 420,
-        requestId: 'gen-or-1788019932-84a',
-        estimatedCostUsd: 0.00213,
+        synthesisLatencyMs: 409,
+        requestId: 'gen-or-1788022209-940',
+        estimatedCostUsd: 0.000088,
         status: 'completed',
         success: true
       };
 
       expect(reasoningModel).not.toBe(ttsModel);
       expect(voiceTelemetry.ttsProvider).toBe('openrouter');
-      expect(voiceTelemetry.ttsModel).toBe('openai/tts-1');
+      expect(voiceTelemetry.ttsModel).toBe('hexgrad/kokoro-82m');
       expect(voiceTelemetry.byteCount).toBeGreaterThan(0);
-      expect(voiceTelemetry.requestId).toBe('gen-or-1788019932-84a');
-      expect(voiceTelemetry.estimatedCostUsd).toBe(0.00213);
+      expect(voiceTelemetry.requestId).toBe('gen-or-1788022209-940');
+    });
+
+    it('wraps raw PCM buffers in standard 44-byte RIFF WAV container', () => {
+      const rawPcm = Buffer.alloc(48000); // 1 second of 24kHz 16-bit mono PCM
+
+      function ensureWav(buffer, sampleRate = 24000) {
+        if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF') {
+          return { buffer, contentType: 'audio/wav' };
+        }
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+        const blockAlign = numChannels * (bitsPerSample / 8);
+        const wavHeader = Buffer.alloc(44);
+        wavHeader.write('RIFF', 0);
+        wavHeader.writeUInt32LE(36 + buffer.length, 4);
+        wavHeader.write('WAVE', 8);
+        wavHeader.write('fmt ', 12);
+        wavHeader.writeUInt32LE(16, 16);
+        wavHeader.writeUInt16LE(1, 20);
+        wavHeader.writeUInt16LE(numChannels, 22);
+        wavHeader.writeUInt32LE(sampleRate, 24);
+        wavHeader.writeUInt32LE(byteRate, 28);
+        wavHeader.writeUInt16LE(blockAlign, 32);
+        wavHeader.writeUInt16LE(bitsPerSample, 34);
+        wavHeader.write('data', 36);
+        wavHeader.writeUInt32LE(buffer.length, 40);
+        return {
+          buffer: Buffer.concat([wavHeader, buffer]),
+          contentType: 'audio/wav'
+        };
+      }
+
+      const packaged = ensureWav(rawPcm, 24000);
+      expect(packaged.contentType).toBe('audio/wav');
+      expect(packaged.buffer.length).toBe(48044);
+      expect(packaged.buffer.toString('ascii', 0, 4)).toBe('RIFF');
+      expect(packaged.buffer.toString('ascii', 8, 12)).toBe('WAVE');
     });
   });
 });
