@@ -279,41 +279,58 @@ export function estimateContextBreakdown(
 export interface ContextBudget {
   tier: 'small' | 'normal' | 'deep';
   warrantedDepthRationale: string;
-  maxBudgetTokens: number;
-  estimatedContextTokens: number;
+  targetContextBudget: number;      // Target guidance: "How much context would we normally expect this inquiry to need?"
+  actualContextUsed: number;        // What this inquiry actually required
+  modelContextLimit: number;        // Physical/API constraint of the chosen model
+  exceededTarget: boolean;          // Elastic indicator
+  expansionReason?: string | null;  // Evidence-driven expansion rationale
+  elasticPolicy: 'fidelity_first_observability';
 }
 
-export function determineContextBudget(message: string, estimatedTokens: number): ContextBudget {
-  const lower = message.toLowerCase();
+export function determineContextBudget(
+  message: string,
+  actualTokens: number,
+  modelContextLimit: number = 128000,
+  hasExpandedFieldRetrieval: boolean = false
+): ContextBudget {
+  const lower = (message || '').toLowerCase();
   const isDeep = lower.includes('entire') || lower.includes('all cycle') || lower.includes('whole cycle') ||
                  lower.includes('across cycles') || lower.includes('longitudinal') || lower.includes('history of') ||
                  lower.includes('all echoes') || lower.includes('pattern across');
   const isSmall = lower.includes('tag this') || lower.includes('close this') || lower.includes('archive') ||
-                  lower.includes('what phase') || lower.includes('current moon') || lower.length < 25;
+                  lower.includes('what phase') || lower.includes('current moon') || (lower.length < 25 && !hasExpandedFieldRetrieval);
+
+  let tier: 'small' | 'normal' | 'deep' = 'normal';
+  let targetContextBudget = 16000;
+  let warrantedDepthRationale = 'Standard conversational reflection and selective Field attunement';
 
   if (isDeep) {
-    return {
-      tier: 'deep',
-      warrantedDepthRationale: 'Longitudinal or full-cycle reflection requires broader Field retrieval',
-      maxBudgetTokens: 32000,
-      estimatedContextTokens: estimatedTokens
-    };
+    tier = 'deep';
+    targetContextBudget = 32000;
+    warrantedDepthRationale = 'Longitudinal or full-cycle reflection expected to need broader Field retrieval';
+  } else if (isSmall) {
+    tier = 'small';
+    targetContextBudget = 4000;
+    warrantedDepthRationale = 'Focused state or CRUD operation expected to need minimal context';
   }
 
-  if (isSmall) {
-    return {
-      tier: 'small',
-      warrantedDepthRationale: 'Focused state or CRUD operation requires minimal context',
-      maxBudgetTokens: 4000,
-      estimatedContextTokens: estimatedTokens
-    };
+  const exceededTarget = actualTokens > targetContextBudget;
+  let expansionReason: string | null = null;
+  if (exceededTarget) {
+    expansionReason = hasExpandedFieldRetrieval
+      ? 'Relevant Field retrieval required additional empirical evidence'
+      : 'Conversational depth naturally expanded context beyond baseline target';
   }
 
   return {
-    tier: 'normal',
-    warrantedDepthRationale: 'Standard conversational reflection and selective Field attunement',
-    maxBudgetTokens: 16000,
-    estimatedContextTokens: estimatedTokens
+    tier,
+    warrantedDepthRationale,
+    targetContextBudget,
+    actualContextUsed: actualTokens,
+    modelContextLimit,
+    exceededTarget,
+    expansionReason,
+    elasticPolicy: 'fidelity_first_observability'
   };
 }
 
@@ -990,7 +1007,13 @@ export function registerChatRoutes(app: Express, authenticateRest: any) {
         rawToolResultsAccumulated,
         message
       );
-      const contextBudget = determineContextBudget(message, contextBreakdown.estimatedTotalContextTokens);
+      const hasExpandedRetrieval = retrievedContextIds.length > 5 || fieldCoverageData.recordsRetrieved > 10;
+      const contextBudget = determineContextBudget(
+        message,
+        contextBreakdown.estimatedTotalContextTokens,
+        modelConfig?.contextWindow || 128000,
+        hasExpandedRetrieval
+      );
 
       // If token usage wasn't reported by provider, calculate fallback estimate
       if (tokenUsageReport.source === 'estimated') {

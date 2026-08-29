@@ -40,38 +40,46 @@ function estimateContextBreakdown(systemPrompt, conversationMessages, relational
   };
 }
 
-// 2. Context Budget Logic
-function determineContextBudget(message, estimatedTokens) {
+// 2. Elastic Context Budget Logic (Target Guidance, NOT a Hard Cap)
+function determineContextBudget(message, actualTokens, modelContextLimit = 128000, hasExpandedFieldRetrieval = false) {
   const lower = (message || '').toLowerCase();
   const isDeep = lower.includes('entire') || lower.includes('all cycle') || lower.includes('whole cycle') ||
                  lower.includes('across cycles') || lower.includes('longitudinal') || lower.includes('history of') ||
                  lower.includes('all echoes') || lower.includes('pattern across');
   const isSmall = lower.includes('tag this') || lower.includes('close this') || lower.includes('archive') ||
-                  lower.includes('what phase') || lower.includes('current moon') || lower.length < 25;
+                  lower.includes('what phase') || lower.includes('current moon') || (lower.length < 25 && !hasExpandedFieldRetrieval);
+
+  let tier = 'normal';
+  let targetContextBudget = 16000;
+  let warrantedDepthRationale = 'Standard conversational reflection and selective Field attunement';
 
   if (isDeep) {
-    return {
-      tier: 'deep',
-      warrantedDepthRationale: 'Longitudinal or full-cycle reflection requires broader Field retrieval',
-      maxBudgetTokens: 32000,
-      estimatedContextTokens: estimatedTokens
-    };
+    tier = 'deep';
+    targetContextBudget = 32000;
+    warrantedDepthRationale = 'Longitudinal or full-cycle reflection expected to need broader Field retrieval';
+  } else if (isSmall) {
+    tier = 'small';
+    targetContextBudget = 4000;
+    warrantedDepthRationale = 'Focused state or CRUD operation expected to need minimal context';
   }
 
-  if (isSmall) {
-    return {
-      tier: 'small',
-      warrantedDepthRationale: 'Focused state or CRUD operation requires minimal context',
-      maxBudgetTokens: 4000,
-      estimatedContextTokens: estimatedTokens
-    };
+  const exceededTarget = actualTokens > targetContextBudget;
+  let expansionReason = null;
+  if (exceededTarget) {
+    expansionReason = hasExpandedFieldRetrieval
+      ? 'Relevant Field retrieval required additional empirical evidence'
+      : 'Conversational depth naturally expanded context beyond baseline target';
   }
 
   return {
-    tier: 'normal',
-    warrantedDepthRationale: 'Standard conversational reflection and selective Field attunement',
-    maxBudgetTokens: 16000,
-    estimatedContextTokens: estimatedTokens
+    tier,
+    warrantedDepthRationale,
+    targetContextBudget,
+    actualContextUsed: actualTokens,
+    modelContextLimit,
+    exceededTarget,
+    expansionReason,
+    elasticPolicy: 'fidelity_first_observability'
   };
 }
 
@@ -121,31 +129,42 @@ describe('Luna Inference Economics & Context Breakdown', () => {
     expect(breakdown.estimationMethod).toBe('character_ratio_estimate_v1');
   });
 
-  it('correctly categorizes Context Budget tiers (small vs normal vs deep)', () => {
-    const smallBudget = determineContextBudget('what phase is the moon?', 600);
-    expect(smallBudget.tier).toBe('small');
-    expect(smallBudget.maxBudgetTokens).toBe(4000);
-
-    const normalBudget = determineContextBudget('Reflect on what I noticed yesterday about pacing.', 1200);
+  it('correctly operates as elastic guidance and distinguishes targetContextBudget, actualContextUsed, and modelContextLimit', () => {
+    // 1. Normal inquiry that stays within target
+    const normalBudget = determineContextBudget('Reflect on what I noticed yesterday about pacing.', 8700, 1050000);
     expect(normalBudget.tier).toBe('normal');
-    expect(normalBudget.maxBudgetTokens).toBe(16000);
+    expect(normalBudget.targetContextBudget).toBe(16000);
+    expect(normalBudget.actualContextUsed).toBe(8700);
+    expect(normalBudget.modelContextLimit).toBe(1050000);
+    expect(normalBudget.exceededTarget).toBe(false);
 
-    const deepBudget = determineContextBudget('What has this entire circle illuminated across cycles?', 4500);
+    // 2. Normal inquiry that naturally expands with evidence without hard cutoff
+    const expandedBudget = determineContextBudget('Reflect on what I noticed yesterday about pacing.', 23840, 1050000, true);
+    expect(expandedBudget.tier).toBe('normal');
+    expect(expandedBudget.targetContextBudget).toBe(16000);
+    expect(expandedBudget.actualContextUsed).toBe(23840);
+    expect(expandedBudget.exceededTarget).toBe(true);
+    expect(expandedBudget.expansionReason).toContain('Relevant Field retrieval required additional empirical evidence');
+
+    // 3. Deep whole-cycle inquiry
+    const deepBudget = determineContextBudget('What has this entire circle illuminated across cycles?', 41800, 1000000, true);
     expect(deepBudget.tier).toBe('deep');
-    expect(deepBudget.maxBudgetTokens).toBe(32000);
+    expect(deepBudget.targetContextBudget).toBe(32000);
+    expect(deepBudget.actualContextUsed).toBe(41800);
+    expect(deepBudget.exceededTarget).toBe(true);
   });
 
-  it('computes inference cost based on provider rate basis per million tokens', () => {
+  it('computes inference cost based on provider rate basis per million tokens (e.g. DeepSeek V4 Flash)', () => {
     const usage = { inputTokens: 50000, outputTokens: 1000, totalTokens: 51000, source: 'provider_reported' };
-    const pricing = { inputCostPer1M: 0.12, outputCostPer1M: 0.30 }; // Llama 3.3 70B rates
+    const pricing = { inputCostPer1M: 0.09, outputCostPer1M: 0.18 }; // DeepSeek V4 Flash rates
 
     const cost = calculateInferenceCost(usage, pricing);
-    // (50000 / 1000000) * 0.12 = 0.006
-    // (1000 / 1000000) * 0.30 = 0.0003
-    // Total = 0.0063
-    expect(cost.inputCostUsd).toBe(0.006);
-    expect(cost.outputCostUsd).toBe(0.0003);
-    expect(cost.estimatedCostUsd).toBe(0.0063);
+    // (50000 / 1000000) * 0.09 = 0.0045
+    // (1000 / 1000000) * 0.18 = 0.00018
+    // Total = 0.00468
+    expect(cost.inputCostUsd).toBe(0.0045);
+    expect(cost.outputCostUsd).toBe(0.00018);
+    expect(cost.estimatedCostUsd).toBe(0.00468);
   });
 });
 

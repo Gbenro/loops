@@ -271,16 +271,16 @@ export function Chat({ userId, lunarData }) {
               fontFamily: 'sans-serif'
             }}
           >
-            <option value="anthropic-3.7-sonnet">Anthropic — Claude 3.7 Sonnet (Frontier)</option>
-            <option value="openrouter-deepseek-r1">OpenRouter — DeepSeek R1 (Frontier Reasoning)</option>
-            <option value="openrouter-llama-3.3-70b">OpenRouter — Llama 3.3 70B (Standard Open)</option>
-            <option value="openrouter-mistral-large">OpenRouter — Mistral Large (Strong Open)</option>
-            <option value="openrouter-qwen-72b">OpenRouter — Qwen 2.5 72B (Strong Open)</option>
-            <option value="gemini-2.5-pro">Google — Gemini 2.5 Pro (Frontier)</option>
-            <option value="gemini-2.5-flash">Google — Gemini 2.5 Flash (Fast Agent)</option>
-            <option value="openrouter-gemini-flash">OpenRouter — Gemini 2.0 Flash (Fast Economy)</option>
-            <option value="openai-frontier">OpenAI — GPT-4o (Frontier)</option>
-            <option value="openai-balanced">OpenAI — GPT-4o Mini (Economy)</option>
+            <option value="anthropic-3.7-sonnet">Anthropic — Claude 3.7 Sonnet (Proprietary Frontier)</option>
+            <option value="openrouter-glm-5.3">OpenRouter — GLM 5.3 (Open-Weight Frontier Reasoning)</option>
+            <option value="openrouter-deepseek-v4-pro">OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier)</option>
+            <option value="openrouter-kimi-k2.5">OpenRouter — Kimi K2.5 (Open-Weight Multimodal)</option>
+            <option value="openrouter-deepseek-v4-flash">OpenRouter — DeepSeek V4 Flash (Open-Weight Economy)</option>
+            <option value="openrouter-deepseek-v4-flash-vision">OpenRouter — DeepSeek V4 Flash Vision (Open-Weight Multimodal)</option>
+            <option value="openrouter-minimax-m2.5">OpenRouter — MiniMax M2.5 (Open-Weight Productivity)</option>
+            <option value="openrouter-qwen3.8-27b">OpenRouter — Qwen 3.8 27B (Open-Weight Vision-Language)</option>
+            <option value="gemini-2.5-pro">Google — Gemini 2.5 Pro (Proprietary Frontier)</option>
+            <option value="gemini-2.5-flash">Google — Gemini 2.5 Flash (Proprietary Fast Agent)</option>
           </select>
         </div>
       </header>
