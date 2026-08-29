@@ -156,6 +156,8 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
   const voice = req.voiceId || 'nova'; // warm, grounded tone
   const speed = req.speed || DEFAULT_LUNA_VOICE_POLICY.rateModifier;
 
+  let lastError: string | null = null;
+
   // 1. Try OpenRouter Dedicated Speech API (Primary production TTS engine)
   const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (openRouterKey) {
@@ -209,9 +211,11 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
         };
       } else {
         const errText = await response.text();
+        lastError = `OpenRouter TTS (${response.status}): ${errText}`;
         console.warn(`[Luna Voice TTS] OpenRouter error (${response.status}):`, errText);
       }
     } catch (err: any) {
+      lastError = `OpenRouter exception: ${err.message}`;
       console.warn('[Luna Voice TTS] OpenRouter TTS failed, checking fallbacks:', err.message);
     }
   }
@@ -259,9 +263,11 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
         };
       } else {
         const errText = await response.text();
+        lastError = `OpenAI Direct TTS (${response.status}): ${errText}`;
         console.warn(`[Luna Voice TTS] OpenAI direct error (${response.status}):`, errText);
       }
     } catch (err: any) {
+      lastError = `OpenAI Direct exception: ${err.message}`;
       console.warn('[Luna Voice TTS] OpenAI direct TTS failed, falling back:', err.message);
     }
   }
@@ -277,6 +283,7 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
     latencyMs,
     httpStatus: 200,
     estimatedCostUsd: 0,
+    error: lastError || undefined,
     success: true,
     useClientFallback: true
   };
