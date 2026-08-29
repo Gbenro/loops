@@ -1,5 +1,5 @@
 {
-  "openapi": "3.1.0",
+  "openapi": "3.0.1",
   "info": {
     "title": "Luna Loop Assist API",
     "description": "Production API for Luna Loops: Continuous Reflection, Lunar Grounding, Loops, Echoes, Threads, Co-Created Reflections, and Developer Chat Observability.",
@@ -1747,6 +1747,291 @@
           }
         }
       },
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "type": "integer"
+          },
+          "outputTokens": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "InferenceCost": {
+        "type": "object",
+        "properties": {
+          "estimatedCostUsd": {
+            "type": "number"
+          },
+          "reasoningCostUsd": {
+            "type": "number"
+          },
+          "ttsCostUsd": {
+            "type": "number"
+          }
+        }
+      },
+      "ContextBreakdown": {
+        "type": "object",
+        "properties": {
+          "systemPromptTokens": {
+            "type": "integer"
+          },
+          "fieldTokens": {
+            "type": "integer"
+          },
+          "memoryTokens": {
+            "type": "integer"
+          },
+          "historyTokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "ContextBudget": {
+        "type": "object",
+        "properties": {
+          "maxContextTokens": {
+            "type": "integer"
+          },
+          "remainingTokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "FieldCoverage": {
+        "type": "object",
+        "properties": {
+          "totalCandidates": {
+            "type": "integer"
+          },
+          "retrievedCount": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FieldRetrieval": {
+        "type": "object",
+        "properties": {
+          "retrievedContextIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RelationalMemory": {
+        "type": "object",
+        "properties": {
+          "candidatesConsideredCount": {
+            "type": "integer"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "selectedCount": {
+            "type": "integer"
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "injectedIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Protocols": {
+        "type": "object",
+        "properties": {
+          "pacingRhythm": {
+            "type": "string"
+          },
+          "turnCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "VoiceInput": {
+        "type": "object",
+        "properties": {
+          "transcription": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number"
+          }
+        }
+      },
+      "VoiceOutput": {
+        "type": "object",
+        "properties": {
+          "ttsProvider": {
+            "type": "string"
+          },
+          "ttsModel": {
+            "type": "string"
+          },
+          "voiceId": {
+            "type": "string"
+          },
+          "characterCount": {
+            "type": "integer"
+          },
+          "rawByteCount": {
+            "type": "integer"
+          },
+          "packagedByteCount": {
+            "type": "integer"
+          },
+          "audioDurationSec": {
+            "type": "number"
+          },
+          "synthesisLatencyMs": {
+            "type": "integer"
+          },
+          "estimatedCostUsd": {
+            "type": "number"
+          },
+          "synthesisSucceeded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VoiceFeedback": {
+        "type": "object",
+        "properties": {
+          "clientEvent": {
+            "type": "string"
+          },
+          "playbackStarted": {
+            "type": "boolean"
+          },
+          "playbackAdvanced": {
+            "type": "boolean"
+          },
+          "playbackCompleted": {
+            "type": "boolean"
+          },
+          "playbackSucceeded": {
+            "type": "boolean"
+          },
+          "currentTime": {
+            "type": "number"
+          },
+          "playbackDurationMs": {
+            "type": "number"
+          }
+        }
+      },
+      "TimeContext": {
+        "type": "object",
+        "properties": {
+          "localNow": {
+            "type": "string"
+          },
+          "today": {
+            "type": "string"
+          },
+          "yesterday": {
+            "type": "string"
+          },
+          "tomorrow": {
+            "type": "string"
+          },
+          "dayOfWeek": {
+            "type": "string"
+          },
+          "currentYear": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "utcNow": {
+            "type": "string"
+          }
+        }
+      },
+      "ToolCallRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          }
+        }
+      },
+      "DatabaseMutationRecord": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "string"
+          }
+        }
+      },
+      "RawTelemetryRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "latency_ms": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
       "TurnBundle": {
         "type": "object",
         "properties": {
@@ -1787,70 +2072,55 @@
             "description": "Error message if failed"
           },
           "tokenUsage": {
-            "type": "object",
-            "description": "Input, output, and total token usage"
+            "$ref": "#/components/schemas/TokenUsage"
           },
           "inferenceCost": {
-            "type": "object",
-            "description": "Estimated turn cost breakdown in USD"
+            "$ref": "#/components/schemas/InferenceCost"
           },
           "contextBreakdown": {
-            "type": "object",
-            "description": "Prompt context token allocation breakdown"
+            "$ref": "#/components/schemas/ContextBreakdown"
           },
           "contextBudget": {
-            "type": "object",
-            "description": "Context budget constraints and token limits"
+            "$ref": "#/components/schemas/ContextBudget"
           },
           "fieldCoverage": {
-            "type": "object",
-            "description": "Retrieved records vs total candidate records"
+            "$ref": "#/components/schemas/FieldCoverage"
           },
           "fieldRetrieval": {
-            "type": "object",
-            "description": "Retrieved context IDs"
+            "$ref": "#/components/schemas/FieldRetrieval"
           },
           "relationalMemory": {
-            "type": "object",
-            "description": "Active relational memory candidates and injections"
+            "$ref": "#/components/schemas/RelationalMemory"
           },
           "protocols": {
-            "type": "object",
-            "description": "Active runtime protocols (e.g. 3-6-9 rhythm)"
+            "$ref": "#/components/schemas/Protocols"
           },
           "voiceInput": {
-            "type": "object",
-            "description": "Voice transcription telemetry and provenance"
+            "$ref": "#/components/schemas/VoiceInput"
           },
           "voiceOutput": {
-            "type": "object",
-            "description": "TTS synthesis model, PCM bytes, WAV bytes, and audio duration"
+            "$ref": "#/components/schemas/VoiceOutput"
           },
           "voiceFeedback": {
-            "type": "object",
-            "description": "Client-side playback lifecycle (playing, advanced, ended, latency)"
+            "$ref": "#/components/schemas/VoiceFeedback"
           },
           "timeContext": {
-            "type": "object",
-            "description": "Authoritative time grounding and temporal clock"
+            "$ref": "#/components/schemas/TimeContext"
           },
           "lunarContext": {
-            "type": "object",
-            "description": "Authoritative lunar phase and zodiac telemetry"
+            "$ref": "#/components/schemas/LunarContext"
           },
           "toolCalls": {
             "type": "array",
             "items": {
-              "type": "object"
-            },
-            "description": "Tool executions with inputs and outputs"
+              "$ref": "#/components/schemas/ToolCallRecord"
+            }
           },
           "databaseMutations": {
             "type": "array",
             "items": {
-              "type": "object"
-            },
-            "description": "Database mutations performed"
+              "$ref": "#/components/schemas/DatabaseMutationRecord"
+            }
           }
         }
       },
@@ -1858,8 +2128,7 @@
         "type": "object",
         "properties": {
           "telemetry": {
-            "type": "object",
-            "description": "Raw telemetry row record"
+            "$ref": "#/components/schemas/RawTelemetryRecord"
           },
           "turnBundle": {
             "$ref": "#/components/schemas/TurnBundle"
@@ -1963,6 +2232,31 @@
           }
         }
       },
+      "ModelUsageBreakdown": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "integer"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "OperationUsageBreakdown": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "costUsd": {
+            "type": "number"
+          }
+        }
+      },
       "InferenceSummary": {
         "type": "object",
         "properties": {
@@ -1988,10 +2282,10 @@
             "type": "integer"
           },
           "modelBreakdown": {
-            "type": "object"
+            "$ref": "#/components/schemas/ModelUsageBreakdown"
           },
           "operationBreakdown": {
-            "type": "object"
+            "$ref": "#/components/schemas/OperationUsageBreakdown"
           },
           "period": {
             "type": "string"

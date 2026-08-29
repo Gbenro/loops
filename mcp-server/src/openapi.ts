@@ -1,15 +1,14 @@
 /**
- * OpenAPI 3.1.0 Specification for Luna Loop Assist (ChatGPT GPT Actions)
+ * OpenAPI 3.0.1 Specification for Luna Loop Assist (ChatGPT GPT Actions)
  * Fully compliant with OpenAI Actions schema validator:
- * - components.schemas is defined as an object with complete reusable data models
- * - All object schemas contain explicit properties
- * - All array schemas contain explicit item definitions
- * - Unifies Luna Domain API (Lunar, Search, Echoes, Reflections, Loops, Threads)
- *   with Developer Chat Observability API (Sessions, Messages, Turn Traces, Evaluations, Inference Summary)
+ * - openapi: "3.0.1" (OpenAI Actions strictly supported standard)
+ * - 0 empty object schemas; every object schema defines concrete properties
+ * - 0 empty array items; every array schema defines concrete item types
+ * - Unified Domain + Observability APIs
  */
 
 export const LUNA_OPENAPI_SPEC = {
-  openapi: "3.1.0",
+  openapi: "3.0.1",
   info: {
     title: "Luna Loop Assist API",
     description: "Production API for Luna Loops: Continuous Reflection, Lunar Grounding, Loops, Echoes, Threads, Co-Created Reflections, and Developer Chat Observability.",
@@ -555,11 +554,11 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/loops/{id}/close": {
-      post: {
-        operationId: "close_loop",
-        summary: "Close/Complete Loop",
-        description: "Mark a loop as completed with an optional reflection closing note.",
-        parameters: [
+      "post": {
+        "operationId": "close_loop",
+        "summary": "Close/Complete Loop",
+        "description": "Mark a loop as completed with an optional reflection closing note.",
+        "parameters": [
           {
             name: "id",
             in: "path",
@@ -570,22 +569,22 @@ export const LUNA_OPENAPI_SPEC = {
             description: "Loop ID to close"
           }
         ],
-        requestBody: {
-          required: false,
-          content: {
+        "requestBody": {
+          "required": false,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/CloseLoopInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "Closed loop record",
-            content: {
+            "description": "Closed loop record",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/Loop"
                 }
               }
@@ -595,11 +594,11 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/loops/{id}/carry-forward": {
-      post: {
-        operationId: "carry_loop_forward",
-        summary: "Carry Loop Forward into New Cycle",
-        description: "Carry an active or incomplete loop into the current lunar cycle.",
-        parameters: [
+      "post": {
+        "operationId": "carry_loop_forward",
+        "summary": "Carry Loop Forward into New Cycle",
+        "description": "Carry an active or incomplete loop into the current lunar cycle.",
+        "parameters": [
           {
             name: "id",
             in: "path",
@@ -610,22 +609,22 @@ export const LUNA_OPENAPI_SPEC = {
             description: "Loop ID to carry forward"
           }
         ],
-        requestBody: {
-          required: false,
-          content: {
+        "requestBody": {
+          "required": false,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/CarryLoopForwardInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "New carried forward loop record",
-            content: {
+            "description": "New carried forward loop record",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/Loop"
                 }
               }
@@ -635,34 +634,34 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/threads": {
-      get: {
-        operationId: "list_threads",
-        summary: "List Thematic Threads",
-        description: "List longitudinal threads that weave multiple echoes and loops together.",
-        parameters: [
+      "get": {
+        "operationId": "list_threads",
+        "summary": "List Thematic Threads",
+        "description": "List longitudinal threads that weave multiple echoes and loops together.",
+        "parameters": [
           {
-            name: "status",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-              enum: [
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
                 "active",
                 "archived",
                 "all"
               ],
-              default: "active"
+              "default": "active"
             }
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "List of threads",
-            content: {
+            "description": "List of threads",
+            "content": {
               "application/json": {
-                schema: {
-                  type: "array",
-                  items: {
+                "schema": {
+                  "type": "array",
+                  "items": {
                     "$ref": "#/components/schemas/Thread"
                   }
                 }
@@ -671,25 +670,25 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       },
-      post: {
-        operationId: "create_thread",
-        summary: "Create a Thematic Thread",
-        requestBody: {
-          required: true,
-          content: {
+      "post": {
+        "operationId": "create_thread",
+        "summary": "Create a Thematic Thread",
+        "requestBody": {
+          "required": true,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/CreateThreadInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "Created thread record",
-            content: {
+            "description": "Created thread record",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/Thread"
                 }
               }
@@ -699,25 +698,25 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/threads/{id}": {
-      get: {
-        operationId: "get_thread",
-        summary: "Get Thread Details",
-        parameters: [
+      "get": {
+        "operationId": "get_thread",
+        "summary": "Get Thread Details",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "Thread details with connected items",
-            content: {
+            "description": "Thread details with connected items",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/Thread"
                 }
               }
@@ -725,35 +724,35 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       },
-      patch: {
-        operationId: "update_thread",
-        summary: "Update Thread",
-        parameters: [
+      "patch": {
+        "operationId": "update_thread",
+        "summary": "Update Thread",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
         ],
-        requestBody: {
-          required: true,
-          content: {
+        "requestBody": {
+          "required": true,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/UpdateThreadInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "Updated thread record",
-            content: {
+            "description": "Updated thread record",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/Thread"
                 }
               }
@@ -763,45 +762,45 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/threads/{id}/echoes/{echoId}": {
-      post: {
-        operationId: "connect_echo_to_thread",
-        summary: "Connect Echo to Thread",
-        parameters: [
+      "post": {
+        "operationId": "connect_echo_to_thread",
+        "summary": "Connect Echo to Thread",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Thread ID"
+            "description": "Thread ID"
           },
           {
-            name: "echoId",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "echoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Echo ID to connect"
+            "description": "Echo ID to connect"
           }
         ],
-        requestBody: {
-          required: false,
-          content: {
+        "requestBody": {
+          "required": false,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/ConnectEchoToThreadInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "Connection confirmed",
-            content: {
+            "description": "Connection confirmed",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ActionSuccess"
                 }
               }
@@ -809,35 +808,35 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       },
-      delete: {
-        operationId: "disconnect_echo_from_thread",
-        summary: "Disconnect Echo from Thread",
-        parameters: [
+      "delete": {
+        "operationId": "disconnect_echo_from_thread",
+        "summary": "Disconnect Echo from Thread",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Thread ID"
+            "description": "Thread ID"
           },
           {
-            name: "echoId",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "echoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Echo ID to disconnect"
+            "description": "Echo ID to disconnect"
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "Disconnection confirmed",
-            content: {
+            "description": "Disconnection confirmed",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ActionSuccess"
                 }
               }
@@ -847,28 +846,28 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/sessions": {
-      get: {
-        operationId: "list_chat_sessions",
-        summary: "List Chat Sessions",
-        description: "List authenticated user's chat sessions ordered by latest activity.",
-        parameters: [
+      "get": {
+        "operationId": "list_chat_sessions",
+        "summary": "List Chat Sessions",
+        "description": "List authenticated user's chat sessions ordered by latest activity.",
+        "parameters": [
           {
-            name: "limit",
-            in: "query",
-            required: false,
-            schema: {
-              type: "integer",
-              default: 20
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
             },
-            description: "Maximum sessions to return"
+            "description": "Maximum sessions to return"
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "List of chat sessions",
-            content: {
+            "description": "List of chat sessions",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatSessionsListResponse"
                 }
               }
@@ -878,27 +877,27 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/sessions/{id}": {
-      get: {
-        operationId: "get_chat_session",
-        summary: "Get Chat Session & Conversation Messages",
-        description: "Retrieve a specific chat session and all its messages in chronological order.",
-        parameters: [
+      "get": {
+        "operationId": "get_chat_session",
+        "summary": "Get Chat Session & Conversation Messages",
+        "description": "Retrieve a specific chat session and all its messages in chronological order.",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Chat Session ID"
+            "description": "Chat Session ID"
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "Chat session and conversation message history",
-            content: {
+            "description": "Chat session and conversation message history",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatSessionDetailResponse"
                 }
               }
@@ -908,56 +907,60 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/messages": {
-      get: {
-        operationId: "search_chat_messages",
-        summary: "Search & Filter Chat Messages",
-        description: "Search and filter chat messages across sessions by role, text query, or session ID.",
-        parameters: [
+      "get": {
+        "operationId": "search_chat_messages",
+        "summary": "Search & Filter Chat Messages",
+        "description": "Search and filter chat messages across sessions by role, text query, or session ID.",
+        "parameters": [
           {
-            name: "sessionId",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
             },
-            description: "Filter by session ID"
+            "description": "Filter by session ID"
           },
           {
-            name: "role",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-              enum: ["user", "assistant", "system"]
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant",
+                "system"
+              ]
             },
-            description: "Filter by message role"
+            "description": "Filter by message role"
           },
           {
-            name: "query",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
             },
-            description: "Text search within message content"
+            "description": "Text search within message content"
           },
           {
-            name: "limit",
-            in: "query",
-            required: false,
-            schema: {
-              type: "integer",
-              default: 50
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
             },
-            description: "Maximum messages to return"
+            "description": "Maximum messages to return"
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "Matching chat messages list",
-            content: {
+            "description": "Matching chat messages list",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatMessagesListResponse"
                 }
               }
@@ -967,27 +970,27 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/turns/{id}": {
-      get: {
-        operationId: "get_chat_turn_trace",
-        summary: "Get Granular Chat Turn Trace Bundle",
-        description: "Retrieve the forensic telemetry and execution bundle for a single conversational turn (by traceId or messageId), including token usage, exact reasoning and TTS costs, relational memory, protocols, Field coverage, tool calls, and voice lifecycle.",
-        parameters: [
+      "get": {
+        "operationId": "get_chat_turn_trace",
+        "summary": "Get Granular Chat Turn Trace Bundle",
+        "description": "Retrieve the forensic telemetry and execution bundle for a single conversational turn (by traceId or messageId), including token usage, exact reasoning and TTS costs, relational memory, protocols, Field coverage, tool calls, and voice lifecycle.",
+        "parameters": [
           {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            description: "Telemetry trace ID (e.g. 'trace_...') or Assistant Message ID (e.g. 'chat_...')"
+            "description": "Telemetry trace ID (e.g. 'trace_...') or Assistant Message ID (e.g. 'chat_...')"
           }
         ],
-        responses: {
+        "responses": {
           "200": {
             "description": "Comprehensive turn trace and execution bundle",
-            content: {
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatTurnTraceResponse"
                 }
               }
@@ -997,16 +1000,16 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/evaluations": {
-      get: {
-        operationId: "get_chat_evaluations",
-        summary: "List Rubric Evaluations & Quality Audits",
-        description: "List conversational quality audits and rubric scores (grounding, restraint, earned significance, lunar relevance, tool discipline).",
-        responses: {
+      "get": {
+        "operationId": "get_chat_evaluations",
+        "summary": "List Rubric Evaluations & Quality Audits",
+        "description": "List conversational quality audits and rubric scores (grounding, restraint, earned significance, lunar relevance, tool discipline).",
+        "responses": {
           "200": {
-            description: "List of chat evaluations",
-            content: {
+            "description": "List of chat evaluations",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatEvaluationsListResponse"
                 }
               }
@@ -1014,26 +1017,26 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       },
-      post: {
-        operationId: "create_chat_evaluation",
-        summary: "Log Chat Quality Rubric Audit",
-        description: "Log a structured rubric evaluation for a conversational turn trace.",
-        requestBody: {
-          required: true,
-          content: {
+      "post": {
+        "operationId": "create_chat_evaluation",
+        "summary": "Log Chat Quality Rubric Audit",
+        "description": "Log a structured rubric evaluation for a conversational turn trace.",
+        "requestBody": {
+          "required": true,
+          "content": {
             "application/json": {
-              schema: {
+              "schema": {
                 "$ref": "#/components/schemas/CreateChatEvaluationInput"
               }
             }
           }
         },
-        responses: {
+        "responses": {
           "200": {
-            description: "Created evaluation record",
-            content: {
+            "description": "Created evaluation record",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/ChatEvaluationResponse"
                 }
               }
@@ -1043,34 +1046,34 @@ export const LUNA_OPENAPI_SPEC = {
       }
     },
     "/api/chat/inference-summary": {
-      get: {
-        operationId: "get_inference_summary",
-        summary: "Get Inference Usage & Cost Summary",
-        description: "Aggregate tokens, voice seconds, and costs across sessions and dates.",
-        parameters: [
+      "get": {
+        "operationId": "get_inference_summary",
+        "summary": "Get Inference Usage & Cost Summary",
+        "description": "Aggregate tokens, voice seconds, and costs across sessions and dates.",
+        "parameters": [
           {
-            name: "sessionId",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
-            name: "date",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
-        responses: {
+        "responses": {
           "200": {
-            description: "Aggregated inference receipts",
-            content: {
+            "description": "Aggregated inference receipts",
+            "content": {
               "application/json": {
-                schema: {
+                "schema": {
                   "$ref": "#/components/schemas/InferenceSummary"
                 }
               }
@@ -1080,358 +1083,1237 @@ export const LUNA_OPENAPI_SPEC = {
       }
     }
   },
-  components: {
-    schemas: {
-      LunarPhase: {
-        type: "object",
-        properties: {
-          key: { type: "string", description: "Phase key (e.g. new, waxing-crescent, full)" },
-          name: { type: "string", description: "Human readable phase name (e.g. Full Moon)" }
+  "components": {
+    "schemas": {
+      "LunarPhase": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Phase key (e.g. new, waxing-crescent, full)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human readable phase name (e.g. Full Moon)"
+          }
         }
       },
-      LunarZodiac: {
-        type: "object",
-        properties: {
-          sign: { type: "string", description: "Current zodiac sign (e.g. Pisces, Aries)" }
+      "LunarZodiac": {
+        "type": "object",
+        "properties": {
+          "sign": {
+            "type": "string",
+            "description": "Current zodiac sign (e.g. Pisces, Aries)"
+          }
         }
       },
-      LunarContext: {
-        type: "object",
-        properties: {
-          phase: { "$ref": "#/components/schemas/LunarPhase" },
-          illumination: { type: "number", description: "Moon illumination percentage (0-100)" },
-          dayOfCycle: { type: "integer", description: "Day of current cycle (1-29)" },
-          zodiac: { "$ref": "#/components/schemas/LunarZodiac" },
-          lunarMonth: { type: "string", description: "Traditional name of lunar cycle (e.g. Sturgeon)" },
-          phaseType: { type: "string", enum: ["threshold", "flow"], description: "Threshold vs flow phase" }
+      "LunarContext": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "$ref": "#/components/schemas/LunarPhase"
+          },
+          "illumination": {
+            "type": "number",
+            "description": "Moon illumination percentage (0-100)"
+          },
+          "dayOfCycle": {
+            "type": "integer",
+            "description": "Day of current cycle (1-29)"
+          },
+          "zodiac": {
+            "$ref": "#/components/schemas/LunarZodiac"
+          },
+          "lunarMonth": {
+            "type": "string",
+            "description": "Traditional name of lunar cycle (e.g. Sturgeon)"
+          },
+          "phaseType": {
+            "type": "string",
+            "enum": [
+              "threshold",
+              "flow"
+            ],
+            "description": "Threshold vs flow phase"
+          }
         }
       },
-      Echo: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "Unique stable ID" },
-          text: { type: "string", description: "Observation text content" },
-          source: { type: "string", description: "Client source identifier" },
-          tags: { type: "array", items: { type: "string" }, description: "Tags" },
-          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
-          energyState: { type: "string", description: "Energy state" },
-          provenanceAuthor: { type: "string", enum: ["user", "ai", "co-created"], description: "Origin author" },
-          provenanceKind: { type: "string", enum: ["original_echo", "conversation_reflection", "ai_reflection", "checkpoint", "product_note"], description: "Record kind" },
-          phase: { type: "string", description: "Lunar phase at creation" },
-          phaseName: { type: "string", description: "Lunar phase name" },
-          dayOfCycle: { type: "integer", description: "Day of lunar cycle" },
-          zodiac: { type: "string", description: "Zodiac sign at creation" },
-          illumination: { type: "number", description: "Illumination percentage" },
-          status: { type: "string", enum: ["active", "archived"], description: "Status" },
-          createdAt: { type: "string", description: "Creation ISO timestamp" }
+      "Echo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique stable ID"
+          },
+          "text": {
+            "type": "string",
+            "description": "Observation text content"
+          },
+          "source": {
+            "type": "string",
+            "description": "Client source identifier"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags"
+          },
+          "loopIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Associated loop IDs"
+          },
+          "energyState": {
+            "type": "string",
+            "description": "Energy state"
+          },
+          "provenanceAuthor": {
+            "type": "string",
+            "enum": [
+              "user",
+              "ai",
+              "co-created"
+            ],
+            "description": "Origin author"
+          },
+          "provenanceKind": {
+            "type": "string",
+            "enum": [
+              "original_echo",
+              "conversation_reflection",
+              "ai_reflection",
+              "checkpoint",
+              "product_note"
+            ],
+            "description": "Record kind"
+          },
+          "phase": {
+            "type": "string",
+            "description": "Lunar phase at creation"
+          },
+          "phaseName": {
+            "type": "string",
+            "description": "Lunar phase name"
+          },
+          "dayOfCycle": {
+            "type": "integer",
+            "description": "Day of lunar cycle"
+          },
+          "zodiac": {
+            "type": "string",
+            "description": "Zodiac sign at creation"
+          },
+          "illumination": {
+            "type": "number",
+            "description": "Illumination percentage"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "description": "Status"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation ISO timestamp"
+          }
         }
       },
-      CreateEchoInput: {
-        type: "object",
-        required: ["text"],
-        properties: {
-          text: { type: "string", description: "Observation content" },
-          source: { type: "string", default: "chatgpt", description: "Origin client" },
-          tags: { type: "array", items: { type: "string" }, description: "Tags" },
-          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
-          energyState: { type: "string", description: "Energy signature" }
+      "CreateEchoInput": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Observation content"
+          },
+          "source": {
+            "type": "string",
+            "default": "chatgpt",
+            "description": "Origin client"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags"
+          },
+          "loopIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Associated loop IDs"
+          },
+          "energyState": {
+            "type": "string",
+            "description": "Energy signature"
+          }
         }
       },
-      CreateConversationReflectionInput: {
-        type: "object",
-        required: ["text"],
-        properties: {
-          text: { type: "string", description: "Insight or reflection content derived from dialogue" },
-          sessionId: { type: "string", description: "Chat session ID" },
-          conversationTitle: { type: "string", description: "Topic or title of conversation" },
-          tags: { type: "array", items: { type: "string" }, description: "Tags (e.g. ['conversation-reflection'])" },
-          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
-          energyState: { type: "string", description: "Energy signature" }
+      "CreateConversationReflectionInput": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Insight or reflection content derived from dialogue"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "Chat session ID"
+          },
+          "conversationTitle": {
+            "type": "string",
+            "description": "Topic or title of conversation"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags (e.g. ['conversation-reflection'])"
+          },
+          "loopIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Associated loop IDs"
+          },
+          "energyState": {
+            "type": "string",
+            "description": "Energy signature"
+          }
         }
       },
-      UpdateEchoInput: {
-        type: "object",
-        properties: {
-          tags: { type: "array", items: { type: "string" }, description: "Updated tags list" },
-          status: { type: "string", enum: ["active", "archived"], description: "Status" },
-          loopIds: { type: "array", items: { type: "string" }, description: "Updated associated loop IDs" }
+      "UpdateEchoInput": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Updated tags list"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "description": "Status"
+          },
+          "loopIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Updated associated loop IDs"
+          }
         }
       },
-      Reflection: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "Reflection ID" },
-          echoId: { type: "string", description: "Parent Echo ID" },
-          content: { type: "string", description: "Reflection text" },
-          tags: { type: "array", items: { type: "string" } },
-          authorType: { type: "string", enum: ["ai", "co-created", "user"] },
-          provenanceKind: { type: "string", enum: ["ai_reflection", "conversation_reflection"] },
-          createdAt: { type: "string" }
+      "Reflection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Reflection ID"
+          },
+          "echoId": {
+            "type": "string",
+            "description": "Parent Echo ID"
+          },
+          "content": {
+            "type": "string",
+            "description": "Reflection text"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "authorType": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "co-created",
+              "user"
+            ]
+          },
+          "provenanceKind": {
+            "type": "string",
+            "enum": [
+              "ai_reflection",
+              "conversation_reflection"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
         }
       },
-      AttachReflectionInput: {
-        type: "object",
-        required: ["content"],
-        properties: {
-          content: { type: "string", description: "Reflection text content" },
-          tags: { type: "array", items: { type: "string" } }
+      "AttachReflectionInput": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Reflection text content"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
-      Subtask: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          completed: { type: "boolean", default: false }
+      "Subtask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          }
         }
       },
-      Loop: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          title: { type: "string" },
-          description: { type: "string" },
-          scope: { type: "string", enum: ["cycle", "phase", "micro"] },
-          targetPhase: { type: "string" },
-          status: { type: "string", enum: ["active", "completed", "archived"] },
-          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
-          tags: { type: "array", items: { type: "string" } },
-          createdAt: { type: "string" }
+      "Loop": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "cycle",
+              "phase",
+              "micro"
+            ]
+          },
+          "targetPhase": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "completed",
+              "archived"
+            ]
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          }
         }
       },
-      CreateLoopInput: {
-        type: "object",
-        required: ["title"],
-        properties: {
-          title: { type: "string", description: "Loop intention" },
-          description: { type: "string" },
-          scope: { type: "string", enum: ["cycle", "phase", "micro"], default: "cycle" },
-          targetPhase: { type: "string" },
-          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
-          tags: { type: "array", items: { type: "string" } }
+      "CreateLoopInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Loop intention"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "cycle",
+              "phase",
+              "micro"
+            ],
+            "default": "cycle"
+          },
+          "targetPhase": {
+            "type": "string"
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
-      UpdateLoopInput: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
-          tags: { type: "array", items: { type: "string" } },
-          status: { type: "string", enum: ["active", "completed", "archived"] }
+      "UpdateLoopInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "completed",
+              "archived"
+            ]
+          }
         }
       },
-      CloseLoopInput: {
-        type: "object",
-        properties: {
-          note: { type: "string", description: "Closing reflection note" }
+      "CloseLoopInput": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Closing reflection note"
+          }
         }
       },
-      CarryLoopForwardInput: {
-        type: "object",
-        properties: {
-          new_note: { type: "string", description: "Context note for carrying forward" }
+      "CarryLoopForwardInput": {
+        "type": "object",
+        "properties": {
+          "new_note": {
+            "type": "string",
+            "description": "Context note for carrying forward"
+          }
         }
       },
-      Thread: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          title: { type: "string" },
-          description: { type: "string" },
-          theme: { type: "string" },
-          tags: { type: "array", items: { type: "string" } },
-          status: { type: "string", enum: ["active", "archived"] },
-          createdAt: { type: "string" }
+      "Thread": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
         }
       },
-      CreateThreadInput: {
-        type: "object",
-        required: ["title"],
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          theme: { type: "string" },
-          tags: { type: "array", items: { type: "string" } }
+      "CreateThreadInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
-      UpdateThreadInput: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          tags: { type: "array", items: { type: "string" } },
-          status: { type: "string", enum: ["active", "archived"] }
+      "UpdateThreadInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          }
         }
       },
-      ConnectEchoToThreadInput: {
-        type: "object",
-        properties: {
-          relationshipType: { type: "string" },
-          note: { type: "string" }
+      "ConnectEchoToThreadInput": {
+        "type": "object",
+        "properties": {
+          "relationshipType": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
         }
       },
-      ActionSuccess: {
-        type: "object",
-        properties: {
-          success: { type: "boolean" },
-          message: { type: "string" }
+      "ActionSuccess": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       },
-      SearchResponse: {
-        type: "object",
-        properties: {
-          echoes: { type: "array", items: { "$ref": "#/components/schemas/Echo" } },
-          loops: { type: "array", items: { "$ref": "#/components/schemas/Loop" } },
-          reflections: { type: "array", items: { "$ref": "#/components/schemas/Reflection" } }
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "echoes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Echo"
+            }
+          },
+          "loops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Loop"
+            }
+          },
+          "reflections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reflection"
+            }
+          }
         }
       },
-      ChatSession: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "Session unique ID" },
-          user_id: { type: "string", description: "User ID" },
-          title: { type: "string", description: "Session title" },
-          created_at: { type: "string", description: "Created ISO timestamp" },
-          updated_at: { type: "string", description: "Updated ISO timestamp" }
+      "ChatSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Session unique ID"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "User ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Session title"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Created ISO timestamp"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Updated ISO timestamp"
+          }
         }
       },
-      ChatMessage: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "Message unique ID" },
-          session_id: { type: "string", description: "Chat session ID" },
-          user_id: { type: "string", description: "User ID" },
-          role: { type: "string", enum: ["user", "assistant", "system"], description: "Role" },
-          content: { type: "string", description: "Message text content" },
-          input_type: { type: "string", description: "Input mode (text / voice)" },
-          created_at: { type: "string", description: "Created timestamp" }
+      "ChatMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Message unique ID"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Chat session ID"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "User ID"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "description": "Role"
+          },
+          "content": {
+            "type": "string",
+            "description": "Message text content"
+          },
+          "input_type": {
+            "type": "string",
+            "description": "Input mode (text / voice)"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Created timestamp"
+          }
         }
       },
-      ChatSessionsListResponse: {
-        type: "object",
-        properties: {
-          sessions: { type: "array", items: { "$ref": "#/components/schemas/ChatSession" } }
+      "ChatSessionsListResponse": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatSession"
+            }
+          }
         }
       },
-      ChatSessionDetailResponse: {
-        type: "object",
-        properties: {
-          session: { "$ref": "#/components/schemas/ChatSession" },
-          messages: { type: "array", items: { "$ref": "#/components/schemas/ChatMessage" } }
+      "ChatSessionDetailResponse": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/ChatSession"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          }
         }
       },
-      ChatMessagesListResponse: {
-        type: "object",
-        properties: {
-          messages: { type: "array", items: { "$ref": "#/components/schemas/ChatMessage" } }
+      "ChatMessagesListResponse": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          }
         }
       },
-      TurnBundle: {
-        type: "object",
-        properties: {
-          traceId: { type: "string", description: "Telemetry Trace ID" },
-          messageId: { type: "string", description: "Assistant Message ID" },
-          userQuery: { type: "string", description: "Preceding user query" },
-          assistantResponse: { type: "string", description: "Assistant response text" },
-          model: { type: "string", description: "Active LLM engine and provider" },
-          promptVersion: { type: "string", description: "System prompt version" },
-          status: { type: "string", description: "Turn status (success/failed)" },
-          latencyMs: { type: "number", description: "Total turn latency in milliseconds" },
-          errorMessage: { type: "string", description: "Error message if failed" },
-          tokenUsage: { type: "object", description: "Input, output, and total token usage" },
-          inferenceCost: { type: "object", description: "Estimated turn cost breakdown in USD" },
-          contextBreakdown: { type: "object", description: "Prompt context token allocation breakdown" },
-          contextBudget: { type: "object", description: "Context budget constraints and token limits" },
-          fieldCoverage: { type: "object", description: "Retrieved records vs total candidate records" },
-          fieldRetrieval: { type: "object", description: "Retrieved context IDs" },
-          relationalMemory: { type: "object", description: "Active relational memory candidates and injections" },
-          protocols: { type: "object", description: "Active runtime protocols (e.g. 3-6-9 rhythm)" },
-          voiceInput: { type: "object", description: "Voice transcription telemetry and provenance" },
-          voiceOutput: { type: "object", description: "TTS synthesis model, PCM bytes, WAV bytes, and audio duration" },
-          voiceFeedback: { type: "object", description: "Client-side playback lifecycle (playing, advanced, ended, latency)" },
-          timeContext: { type: "object", description: "Authoritative time grounding and temporal clock" },
-          lunarContext: { type: "object", description: "Authoritative lunar phase and zodiac telemetry" },
-          toolCalls: { type: "array", items: { type: "object" }, description: "Tool executions with inputs and outputs" },
-          databaseMutations: { type: "array", items: { type: "object" }, description: "Database mutations performed" }
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "type": "integer"
+          },
+          "outputTokens": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          }
         }
       },
-      ChatTurnTraceResponse: {
-        type: "object",
-        properties: {
-          telemetry: { type: "object", description: "Raw telemetry row record" },
-          turnBundle: { "$ref": "#/components/schemas/TurnBundle" }
+      "InferenceCost": {
+        "type": "object",
+        "properties": {
+          "estimatedCostUsd": {
+            "type": "number"
+          },
+          "reasoningCostUsd": {
+            "type": "number"
+          },
+          "ttsCostUsd": {
+            "type": "number"
+          }
         }
       },
-      ChatEvaluation: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          telemetry_id: { type: "string" },
-          user_id: { type: "string" },
-          grounding_score: { type: "number" },
-          observing_vs_interpreting: { type: "number" },
-          earned_significance: { type: "number" },
-          write_restraint: { type: "number" },
-          lunar_relevance: { type: "number" },
-          tool_discipline: { type: "number" },
-          feedback_notes: { type: "string" },
-          created_at: { type: "string" }
+      "ContextBreakdown": {
+        "type": "object",
+        "properties": {
+          "systemPromptTokens": {
+            "type": "integer"
+          },
+          "fieldTokens": {
+            "type": "integer"
+          },
+          "memoryTokens": {
+            "type": "integer"
+          },
+          "historyTokens": {
+            "type": "integer"
+          }
         }
       },
-      CreateChatEvaluationInput: {
-        type: "object",
-        required: ["telemetryId"],
-        properties: {
-          telemetryId: { type: "string", description: "Trace ID to evaluate" },
-          groundingScore: { type: "number", description: "1-5 score for data grounding" },
-          observingVsInterpreting: { type: "number", description: "1-5 score for observing before interpreting" },
-          earnedSignificance: { type: "number", description: "1-5 score for earned significance" },
-          writeRestraint: { type: "number", description: "1-5 score for concise writing restraint" },
-          lunarRelevance: { type: "number", description: "1-5 score for organic lunar relevance" },
-          toolDiscipline: { type: "number", description: "1-5 score for accurate tool use" },
-          feedbackNotes: { type: "string", description: "Qualitative evaluation feedback" }
+      "ContextBudget": {
+        "type": "object",
+        "properties": {
+          "maxContextTokens": {
+            "type": "integer"
+          },
+          "remainingTokens": {
+            "type": "integer"
+          }
         }
       },
-      ChatEvaluationsListResponse: {
-        type: "object",
-        properties: {
-          evaluations: { type: "array", items: { "$ref": "#/components/schemas/ChatEvaluation" } }
+      "FieldCoverage": {
+        "type": "object",
+        "properties": {
+          "totalCandidates": {
+            "type": "integer"
+          },
+          "retrievedCount": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
         }
       },
-      ChatEvaluationResponse: {
-        type: "object",
-        properties: {
-          evaluation: { "$ref": "#/components/schemas/ChatEvaluation" }
+      "FieldRetrieval": {
+        "type": "object",
+        "properties": {
+          "retrievedContextIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
-      InferenceSummary: {
-        type: "object",
-        properties: {
-          totalTurns: { type: "integer" },
-          totalInputTokens: { type: "integer" },
-          totalOutputTokens: { type: "integer" },
-          totalTokens: { type: "integer" },
-          totalCostUsd: { type: "number" },
-          averageLatencyMs: { type: "integer" },
-          totalToolCalls: { type: "integer" },
-          modelBreakdown: { type: "object" },
-          operationBreakdown: { type: "object" },
-          period: { type: "string" }
+      "RelationalMemory": {
+        "type": "object",
+        "properties": {
+          "candidatesConsideredCount": {
+            "type": "integer"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "selectedCount": {
+            "type": "integer"
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "injectedIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Protocols": {
+        "type": "object",
+        "properties": {
+          "pacingRhythm": {
+            "type": "string"
+          },
+          "turnCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "VoiceInput": {
+        "type": "object",
+        "properties": {
+          "transcription": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number"
+          }
+        }
+      },
+      "VoiceOutput": {
+        "type": "object",
+        "properties": {
+          "ttsProvider": {
+            "type": "string"
+          },
+          "ttsModel": {
+            "type": "string"
+          },
+          "voiceId": {
+            "type": "string"
+          },
+          "characterCount": {
+            "type": "integer"
+          },
+          "rawByteCount": {
+            "type": "integer"
+          },
+          "packagedByteCount": {
+            "type": "integer"
+          },
+          "audioDurationSec": {
+            "type": "number"
+          },
+          "synthesisLatencyMs": {
+            "type": "integer"
+          },
+          "estimatedCostUsd": {
+            "type": "number"
+          },
+          "synthesisSucceeded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VoiceFeedback": {
+        "type": "object",
+        "properties": {
+          "clientEvent": {
+            "type": "string"
+          },
+          "playbackStarted": {
+            "type": "boolean"
+          },
+          "playbackAdvanced": {
+            "type": "boolean"
+          },
+          "playbackCompleted": {
+            "type": "boolean"
+          },
+          "playbackSucceeded": {
+            "type": "boolean"
+          },
+          "currentTime": {
+            "type": "number"
+          },
+          "playbackDurationMs": {
+            "type": "number"
+          }
+        }
+      },
+      "TimeContext": {
+        "type": "object",
+        "properties": {
+          "localNow": {
+            "type": "string"
+          },
+          "today": {
+            "type": "string"
+          },
+          "yesterday": {
+            "type": "string"
+          },
+          "tomorrow": {
+            "type": "string"
+          },
+          "dayOfWeek": {
+            "type": "string"
+          },
+          "currentYear": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "utcNow": {
+            "type": "string"
+          }
+        }
+      },
+      "ToolCallRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          }
+        }
+      },
+      "DatabaseMutationRecord": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "string"
+          }
+        }
+      },
+      "RawTelemetryRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "latency_ms": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "TurnBundle": {
+        "type": "object",
+        "properties": {
+          "traceId": {
+            "type": "string",
+            "description": "Telemetry Trace ID"
+          },
+          "messageId": {
+            "type": "string",
+            "description": "Assistant Message ID"
+          },
+          "userQuery": {
+            "type": "string",
+            "description": "Preceding user query"
+          },
+          "assistantResponse": {
+            "type": "string",
+            "description": "Assistant response text"
+          },
+          "model": {
+            "type": "string",
+            "description": "Active LLM engine and provider"
+          },
+          "promptVersion": {
+            "type": "string",
+            "description": "System prompt version"
+          },
+          "status": {
+            "type": "string",
+            "description": "Turn status (success/failed)"
+          },
+          "latencyMs": {
+            "type": "number",
+            "description": "Total turn latency in milliseconds"
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Error message if failed"
+          },
+          "tokenUsage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "inferenceCost": {
+            "$ref": "#/components/schemas/InferenceCost"
+          },
+          "contextBreakdown": {
+            "$ref": "#/components/schemas/ContextBreakdown"
+          },
+          "contextBudget": {
+            "$ref": "#/components/schemas/ContextBudget"
+          },
+          "fieldCoverage": {
+            "$ref": "#/components/schemas/FieldCoverage"
+          },
+          "fieldRetrieval": {
+            "$ref": "#/components/schemas/FieldRetrieval"
+          },
+          "relationalMemory": {
+            "$ref": "#/components/schemas/RelationalMemory"
+          },
+          "protocols": {
+            "$ref": "#/components/schemas/Protocols"
+          },
+          "voiceInput": {
+            "$ref": "#/components/schemas/VoiceInput"
+          },
+          "voiceOutput": {
+            "$ref": "#/components/schemas/VoiceOutput"
+          },
+          "voiceFeedback": {
+            "$ref": "#/components/schemas/VoiceFeedback"
+          },
+          "timeContext": {
+            "$ref": "#/components/schemas/TimeContext"
+          },
+          "lunarContext": {
+            "$ref": "#/components/schemas/LunarContext"
+          },
+          "toolCalls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCallRecord"
+            }
+          },
+          "databaseMutations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatabaseMutationRecord"
+            }
+          }
+        }
+      },
+      "ChatTurnTraceResponse": {
+        "type": "object",
+        "properties": {
+          "telemetry": {
+            "$ref": "#/components/schemas/RawTelemetryRecord"
+          },
+          "turnBundle": {
+            "$ref": "#/components/schemas/TurnBundle"
+          }
+        }
+      },
+      "ChatEvaluation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "telemetry_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "grounding_score": {
+            "type": "number"
+          },
+          "observing_vs_interpreting": {
+            "type": "number"
+          },
+          "earned_significance": {
+            "type": "number"
+          },
+          "write_restraint": {
+            "type": "number"
+          },
+          "lunar_relevance": {
+            "type": "number"
+          },
+          "tool_discipline": {
+            "type": "number"
+          },
+          "feedback_notes": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateChatEvaluationInput": {
+        "type": "object",
+        "required": [
+          "telemetryId"
+        ],
+        "properties": {
+          "telemetryId": {
+            "type": "string",
+            "description": "Trace ID to evaluate"
+          },
+          "groundingScore": {
+            "type": "number",
+            "description": "1-5 score for data grounding"
+          },
+          "observingVsInterpreting": {
+            "type": "number",
+            "description": "1-5 score for observing before interpreting"
+          },
+          "earnedSignificance": {
+            "type": "number",
+            "description": "1-5 score for earned significance"
+          },
+          "writeRestraint": {
+            "type": "number",
+            "description": "1-5 score for concise writing restraint"
+          },
+          "lunarRelevance": {
+            "type": "number",
+            "description": "1-5 score for organic lunar relevance"
+          },
+          "toolDiscipline": {
+            "type": "number",
+            "description": "1-5 score for accurate tool use"
+          },
+          "feedbackNotes": {
+            "type": "string",
+            "description": "Qualitative evaluation feedback"
+          }
+        }
+      },
+      "ChatEvaluationsListResponse": {
+        "type": "object",
+        "properties": {
+          "evaluations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatEvaluation"
+            }
+          }
+        }
+      },
+      "ChatEvaluationResponse": {
+        "type": "object",
+        "properties": {
+          "evaluation": {
+            "$ref": "#/components/schemas/ChatEvaluation"
+          }
+        }
+      },
+      "ModelUsageBreakdown": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "integer"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "OperationUsageBreakdown": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "costUsd": {
+            "type": "number"
+          }
+        }
+      },
+      "InferenceSummary": {
+        "type": "object",
+        "properties": {
+          "totalTurns": {
+            "type": "integer"
+          },
+          "totalInputTokens": {
+            "type": "integer"
+          },
+          "totalOutputTokens": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          },
+          "totalCostUsd": {
+            "type": "number"
+          },
+          "averageLatencyMs": {
+            "type": "integer"
+          },
+          "totalToolCalls": {
+            "type": "integer"
+          },
+          "modelBreakdown": {
+            "$ref": "#/components/schemas/ModelUsageBreakdown"
+          },
+          "operationBreakdown": {
+            "$ref": "#/components/schemas/OperationUsageBreakdown"
+          },
+          "period": {
+            "type": "string"
+          }
         }
       }
     },
-    securitySchemes: {
-      BearerAuth: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "JWT",
-        description: "Provide your Supabase access token or API Key in the Authorization header: 'Bearer <token>'"
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide your Supabase access token or API Key in the Authorization header: 'Bearer <token>'"
       }
     }
   },
-  security: [
+  "security": [
     {
-      BearerAuth: []
+      "BearerAuth": []
     }
   ]
 };
