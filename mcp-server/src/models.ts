@@ -354,33 +354,43 @@ export interface TtsModelConfig {
 
 export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
   {
-    key: 'openrouter-tts-1',
+    key: 'openrouter-kokoro',
     provider: 'openrouter',
-    modelId: 'openai/tts-1',
-    displayName: 'OpenRouter — OpenAI TTS-1',
-    defaultVoice: 'nova',
-    costPer1MChars: 15.00,
-    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    modelId: 'hexgrad/kokoro-82m',
+    displayName: 'OpenRouter — Kokoro 82M (Natural & Expressive)',
+    defaultVoice: 'af_nova',
+    costPer1MChars: 0.62,
+    supportedVoices: ['af_nova', 'af_bella', 'af_sarah', 'af_sky', 'af_river', 'am_echo', 'am_puck', 'bm_fable'],
     enabled: true
   },
   {
-    key: 'openrouter-tts-1-hd',
+    key: 'openrouter-aura-luna',
     provider: 'openrouter',
-    modelId: 'openai/tts-1-hd',
-    displayName: 'OpenRouter — OpenAI TTS-1 HD',
-    defaultVoice: 'nova',
+    modelId: 'deepgram/aura-2',
+    displayName: 'OpenRouter — Deepgram Aura 2 (Luna Expressive Voice)',
+    defaultVoice: 'aura-2-luna-en',
     costPer1MChars: 30.00,
-    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    supportedVoices: ['aura-2-luna-en', 'aura-2-thalia-en', 'aura-2-aurora-en', 'aura-2-athena-en'],
     enabled: true
   },
   {
-    key: 'openai-tts-1',
-    provider: 'openai',
-    modelId: 'tts-1',
-    displayName: 'OpenAI Direct — TTS-1',
-    defaultVoice: 'nova',
-    costPer1MChars: 15.00,
-    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    key: 'openrouter-flux-free',
+    provider: 'openrouter',
+    modelId: 'deepgram/flux-tts:free',
+    displayName: 'OpenRouter — Deepgram Flux TTS (Free)',
+    defaultVoice: 'flux-alexis-en',
+    costPer1MChars: 0,
+    supportedVoices: ['flux-alexis-en', 'flux-bree-en', 'flux-gemma-en', 'flux-maeve-en'],
+    enabled: true
+  },
+  {
+    key: 'openrouter-gemini-tts',
+    provider: 'openrouter',
+    modelId: 'google/gemini-3.1-flash-tts-preview',
+    displayName: 'OpenRouter — Gemini 3.1 Flash TTS',
+    defaultVoice: 'Kore',
+    costPer1MChars: 1.00,
+    supportedVoices: ['Kore', 'Zephyr', 'Puck', 'Charon', 'Aoede'],
     enabled: true
   },
   {
@@ -400,5 +410,5 @@ export function resolveTtsModel(keyOrModelId?: string): TtsModelConfig {
     const direct = TTS_MODEL_REGISTRY.find(m => m.key === keyOrModelId || m.modelId === keyOrModelId);
     if (direct) return direct;
   }
-  return TTS_MODEL_REGISTRY[0]; // Default to openrouter-tts-1
+  return TTS_MODEL_REGISTRY[0]; // Default to openrouter-kokoro
 }
