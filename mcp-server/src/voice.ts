@@ -121,7 +121,7 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
   }
 
   // 1. Try OpenAI TTS Provider if key configured
-  const openAiKey = process.env.OPENAI_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY || process.env.OPEN_AI_API_KEY;
   if (openAiKey) {
     try {
       const voice = req.voiceId || 'nova'; // warm, grounded tone

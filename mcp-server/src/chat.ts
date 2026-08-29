@@ -447,7 +447,7 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
 
 // 3. OpenRouter Adapter
 async function callOpenRouter(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured on server');
 
   const formattedMessages = [
