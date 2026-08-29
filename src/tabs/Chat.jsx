@@ -204,13 +204,13 @@ export function Chat({ userId, lunarData }) {
       <header
         style={{
           flexShrink: 0,
-          padding: '12px 16px',
+          padding: '10px 14px 8px',
           borderBottom: '1px solid var(--color-border)',
-          background: 'rgba(8, 13, 26, 0.75)',
+          background: 'rgba(8, 13, 26, 0.8)',
           backdropFilter: 'blur(10px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px'
+          gap: '6px'
         }}
       >
         {/* Row 1: Title & Sky Context */}
@@ -218,10 +218,10 @@ export function Chat({ userId, lunarData }) {
           <h1
             style={{
               margin: 0,
-              fontSize: 'var(--font-md)',
+              fontSize: '15px',
               fontFamily: 'serif',
               color: '#f5e6c8',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.04em',
               whiteSpace: 'nowrap'
             }}
           >
@@ -230,10 +230,10 @@ export function Chat({ userId, lunarData }) {
           <p
             style={{
               margin: 0,
-              fontSize: 'var(--font-xs)',
+              fontSize: '11px',
               color: 'var(--color-text-faint)',
               fontFamily: 'monospace',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.04em',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis'
@@ -248,9 +248,9 @@ export function Chat({ userId, lunarData }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '6px',
             background: 'rgba(255, 255, 255, 0.03)',
-            padding: '4px 8px',
+            padding: '3px 8px',
             borderRadius: '8px',
             border: '1px solid rgba(255, 255, 255, 0.08)'
           }}
@@ -258,7 +258,7 @@ export function Chat({ userId, lunarData }) {
           <label
             htmlFor="model-select"
             style={{
-              fontSize: '10px',
+              fontSize: '9.5px',
               fontFamily: 'monospace',
               color: 'var(--color-text-faint)',
               textTransform: 'uppercase',
@@ -280,7 +280,7 @@ export function Chat({ userId, lunarData }) {
               background: 'transparent',
               color: '#f5e6c8',
               border: 'none',
-              fontSize: 'var(--font-xs)',
+              fontSize: '11.5px',
               outline: 'none',
               cursor: 'pointer',
               fontFamily: 'sans-serif',
@@ -289,16 +289,16 @@ export function Chat({ userId, lunarData }) {
               whiteSpace: 'nowrap'
             }}
           >
-            <option value="anthropic-opus-5">Anthropic — Claude Opus 5 (Proprietary Frontier Reasoning)</option>
-            <option value="anthropic-fable">Anthropic — Claude Fable 5 (Proprietary Agentic Baseline)</option>
-            <option value="openai-sol">OpenAI — GPT-5.6 Sol (Proprietary Multi-Step Agent)</option>
-            <option value="gemini-3.7-flash">Google — Gemini 3.7 Flash (Proprietary Speed Workhorse)</option>
-            <option value="gemini-3.1-pro">Google — Gemini 3.1 Pro (Proprietary 2M Long-Context)</option>
-            <option value="openrouter-glm-5.3">OpenRouter — GLM 5.3 (Open-Weight Frontier Agent)</option>
-            <option value="openrouter-deepseek-v4-pro">OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier Reasoning)</option>
-            <option value="openrouter-deepseek-v4-flash">OpenRouter — DeepSeek V4 Flash (Open-Weight Economy Engine)</option>
-            <option value="openrouter-qwen-3.8-max">OpenRouter — Qwen 3.8 Max (Open-Weight Multimodal Flagship)</option>
-            <option value="openrouter-kimi-k2.5">OpenRouter — Kimi K2.5 (Open-Weight Multimodal Agent)</option>
+            <option value="anthropic-opus-5">Claude Opus 5 (Frontier)</option>
+            <option value="anthropic-fable">Claude Fable 5 (Agentic)</option>
+            <option value="openai-sol">GPT-5.6 Sol (Frontier)</option>
+            <option value="gemini-3.7-flash">Gemini 3.7 Flash (Fast)</option>
+            <option value="gemini-3.1-pro">Gemini 3.1 Pro (2M Context)</option>
+            <option value="openrouter-glm-5.3">GLM 5.3 (Open Frontier)</option>
+            <option value="openrouter-deepseek-v4-pro">DeepSeek V4 Pro (Open Frontier)</option>
+            <option value="openrouter-deepseek-v4-flash">DeepSeek V4 Flash (Open Economy)</option>
+            <option value="openrouter-qwen-3.8-max">Qwen 3.8 Max (Open Multimodal)</option>
+            <option value="openrouter-kimi-k2.5">Kimi K2.5 (Open Multimodal)</option>
           </select>
         </div>
       </header>
@@ -370,14 +370,14 @@ export function Chat({ userId, lunarData }) {
 
               <div
                 style={{
-                  padding: '12px 16px',
-                  borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  padding: '10px 14px',
+                  borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                   background: isUser ? '#1a243d' : 'rgba(167, 139, 250, 0.06)',
                   border: isUser ? '1px solid rgba(245, 230, 200, 0.15)' : '1px solid rgba(167, 139, 250, 0.2)',
                   boxShadow: isUser ? 'none' : '0 4px 12px rgba(167, 139, 250, 0.03)',
                   color: 'var(--color-text)',
-                  fontSize: 'var(--font-sm)',
-                  lineHeight: '1.6',
+                  fontSize: '13.5px',
+                  lineHeight: '1.55',
                   whiteSpace: 'pre-wrap',
                   fontFamily: isUser ? 'sans-serif' : 'serif',
                   letterSpacing: isUser ? 'normal' : '0.01em'
@@ -387,17 +387,17 @@ export function Chat({ userId, lunarData }) {
 
                 {/* Luna Voice Output V0 Playback Control */}
                 {!isUser && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
                     <button
                       onClick={() => playMessage(msg.id, msg.content)}
                       title={playbackStates[msg.id] === 'playing' ? 'Pause voice playback' : 'Listen to Luna aloud'}
                       style={{
                         background: playbackStates[msg.id] === 'playing' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                         border: playbackStates[msg.id] === 'playing' ? '1px solid rgba(167, 139, 250, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '12px',
-                        padding: '3px 8px',
+                        borderRadius: '10px',
+                        padding: '2px 7px',
                         color: playbackStates[msg.id] === 'playing' ? '#c4b5fd' : 'var(--color-text-faint)',
-                        fontSize: '11px',
+                        fontSize: '10.5px',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -620,11 +620,11 @@ export function Chat({ userId, lunarData }) {
         style={{
           flexShrink: 0,
           position: 'relative',
-          padding: '12px 16px 14px',
-          background: 'rgba(8, 13, 26, 0.95)',
+          padding: '8px 12px calc(8px + env(safe-area-inset-bottom, 0px))',
+          background: '#080d1a',
           borderTop: '1px solid var(--color-border)',
           display: 'flex',
-          gap: '8px',
+          gap: '6px',
           alignItems: 'center'
         }}
       >
@@ -636,9 +636,9 @@ export function Chat({ userId, lunarData }) {
           title={isRecording ? 'Stop recording' : 'Speak to Luna'}
           aria-label="Voice input"
           style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '12px',
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
             background: isRecording
               ? 'rgba(244, 63, 94, 0.2)'
               : 'rgba(245, 230, 200, 0.06)',
@@ -656,9 +656,9 @@ export function Chat({ userId, lunarData }) {
           }}
         >
           {isRecording ? (
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#f43f5e' }} />
+            <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#f43f5e' }} />
           ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
               <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
               <line x1="12" y1="19" x2="12" y2="22" />
@@ -675,14 +675,15 @@ export function Chat({ userId, lunarData }) {
           disabled={loading || isRecording || isTranscribing}
           style={{
             flex: 1,
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: '#080d1a',
+            height: '38px',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            background: '#040810',
             border: pendingVoiceMetaRef.current
               ? '1px solid rgba(245, 230, 200, 0.5)'
               : '1px solid var(--color-border)',
             color: 'var(--color-text)',
-            fontSize: 'var(--font-sm)',
+            fontSize: '13px',
             outline: 'none',
             transition: 'border-color 0.2s',
             WebkitAppearance: 'none'
@@ -696,13 +697,13 @@ export function Chat({ userId, lunarData }) {
           type="submit"
           disabled={loading || isRecording || isTranscribing || !input.trim()}
           style={{
-            padding: '0 18px',
-            height: '44px',
-            borderRadius: '12px',
+            padding: '0 14px',
+            height: '38px',
+            borderRadius: '10px',
             background: input.trim() && !loading ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
             border: 'none',
             color: input.trim() && !loading ? '#040810' : 'var(--color-text-faint)',
-            fontSize: 'var(--font-sm)',
+            fontSize: '13px',
             fontWeight: '600',
             cursor: input.trim() && !loading ? 'pointer' : 'default',
             transition: 'all 0.2s',

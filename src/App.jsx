@@ -982,8 +982,10 @@ function App() {
           style={{
             flex: 1,
             minHeight: 0,
-            overflow: 'auto',
+            overflow: activeTab === 'chat' ? 'hidden' : 'auto',
             position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {activeTab === 'sky' && (

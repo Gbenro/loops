@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
+
+function cleanTextForSpeech(rawText) {
+  if (!rawText) return '';
+  return rawText
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/>\s+/g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .trim();
+}
 
 /**
  * Hook for Luna Voice Output V0: Playback assistant responses aloud.
@@ -41,8 +55,9 @@ export function useLunaVoicePlayback() {
     }
   }, [activeMessageId]);
 
-  const playMessage = useCallback(async (messageId, text) => {
-    if (!text || !text.trim()) return;
+  const playMessage = useCallback(async (messageId, rawText) => {
+    if (!rawText || !rawText.trim()) return;
+    const text = cleanTextForSpeech(rawText);
 
     // If already playing this message, stop it (toggle behavior)
     if (activeMessageId === messageId && playbackStates[messageId] === 'playing') {
@@ -100,6 +115,9 @@ export function useLunaVoicePlayback() {
         playClientSpeech(messageId, text);
       } else {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
         setActiveMessageId(null);
       }
     }
@@ -124,6 +142,9 @@ export function useLunaVoicePlayback() {
       audio.onerror = (e) => {
         console.error('[Luna Voice Audio error]:', e);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
         setActiveMessageId(null);
         audioRef.current = null;
       };
@@ -131,10 +152,16 @@ export function useLunaVoicePlayback() {
       audio.play().catch(err => {
         console.warn('[Luna Voice Play error]:', err);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
         setActiveMessageId(null);
       });
     } catch (err) {
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+      setTimeout(() => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      }, 2500);
       setActiveMessageId(null);
     }
   };
@@ -155,14 +182,21 @@ export function useLunaVoicePlayback() {
         setActiveMessageId(null);
       };
 
-      utterance.onerror = () => {
+      utterance.onerror = (e) => {
+        console.warn('[Luna Voice Browser Speech error]:', e);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+        setTimeout(() => {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+        }, 2500);
         setActiveMessageId(null);
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
+      setTimeout(() => {
+        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      }, 2500);
       setActiveMessageId(null);
     }
   };
