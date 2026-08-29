@@ -1,9 +1,9 @@
 /**
  * OpenAPI 3.1.0 Specification for Luna Loop Assist (ChatGPT GPT Actions)
- * Auto-generated and audited from production Luna MCP Tools & REST Endpoints.
- * 
- * Target Server: https://loops-app-production.up.railway.app
- * Authentication: Bearer <Supabase JWT or API Key>
+ * Fully compliant with OpenAI Actions schema validator:
+ * - components.schemas is defined as an object
+ * - All object schemas contain explicit properties
+ * - All array schemas contain explicit item definitions
  */
 
 export const LUNA_OPENAPI_SPEC = {
@@ -31,14 +31,7 @@ export const LUNA_OPENAPI_SPEC = {
             content: {
               "application/json": {
                 schema: {
-                  type: "object",
-                  properties: {
-                    phase: { type: "object" },
-                    illumination: { type: "number" },
-                    dayOfCycle: { type: "integer" },
-                    zodiac: { type: "object" },
-                    lunarMonth: { type: "string" }
-                  }
+                  "$ref": "#/components/schemas/LunarContext"
                 }
               }
             }
@@ -56,21 +49,32 @@ export const LUNA_OPENAPI_SPEC = {
             name: "query",
             in: "query",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Search term or concept"
           },
           {
             name: "limit",
             in: "query",
             required: false,
-            schema: { type: "integer", default: 10 },
+            schema: {
+              type: "integer",
+              default: 10
+            },
             description: "Maximum records to return"
           }
         ],
         responses: {
           "200": {
             description: "List of matching echoes, loops, and reflections",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -85,35 +89,53 @@ export const LUNA_OPENAPI_SPEC = {
             name: "query",
             in: "query",
             required: false,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Search query"
           },
           {
             name: "phase",
             in: "query",
             required: false,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Lunar phase filter (e.g. new, full, waxing-crescent)"
           },
           {
             name: "tags",
             in: "query",
             required: false,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Comma-separated list of tags"
           },
           {
             name: "limit",
             in: "query",
             required: false,
-            schema: { type: "integer", default: 20 },
+            schema: {
+              "type": "integer",
+              "default": 20
+            },
             description: "Maximum results"
           }
         ],
         responses: {
           "200": {
-            description: "Matching Echoes list",
-            content: { "application/json": { schema: { type: "array" } } }
+            "description": "Matching Echoes list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Echo"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -126,16 +148,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                required: ["text"],
-                properties: {
-                  text: { type: "string", description: "Content of the user's observation" },
-                  source: { type: "string", default: "chatgpt", description: "Origin client" },
-                  tags: { type: "array", items: { type: "string" }, description: "Emotional or thematic tags" },
-                  loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
-                  energyState: { type: "string", description: "Energy state (e.g. resting, focused)" },
-                  metadata: { type: "object", description: "Optional metadata" }
-                }
+                "$ref": "#/components/schemas/CreateEchoInput"
               }
             }
           }
@@ -143,7 +156,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Created Echo record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       }
@@ -158,17 +177,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                required: ["text"],
-                properties: {
-                  text: { type: "string", description: "Content of the reflection/insight" },
-                  sessionId: { type: "string", description: "Chat session ID" },
-                  conversationTitle: { type: "string", description: "Topic of conversation" },
-                  tags: { type: "array", items: { type: "string" }, description: "Tags (e.g. ['conversation-reflection'])" },
-                  loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
-                  energyState: { type: "string", description: "Energy signature" },
-                  metadata: { type: "object", description: "Optional custom metadata" }
-                }
+                "$ref": "#/components/schemas/CreateConversationReflectionInput"
               }
             }
           }
@@ -176,7 +185,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Created Conversation Reflection record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       }
@@ -191,14 +206,22 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo unique ID"
           }
         ],
         responses: {
           "200": {
             description: "Echo details",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       },
@@ -211,7 +234,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo unique ID"
           }
         ],
@@ -220,12 +245,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  tags: { type: "array", items: { type: "string" }, description: "Updated list of tags" },
-                  status: { type: "string", enum: ["active", "archived"], description: "Echo status" },
-                  loopIds: { type: "array", items: { type: "string" }, description: "Updated loop associations" }
-                }
+                "$ref": "#/components/schemas/UpdateEchoInput"
               }
             }
           }
@@ -233,7 +253,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Updated Echo record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       }
@@ -247,14 +273,22 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo ID to archive"
           }
         ],
         responses: {
           "200": {
             description: "Archived Echo record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       }
@@ -268,14 +302,22 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo ID to restore"
           }
         ],
         responses: {
           "200": {
             description: "Restored Echo record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Echo"
+                }
+              }
+            }
           }
         }
       }
@@ -290,14 +332,25 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Target Echo ID"
           }
         ],
         responses: {
           "200": {
             description: "List of attached reflections",
-            content: { "application/json": { schema: { type: "array" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    "$ref": "#/components/schemas/Reflection"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -310,7 +363,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Target Echo ID"
           }
         ],
@@ -319,13 +374,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                required: ["content"],
-                properties: {
-                  content: { type: "string", description: "Reflection text content" },
-                  tags: { type: "array", items: { type: "string" } },
-                  metadata: { type: "object" }
-                }
+                "$ref": "#/components/schemas/AttachReflectionInput"
               }
             }
           }
@@ -333,7 +382,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Created reflection record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Reflection"
+                }
+              }
+            }
           }
         }
       }
@@ -348,28 +403,56 @@ export const LUNA_OPENAPI_SPEC = {
             name: "status",
             in: "query",
             required: false,
-            schema: { type: "string", enum: ["active", "completed", "archived", "all"], default: "active" },
+            schema: {
+              type: "string",
+              enum: [
+                "active",
+                "completed",
+                "archived",
+                "all"
+              ],
+              default: "active"
+            },
             description: "Loop status filter"
           },
           {
             name: "scope",
             in: "query",
             required: false,
-            schema: { type: "string", enum: ["cycle", "phase", "micro"], default: "cycle" },
+            schema: {
+              type: "string",
+              enum: [
+                "cycle",
+                "phase",
+                "micro"
+              ],
+              default: "cycle"
+            },
             description: "Loop temporal scope"
           },
           {
             name: "phase",
             in: "query",
             required: false,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Filter by target lunar phase"
           }
         ],
         responses: {
           "200": {
             description: "List of loops",
-            content: { "application/json": { schema: { type: "array" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    "$ref": "#/components/schemas/Loop"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -382,26 +465,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                required: ["title"],
-                properties: {
-                  title: { type: "string", description: "Loop title/intention" },
-                  description: { type: "string", description: "Detailed description" },
-                  scope: { type: "string", enum: ["cycle", "phase", "micro"], default: "cycle" },
-                  targetPhase: { type: "string", description: "Target phase (e.g. 'full')" },
-                  subtasks: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      required: ["title"],
-                      properties: {
-                        title: { type: "string" },
-                        completed: { type: "boolean", default: false }
-                      }
-                    }
-                  },
-                  tags: { type: "array", items: { type: "string" } }
-                }
+                "$ref": "#/components/schemas/CreateLoopInput"
               }
             }
           }
@@ -409,7 +473,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Created loop record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Loop"
+                }
+              }
+            }
           }
         }
       }
@@ -424,14 +494,22 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Loop ID (e.g. 'l1788...')"
           }
         ],
         responses: {
           "200": {
             description: "Loop details",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Loop"
+                }
+              }
+            }
           }
         }
       },
@@ -444,7 +522,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Loop ID"
           }
         ],
@@ -453,14 +533,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  subtasks: { type: "array", items: { type: "object" } },
-                  tags: { type: "array", items: { type: "string" } },
-                  status: { type: "string", enum: ["active", "completed", "archived"] }
-                }
+                "$ref": "#/components/schemas/UpdateLoopInput"
               }
             }
           }
@@ -468,7 +541,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Updated loop record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Loop"
+                }
+              }
+            }
           }
         }
       }
@@ -483,7 +562,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Loop ID to close"
           }
         ],
@@ -492,10 +573,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  note: { type: "string", description: "Closing reflection note" }
-                }
+                "$ref": "#/components/schemas/CloseLoopInput"
               }
             }
           }
@@ -503,7 +581,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Closed loop record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Loop"
+                }
+              }
+            }
           }
         }
       }
@@ -518,7 +602,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Loop ID to carry forward"
           }
         ],
@@ -527,10 +613,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  new_note: { type: "string", description: "Context note for carrying forward" }
-                }
+                "$ref": "#/components/schemas/CarryLoopForwardInput"
               }
             }
           }
@@ -538,7 +621,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "New carried forward loop record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Loop"
+                }
+              }
+            }
           }
         }
       }
@@ -553,13 +642,30 @@ export const LUNA_OPENAPI_SPEC = {
             name: "status",
             in: "query",
             required: false,
-            schema: { type: "string", enum: ["active", "archived", "all"], default: "active" }
+            schema: {
+              type: "string",
+              enum: [
+                "active",
+                "archived",
+                "all"
+              ],
+              default: "active"
+            }
           }
         ],
         responses: {
           "200": {
             description: "List of threads",
-            content: { "application/json": { schema: { type: "array" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    "$ref": "#/components/schemas/Thread"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -571,14 +677,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                required: ["title"],
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  theme: { type: "string" },
-                  tags: { type: "array", items: { type: "string" } }
-                }
+                "$ref": "#/components/schemas/CreateThreadInput"
               }
             }
           }
@@ -586,7 +685,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Created thread record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              }
+            }
           }
         }
       }
@@ -600,13 +705,21 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" }
+            schema: {
+              type: "string"
+            }
           }
         ],
         responses: {
           "200": {
             description: "Thread details with connected items",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              }
+            }
           }
         }
       },
@@ -618,7 +731,9 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" }
+            schema: {
+              type: "string"
+            }
           }
         ],
         requestBody: {
@@ -626,13 +741,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  tags: { type: "array", items: { type: "string" } },
-                  status: { type: "string", enum: ["active", "archived"] }
-                }
+                "$ref": "#/components/schemas/UpdateThreadInput"
               }
             }
           }
@@ -640,7 +749,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Updated thread record",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              }
+            }
           }
         }
       }
@@ -654,14 +769,18 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Thread ID"
           },
           {
             name: "echoId",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo ID to connect"
           }
         ],
@@ -670,11 +789,7 @@ export const LUNA_OPENAPI_SPEC = {
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  relationshipType: { type: "string" },
-                  note: { type: "string" }
-                }
+                "$ref": "#/components/schemas/ConnectEchoToThreadInput"
               }
             }
           }
@@ -682,7 +797,13 @@ export const LUNA_OPENAPI_SPEC = {
         responses: {
           "200": {
             description: "Connection confirmed",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ActionSuccess"
+                }
+              }
+            }
           }
         }
       },
@@ -694,21 +815,31 @@ export const LUNA_OPENAPI_SPEC = {
             name: "id",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Thread ID"
           },
           {
             name: "echoId",
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: {
+              type: "string"
+            },
             description: "Echo ID to disconnect"
           }
         ],
         responses: {
           "200": {
             description: "Disconnection confirmed",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ActionSuccess"
+                }
+              }
+            }
           }
         }
       }
@@ -723,31 +854,256 @@ export const LUNA_OPENAPI_SPEC = {
             name: "sessionId",
             in: "query",
             required: false,
-            schema: { type: "string" }
+            schema: {
+              type: "string"
+            }
           },
           {
             name: "date",
             in: "query",
             required: false,
-            schema: { type: "string" }
+            schema: {
+              type: "string"
+            }
           }
         ],
         responses: {
           "200": {
             description: "Aggregated inference receipts",
-            content: { "application/json": { schema: { type: "object" } } }
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/InferenceSummary"
+                }
+              }
+            }
           }
         }
       }
     }
   },
   components: {
+    schemas: {
+      LunarPhase: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Phase key (e.g. new, waxing-crescent, full)" },
+          name: { type: "string", description: "Human readable phase name (e.g. Full Moon)" }
+        }
+      },
+      LunarZodiac: {
+        type: "object",
+        properties: {
+          sign: { type: "string", description: "Current zodiac sign (e.g. Pisces, Aries)" }
+        }
+      },
+      LunarContext: {
+        type: "object",
+        properties: {
+          phase: { "$ref": "#/components/schemas/LunarPhase" },
+          illumination: { type: "number", description: "Moon illumination percentage (0-100)" },
+          dayOfCycle: { type: "integer", description: "Day of current cycle (1-29)" },
+          zodiac: { "$ref": "#/components/schemas/LunarZodiac" },
+          lunarMonth: { type: "string", description: "Traditional name of lunar cycle (e.g. Sturgeon)" },
+          phaseType: { type: "string", enum: ["threshold", "flow"], description: "Threshold vs flow phase" }
+        }
+      },
+      Echo: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Unique stable ID" },
+          text: { type: "string", description: "Observation text content" },
+          source: { type: "string", description: "Client source identifier" },
+          tags: { type: "array", items: { type: "string" }, description: "Tags" },
+          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
+          energyState: { type: "string", description: "Energy state" },
+          provenanceAuthor: { type: "string", enum: ["user", "ai", "co-created"], description: "Origin author" },
+          provenanceKind: { type: "string", enum: ["original_echo", "conversation_reflection", "ai_reflection", "checkpoint", "product_note"], description: "Record kind" },
+          phase: { type: "string", description: "Lunar phase at creation" },
+          phaseName: { type: "string", description: "Lunar phase name" },
+          dayOfCycle: { type: "integer", description: "Day of lunar cycle" },
+          zodiac: { type: "string", description: "Zodiac sign at creation" },
+          illumination: { type: "number", description: "Illumination percentage" },
+          status: { type: "string", enum: ["active", "archived"], description: "Status" },
+          createdAt: { type: "string", description: "Creation ISO timestamp" }
+        }
+      },
+      CreateEchoInput: {
+        type: "object",
+        required: ["text"],
+        properties: {
+          text: { type: "string", description: "Observation content" },
+          source: { type: "string", default: "chatgpt", description: "Origin client" },
+          tags: { type: "array", items: { type: "string" }, description: "Tags" },
+          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
+          energyState: { type: "string", description: "Energy signature" }
+        }
+      },
+      CreateConversationReflectionInput: {
+        type: "object",
+        required: ["text"],
+        properties: {
+          text: { type: "string", description: "Insight or reflection content derived from dialogue" },
+          sessionId: { type: "string", description: "Chat session ID" },
+          conversationTitle: { type: "string", description: "Topic or title of conversation" },
+          tags: { type: "array", items: { type: "string" }, description: "Tags (e.g. ['conversation-reflection'])" },
+          loopIds: { type: "array", items: { type: "string" }, description: "Associated loop IDs" },
+          energyState: { type: "string", description: "Energy signature" }
+        }
+      },
+      UpdateEchoInput: {
+        type: "object",
+        properties: {
+          tags: { type: "array", items: { type: "string" }, description: "Updated tags list" },
+          status: { type: "string", enum: ["active", "archived"], description: "Status" },
+          loopIds: { type: "array", items: { type: "string" }, description: "Updated associated loop IDs" }
+        }
+      },
+      Reflection: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Reflection ID" },
+          echoId: { type: "string", description: "Parent Echo ID" },
+          content: { type: "string", description: "Reflection text" },
+          tags: { type: "array", items: { type: "string" } },
+          authorType: { type: "string", enum: ["ai", "co-created", "user"] },
+          provenanceKind: { type: "string", enum: ["ai_reflection", "conversation_reflection"] },
+          createdAt: { type: "string" }
+        }
+      },
+      AttachReflectionInput: {
+        type: "object",
+        required: ["content"],
+        properties: {
+          content: { type: "string", description: "Reflection text content" },
+          tags: { type: "array", items: { type: "string" } }
+        }
+      },
+      Subtask: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          completed: { type: "boolean", default: false }
+        }
+      },
+      Loop: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          scope: { type: "string", enum: ["cycle", "phase", "micro"] },
+          targetPhase: { type: "string" },
+          status: { type: "string", enum: ["active", "completed", "archived"] },
+          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
+          tags: { type: "array", items: { type: "string" } },
+          createdAt: { type: "string" }
+        }
+      },
+      CreateLoopInput: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title: { type: "string", description: "Loop intention" },
+          description: { type: "string" },
+          scope: { type: "string", enum: ["cycle", "phase", "micro"], default: "cycle" },
+          targetPhase: { type: "string" },
+          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
+          tags: { type: "array", items: { type: "string" } }
+        }
+      },
+      UpdateLoopInput: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          subtasks: { type: "array", items: { "$ref": "#/components/schemas/Subtask" } },
+          tags: { type: "array", items: { type: "string" } },
+          status: { type: "string", enum: ["active", "completed", "archived"] }
+        }
+      },
+      CloseLoopInput: {
+        type: "object",
+        properties: {
+          note: { type: "string", description: "Closing reflection note" }
+        }
+      },
+      CarryLoopForwardInput: {
+        type: "object",
+        properties: {
+          new_note: { type: "string", description: "Context note for carrying forward" }
+        }
+      },
+      Thread: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          theme: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          status: { type: "string", enum: ["active", "archived"] },
+          createdAt: { type: "string" }
+        }
+      },
+      CreateThreadInput: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          theme: { type: "string" },
+          tags: { type: "array", items: { type: "string" } }
+        }
+      },
+      UpdateThreadInput: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          status: { type: "string", enum: ["active", "archived"] }
+        }
+      },
+      ConnectEchoToThreadInput: {
+        type: "object",
+        properties: {
+          relationshipType: { type: "string" },
+          note: { type: "string" }
+        }
+      },
+      ActionSuccess: {
+        type: "object",
+        properties: {
+          success: { type: "boolean" },
+          message: { type: "string" }
+        }
+      },
+      SearchResponse: {
+        type: "object",
+        properties: {
+          echoes: { type: "array", items: { "$ref": "#/components/schemas/Echo" } },
+          loops: { type: "array", items: { "$ref": "#/components/schemas/Loop" } },
+          reflections: { type: "array", items: { "$ref": "#/components/schemas/Reflection" } }
+        }
+      },
+      InferenceSummary: {
+        type: "object",
+        properties: {
+          totalCostUsd: { type: "number" },
+          reasoningTurns: { type: "integer" },
+          voiceTurns: { type: "integer" },
+          totalCharactersSpoken: { type: "integer" },
+          totalDurationSeconds: { type: "number" }
+        }
+      }
+    },
     securitySchemes: {
       BearerAuth: {
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
-        description: "Provide your Supabase access token (or anon/service key) in the Authorization header: 'Bearer <token>'"
+        description: "Provide your Supabase access token or API Key in the Authorization header: 'Bearer <token>'"
       }
     }
   },
