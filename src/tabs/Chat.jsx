@@ -271,16 +271,16 @@ export function Chat({ userId, lunarData }) {
               fontFamily: 'sans-serif'
             }}
           >
-            <option value="anthropic-3.7-sonnet">Anthropic — Claude 3.7 Sonnet (Proprietary Frontier)</option>
-            <option value="openrouter-glm-5.3">OpenRouter — GLM 5.3 (Open-Weight Frontier Reasoning)</option>
-            <option value="openrouter-deepseek-v4-pro">OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier)</option>
-            <option value="openrouter-kimi-k2.5">OpenRouter — Kimi K2.5 (Open-Weight Multimodal)</option>
-            <option value="openrouter-deepseek-v4-flash">OpenRouter — DeepSeek V4 Flash (Open-Weight Economy)</option>
-            <option value="openrouter-deepseek-v4-flash-vision">OpenRouter — DeepSeek V4 Flash Vision (Open-Weight Multimodal)</option>
-            <option value="openrouter-minimax-m2.5">OpenRouter — MiniMax M2.5 (Open-Weight Productivity)</option>
-            <option value="openrouter-qwen3.8-27b">OpenRouter — Qwen 3.8 27B (Open-Weight Vision-Language)</option>
-            <option value="gemini-2.5-pro">Google — Gemini 2.5 Pro (Proprietary Frontier)</option>
-            <option value="gemini-2.5-flash">Google — Gemini 2.5 Flash (Proprietary Fast Agent)</option>
+            <option value="anthropic-opus-5">Anthropic — Claude Opus 5 (Proprietary Frontier Reasoning)</option>
+            <option value="anthropic-fable">Anthropic — Claude Fable 5 (Proprietary Agentic Baseline)</option>
+            <option value="openai-sol">OpenAI — GPT-5.6 Sol (Proprietary Multi-Step Agent)</option>
+            <option value="gemini-3.7-flash">Google — Gemini 3.7 Flash (Proprietary Speed Workhorse)</option>
+            <option value="gemini-3.1-pro">Google — Gemini 3.1 Pro (Proprietary 2M Long-Context)</option>
+            <option value="openrouter-glm-5.3">OpenRouter — GLM 5.3 (Open-Weight Frontier Agent)</option>
+            <option value="openrouter-deepseek-v4-pro">OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier Reasoning)</option>
+            <option value="openrouter-deepseek-v4-flash">OpenRouter — DeepSeek V4 Flash (Open-Weight Economy Engine)</option>
+            <option value="openrouter-qwen-3.8-max">OpenRouter — Qwen 3.8 Max (Open-Weight Multimodal Flagship)</option>
+            <option value="openrouter-kimi-k2.5">OpenRouter — Kimi K2.5 (Open-Weight Multimodal Agent)</option>
           </select>
         </div>
       </header>
