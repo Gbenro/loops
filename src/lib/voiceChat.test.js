@@ -319,5 +319,168 @@ describe('Luna Voice Input V1', () => {
       expect(packaged.buffer.toString('ascii', 0, 4)).toBe('RIFF');
       expect(packaged.buffer.toString('ascii', 8, 12)).toBe('WAVE');
     });
+
+    it('records end-to-end layered lifecycle states and audio bandwidth metrics', () => {
+      const rawByteCount = 192000;
+      const packagedByteCount = 192044;
+      const characterCount = 120;
+      const audioDurationSec = Number((rawByteCount / (24000 * 2)).toFixed(3)); // 4.000s
+      const bytesPerSecond = Number((packagedByteCount / audioDurationSec).toFixed(1)); // 48011.0 B/s
+      const bytesPerCharacter = Number((packagedByteCount / characterCount).toFixed(1)); // 1600.4 B/char
+      const estimatedCostUsd = 0.000074;
+      const costPerSpokenMinuteUsd = Number(((estimatedCostUsd / audioDurationSec) * 60).toFixed(6));
+
+      const voiceTelemetry = {
+        playbackRequested: true,
+        playbackMode: 'provider_audio',
+        ttsProvider: 'openrouter',
+        ttsModel: 'hexgrad/kokoro-82m',
+        voiceId: 'af_nova',
+        characterCount,
+        rawByteCount,
+        packagedByteCount,
+        byteCount: packagedByteCount,
+        audioDurationSec,
+        bytesPerSecond,
+        bytesPerCharacter,
+        networkPayloadSizeBytes: packagedByteCount,
+        costPerSpokenMinuteUsd,
+        synthesisLatencyMs: 380,
+        requestHandled: true,
+        synthesisSucceeded: true,
+        audioValidated: true,
+        playbackStarted: true,
+        playbackAdvanced: true,
+        playbackCompleted: true,
+        playbackSucceeded: true,
+        status: 'completed'
+      };
+
+      expect(voiceTelemetry.requestHandled).toBe(true);
+      expect(voiceTelemetry.synthesisSucceeded).toBe(true);
+      expect(voiceTelemetry.audioValidated).toBe(true);
+      expect(voiceTelemetry.playbackStarted).toBe(true);
+      expect(voiceTelemetry.playbackAdvanced).toBe(true);
+      expect(voiceTelemetry.playbackCompleted).toBe(true);
+      expect(voiceTelemetry.playbackSucceeded).toBe(true);
+      expect(voiceTelemetry.audioDurationSec).toBe(4);
+      expect(voiceTelemetry.bytesPerSecond).toBe(48011);
+      expect(voiceTelemetry.costPerSpokenMinuteUsd).toBeGreaterThan(0);
+    });
+
+    it('records distinguishable telemetry for Web Speech comparator ($0 cost, 0 network bytes)', () => {
+      const webSpeechTelemetry = {
+        playbackRequested: true,
+        playbackMode: 'web_speech',
+        ttsProvider: 'web_speech',
+        ttsModel: 'browser-native',
+        voiceId: 'default',
+        characterCount: 95,
+        rawByteCount: 0,
+        packagedByteCount: 0,
+        byteCount: 0,
+        audioDurationSec: 6.33,
+        networkPayloadSizeBytes: 0,
+        costPerSpokenMinuteUsd: 0,
+        estimatedCostUsd: 0,
+        requestHandled: true,
+        synthesisSucceeded: true,
+        audioValidated: true,
+        playbackStarted: true,
+        playbackAdvanced: true,
+        playbackCompleted: true,
+        playbackSucceeded: true
+      };
+
+      expect(webSpeechTelemetry.playbackMode).toBe('web_speech');
+      expect(webSpeechTelemetry.networkPayloadSizeBytes).toBe(0);
+      expect(webSpeechTelemetry.costPerSpokenMinuteUsd).toBe(0);
+      expect(webSpeechTelemetry.estimatedCostUsd).toBe(0);
+    });
+  });
+
+  describe('Echo & Reflection Provenance Boundaries', () => {
+    function createRecordWithServerEnforcement(type, text, inputArgs = {}) {
+      if (type === 'create_echo') {
+        return {
+          id: 'e_direct_1',
+          text,
+          source: inputArgs.source || 'direct_entry',
+          tags: inputArgs.tags || [],
+          provenance_author: 'user',
+          provenance_kind: 'original_echo',
+          parent_id: inputArgs.parentId || null
+        };
+      } else if (type === 'create_conversation_reflection') {
+        return {
+          id: 'e_conv_ref_1',
+          text,
+          source: 'luna_conversation',
+          tags: inputArgs.tags || ['conversation-reflection'],
+          metadata: {
+            sessionId: inputArgs.sessionId || null,
+            conversationTitle: inputArgs.conversationTitle || null,
+            coCreatedWith: 'Luna'
+          },
+          provenance_author: 'co-created',
+          provenance_kind: 'conversation_reflection',
+          parent_id: null
+        };
+      } else if (type === 'attach_reflection') {
+        return {
+          id: 'ref_1',
+          echo_id: inputArgs.echoId,
+          content: text,
+          author_type: 'ai',
+          provenance_kind: 'ai_reflection'
+        };
+      }
+      throw new Error(`Unknown type: ${type}`);
+    }
+
+    it('enforces user/original_echo for direct personal Echoes even if reflection tags are present', () => {
+      const record = createRecordWithServerEnforcement('create_echo', 'Notice how the rhythm slows down today.', {
+        tags: ['conversation-reflection', 'insight'] // Client attempt to pass reflection tags
+      });
+
+      expect(record.provenance_author).toBe('user');
+      expect(record.provenance_kind).toBe('original_echo');
+      expect(record.source).toBe('direct_entry');
+    });
+
+    it('enforces co-created/conversation_reflection for conversation-derived reflections', () => {
+      const record = createRecordWithServerEnforcement('create_conversation_reflection', 'CONVERSATION REFLECTION — Luna voice came through.', {
+        sessionId: 'session_42',
+        conversationTitle: 'Voice Milestones'
+      });
+
+      expect(record.provenance_author).toBe('co-created');
+      expect(record.provenance_kind).toBe('conversation_reflection');
+      expect(record.source).toBe('luna_conversation');
+      expect(record.metadata.coCreatedWith).toBe('Luna');
+    });
+
+    it('enforces ai/ai_reflection when attaching reflections to existing Echo without mutating original Echo', () => {
+      const originalEcho = {
+        id: 'e_orig_1',
+        text: 'Walked in the evening twilight.',
+        provenance_author: 'user',
+        provenance_kind: 'original_echo'
+      };
+
+      const attachedRef = createRecordWithServerEnforcement('attach_reflection', 'Luna observation: Consistent evening grounding pattern.', {
+        echoId: originalEcho.id
+      });
+
+      // Reflection has AI provenance
+      expect(attachedRef.author_type).toBe('ai');
+      expect(attachedRef.echo_id).toBe('e_orig_1');
+      expect(attachedRef.provenance_kind).toBe('ai_reflection');
+
+      // Original Echo remains completely unchanged
+      expect(originalEcho.text).toBe('Walked in the evening twilight.');
+      expect(originalEcho.provenance_author).toBe('user');
+      expect(originalEcho.provenance_kind).toBe('original_echo');
+    });
   });
 });

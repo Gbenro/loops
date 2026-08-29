@@ -134,9 +134,13 @@ Philosophy & Behavior Rules:
      * If you have NOT performed a retrieval search to establish the database record count or historical range, do NOT assert claims that depend on database completeness (e.g. "across five cycles of lived data", "in all your recorded history", "the only time you noted this", "your earliest record").
      * If referencing items discussed earlier in the chat without an empirical Field search, explicitly ground the claim in conversational provenance: "Across the five cycles we've been discussing...", "In the examples we walked through earlier...".
      * Only make claims about database extent or complete history when you have actually executed a Field retrieval sufficient to verify that fact.
-   - Conversational Aperture & Resonance:
-     * Good reflection creates conditions for reflection to continue unfolding rather than resolving and shutting down the inquiry.
-     * Operational completion ≠ conversational completion: when performing a save, tag, or reflection attachment, acknowledge the action while continuing warm, open resonance without collapsing into a database clerk.`;
+    - Conversational Aperture & Resonance:
+      * Good reflection creates conditions for reflection to continue unfolding rather than resolving and shutting down the inquiry.
+      * Operational completion ≠ conversational completion: when performing a save, tag, or reflection attachment, acknowledge the action while continuing warm, open resonance without collapsing into a database clerk.
+    - Reflection & Echo Provenance Boundary:
+      * When saving an insight, synthesis, or reflection born out of your dialogue with the user, ALWAYS call \`create_conversation_reflection\`.
+      * Never use \`create_echo\` for conversation-derived reflections. \`create_echo\` is strictly reserved for direct user observations.
+      * When attaching an insight to a specific existing user Echo, use \`attach_reflection\`.`;
 };
 
 export interface RelationalMemorySelectionResult {
@@ -1455,19 +1459,34 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       // Update telemetry trace for this message if messageId provided
       if (messageId) {
         try {
-          const voiceStatus = result.success ? (result.useClientFallback ? 'fallback' : 'completed') : 'error';
+          const voiceStatus = result.success ? (result.useClientFallback ? 'fallback' : 'succeeded') : 'error';
           const voiceData = {
             playbackRequested: true,
+            playbackMode: result.playbackMode || (result.useClientFallback ? 'web_speech' : 'provider_audio'),
             ttsProvider: result.provider,
             ttsModel: result.model,
             voiceId: result.voiceId,
             characterCount: result.characterCount,
+            rawByteCount: result.rawByteCount || 0,
+            packagedByteCount: result.packagedByteCount || result.byteCount || 0,
             byteCount: result.byteCount || 0,
             audioMime: result.contentType,
+            audioDurationSec: result.audioDurationSec || 0,
+            bytesPerSecond: result.bytesPerSecond || 0,
+            bytesPerCharacter: result.bytesPerCharacter || 0,
+            networkPayloadSizeBytes: result.networkPayloadSizeBytes || result.byteCount || 0,
+            costPerSpokenMinuteUsd: result.costPerSpokenMinuteUsd || 0,
             synthesisLatencyMs: result.latencyMs,
             httpStatus: result.httpStatus || 200,
             requestId: result.requestId || null,
             estimatedCostUsd: result.estimatedCostUsd || 0,
+            requestHandled: true,
+            synthesisSucceeded: result.synthesisSucceeded,
+            audioValidated: result.audioValidated,
+            playbackStarted: false,
+            playbackAdvanced: false,
+            playbackCompleted: false,
+            playbackSucceeded: false,
             status: voiceStatus,
             success: result.success,
             error: result.error || null,
@@ -1482,14 +1501,20 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
               voice_output: voiceData,
               voice_feedback: {
                 status: voiceStatus,
+                playbackMode: voiceData.playbackMode,
                 provider: result.provider,
                 model: result.model,
                 voiceId: result.voiceId,
                 characterCount: result.characterCount,
-                byteCount: result.byteCount || 0,
+                rawByteCount: result.rawByteCount || 0,
+                packagedByteCount: result.packagedByteCount || result.byteCount || 0,
+                audioDurationSec: result.audioDurationSec || 0,
                 synthesisLatencyMs: result.latencyMs,
                 requestId: result.requestId || null,
                 estimatedCostUsd: result.estimatedCostUsd || 0,
+                requestHandled: true,
+                synthesisSucceeded: result.synthesisSucceeded,
+                audioValidated: result.audioValidated,
                 error: result.error || null,
                 timestamp: new Date().toISOString()
               }
@@ -1509,7 +1534,28 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
   // 6b. POST /api/chat/telemetry/voice-feedback - Log client-side playback success or error
   app.post('/api/chat/telemetry/voice-feedback', authOpt, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient || getSupabaseAnon();
-    const { messageId, event, provider, error, errorClass } = req.body;
+    const {
+      messageId,
+      event,
+      provider,
+      playbackMode,
+      error,
+      errorClass,
+      currentTime,
+      duration,
+      paused,
+      muted,
+      volume,
+      readyState,
+      networkState,
+      hasAdvancedAboveZero,
+      playingTimestamp,
+      firstAdvancedTimestamp,
+      endedTimestamp,
+      playbackDurationMs,
+      browserVoiceName,
+      localService
+    } = req.body;
 
     if (!messageId) {
       res.status(400).json({ error: 'messageId is required' });
@@ -1524,19 +1570,52 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .maybeSingle();
 
       const currentVoice = existing?.voice_output || {};
+      const isStarted = event === 'playback_started' || !!currentVoice.playbackStarted;
+      const isAdvanced = event === 'playback_advanced' || !!hasAdvancedAboveZero || !!currentVoice.playbackAdvanced;
+      const isCompleted = event === 'playback_ended' || !!currentVoice.playbackCompleted;
+      const isFailed = event === 'playback_failed';
+
       const updatedVoice = {
         ...currentVoice,
         playbackRequested: true,
-        clientEvent: event, // e.g. 'playback_started', 'playback_ended', 'playback_failed'
+        playbackMode: playbackMode || currentVoice.playbackMode || (provider === 'web_speech' ? 'web_speech' : 'provider_audio'),
+        clientEvent: event, // 'playback_started' | 'playback_advanced' | 'playback_ended' | 'playback_failed'
         clientTtsProvider: provider || currentVoice.ttsProvider,
+        playbackStarted: isStarted,
+        playbackAdvanced: isAdvanced,
+        playbackCompleted: isCompleted,
+        playbackSucceeded: isCompleted || (isStarted && isAdvanced && !isFailed),
+        playingTimestamp: playingTimestamp || currentVoice.playingTimestamp || (event === 'playback_started' ? new Date().toISOString() : null),
+        firstAdvancedTimestamp: firstAdvancedTimestamp || currentVoice.firstAdvancedTimestamp || (isAdvanced ? new Date().toISOString() : null),
+        endedTimestamp: endedTimestamp || currentVoice.endedTimestamp || (event === 'playback_ended' ? new Date().toISOString() : null),
+        playbackDurationMs: playbackDurationMs || currentVoice.playbackDurationMs || null,
         clientError: error || null,
         clientErrorClass: errorClass || null,
-        status: event === 'playback_failed' ? 'error' : (event === 'playback_ended' ? 'completed' : currentVoice.status || 'requested')
+        audioElementDiagnostics: {
+          currentTime: currentTime !== undefined ? currentTime : null,
+          duration: duration !== undefined ? duration : null,
+          paused: paused !== undefined ? paused : null,
+          muted: muted !== undefined ? muted : null,
+          volume: volume !== undefined ? volume : null,
+          readyState: readyState !== undefined ? readyState : null,
+          networkState: networkState !== undefined ? networkState : null,
+          browserVoiceName: browserVoiceName || null,
+          localService: localService !== undefined ? localService : null
+        },
+        status: isFailed ? 'error' : (isCompleted ? 'completed' : (isStarted ? 'playing' : currentVoice.status || 'requested'))
       };
 
       const feedbackData = {
         event,
+        playbackMode: updatedVoice.playbackMode,
         provider: provider || currentVoice.ttsProvider,
+        playbackStarted: isStarted,
+        playbackAdvanced: isAdvanced,
+        playbackCompleted: isCompleted,
+        playbackSucceeded: updatedVoice.playbackSucceeded,
+        currentTime: currentTime !== undefined ? currentTime : null,
+        duration: duration !== undefined ? duration : null,
+        playbackDurationMs: playbackDurationMs || null,
         error: error || null,
         errorClass: errorClass || null,
         timestamp: new Date().toISOString()

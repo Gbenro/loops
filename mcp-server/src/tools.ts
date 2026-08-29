@@ -60,19 +60,34 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'create_echo',
-    description: 'Create a new Echo (reflection note). Automatically stamps current lunar metadata (phase, cycle, illumination, zodiac) and relates it to loops.',
+    description: 'Create a new personal Echo (direct user observation note). Enforces provenance: author=user, kind=original_echo. Automatically stamps current lunar metadata.',
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Plaintext content of the reflection' },
-        source: { type: 'string', description: 'Client identifier (e.g. \'chatgpt\', \'claude\', \'voice\')', default: 'chatgpt' },
+        text: { type: 'string', description: 'Plaintext content of the user observation' },
+        source: { type: 'string', description: 'Client identifier (e.g. direct_entry, voice, chatgpt)', default: 'direct_entry' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Emotional signature tags' },
-        loopIds: { type: 'array', items: { type: 'string' }, description: 'List of loop IDs to connect this reflection to' },
-        energyState: { type: 'string', description: 'Energy signature (e.g. \'resting\', \'focused\')' },
+        loopIds: { type: 'array', items: { type: 'string' }, description: 'List of loop IDs to connect this observation to' },
+        energyState: { type: 'string', description: 'Energy signature (e.g. resting, focused)' },
         metadata: { type: 'object', description: 'Optional custom client metadata' },
-        provenanceAuthor: { type: 'string', enum: ['user', 'ai', 'co-created'], description: 'Origin source author' },
-        provenanceKind: { type: 'string', enum: ['original_echo', 'ai_reflection', 'checkpoint', 'product_note'], description: 'Type of record' },
-        parentId: { type: 'string', description: 'Parent echo ID this links to' }
+        parentId: { type: 'string', description: 'Parent echo ID if explicitly connected' }
+      },
+      required: ['text']
+    }
+  },
+  {
+    name: 'create_conversation_reflection',
+    description: 'Save a conversation-derived / co-created reflection note born out of dialogue between the user and Luna. Enforces provenance: author=co-created, kind=conversation_reflection, source=luna_conversation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Plaintext content of the reflection/insight derived from conversation' },
+        sessionId: { type: 'string', description: 'Chat session ID where the insight originated' },
+        conversationTitle: { type: 'string', description: 'Topic or title of the conversation' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Thematic or emotional tags' },
+        loopIds: { type: 'array', items: { type: 'string' }, description: 'List of loop IDs to relate this reflection to' },
+        energyState: { type: 'string', description: 'Energy signature' },
+        metadata: { type: 'object', description: 'Optional custom metadata' }
       },
       required: ['text']
     }
@@ -793,7 +808,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         id,
         user_id: userId,
         text: args.text,
-        source: args.source || 'chatgpt',
+        source: args.source || 'direct_entry',
         tags: args.tags || [],
         linked_loop_id: loopIds[0] || null,
         loop_ids: loopIds,
@@ -811,9 +826,9 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         is_encrypted: false,
         created_at: new Date().toISOString(),
 
-        // Provenance tracking
-        provenance_author: args.provenanceAuthor || 'user',
-        provenance_kind: args.provenanceKind || 'original_echo',
+        // Strictly enforced provenance: direct user observation
+        provenance_author: 'user',
+        provenance_kind: 'original_echo',
         parent_id: args.parentId || null
       };
 
@@ -849,6 +864,54 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       if (error) throw error;
       if (!createdRow) {
         throw new Error(`Failed to confirm creation of Echo with ID "${id}"`);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(createdRow), null, 2) }] };
+    }
+
+    case 'create_conversation_reflection': {
+      const id = generateServerId('e');
+      const loopIds = args.loopIds || [];
+      const insertData = {
+        id,
+        user_id: userId,
+        text: args.text,
+        source: 'luna_conversation',
+        tags: args.tags || ['conversation-reflection'],
+        linked_loop_id: loopIds[0] || null,
+        loop_ids: loopIds,
+        energy_state: args.energyState || null,
+        metadata: {
+          ...(args.metadata || {}),
+          sessionId: args.sessionId || null,
+          conversationTitle: args.conversationTitle || null,
+          coCreatedWith: 'Luna'
+        },
+        
+        // Auto lunar tracking
+        phase: lunar.phase.key,
+        phase_name: lunar.phase.name,
+        phase_type: (lunar.phase.key === 'new' || lunar.phase.key === 'first-quarter' || lunar.phase.key === 'full' || lunar.phase.key === 'last-quarter') ? 'threshold' : 'flow',
+        lunar_month: lunar.lunarMonth,
+        day_of_cycle: lunar.dayOfCycle,
+        zodiac: lunar.zodiac.sign,
+        illumination: lunar.illumination,
+        is_encrypted: false,
+        created_at: new Date().toISOString(),
+
+        // Strictly enforced provenance: conversation-derived / co-created reflection
+        provenance_author: 'co-created',
+        provenance_kind: 'conversation_reflection',
+        parent_id: null
+      };
+
+      let result = await supabase.from('echoes').insert(insertData).select();
+      let error = result.error;
+      let createdRow = result.data?.[0];
+      
+      if (error) throw error;
+      if (!createdRow) {
+        throw new Error(`Failed to confirm creation of Conversation Reflection with ID "${id}"`);
       }
 
       return { content: [{ type: 'text', text: JSON.stringify(mapEcho(createdRow), null, 2) }] };

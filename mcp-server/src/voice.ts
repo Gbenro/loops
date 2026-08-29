@@ -44,14 +44,25 @@ export interface VoiceOutputResult {
   audioBase64?: string;
   contentType: string;
   characterCount: number;
+  rawByteCount?: number;
+  packagedByteCount?: number;
   byteCount?: number;
+  audioDurationSec?: number;
+  bytesPerSecond?: number;
+  bytesPerCharacter?: number;
+  networkPayloadSizeBytes?: number;
+  costPerSpokenMinuteUsd?: number;
   provider: string;
   model: string;
   voiceId: string;
+  playbackMode: 'provider_audio' | 'web_speech';
   latencyMs: number;
   httpStatus?: number;
   requestId?: string | null;
   estimatedCostUsd?: number;
+  requestHandled: boolean;
+  synthesisSucceeded: boolean;
+  audioValidated: boolean;
   success: boolean;
   error?: string;
   useClientFallback?: boolean;
@@ -59,16 +70,27 @@ export interface VoiceOutputResult {
 
 export interface VoiceOutputTelemetry {
   playbackRequested: boolean;
+  playbackMode: 'provider_audio' | 'web_speech';
   ttsProvider: string;
   ttsModel: string;
   voiceId: string;
   characterCount: number;
+  rawByteCount?: number;
+  packagedByteCount?: number;
   byteCount?: number;
+  audioDurationSec?: number;
+  bytesPerSecond?: number;
+  bytesPerCharacter?: number;
+  networkPayloadSizeBytes?: number;
+  costPerSpokenMinuteUsd?: number;
   synthesisLatencyMs: number;
   httpStatus?: number;
   requestId?: string | null;
   estimatedCostUsd?: number;
-  status: 'idle' | 'requested' | 'completed' | 'fallback' | 'error';
+  requestHandled: boolean;
+  synthesisSucceeded: boolean;
+  audioValidated: boolean;
+  status: 'idle' | 'requested' | 'succeeded' | 'fallback' | 'error';
   success: boolean;
   error?: string | null;
   errorClass?: string | null;
@@ -187,12 +209,16 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
 
   if (!text) {
     return {
-      contentType: 'audio/mpeg',
+      contentType: 'audio/wav',
       characterCount: 0,
       provider: 'none',
       model: 'none',
       voiceId: 'none',
+      playbackMode: 'provider_audio',
       latencyMs: 0,
+      requestHandled: true,
+      synthesisSucceeded: false,
+      audioValidated: false,
       success: false,
       error: 'Text is required for speech synthesis'
     };
@@ -237,25 +263,41 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
         const rawArrayBuffer = await response.arrayBuffer();
         const rawBuffer = Buffer.from(rawArrayBuffer);
         const { buffer: packagedBuffer, contentType } = ensureAudioContainer(rawBuffer, 24000);
+        const rawByteCount = rawBuffer.length;
+        const packagedByteCount = packagedBuffer.length;
         const audioBase64 = packagedBuffer.toString('base64');
-        const byteCount = packagedBuffer.length;
+        const audioDurationSec = Number((rawByteCount / (24000 * 2)).toFixed(3)); // 24kHz 16-bit mono
+        const bytesPerSecond = audioDurationSec > 0 ? Number((packagedByteCount / audioDurationSec).toFixed(1)) : packagedByteCount;
+        const bytesPerCharacter = characterCount > 0 ? Number((packagedByteCount / characterCount).toFixed(1)) : packagedByteCount;
+        const costPerSpokenMinuteUsd = audioDurationSec > 0 ? Number(((estimatedCostUsd / audioDurationSec) * 60).toFixed(6)) : 0;
 
         // Require byteCount > 0 before reporting synthesis success
-        if (byteCount > 0) {
-          console.log(`[Luna Voice Out] OpenRouter TTS successful: ${byteCount} bytes (${contentType}) in ${latencyMs}ms (req: ${requestId})`);
+        if (packagedByteCount > 0) {
+          console.log(`[Luna Voice Out] OpenRouter TTS successful: ${packagedByteCount} bytes (${contentType}, ~${audioDurationSec}s) in ${latencyMs}ms (req: ${requestId})`);
 
           return {
             audioBase64,
             contentType,
-            byteCount,
             characterCount,
+            rawByteCount,
+            packagedByteCount,
+            byteCount: packagedByteCount,
+            audioDurationSec,
+            bytesPerSecond,
+            bytesPerCharacter,
+            networkPayloadSizeBytes: packagedByteCount,
+            costPerSpokenMinuteUsd,
             provider: 'openrouter',
             model: modelId,
             voiceId: voice,
+            playbackMode: 'provider_audio',
             latencyMs,
             httpStatus: response.status,
             requestId,
             estimatedCostUsd,
+            requestHandled: true,
+            synthesisSucceeded: true,
+            audioValidated: true,
             success: true
           };
         } else {
@@ -305,14 +347,22 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
           return {
             audioBase64,
             contentType: 'audio/mpeg',
-            byteCount,
             characterCount,
+            rawByteCount: byteCount,
+            packagedByteCount: byteCount,
+            byteCount,
+            audioDurationSec: Number((characterCount / 15).toFixed(2)), // estimate ~15 chars/sec
+            networkPayloadSizeBytes: byteCount,
             provider: 'openai',
             model,
             voiceId: voice,
+            playbackMode: 'provider_audio',
             latencyMs,
             httpStatus: response.status,
             estimatedCostUsd,
+            requestHandled: true,
+            synthesisSucceeded: true,
+            audioValidated: true,
             success: true
           };
         }
@@ -327,19 +377,32 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
     }
   }
 
-  // 3. Client-side Web Speech fallback
+  // 3. Client-side Web Speech fallback / Comparator
   const latencyMs = Date.now() - startTime;
+  const isWebSpeechDirect = ttsModelConfig.provider === 'web_speech';
   return {
     contentType: 'audio/web-speech',
     characterCount,
+    rawByteCount: 0,
+    packagedByteCount: 0,
+    byteCount: 0,
+    audioDurationSec: Number((characterCount / 15).toFixed(2)),
+    bytesPerSecond: 0,
+    bytesPerCharacter: 0,
+    networkPayloadSizeBytes: 0,
+    costPerSpokenMinuteUsd: 0,
     provider: 'web_speech',
     model: 'browser-native',
     voiceId: 'default',
+    playbackMode: 'web_speech',
     latencyMs,
     httpStatus: 200,
     estimatedCostUsd: 0,
     error: lastError || undefined,
-    success: true,
+    requestHandled: true,
+    synthesisSucceeded: isWebSpeechDirect || !lastError,
+    audioValidated: isWebSpeechDirect || !lastError,
+    success: isWebSpeechDirect || !lastError,
     useClientFallback: true
   };
 }

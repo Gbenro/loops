@@ -860,6 +860,15 @@ app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
   }
 });
 
+app.post('/api/reflections/conversation', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'create_conversation_reflection', req.body);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 
 app.get('/status', (req, res) => {
