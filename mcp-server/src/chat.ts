@@ -1462,7 +1462,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
             ttsModel: result.model,
             voiceId: result.voiceId,
             characterCount: result.characterCount,
+            byteCount: result.byteCount || 0,
+            audioMime: result.contentType,
             synthesisLatencyMs: result.latencyMs,
+            httpStatus: result.httpStatus || 200,
+            requestId: result.requestId || null,
+            estimatedCostUsd: result.estimatedCostUsd || 0,
             status: voiceStatus,
             success: result.success,
             error: result.error || null,
@@ -1478,7 +1483,13 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
               voice_feedback: {
                 status: voiceStatus,
                 provider: result.provider,
+                model: result.model,
+                voiceId: result.voiceId,
+                characterCount: result.characterCount,
+                byteCount: result.byteCount || 0,
                 synthesisLatencyMs: result.latencyMs,
+                requestId: result.requestId || null,
+                estimatedCostUsd: result.estimatedCostUsd || 0,
                 error: result.error || null,
                 timestamp: new Date().toISOString()
               }

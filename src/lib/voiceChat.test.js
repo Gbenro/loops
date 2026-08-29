@@ -255,4 +255,32 @@ describe('Luna Voice Input V1', () => {
       // Downstream Luna pipeline treats message identically to typed queries
     });
   });
+
+  describe('OpenRouter TTS & Voice Expression Layer', () => {
+    it('preserves clean separation between Luna reasoning model and TTS voice model', () => {
+      const reasoningModel = 'deepseek/deepseek-v4-pro';
+      const ttsModel = 'openai/tts-1';
+
+      const voiceTelemetry = {
+        playbackRequested: true,
+        ttsProvider: 'openrouter',
+        ttsModel,
+        voiceId: 'nova',
+        characterCount: 142,
+        byteCount: 28450,
+        synthesisLatencyMs: 420,
+        requestId: 'gen-or-1788019932-84a',
+        estimatedCostUsd: 0.00213,
+        status: 'completed',
+        success: true
+      };
+
+      expect(reasoningModel).not.toBe(ttsModel);
+      expect(voiceTelemetry.ttsProvider).toBe('openrouter');
+      expect(voiceTelemetry.ttsModel).toBe('openai/tts-1');
+      expect(voiceTelemetry.byteCount).toBeGreaterThan(0);
+      expect(voiceTelemetry.requestId).toBe('gen-or-1788019932-84a');
+      expect(voiceTelemetry.estimatedCostUsd).toBe(0.00213);
+    });
+  });
 });

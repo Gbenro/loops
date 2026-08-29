@@ -75,7 +75,7 @@ export function useLunaVoicePlayback() {
     }
   }, [activeMessageId]);
 
-  const playBase64Audio = useCallback((messageId, base64Data) => {
+  const playBase64Audio = useCallback((messageId, base64Data, provider = 'openrouter') => {
     try {
       const audioUrl = `data:audio/mpeg;base64,${base64Data}`;
       const audio = new Audio(audioUrl);
@@ -83,20 +83,20 @@ export function useLunaVoicePlayback() {
 
       audio.onplay = () => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
-        reportVoiceFeedback(messageId, 'playback_started', { provider: 'openai' });
+        reportVoiceFeedback(messageId, 'playback_started', { provider });
       };
 
       audio.onended = () => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         setActiveMessageId(null);
         audioRef.current = null;
-        reportVoiceFeedback(messageId, 'playback_ended', { provider: 'openai' });
+        reportVoiceFeedback(messageId, 'playback_ended', { provider });
       };
 
       audio.onerror = (e) => {
         console.error('[Luna Voice Audio error]:', e);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: 'HTMLAudioElement error event', errorClass: 'MediaPlaybackError' });
+        reportVoiceFeedback(messageId, 'playback_failed', { provider, error: 'HTMLAudioElement error event', errorClass: 'MediaPlaybackError' });
         setTimeout(() => {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         }, 2500);
@@ -107,7 +107,7 @@ export function useLunaVoicePlayback() {
       audio.play().catch(err => {
         console.warn('[Luna Voice Play error]:', err);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: err.message, errorClass: err.name });
+        reportVoiceFeedback(messageId, 'playback_failed', { provider, error: err.message, errorClass: err.name });
         setTimeout(() => {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
         }, 2500);
@@ -115,7 +115,7 @@ export function useLunaVoicePlayback() {
       });
     } catch (err) {
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-      reportVoiceFeedback(messageId, 'playback_failed', { provider: 'openai', error: err.message, errorClass: err.name });
+      reportVoiceFeedback(messageId, 'playback_failed', { provider, error: err.message, errorClass: err.name });
       setTimeout(() => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
       }, 2500);
@@ -224,7 +224,7 @@ export function useLunaVoicePlayback() {
 
       if (result.audioBase64) {
         audioCacheRef.current.set(messageId, result.audioBase64);
-        playBase64Audio(messageId, result.audioBase64);
+        playBase64Audio(messageId, result.audioBase64, result.provider || 'openrouter');
       } else if (result.useClientFallback && typeof window !== 'undefined' && 'speechSynthesis' in window) {
         playClientSpeech(messageId, text);
       } else {

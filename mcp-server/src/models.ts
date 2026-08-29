@@ -340,3 +340,65 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
     current.defaultPriority > highest.defaultPriority ? current : highest
   , allowedModels[0]);
 }
+
+export interface TtsModelConfig {
+  key: string;
+  provider: 'openrouter' | 'openai' | 'elevenlabs' | 'web_speech';
+  modelId: string;
+  displayName: string;
+  defaultVoice: string;
+  costPer1MChars: number; // USD
+  supportedVoices: string[];
+  enabled: boolean;
+}
+
+export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
+  {
+    key: 'openrouter-tts-1',
+    provider: 'openrouter',
+    modelId: 'openai/tts-1',
+    displayName: 'OpenRouter — OpenAI TTS-1',
+    defaultVoice: 'nova',
+    costPer1MChars: 15.00,
+    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    enabled: true
+  },
+  {
+    key: 'openrouter-tts-1-hd',
+    provider: 'openrouter',
+    modelId: 'openai/tts-1-hd',
+    displayName: 'OpenRouter — OpenAI TTS-1 HD',
+    defaultVoice: 'nova',
+    costPer1MChars: 30.00,
+    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    enabled: true
+  },
+  {
+    key: 'openai-tts-1',
+    provider: 'openai',
+    modelId: 'tts-1',
+    displayName: 'OpenAI Direct — TTS-1',
+    defaultVoice: 'nova',
+    costPer1MChars: 15.00,
+    supportedVoices: ['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'],
+    enabled: true
+  },
+  {
+    key: 'browser-web-speech',
+    provider: 'web_speech',
+    modelId: 'browser-native',
+    displayName: 'Browser Native Web Speech',
+    defaultVoice: 'default',
+    costPer1MChars: 0,
+    supportedVoices: ['default'],
+    enabled: true
+  }
+];
+
+export function resolveTtsModel(keyOrModelId?: string): TtsModelConfig {
+  if (keyOrModelId) {
+    const direct = TTS_MODEL_REGISTRY.find(m => m.key === keyOrModelId || m.modelId === keyOrModelId);
+    if (direct) return direct;
+  }
+  return TTS_MODEL_REGISTRY[0]; // Default to openrouter-tts-1
+}
