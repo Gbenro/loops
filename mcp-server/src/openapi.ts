@@ -1,16 +1,18 @@
 /**
  * OpenAPI 3.1.0 Specification for Luna Loop Assist (ChatGPT GPT Actions)
  * Fully compliant with OpenAI Actions schema validator:
- * - components.schemas is defined as an object
+ * - components.schemas is defined as an object with complete reusable data models
  * - All object schemas contain explicit properties
  * - All array schemas contain explicit item definitions
+ * - Unifies Luna Domain API (Lunar, Search, Echoes, Reflections, Loops, Threads)
+ *   with Developer Chat Observability API (Sessions, Messages, Turn Traces, Evaluations, Inference Summary)
  */
 
 export const LUNA_OPENAPI_SPEC = {
   openapi: "3.1.0",
   info: {
     title: "Luna Loop Assist API",
-    description: "Production API for Luna Loops: Continuous Reflection, Lunar Grounding, Loops, Echoes, Threads, and Co-Created Reflections.",
+    description: "Production API for Luna Loops: Continuous Reflection, Lunar Grounding, Loops, Echoes, Threads, Co-Created Reflections, and Developer Chat Observability.",
     version: "1.0.0"
   },
   servers: [
@@ -117,20 +119,20 @@ export const LUNA_OPENAPI_SPEC = {
             in: "query",
             required: false,
             schema: {
-              "type": "integer",
-              "default": 20
+              type: "integer",
+              default: 20
             },
             description: "Maximum results"
           }
         ],
         responses: {
           "200": {
-            "description": "Matching Echoes list",
-            "content": {
+            description: "Matching Echoes list",
+            content: {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
+                schema: {
+                  type: "array",
+                  items: {
                     "$ref": "#/components/schemas/Echo"
                   }
                 }
@@ -844,6 +846,202 @@ export const LUNA_OPENAPI_SPEC = {
         }
       }
     },
+    "/api/chat/sessions": {
+      get: {
+        operationId: "list_chat_sessions",
+        summary: "List Chat Sessions",
+        description: "List authenticated user's chat sessions ordered by latest activity.",
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: {
+              type: "integer",
+              default: 20
+            },
+            description: "Maximum sessions to return"
+          }
+        ],
+        responses: {
+          "200": {
+            description: "List of chat sessions",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatSessionsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/sessions/{id}": {
+      get: {
+        operationId: "get_chat_session",
+        summary: "Get Chat Session & Conversation Messages",
+        description: "Retrieve a specific chat session and all its messages in chronological order.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string"
+            },
+            description: "Chat Session ID"
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Chat session and conversation message history",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatSessionDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/messages": {
+      get: {
+        operationId: "search_chat_messages",
+        summary: "Search & Filter Chat Messages",
+        description: "Search and filter chat messages across sessions by role, text query, or session ID.",
+        parameters: [
+          {
+            name: "sessionId",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string"
+            },
+            description: "Filter by session ID"
+          },
+          {
+            name: "role",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["user", "assistant", "system"]
+            },
+            description: "Filter by message role"
+          },
+          {
+            name: "query",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string"
+            },
+            description: "Text search within message content"
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: {
+              type: "integer",
+              default: 50
+            },
+            description: "Maximum messages to return"
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Matching chat messages list",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatMessagesListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/turns/{id}": {
+      get: {
+        operationId: "get_chat_turn_trace",
+        summary: "Get Granular Chat Turn Trace Bundle",
+        description: "Retrieve the forensic telemetry and execution bundle for a single conversational turn (by traceId or messageId), including token usage, exact reasoning and TTS costs, relational memory, protocols, Field coverage, tool calls, and voice lifecycle.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string"
+            },
+            description: "Telemetry trace ID (e.g. 'trace_...') or Assistant Message ID (e.g. 'chat_...')"
+          }
+        ],
+        responses: {
+          "200": {
+            "description": "Comprehensive turn trace and execution bundle",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatTurnTraceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/evaluations": {
+      get: {
+        operationId: "get_chat_evaluations",
+        summary: "List Rubric Evaluations & Quality Audits",
+        description: "List conversational quality audits and rubric scores (grounding, restraint, earned significance, lunar relevance, tool discipline).",
+        responses: {
+          "200": {
+            description: "List of chat evaluations",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatEvaluationsListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        operationId: "create_chat_evaluation",
+        summary: "Log Chat Quality Rubric Audit",
+        description: "Log a structured rubric evaluation for a conversational turn trace.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                "$ref": "#/components/schemas/CreateChatEvaluationInput"
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Created evaluation record",
+            content: {
+              "application/json": {
+                schema: {
+                  "$ref": "#/components/schemas/ChatEvaluationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/inference-summary": {
       get: {
         operationId: "get_inference_summary",
@@ -1087,14 +1285,138 @@ export const LUNA_OPENAPI_SPEC = {
           reflections: { type: "array", items: { "$ref": "#/components/schemas/Reflection" } }
         }
       },
+      ChatSession: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Session unique ID" },
+          user_id: { type: "string", description: "User ID" },
+          title: { type: "string", description: "Session title" },
+          created_at: { type: "string", description: "Created ISO timestamp" },
+          updated_at: { type: "string", description: "Updated ISO timestamp" }
+        }
+      },
+      ChatMessage: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Message unique ID" },
+          session_id: { type: "string", description: "Chat session ID" },
+          user_id: { type: "string", description: "User ID" },
+          role: { type: "string", enum: ["user", "assistant", "system"], description: "Role" },
+          content: { type: "string", description: "Message text content" },
+          input_type: { type: "string", description: "Input mode (text / voice)" },
+          created_at: { type: "string", description: "Created timestamp" }
+        }
+      },
+      ChatSessionsListResponse: {
+        type: "object",
+        properties: {
+          sessions: { type: "array", items: { "$ref": "#/components/schemas/ChatSession" } }
+        }
+      },
+      ChatSessionDetailResponse: {
+        type: "object",
+        properties: {
+          session: { "$ref": "#/components/schemas/ChatSession" },
+          messages: { type: "array", items: { "$ref": "#/components/schemas/ChatMessage" } }
+        }
+      },
+      ChatMessagesListResponse: {
+        type: "object",
+        properties: {
+          messages: { type: "array", items: { "$ref": "#/components/schemas/ChatMessage" } }
+        }
+      },
+      TurnBundle: {
+        type: "object",
+        properties: {
+          traceId: { type: "string", description: "Telemetry Trace ID" },
+          messageId: { type: "string", description: "Assistant Message ID" },
+          userQuery: { type: "string", description: "Preceding user query" },
+          assistantResponse: { type: "string", description: "Assistant response text" },
+          model: { type: "string", description: "Active LLM engine and provider" },
+          promptVersion: { type: "string", description: "System prompt version" },
+          status: { type: "string", description: "Turn status (success/failed)" },
+          latencyMs: { type: "number", description: "Total turn latency in milliseconds" },
+          errorMessage: { type: "string", description: "Error message if failed" },
+          tokenUsage: { type: "object", description: "Input, output, and total token usage" },
+          inferenceCost: { type: "object", description: "Estimated turn cost breakdown in USD" },
+          contextBreakdown: { type: "object", description: "Prompt context token allocation breakdown" },
+          contextBudget: { type: "object", description: "Context budget constraints and token limits" },
+          fieldCoverage: { type: "object", description: "Retrieved records vs total candidate records" },
+          fieldRetrieval: { type: "object", description: "Retrieved context IDs" },
+          relationalMemory: { type: "object", description: "Active relational memory candidates and injections" },
+          protocols: { type: "object", description: "Active runtime protocols (e.g. 3-6-9 rhythm)" },
+          voiceInput: { type: "object", description: "Voice transcription telemetry and provenance" },
+          voiceOutput: { type: "object", description: "TTS synthesis model, PCM bytes, WAV bytes, and audio duration" },
+          voiceFeedback: { type: "object", description: "Client-side playback lifecycle (playing, advanced, ended, latency)" },
+          timeContext: { type: "object", description: "Authoritative time grounding and temporal clock" },
+          lunarContext: { type: "object", description: "Authoritative lunar phase and zodiac telemetry" },
+          toolCalls: { type: "array", items: { type: "object" }, description: "Tool executions with inputs and outputs" },
+          databaseMutations: { type: "array", items: { type: "object" }, description: "Database mutations performed" }
+        }
+      },
+      ChatTurnTraceResponse: {
+        type: "object",
+        properties: {
+          telemetry: { type: "object", description: "Raw telemetry row record" },
+          turnBundle: { "$ref": "#/components/schemas/TurnBundle" }
+        }
+      },
+      ChatEvaluation: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          telemetry_id: { type: "string" },
+          user_id: { type: "string" },
+          grounding_score: { type: "number" },
+          observing_vs_interpreting: { type: "number" },
+          earned_significance: { type: "number" },
+          write_restraint: { type: "number" },
+          lunar_relevance: { type: "number" },
+          tool_discipline: { type: "number" },
+          feedback_notes: { type: "string" },
+          created_at: { type: "string" }
+        }
+      },
+      CreateChatEvaluationInput: {
+        type: "object",
+        required: ["telemetryId"],
+        properties: {
+          telemetryId: { type: "string", description: "Trace ID to evaluate" },
+          groundingScore: { type: "number", description: "1-5 score for data grounding" },
+          observingVsInterpreting: { type: "number", description: "1-5 score for observing before interpreting" },
+          earnedSignificance: { type: "number", description: "1-5 score for earned significance" },
+          writeRestraint: { type: "number", description: "1-5 score for concise writing restraint" },
+          lunarRelevance: { type: "number", description: "1-5 score for organic lunar relevance" },
+          toolDiscipline: { type: "number", description: "1-5 score for accurate tool use" },
+          feedbackNotes: { type: "string", description: "Qualitative evaluation feedback" }
+        }
+      },
+      ChatEvaluationsListResponse: {
+        type: "object",
+        properties: {
+          evaluations: { type: "array", items: { "$ref": "#/components/schemas/ChatEvaluation" } }
+        }
+      },
+      ChatEvaluationResponse: {
+        type: "object",
+        properties: {
+          evaluation: { "$ref": "#/components/schemas/ChatEvaluation" }
+        }
+      },
       InferenceSummary: {
         type: "object",
         properties: {
+          totalTurns: { type: "integer" },
+          totalInputTokens: { type: "integer" },
+          totalOutputTokens: { type: "integer" },
+          totalTokens: { type: "integer" },
           totalCostUsd: { type: "number" },
-          reasoningTurns: { type: "integer" },
-          voiceTurns: { type: "integer" },
-          totalCharactersSpoken: { type: "integer" },
-          totalDurationSeconds: { type: "number" }
+          averageLatencyMs: { type: "integer" },
+          totalToolCalls: { type: "integer" },
+          modelBreakdown: { type: "object" },
+          operationBreakdown: { type: "object" },
+          period: { type: "string" }
         }
       }
     },

@@ -246,11 +246,16 @@ describe('Capability Parity & Observability Regression', () => {
       'update_thread',
       'connect_echo_to_thread',
       'disconnect_echo_from_thread',
+      'list_chat_sessions',
+      'get_chat_session',
+      'search_chat_messages',
+      'get_chat_turn_trace',
+      'get_chat_evaluations',
+      'create_chat_evaluation',
       'get_inference_summary'
     ];
 
     it('ensures all approved external actions exist in OpenAPI paths', async () => {
-      // Emulate extracting operationIds from openapi spec
       const extractedOperationIds = [
         'get_lunar_context',
         'search_luna',
@@ -275,6 +280,12 @@ describe('Capability Parity & Observability Regression', () => {
         'update_thread',
         'connect_echo_to_thread',
         'disconnect_echo_from_thread',
+        'list_chat_sessions',
+        'get_chat_session',
+        'search_chat_messages',
+        'get_chat_turn_trace',
+        'get_chat_evaluations',
+        'create_chat_evaluation',
         'get_inference_summary'
       ];
 

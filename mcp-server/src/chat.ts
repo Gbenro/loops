@@ -1723,14 +1723,101 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 7. GET /api/chat/telemetry/:id - Modular turn trace bundle for Luna Observability
-  app.get('/api/chat/telemetry/:id', authenticateRest, async (req: Request, res: Response) => {
+  // 6d. GET /api/chat/sessions - List chat sessions for authenticated user
+  app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      res.json({ sessions: data || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 6e. GET /api/chat/sessions/:id - Get specific session and its messages
+  app.get('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
+      const { data: session, error: sessionErr } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', req.params.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionErr || !session) throw new Error('Session not found');
+
+      const { data: messages, error: msgErr } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', req.params.id)
+        .order('created_at', { ascending: true });
+
+      if (msgErr) throw msgErr;
+      res.json({ session, messages: messages || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 6f. GET /api/chat/messages - Search & filter chat messages
+  app.get('/api/chat/messages', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { sessionId, role, query } = req.query;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+
+      let dbQuery = supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (sessionId) {
+        dbQuery = dbQuery.eq('session_id', sessionId as string);
+      }
+      if (role) {
+        dbQuery = dbQuery.eq('role', role as string);
+      }
+      if (query) {
+        dbQuery = dbQuery.ilike('content', `%${query}%`);
+      }
+
+      const { data, error } = await dbQuery;
+      if (error) throw error;
+      res.json({ messages: data || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 7. GET /api/chat/telemetry/:id, /api/chat/turns/:id, /api/chat/traces/:id - Modular turn trace bundle
+  app.get(['/api/chat/telemetry/:id', '/api/chat/turns/:id', '/api/chat/traces/:id'], authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
       const { data: telemetry, error: telError } = await supabase
         .from('chat_telemetry')
         .select('*')
-        .eq('id', req.params.id)
+        .or(`id.eq.${req.params.id},message_id.eq.${req.params.id}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (telError || !telemetry) throw new Error('Telemetry trace not found');
@@ -1756,6 +1843,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       res.json({
         telemetry,
         turnBundle: {
+          traceId: telemetry.id,
+          messageId: telemetry.message_id,
           userQuery: userMsg?.content || null,
           timeContext: telemetry.time_context || null,
           lunarContext: telemetry.lunar_context || null,
@@ -1768,6 +1857,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           contextBudget: telemetry.context_budget || null,
           fieldCoverage: telemetry.field_coverage || null,
           voiceOutput: telemetry.voice_output || null,
+          voiceFeedback: telemetry.voice_feedback || null,
           fieldRetrieval: {
             retrievedContextIds: telemetry.retrieved_context_ids || []
           },
