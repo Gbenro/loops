@@ -16,7 +16,7 @@ export const LUNA_OPENAPI_SPEC = {
   },
   servers: [
     {
-      url: "https://loops-app-production.up.railway.app",
+      url: "https://loops-production-e1d5.up.railway.app",
       description: "Railway Production"
     }
   ],
