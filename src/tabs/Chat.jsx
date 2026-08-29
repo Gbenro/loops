@@ -204,52 +204,68 @@ export function Chat({ userId, lunarData }) {
       <header
         style={{
           flexShrink: 0,
-          padding: '16px 20px',
+          padding: '12px 16px',
           borderBottom: '1px solid var(--color-border)',
-          background: 'rgba(8, 13, 26, 0.6)',
+          background: 'rgba(8, 13, 26, 0.75)',
           backdropFilter: 'blur(10px)',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          flexDirection: 'column',
+          gap: '8px'
         }}
       >
-        <div>
+        {/* Row 1: Title & Sky Context */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
           <h1
             style={{
               margin: 0,
               fontSize: 'var(--font-md)',
               fontFamily: 'serif',
               color: '#f5e6c8',
-              letterSpacing: '0.05em'
+              letterSpacing: '0.05em',
+              whiteSpace: 'nowrap'
             }}
           >
             ✦ Luna Chat
           </h1>
           <p
             style={{
-              margin: '2px 0 0 0',
+              margin: 0,
               fontSize: 'var(--font-xs)',
               color: 'var(--color-text-faint)',
               fontFamily: 'monospace',
-              letterSpacing: '0.05em'
+              letterSpacing: '0.05em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}
           >
-            {moonEmoji} {moonLabel} | Moon in {lunarData?.zodiac?.sign || 'Aries'}
+            {moonEmoji} {moonLabel} · {lunarData?.zodiac?.sign || 'Pisces'}
           </p>
         </div>
 
-        {/* Model Selector Menu */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Row 2: Full-width Engine Selector */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(255, 255, 255, 0.03)',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
           <label
             htmlFor="model-select"
             style={{
               fontSize: '10px',
               fontFamily: 'monospace',
               color: 'var(--color-text-faint)',
-              textTransform: 'uppercase'
+              textTransform: 'uppercase',
+              flexShrink: 0
             }}
           >
-            Model:
+            Engine:
           </label>
           <select
             id="model-select"
@@ -260,15 +276,17 @@ export function Chat({ userId, lunarData }) {
               localStorage.setItem('luna_model_key', newModel);
             }}
             style={{
-              background: '#0e1626',
+              flex: 1,
+              background: 'transparent',
               color: '#f5e6c8',
-              border: '1px solid var(--color-border)',
-              borderRadius: '8px',
-              padding: '4px 8px',
+              border: 'none',
               fontSize: 'var(--font-xs)',
               outline: 'none',
               cursor: 'pointer',
-              fontFamily: 'sans-serif'
+              fontFamily: 'sans-serif',
+              textOverflow: 'ellipsis',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap'
             }}
           >
             <option value="anthropic-opus-5">Anthropic — Claude Opus 5 (Proprietary Frontier Reasoning)</option>
@@ -290,8 +308,7 @@ export function Chat({ userId, lunarData }) {
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px',
-          paddingBottom: '100px',
+          padding: '16px 20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px'
@@ -601,12 +618,11 @@ export function Chat({ userId, lunarData }) {
       <form
         onSubmit={handleSend}
         style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
-          background: 'linear-gradient(to top, var(--color-bg) 70%, transparent)',
+          flexShrink: 0,
+          position: 'relative',
+          padding: '12px 16px 14px',
+          background: 'rgba(8, 13, 26, 0.95)',
+          borderTop: '1px solid var(--color-border)',
           display: 'flex',
           gap: '8px',
           alignItems: 'center'
