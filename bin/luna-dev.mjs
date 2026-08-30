@@ -77,15 +77,44 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 // 3. Main Bridge Runner
 async function runBridge() {
   const args = process.argv.slice(2);
-  const command = args[0] || 'start';
+  const command = args[0] || 'check';
   const issueIdArg = args[1];
+
+  if (command === 'check' || command === 'list') {
+    console.log('\n✦ Querying Luna Development Service for assigned work...');
+    console.log(`  Cloud Service: ${API_BASE_URL}\n`);
+    try {
+      const res = await apiCall('/api/dev/issues?limit=10');
+      const issues = res.items || [];
+      if (issues.length === 0) {
+        console.log('  [Status] No open development issues found in queue.');
+        console.log('  Ask Luna in chat: "Create a development issue for [your feature]" to assign work.\n');
+      } else {
+        console.log(`  Found ${issues.length} development issue(s):\n`);
+        issues.forEach((iss, idx) => {
+          console.log(`  ${idx + 1}. [${iss.status.toUpperCase()}] ${iss.title} (${iss.id})`);
+          console.log(`     Priority: ${iss.priority} | Agent: ${iss.assigned_agent || iss.assignedAgent || 'gemini'}`);
+          console.log(`     Description: ${iss.description}`);
+          if (iss.acceptance_criteria && iss.acceptance_criteria.length > 0) {
+            console.log('     Acceptance Criteria:');
+            iss.acceptance_criteria.forEach(ac => console.log(`       - ${ac}`));
+          }
+          console.log('');
+        });
+      }
+    } catch (err) {
+      console.warn(`  [Notice] Could not fetch issues: ${err.message}`);
+    }
+    return;
+  }
 
   if (command !== 'start') {
     console.log(`
-Usage: luna-dev start [issueId] [--port 4888] [--idle-timeout 15]
+Usage: luna-dev [check|list|start] [issueId] [--port 4888] [--idle-timeout 15]
 
 Commands:
-  start [issueId]   Start local ephemeral Dev Bridge for the given or latest issue
+  check / list      Check assigned development issues and requirements from Luna
+  start [issueId]   Start local ephemeral Dev Bridge RPC on 127.0.0.1:4888
 `);
     process.exit(0);
   }
