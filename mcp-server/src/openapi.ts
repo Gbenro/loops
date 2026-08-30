@@ -265,96 +265,7 @@ export const LUNA_OPENAPI_SPEC = {
         }
       }
     },
-    "/api/echoes/{id}/archive": {
-      post: {
-        operationId: "archive_echo",
-        summary: "Archive Echo",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo ID to archive"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Archived Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes/{id}/restore": {
-      post: {
-        operationId: "restore_echo",
-        summary: "Restore Archived Echo",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo ID to restore"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Restored Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/echoes/{id}/reflections": {
-      get: {
-        operationId: "get_echo_reflections",
-        summary: "Get Reflections Attached to an Echo",
-        description: "List all AI reflections or conversation insights attached to a specific user Echo.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Target Echo ID"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "List of attached reflections",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: {
-                    "$ref": "#/components/schemas/Reflection"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       post: {
         operationId: "attach_reflection",
         summary: "Attach AI Reflection to an Echo",
@@ -553,86 +464,6 @@ export const LUNA_OPENAPI_SPEC = {
         }
       }
     },
-    "/api/loops/{id}/close": {
-      "post": {
-        "operationId": "close_loop",
-        "summary": "Close/Complete Loop",
-        "description": "Mark a loop as completed with an optional reflection closing note.",
-        "parameters": [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID to close"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseLoopInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Closed loop record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/loops/{id}/carry-forward": {
-      "post": {
-        "operationId": "carry_loop_forward",
-        "summary": "Carry Loop Forward into New Cycle",
-        "description": "Carry an active or incomplete loop into the current lunar cycle.",
-        "parameters": [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID to carry forward"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CarryLoopForwardInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "New carried forward loop record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/threads": {
       "get": {
         "operationId": "list_threads",
@@ -754,90 +585,6 @@ export const LUNA_OPENAPI_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Thread"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/threads/{id}/echoes/{echoId}": {
-      "post": {
-        "operationId": "connect_echo_to_thread",
-        "summary": "Connect Echo to Thread",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Thread ID"
-          },
-          {
-            "name": "echoId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Echo ID to connect"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectEchoToThreadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Connection confirmed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActionSuccess"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "disconnect_echo_from_thread",
-        "summary": "Disconnect Echo from Thread",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Thread ID"
-          },
-          {
-            "name": "echoId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Echo ID to disconnect"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Disconnection confirmed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActionSuccess"
                 }
               }
             }
@@ -1011,33 +758,6 @@ export const LUNA_OPENAPI_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatEvaluationsListResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "operationId": "create_chat_evaluation",
-        "summary": "Log Chat Quality Rubric Audit",
-        "description": "Log a structured rubric evaluation for a conversational turn trace.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateChatEvaluationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Created evaluation record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatEvaluationResponse"
                 }
               }
             }
@@ -1398,47 +1118,6 @@ export const LUNA_OPENAPI_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DevEvent"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/dev/sessions/{id}/end": {
-      "post": {
-        "operationId": "end_dev_session",
-        "summary": "End Dev Session",
-        "description": "Cleanly close a dev session with final summary.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "Session ID"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "summary": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Closed session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevSession"
                 }
               }
             }

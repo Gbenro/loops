@@ -153,33 +153,6 @@
             }
           }
         }
-      },
-      "post": {
-        "operationId": "create_chat_evaluation",
-        "summary": "Log Chat Quality Rubric Audit",
-        "description": "Log a structured rubric evaluation for a conversational turn trace.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateChatEvaluationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Created evaluation record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatEvaluationResponse"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/chat/inference-summary": {
@@ -624,51 +597,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DevEvent"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/dev/sessions/{id}/end": {
-      "post": {
-        "operationId": "end_dev_session",
-        "summary": "End Dev Session",
-        "description": "Cleanly close a dev session with final summary.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Session ID"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "summary": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Closed session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevSession"
                 }
               }
             }
