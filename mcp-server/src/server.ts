@@ -17,6 +17,7 @@ import {
 import { getUserIdFromToken, getSupabaseForUser } from './db.js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 import { registerChatRoutes } from './chat.js';
+import { registerDevBridgeRoutes } from './devBridge.js';
 import { getLunarData } from './lunar.js';
 
 dotenv.config();
@@ -901,6 +902,7 @@ app.post('/api/reflections/conversation', authenticateRest, async (req, res) => 
 });
 
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
+registerDevBridgeRoutes(app, authenticateRest);
 
 import { LUNA_OPENAPI_SPEC } from './openapi.js';
 

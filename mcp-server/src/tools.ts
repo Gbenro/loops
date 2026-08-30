@@ -1,5 +1,19 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getLunarData } from './lunar.js';
+import {
+  listDevIssues,
+  getDevIssue,
+  createDevIssue,
+  updateDevIssueStatus,
+  createDevSession,
+  getDevSession,
+  heartbeatDevSession,
+  endDevSession,
+  appendDevEvent,
+  listDevEvents,
+  answerDevQuestion,
+  computeFactualEvidence
+} from './devBridge.js';
 
 // Schema types for tool declarations
 export interface ToolDefinition {
@@ -495,6 +509,230 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         statement: { type: 'string', description: 'Corrected or updated statement' }
       },
       required: ['id']
+    }
+  },
+
+  // ─── Luna Development Bridge Tools ─────────────────────────────────────────
+
+  // Luna-facing tools
+  {
+    name: 'list_dev_issues',
+    description: 'List development issues tracked in the Luna Development Service with optional status or priority filter.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['proposed', 'ready', 'in_progress', 'blocked', 'implementation_ready', 'verification', 'completed'], description: 'Filter by issue status' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Filter by priority' },
+        limit: { type: 'number', description: 'Max records to retrieve (default 20)' }
+      }
+    }
+  },
+  {
+    name: 'get_dev_issue',
+    description: 'Retrieve a complete development issue, its latest session, and factual evidence summary (implementation, tests, build, commit, deployment, verification).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Issue ID (e.g. iss_...)' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'create_dev_issue',
+    description: 'Create a new durable Development Issue in the Luna Development Service for the coding agent to execute.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Clear, concise issue title' },
+        description: { type: 'string', description: 'Detailed specification, context, and requirements' },
+        acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Explicit verifiable acceptance criteria' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Issue priority (default: medium)' },
+        assignedAgent: { type: 'string', description: 'Assigned agent identifier (default: gemini)' },
+        relatedReferences: { type: 'array', items: { type: 'string' }, description: 'Relevant architectural references or files' }
+      },
+      required: ['title', 'description']
+    }
+  },
+  {
+    name: 'update_dev_issue_status',
+    description: 'Update the status of a development issue. Supports non-linear transitions (e.g. verification -> in_progress, implementation_ready -> blocked).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Issue ID' },
+        status: { type: 'string', enum: ['proposed', 'ready', 'in_progress', 'blocked', 'implementation_ready', 'verification', 'completed'], description: 'New issue status' },
+        notes: { type: 'string', description: 'Optional explanation of the status transition' },
+        sessionId: { type: 'string', description: 'Optional active session ID to attach the transition event to' }
+      },
+      required: ['id', 'status']
+    }
+  },
+  {
+    name: 'get_dev_events',
+    description: 'Retrieve the append-only chronological audit event stream for a development issue or specific session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Optional session ID filter' }
+      },
+      required: ['issueId']
+    }
+  },
+  {
+    name: 'answer_dev_question',
+    description: 'Answer a developer question and record an auditable decision (decision.approved or decision.rejected).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Dev Session ID' },
+        questionEventId: { type: 'string', description: 'ID of the question event being answered' },
+        decision: { type: 'string', enum: ['approved', 'rejected'], description: 'Decision approval or rejection' },
+        answer: { type: 'string', description: 'Detailed answer or architectural decision guidance' }
+      },
+      required: ['issueId', 'sessionId', 'decision', 'answer']
+    }
+  },
+  {
+    name: 'record_dev_verification',
+    description: 'Record human/architectural verification evidence for an issue.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        notes: { type: 'string', description: 'Detailed verification notes and observations' },
+        verifiedBy: { type: 'string', description: 'Identifier of verifier (e.g. luna, user)' }
+      },
+      required: ['issueId', 'sessionId', 'notes']
+    }
+  },
+
+  // Gemini / Local Coding Agent tools
+  {
+    name: 'get_assigned_issue',
+    description: 'Fetch the active or requested assigned Development Issue and its requirements for the coding agent.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Optional specific issue ID; if omitted, fetches the most recent ready/in_progress issue' }
+      }
+    }
+  },
+  {
+    name: 'get_dev_session',
+    description: 'Get details and lifecycle status of a dev session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Session ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'ask_developer_question',
+    description: 'Send a structured architectural or implementation question from the developer to Luna with a concrete proposal and decision request.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Current Session ID' },
+        question: { type: 'string', description: 'The architectural or implementation ambiguity' },
+        proposal: { type: 'string', description: 'Proposed technical resolution or migration approach' },
+        decisionRequired: { type: 'string', description: 'Explicit question asking for decision/approval' }
+      },
+      required: ['issueId', 'sessionId', 'question', 'decisionRequired']
+    }
+  },
+  {
+    name: 'report_blocker',
+    description: 'Report a blocking issue or environment impediment preventing progress.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        reason: { type: 'string', description: 'Description of blocker' },
+        context: { type: 'object', description: 'Optional context metadata' }
+      },
+      required: ['issueId', 'sessionId', 'reason']
+    }
+  },
+  {
+    name: 'report_implementation',
+    description: 'Report implementation progress and changed files.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        summary: { type: 'string', description: 'Summary of implementation changes' },
+        changedFiles: { type: 'array', items: { type: 'string' }, description: 'List of created or modified file paths' }
+      },
+      required: ['issueId', 'sessionId', 'summary']
+    }
+  },
+  {
+    name: 'report_tests',
+    description: 'Report automated test execution results (passed/failed counts, command executed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        status: { type: 'string', enum: ['passed', 'failed'], description: 'Overall test outcome' },
+        command: { type: 'string', description: 'Test command executed (e.g. npm test)' },
+        passed: { type: 'number', description: 'Number of passed unit tests' },
+        failed: { type: 'number', description: 'Number of failed unit tests' },
+        details: { type: 'string', description: 'Optional test output details' }
+      },
+      required: ['issueId', 'sessionId', 'status', 'command']
+    }
+  },
+  {
+    name: 'report_build',
+    description: 'Report build command execution and outcome.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        status: { type: 'string', enum: ['passed', 'failed'], description: 'Build outcome' },
+        command: { type: 'string', description: 'Build command executed (e.g. npm run build)' },
+        details: { type: 'string', description: 'Optional build output details' }
+      },
+      required: ['issueId', 'sessionId', 'status', 'command']
+    }
+  },
+  {
+    name: 'report_commit',
+    description: 'Report git commit hash, branch, and commit message.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        hash: { type: 'string', description: 'Git commit hash (e.g. abc1234)' },
+        branch: { type: 'string', description: 'Git branch name (e.g. main, beta)' },
+        message: { type: 'string', description: 'Commit message' }
+      },
+      required: ['issueId', 'sessionId', 'hash', 'branch', 'message']
+    }
+  },
+  {
+    name: 'complete_dev_session',
+    description: 'Cleanly complete and close a development session with final summary.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID' },
+        sessionId: { type: 'string', description: 'Session ID' },
+        finalSummary: { type: 'string', description: 'Final summary of accomplishments and evidence' }
+      },
+      required: ['issueId', 'sessionId', 'finalSummary']
     }
   }
 ];
@@ -1838,6 +2076,183 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
 
       return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(data[0]), null, 2) }] };
+    }
+
+    // ─── Dev Bridge Tools ──────────────────────────────────────────
+    case 'list_dev_issues': {
+      const issues = await listDevIssues(supabase, userId, {
+        status: args.status,
+        priority: args.priority,
+        limit: args.limit
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(issues, null, 2) }] };
+    }
+
+    case 'get_dev_issue': {
+      const issueDetails = await getDevIssue(supabase, userId, args.id);
+      return { content: [{ type: 'text', text: JSON.stringify(issueDetails, null, 2) }] };
+    }
+
+    case 'create_dev_issue': {
+      const newIssue = await createDevIssue(supabase, userId, {
+        title: args.title,
+        description: args.description,
+        acceptanceCriteria: args.acceptanceCriteria,
+        priority: args.priority,
+        assignedAgent: args.assignedAgent,
+        relatedReferences: args.relatedReferences
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(newIssue, null, 2) }] };
+    }
+
+    case 'update_dev_issue_status': {
+      const updatedIssue = await updateDevIssueStatus(
+        supabase,
+        userId,
+        args.id,
+        args.status,
+        args.notes,
+        args.sessionId
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(updatedIssue, null, 2) }] };
+    }
+
+    case 'get_dev_events': {
+      const events = await listDevEvents(supabase, userId, args.issueId, args.sessionId);
+      const evidence = computeFactualEvidence(events);
+      return { content: [{ type: 'text', text: JSON.stringify({ events, evidence }, null, 2) }] };
+    }
+
+    case 'answer_dev_question': {
+      const decisionEvent = await answerDevQuestion(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        questionEventId: args.questionEventId,
+        decision: args.decision,
+        answer: args.answer
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(decisionEvent, null, 2) }] };
+    }
+
+    case 'record_dev_verification': {
+      const verificationEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'verification.reported',
+        author: (args.verifiedBy || 'luna') as any,
+        content: args.notes,
+        metadata: { verifiedBy: args.verifiedBy || 'luna' }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(verificationEvent, null, 2) }] };
+    }
+
+    case 'get_assigned_issue': {
+      if (args.issueId) {
+        const details = await getDevIssue(supabase, userId, args.issueId);
+        return { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }] };
+      }
+      const activeIssues = await listDevIssues(supabase, userId, { limit: 1 });
+      if (activeIssues.length === 0) {
+        return { content: [{ type: 'text', text: JSON.stringify({ message: 'No assigned issues found' }) }] };
+      }
+      const details = await getDevIssue(supabase, userId, activeIssues[0].id);
+      return { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }] };
+    }
+
+    case 'get_dev_session': {
+      const session = await getDevSession(supabase, userId, args.id);
+      return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+    }
+
+    case 'ask_developer_question': {
+      const questionEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'developer.question',
+        author: 'gemini',
+        content: args.question,
+        metadata: {
+          proposal: args.proposal,
+          decisionRequired: args.decisionRequired
+        }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(questionEvent, null, 2) }] };
+    }
+
+    case 'report_blocker': {
+      const blockerEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'developer.blocked',
+        author: 'gemini',
+        content: args.reason,
+        metadata: args.context || {}
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(blockerEvent, null, 2) }] };
+    }
+
+    case 'report_implementation': {
+      const implEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'implementation.reported',
+        author: 'gemini',
+        content: args.summary,
+        metadata: { changedFiles: args.changedFiles || [] }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(implEvent, null, 2) }] };
+    }
+
+    case 'report_tests': {
+      const testEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'tests.reported',
+        author: 'gemini',
+        content: args.details || `Tests ${args.status}: ${args.passed || 0} passed, ${args.failed || 0} failed`,
+        metadata: {
+          status: args.status,
+          command: args.command,
+          passed: args.passed,
+          failed: args.failed
+        }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(testEvent, null, 2) }] };
+    }
+
+    case 'report_build': {
+      const buildEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'build.reported',
+        author: 'gemini',
+        content: args.details || `Build ${args.status}`,
+        metadata: {
+          status: args.status,
+          command: args.command
+        }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(buildEvent, null, 2) }] };
+    }
+
+    case 'report_commit': {
+      const commitEvent = await appendDevEvent(supabase, userId, {
+        issueId: args.issueId,
+        sessionId: args.sessionId,
+        type: 'commit.reported',
+        author: 'gemini',
+        content: args.message,
+        metadata: {
+          hash: args.hash,
+          branch: args.branch
+        }
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(commitEvent, null, 2) }] };
+    }
+
+    case 'complete_dev_session': {
+      const endedSession = await endDevSession(supabase, userId, args.sessionId, args.finalSummary);
+      return { content: [{ type: 'text', text: JSON.stringify(endedSession, null, 2) }] };
     }
 
     default:
