@@ -21,7 +21,45 @@ import path from 'path';
 const DEFAULT_PORT = 4888;
 const DEFAULT_IDLE_MINUTES = 15;
 const API_BASE_URL = process.env.LUNA_DEV_API_URL || process.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
-const AUTH_TOKEN = process.env.LUNA_DEV_TOKEN || process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+
+function getAuthFilePath() {
+  const homeDir = os.homedir();
+  const dir = path.join(homeDir, '.luna');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return path.join(dir, 'auth.json');
+}
+
+function resolveAuthToken(explicitToken = null) {
+  if (explicitToken) return explicitToken;
+  if (process.env.LUNA_DEV_TOKEN) return process.env.LUNA_DEV_TOKEN;
+  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN;
+
+  // Check ~/.luna/auth.json
+  try {
+    const authFile = getAuthFilePath();
+    if (fs.existsSync(authFile)) {
+      const data = JSON.parse(fs.readFileSync(authFile, 'utf8'));
+      if (data.accessToken) return data.accessToken;
+      if (data.access_token) return data.access_token;
+    }
+  } catch {}
+
+  // Check local .env / .env.local
+  try {
+    const envLocal = path.join(process.cwd(), '.env.local');
+    if (fs.existsSync(envLocal)) {
+      const content = fs.readFileSync(envLocal, 'utf8');
+      const match = content.match(/LUNA_DEV_TOKEN=([^\r\n]+)/);
+      if (match) return match[1].trim();
+    }
+  } catch {}
+
+  return '';
+}
 
 function getGitInfo() {
   try {
@@ -46,13 +84,14 @@ function getEnvironmentInfo() {
 }
 
 // 2. HTTP Helper for Cloud Development Service
-async function apiCall(endpoint, method = 'GET', body = null) {
+async function apiCall(endpoint, method = 'GET', body = null, token = null) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const authToken = token || resolveAuthToken();
   const headers = {
     'Content-Type': 'application/json'
   };
-  if (AUTH_TOKEN) {
-    headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const options = {
@@ -78,13 +117,122 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 async function runBridge() {
   const args = process.argv.slice(2);
   const command = args[0] || 'check';
-  const issueIdArg = args[1];
+  const paramArg = args[1];
+
+  // Check for --token flag
+  const tokenFlagIdx = args.indexOf('--token');
+  const explicitToken = tokenFlagIdx !== -1 && args[tokenFlagIdx + 1] ? args[tokenFlagIdx + 1] : null;
+  const activeToken = resolveAuthToken(explicitToken);
+
+  if (command === 'set-token') {
+    const tokenToSave = paramArg || explicitToken;
+    if (!tokenToSave) {
+      console.error('Usage: luna-dev set-token <jwt_token>');
+      process.exit(1);
+    }
+    const authFile = getAuthFilePath();
+    fs.writeFileSync(authFile, JSON.stringify({ accessToken: tokenToSave, updatedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
+    console.log(`✓ Saved Luna Dev token to ${authFile}`);
+    return;
+  }
+
+  if (command === 'login') {
+    const email = paramArg || process.env.LUNA_EMAIL;
+    const password = args[2] || process.env.LUNA_PASSWORD;
+    if (!email || !password) {
+      console.error('Usage: luna-dev login <email> <password>');
+      process.exit(1);
+    }
+    console.log(`✦ Authenticating ${email} with Supabase...`);
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ email, password })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error(`✗ Login failed: ${err.error_description || err.message || res.statusText}`);
+      process.exit(1);
+    }
+    const data = await res.json();
+    const authFile = getAuthFilePath();
+    fs.writeFileSync(authFile, JSON.stringify({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      user: data.user,
+      updatedAt: new Date().toISOString()
+    }, null, 2), { mode: 0o600 });
+    console.log(`✓ Successfully authenticated as ${data.user.email}`);
+    console.log(`✓ Saved session to ${authFile}`);
+    return;
+  }
+
+  if (command === 'get') {
+    if (!paramArg) {
+      console.error('Usage: luna-dev get <issueId>');
+      process.exit(1);
+    }
+    console.log(`\n✦ Retrieving Issue ${paramArg} from Luna Development Service...`);
+    try {
+      const res = await apiCall(`/api/dev/issues/${paramArg}`, 'GET', null, activeToken);
+      console.log(JSON.stringify(res, null, 2));
+    } catch (err) {
+      console.error(`✗ Error retrieving issue: ${err.message}`);
+    }
+    return;
+  }
+
+  if (command === 'question') {
+    const issueId = paramArg;
+    const questionText = args[2];
+    if (!issueId || !questionText) {
+      console.error('Usage: luna-dev question <issueId> "<question>" [--proposal "<proposal>"]');
+      process.exit(1);
+    }
+    const propIdx = args.indexOf('--proposal');
+    const proposal = propIdx !== -1 && args[propIdx + 1] ? args[propIdx + 1] : undefined;
+
+    console.log(`\n✦ Posting developer.question to Issue ${issueId}...`);
+    try {
+      // First ensure session exists
+      const envInfo = getEnvironmentInfo();
+      const session = await apiCall('/api/dev/sessions', 'POST', {
+        issueId,
+        agent: 'gemini',
+        model: 'gemini-2.5-pro',
+        repository: path.basename(process.cwd()),
+        branch: envInfo.branch,
+        environment: envInfo
+      }, activeToken);
+
+      const event = await apiCall(`/api/dev/sessions/${session.id}/events`, 'POST', {
+        issueId,
+        type: 'developer.question',
+        author: 'gemini',
+        content: questionText,
+        metadata: {
+          proposal,
+          decisionRequired: true
+        }
+      }, activeToken);
+
+      console.log(`✓ Posted developer.question (Event ID: ${event.id})`);
+      console.log(`  Question: ${questionText}`);
+      if (proposal) console.log(`  Proposal: ${proposal}`);
+    } catch (err) {
+      console.error(`✗ Error posting question: ${err.message}`);
+    }
+    return;
+  }
 
   if (command === 'check' || command === 'list') {
     console.log('\n✦ Querying Luna Development Service for assigned work...');
     console.log(`  Cloud Service: ${API_BASE_URL}\n`);
     try {
-      const res = await apiCall('/api/dev/issues?limit=10');
+      const res = await apiCall('/api/dev/issues?limit=10', 'GET', null, activeToken);
       const issues = res.items || [];
       if (issues.length === 0) {
         console.log('  [Status] No open development issues found in queue.');
@@ -110,11 +258,15 @@ async function runBridge() {
 
   if (command !== 'start') {
     console.log(`
-Usage: luna-dev [check|list|start] [issueId] [--port 4888] [--idle-timeout 15]
+Usage: luna-dev [check|list|get|question|start|login|set-token] [issueId] [options]
 
 Commands:
-  check / list      Check assigned development issues and requirements from Luna
-  start [issueId]   Start local ephemeral Dev Bridge RPC on 127.0.0.1:4888
+  check / list             Check assigned development issues from Luna
+  get <issueId>            Retrieve complete details, latest session & evidence for an issue
+  question <issueId> "..." Post a developer.question to the issue on Development Service
+  start [issueId]          Start local ephemeral Dev Bridge RPC on 127.0.0.1:4888
+  login <email> <password> Authenticate with Supabase and store token locally
+  set-token <token>        Save Bearer token to ~/.luna/auth.json
 `);
     process.exit(0);
   }
@@ -128,16 +280,17 @@ Commands:
 
   // Fetch target issue
   let targetIssue = null;
+  const issueIdArg = paramArg;
   try {
     if (issueIdArg) {
-      const res = await apiCall(`/api/dev/issues/${issueIdArg}`);
+      const res = await apiCall(`/api/dev/issues/${issueIdArg}`, 'GET', null, activeToken);
       targetIssue = res.issue || res;
     } else {
-      const res = await apiCall('/api/dev/issues?status=ready&limit=1');
+      const res = await apiCall('/api/dev/issues?status=ready&limit=1', 'GET', null, activeToken);
       if (res.items && res.items.length > 0) {
         targetIssue = res.items[0];
       } else {
-        const inProg = await apiCall('/api/dev/issues?status=in_progress&limit=1');
+        const inProg = await apiCall('/api/dev/issues?status=in_progress&limit=1', 'GET', null, activeToken);
         if (inProg.items && inProg.items.length > 0) {
           targetIssue = inProg.items[0];
         }
