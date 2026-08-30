@@ -1081,6 +1081,370 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       }
+    },
+    "/api/dev/issues": {
+      "get": {
+        "operationId": "list_dev_issues",
+        "summary": "List Development Issues",
+        "description": "List development issues tracked in the Luna Development Service with optional status or priority filter.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+            },
+            "description": "Filter by issue status"
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["low", "medium", "high", "critical"]
+            },
+            "description": "Filter by priority"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "Max records to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of dev issues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevIssueListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_dev_issue",
+        "summary": "Create Development Issue",
+        "description": "Create a new durable Development Issue in the Luna Development Service for the coding agent to execute.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Issue title"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Specification and requirements"
+                  },
+                  "acceptanceCriteria": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of verifiable acceptance criteria"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"],
+                    "default": "medium"
+                  },
+                  "assignedAgent": {
+                    "type": "string",
+                    "default": "gemini"
+                  }
+                },
+                "required": ["title", "description"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created dev issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevIssue"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/issues/{id}": {
+      "get": {
+        "operationId": "get_dev_issue",
+        "summary": "Get Dev Issue Details & Evidence",
+        "description": "Retrieve complete development issue details, latest session, and factual evidence summary.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Issue ID (e.g. iss_...)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issue details, latest session, and evidence summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevIssueDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "update_dev_issue_status",
+        "summary": "Update Dev Issue Status",
+        "description": "Update the status of a development issue (supports non-linear backward loops like verification -> in_progress).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Issue ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "Optional notes on the status change"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "description": "Optional active session ID"
+                  }
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevIssue"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/issues/{id}/events": {
+      "get": {
+        "operationId": "get_dev_events",
+        "summary": "Get Issue Event Stream & Factual Evidence",
+        "description": "Retrieve the append-only chronological audit event stream and factual evidence for an issue.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Issue ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event stream and evidence summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevEventListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/sessions": {
+      "post": {
+        "operationId": "create_dev_session",
+        "summary": "Start / Attach Dev Session",
+        "description": "Start or attach to a bounded execution Dev Session for an issue.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "issueId": { "type": "string" },
+                  "agent": { "type": "string", "default": "gemini" },
+                  "model": { "type": "string" },
+                  "repository": { "type": "string" },
+                  "branch": { "type": "string" }
+                },
+                "required": ["issueId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created dev session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/sessions/{id}/events": {
+      "post": {
+        "operationId": "post_dev_event",
+        "summary": "Post Event to Dev Session",
+        "description": "Post a structured developer question, decision, test report, build report, commit report, or verification event.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Session ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "issueId": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "developer.question",
+                      "developer.blocked",
+                      "decision.approved",
+                      "decision.rejected",
+                      "implementation.reported",
+                      "tests.reported",
+                      "build.reported",
+                      "commit.reported",
+                      "verification.reported"
+                    ]
+                  },
+                  "author": { "type": "string", "enum": ["gemini", "luna", "user"] },
+                  "content": { "type": "string" },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "proposal": { "type": "string" },
+                      "decisionRequired": { "type": "string" },
+                      "decision": { "type": "string" },
+                      "status": { "type": "string" },
+                      "command": { "type": "string" },
+                      "passed": { "type": "integer" },
+                      "failed": { "type": "integer" },
+                      "hash": { "type": "string" },
+                      "branch": { "type": "string" },
+                      "changedFiles": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "required": ["issueId", "type", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Appended event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/sessions/{id}/end": {
+      "post": {
+        "operationId": "end_dev_session",
+        "summary": "End Dev Session",
+        "description": "Cleanly close a dev session with final summary.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Session ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "summary": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSession"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2299,6 +2663,148 @@ export const LUNA_OPENAPI_SPEC = {
           "period": {
             "type": "string"
           }
+        }
+      },
+      "DevIssue": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "assignedAgent": { "type": "string" },
+          "createdAt": { "type": "string" },
+          "updatedAt": { "type": "string" },
+          "completedAt": { "type": "string" }
+        }
+      },
+      "DevSession": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "issueId": { "type": "string" },
+          "agent": { "type": "string" },
+          "status": { "type": "string" },
+          "repository": { "type": "string" },
+          "branch": { "type": "string" },
+          "startedAt": { "type": "string" },
+          "lastActivityAt": { "type": "string" },
+          "endedAt": { "type": "string" }
+        }
+      },
+      "DevEvent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "issueId": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "type": { "type": "string" },
+          "author": { "type": "string" },
+          "content": { "type": "string" },
+          "createdAt": { "type": "string" }
+        }
+      },
+      "DevEvidenceSummary": {
+        "type": "object",
+        "properties": {
+          "implementation": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "summary": { "type": "string" },
+              "changedFiles": { "type": "array", "items": { "type": "string" } },
+              "timestamp": { "type": "string" }
+            }
+          },
+          "tests": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "status": { "type": "string" },
+              "command": { "type": "string" },
+              "passed": { "type": "integer" },
+              "failed": { "type": "integer" },
+              "timestamp": { "type": "string" }
+            }
+          },
+          "build": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "status": { "type": "string" },
+              "command": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          },
+          "commit": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "hash": { "type": "string" },
+              "branch": { "type": "string" },
+              "message": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          },
+          "deployment": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "environment": { "type": "string" },
+              "url": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          },
+          "verification": {
+            "type": "object",
+            "properties": {
+              "reported": { "type": "boolean" },
+              "verifiedBy": { "type": "string" },
+              "notes": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          }
+        }
+      },
+      "DevIssueDetailResponse": {
+        "type": "object",
+        "properties": {
+          "issue": { "$ref": "#/components/schemas/DevIssue" },
+          "latestSession": { "$ref": "#/components/schemas/DevSession" },
+          "evidence": { "$ref": "#/components/schemas/DevEvidenceSummary" }
+        }
+      },
+      "DevIssueListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DevIssue" }
+          },
+          "count": { "type": "integer" }
+        }
+      },
+      "DevEventListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DevEvent" }
+          },
+          "count": { "type": "integer" },
+          "evidence": { "$ref": "#/components/schemas/DevEvidenceSummary" }
         }
       }
     },
