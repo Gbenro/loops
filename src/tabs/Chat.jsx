@@ -295,6 +295,10 @@ export function Chat({ userId, lunarData }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        minHeight: 0,
+        flex: 1,
+        overflow: 'hidden',
+        position: 'relative',
         background: 'var(--color-bg)',
         color: 'var(--color-text)'
       }}
@@ -303,13 +307,14 @@ export function Chat({ userId, lunarData }) {
       <header
         style={{
           flexShrink: 0,
-          padding: '10px 14px 8px',
+          padding: '8px 14px 6px',
           borderBottom: '1px solid var(--color-border)',
-          background: 'rgba(8, 13, 26, 0.8)',
+          background: 'rgba(8, 13, 26, 0.95)',
           backdropFilter: 'blur(10px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '6px'
+          gap: '4px',
+          zIndex: 5
         }}
       >
         {/* Row 1: Title and Lunar Status */}
@@ -414,11 +419,13 @@ export function Chat({ userId, lunarData }) {
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
-          padding: '16px 20px',
+          WebkitOverflowScrolling: 'touch',
+          padding: '10px 16px 12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: '14px'
         }}
       >
         {messages.length === 0 && !loading && (
@@ -781,9 +788,9 @@ export function Chat({ userId, lunarData }) {
         <div
           style={{
             position: 'absolute',
-            bottom: '75px',
-            left: '16px',
-            right: '16px',
+            bottom: '56px',
+            left: '12px',
+            right: '12px',
             padding: '14px 16px',
             borderRadius: '16px',
             background: 'rgba(13, 21, 39, 0.98)',
@@ -878,9 +885,9 @@ export function Chat({ userId, lunarData }) {
         <div
           style={{
             position: 'absolute',
-            bottom: '80px',
-            left: '20px',
-            right: '20px',
+            bottom: '56px',
+            left: '12px',
+            right: '12px',
             padding: '12px 16px',
             borderRadius: '14px',
             background: 'rgba(18, 25, 45, 0.95)',
@@ -952,9 +959,9 @@ export function Chat({ userId, lunarData }) {
         <div
           style={{
             position: 'absolute',
-            bottom: '80px',
-            left: '20px',
-            right: '20px',
+            bottom: '56px',
+            left: '12px',
+            right: '12px',
             padding: '12px 16px',
             borderRadius: '14px',
             background: 'rgba(18, 25, 45, 0.95)',
@@ -978,9 +985,9 @@ export function Chat({ userId, lunarData }) {
         <div
           style={{
             position: 'absolute',
-            bottom: '80px',
-            left: '20px',
-            right: '20px',
+            bottom: '56px',
+            left: '12px',
+            right: '12px',
             padding: '10px 14px',
             borderRadius: '12px',
             background: 'rgba(239, 68, 68, 0.15)',
@@ -1017,12 +1024,13 @@ export function Chat({ userId, lunarData }) {
         style={{
           flexShrink: 0,
           position: 'relative',
-          padding: '8px 12px calc(8px + env(safe-area-inset-bottom, 0px))',
+          padding: '8px 12px',
           background: '#080d1a',
           borderTop: '1px solid var(--color-border)',
           display: 'flex',
           gap: '6px',
-          alignItems: 'center'
+          alignItems: 'center',
+          zIndex: 5
         }}
       >
         {/* Voice Input Microphone Button */}
