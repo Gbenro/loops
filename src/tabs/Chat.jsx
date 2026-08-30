@@ -18,18 +18,27 @@ export function Chat({ userId, lunarData }) {
   const [savingEchoTurnId, setSavingEchoTurnId] = useState(null);
   const [echoSaveSuccessId, setEchoSaveSuccessId] = useState(null);
 
-  // Voice Review State (7-10 lines multiline editor before sending)
-  const [voiceReviewText, setVoiceReviewText] = useState('');
-  const [isReviewingVoice, setIsReviewingVoice] = useState(false);
   const pendingVoiceMetaRef = useRef(null);
-
+  const textareaRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // Voice recording integration
+  // Auto-resize composer textarea (from 38px up to ~180px)
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const newHeight = Math.min(Math.max(textarea.scrollHeight, 38), 180);
+    textarea.style.height = `${newHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input, adjustTextareaHeight]);
+
+  // Voice recording integration (populates single consolidated composer)
   const handleTranscriptReady = useCallback((transcript, metadata) => {
     pendingVoiceMetaRef.current = metadata;
-    setVoiceReviewText(transcript);
-    setIsReviewingVoice(true);
+    setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
   }, []);
 
   const {
@@ -121,27 +130,43 @@ export function Chat({ userId, lunarData }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Save a recent voice turn as an Original User Echo
+  // Save a recent voice turn as an Original User Echo (Fixed column schema & provenance)
   const handleSaveVoiceTurnAsEcho = async (voiceTurn) => {
     if (!voiceTurn || !userId) return;
     setSavingEchoTurnId(voiceTurn.id);
 
     try {
-      const echoId = `echo_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const echoId = `e${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
+      const phaseKey = voiceTurn.lunarContext?.phase?.key || lunarData?.phase?.key || 'new';
+      const phaseName = voiceTurn.lunarContext?.phase?.name || lunarData?.phase?.name || 'New Moon';
+      const phaseType = voiceTurn.lunarContext?.phase?.phaseType || lunarData?.phase?.phaseType || 'threshold';
+      const lunarMonth = voiceTurn.lunarContext?.lunarMonth || lunarData?.lunarMonth || 'Wolf';
+      const illumination = voiceTurn.lunarContext?.illumination ?? lunarData?.illumination ?? 0;
+      const dayOfCycle = voiceTurn.lunarContext?.dayOfCycle ?? lunarData?.dayOfCycle ?? 1;
+      const zodiacSign = voiceTurn.lunarContext?.zodiac?.sign || lunarData?.zodiac?.sign || 'Aries';
+
+      const insertData = {
+        id: echoId,
+        user_id: userId,
+        text: voiceTurn.text,
+        source: 'voice_chat',
+        tags: ['original-voice-echo'],
+        provenance_author: 'user',
+        provenance_kind: 'original_echo',
+        phase: phaseKey,
+        phase_name: phaseName,
+        phase_type: phaseType,
+        lunar_month: lunarMonth,
+        day_of_cycle: dayOfCycle,
+        zodiac: zodiacSign,
+        illumination: illumination,
+        is_encrypted: false,
+        created_at: voiceTurn.timestamp || new Date().toISOString()
+      };
+
       const { error: insertErr } = await supabase
         .from('echoes')
-        .insert({
-          id: echoId,
-          user_id: userId,
-          content: voiceTurn.text,
-          provenance_author: 'user',
-          provenance_kind: 'original_echo',
-          provenance_source: 'voice_chat',
-          phase_name: voiceTurn.lunarContext?.phase?.name || lunarData?.phase?.name || 'New Moon',
-          illumination: voiceTurn.lunarContext?.illumination ?? lunarData?.illumination ?? 0,
-          day_of_cycle: voiceTurn.lunarContext?.dayOfCycle ?? lunarData?.dayOfCycle ?? 1,
-          created_at: voiceTurn.timestamp || new Date().toISOString()
-        });
+        .insert(insertData);
 
       if (insertErr) throw insertErr;
 
@@ -151,22 +176,22 @@ export function Chat({ userId, lunarData }) {
       }, 3000);
     } catch (err) {
       console.error('Failed to save voice turn as echo:', err);
-      setError('Could not save voice turn as Echo.');
+      setError(`Could not save voice turn as Echo: ${err.message || 'database error'}`);
     } finally {
       setSavingEchoTurnId(null);
     }
   };
 
-  // 3. Send message handler (guarantees responses never disappear)
-  const executeSendMessage = async (textToSend, voiceMeta = null) => {
-    if (!textToSend.trim() || loading || !sessionId) return;
+  // 3. Send message handler (guarantees responses never disappear & updates voice cache)
+  const handleSend = async (e) => {
+    if (e) e.preventDefault();
+    if (!input.trim() || loading || !sessionId) return;
 
-    const userText = textToSend.trim();
+    const userText = input.trim();
+    const voiceMeta = pendingVoiceMetaRef.current;
     const inputType = voiceMeta ? 'voice' : 'text';
 
     setInput('');
-    setVoiceReviewText('');
-    setIsReviewingVoice(false);
     pendingVoiceMetaRef.current = null;
     setError('');
     setLoading(true);
@@ -281,9 +306,11 @@ export function Chat({ userId, lunarData }) {
     }
   };
 
-  const handleSend = (e) => {
-    if (e) e.preventDefault();
-    executeSendMessage(input, pendingVoiceMetaRef.current);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const moonLabel = lunarData?.phase?.name || 'Luna';
@@ -494,7 +521,7 @@ export function Chat({ userId, lunarData }) {
                   {msg.content}
                 </div>
 
-                {/* Optional Save Voice to Echo action for recent voice turns */}
+                {/* Save Voice to Echo action for recent voice turns */}
                 {isVoice && (
                   <div style={{ marginTop: '2px' }}>
                     {echoSaveSuccessId === msg.id ? (
@@ -783,104 +810,7 @@ export function Chat({ userId, lunarData }) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Expanded Multiline Voice Transcription Review Panel (7-10 lines) */}
-      {isReviewingVoice && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '56px',
-            left: '12px',
-            right: '12px',
-            padding: '14px 16px',
-            borderRadius: '16px',
-            background: 'rgba(13, 21, 39, 0.98)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(167, 139, 250, 0.4)',
-            boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            zIndex: 20
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              🎙 Review Voice Transcription (Editable)
-            </span>
-            <span style={{ fontSize: '10.5px', color: 'var(--color-text-faint)' }}>
-              Edit words if needed before sending
-            </span>
-          </div>
-
-          {/* 7-10 line comfortable multiline textarea */}
-          <textarea
-            rows={8}
-            value={voiceReviewText}
-            onChange={(e) => setVoiceReviewText(e.target.value)}
-            placeholder="Your transcribed voice reflection..."
-            style={{
-              width: '100%',
-              minHeight: '140px',
-              maxHeight: '220px',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              background: '#060a14',
-              border: '1px solid rgba(167, 139, 250, 0.3)',
-              color: '#f5e6c8',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              fontFamily: 'sans-serif',
-              outline: 'none',
-              resize: 'vertical',
-              boxSizing: 'border-box'
-            }}
-          />
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setIsReviewingVoice(false);
-                setVoiceReviewText('');
-                pendingVoiceMetaRef.current = null;
-              }}
-              style={{
-                padding: '7px 14px',
-                borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: 'var(--color-text-faint)',
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => executeSendMessage(voiceReviewText, pendingVoiceMetaRef.current)}
-              disabled={!voiceReviewText.trim() || loading}
-              style={{
-                padding: '7px 16px',
-                borderRadius: '8px',
-                background: '#f5e6c8',
-                border: 'none',
-                color: '#040810',
-                fontSize: '12.5px',
-                fontWeight: '600',
-                cursor: voiceReviewText.trim() && !loading ? 'pointer' : 'default',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              ✦ Send to Luna
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Voice Recording / Transcribing Overlay */}
+      {/* Voice Recording / Transcribing Overlay (Shows only while actively recording/transcribing) */}
       {isRecording && (
         <div
           style={{
@@ -949,7 +879,7 @@ export function Chat({ userId, lunarData }) {
                 cursor: 'pointer'
               }}
             >
-              Review
+              Done
             </button>
           </div>
         </div>
@@ -976,7 +906,7 @@ export function Chat({ userId, lunarData }) {
         >
           <div className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1s infinite' }} />
           <span style={{ fontSize: 'var(--font-sm)', color: '#c4b5fd' }}>
-            Transcribing speech to text for review...
+            Transcribing speech to composer...
           </span>
         </div>
       )}
@@ -1018,7 +948,7 @@ export function Chat({ userId, lunarData }) {
         </div>
       )}
 
-      {/* Styled input bar */}
+      {/* Single Consolidated Composer with Auto-Growing Textarea */}
       <form
         onSubmit={handleSend}
         style={{
@@ -1029,7 +959,7 @@ export function Chat({ userId, lunarData }) {
           borderTop: '1px solid var(--color-border)',
           display: 'flex',
           gap: '6px',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           zIndex: 5
         }}
       >
@@ -1037,8 +967,8 @@ export function Chat({ userId, lunarData }) {
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={loading || isTranscribing || isReviewingVoice}
-          title={isRecording ? 'Stop and review recording' : 'Speak to Luna'}
+          disabled={loading || isTranscribing}
+          title={isRecording ? 'Stop and transcribe speech' : 'Speak to Luna'}
           aria-label="Voice input"
           style={{
             width: '38px',
@@ -1054,10 +984,11 @@ export function Chat({ userId, lunarData }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: loading || isTranscribing || isReviewingVoice ? 'default' : 'pointer',
+            cursor: loading || isTranscribing ? 'default' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s',
-            WebkitTapHighlightColor: 'transparent'
+            WebkitTapHighlightColor: 'transparent',
+            marginBottom: '0px'
           }}
         >
           {isRecording ? (
@@ -1071,44 +1002,55 @@ export function Chat({ userId, lunarData }) {
           )}
         </button>
 
-        {/* Text Input Composer */}
-        <input
-          type="text"
+        {/* Auto-Growing Single Composer Textarea (38px to 180px) */}
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Speak or type to Luna...'}
-          disabled={loading || isRecording || isTranscribing || isReviewingVoice}
+          disabled={loading || isRecording || isTranscribing}
           style={{
             flex: 1,
+            minHeight: '38px',
+            maxHeight: '180px',
             height: '38px',
-            padding: '8px 12px',
+            padding: '9px 12px',
             borderRadius: '10px',
             background: '#040810',
-            border: '1px solid var(--color-border)',
+            border: pendingVoiceMetaRef.current
+              ? '1px solid rgba(245, 230, 200, 0.45)'
+              : '1px solid var(--color-border)',
             color: 'var(--color-text)',
-            fontSize: '13px',
+            fontSize: '13.5px',
+            lineHeight: '1.45',
             outline: 'none',
+            resize: 'none',
+            overflowY: 'auto',
+            fontFamily: 'inherit',
+            boxSizing: 'border-box',
             transition: 'border-color 0.2s',
             WebkitAppearance: 'none'
           }}
           onFocus={(e) => (e.target.style.borderColor = 'rgba(245, 230, 200, 0.4)')}
-          onBlur={(e) => (e.target.style.borderColor = 'var(--color-border)')}
+          onBlur={(e) => (e.target.style.borderColor = pendingVoiceMetaRef.current ? 'rgba(245, 230, 200, 0.45)' : 'var(--color-border)')}
         />
 
         {/* Send Button */}
         <button
           type="submit"
-          disabled={loading || isRecording || isTranscribing || !input.trim() || isReviewingVoice}
+          disabled={loading || isRecording || isTranscribing || !input.trim()}
           style={{
             padding: '0 14px',
             height: '38px',
             borderRadius: '10px',
-            background: input.trim() && !loading && !isReviewingVoice ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
+            background: input.trim() && !loading ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
             border: 'none',
-            color: input.trim() && !loading && !isReviewingVoice ? '#040810' : 'var(--color-text-faint)',
+            color: input.trim() && !loading ? '#040810' : 'var(--color-text-faint)',
             fontSize: '13px',
             fontWeight: '600',
-            cursor: input.trim() && !loading && !isReviewingVoice ? 'pointer' : 'default',
+            cursor: input.trim() && !loading ? 'pointer' : 'default',
             transition: 'all 0.2s',
             WebkitTapHighlightColor: 'transparent',
             flexShrink: 0
