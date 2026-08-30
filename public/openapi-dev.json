@@ -1,850 +1,17 @@
-/**
- * OpenAPI 3.0.1 Specification for Luna Loop Assist (ChatGPT GPT Actions)
- * Fully compliant with OpenAI Actions schema validator:
- * - openapi: "3.0.1" (OpenAI Actions strictly supported standard)
- * - 0 empty object schemas; every object schema defines concrete properties
- * - 0 empty array items; every array schema defines concrete item types
- * - Unified Domain + Observability APIs
- */
-
-export const LUNA_OPENAPI_SPEC = {
-  openapi: "3.0.1",
-  info: {
-    title: "Luna Loop Assist API",
-    description: "Production API for Luna Loops: Continuous Reflection, Lunar Grounding, Loops, Echoes, Threads, Co-Created Reflections, and Developer Chat Observability.",
-    version: "1.0.0"
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Luna Dev Bridge & Observability API",
+    "description": "Development bridge issues, sessions, event stream, and telemetry observability API.",
+    "version": "1.0.0"
   },
-  servers: [
+  "servers": [
     {
-      url: "https://loops-production-e1d5.up.railway.app",
-      description: "Railway Production"
+      "url": "https://loops-production-e1d5.up.railway.app",
+      "description": "Railway Production"
     }
   ],
-  paths: {
-    "/api/lunar/current": {
-      get: {
-        operationId: "get_lunar_context",
-        summary: "Get Current Lunar Context",
-        description: "Returns the current live lunar phase, illumination percentage, cycle day (1-29), zodiac sign, and threshold/flow state.",
-        responses: {
-          "200": {
-            description: "Current lunar telemetry and phase data",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/LunarContext"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search": {
-      get: {
-        operationId: "search_luna",
-        summary: "Unified Search Across Luna",
-        description: "Search across all user records (echoes, loops, rhythms, reflections) using text or keyword matching.",
-        parameters: [
-          {
-            name: "query",
-            in: "query",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Search term or concept"
-          },
-          {
-            name: "limit",
-            in: "query",
-            required: false,
-            schema: {
-              type: "integer",
-              default: 10
-            },
-            description: "Maximum records to return"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "List of matching echoes, loops, and reflections",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/SearchResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes": {
-      get: {
-        operationId: "search_echoes",
-        summary: "Search & Filter User Echoes",
-        description: "Search and filter personal Echoes by lunar phase, tags, date range, or text.",
-        parameters: [
-          {
-            name: "query",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
-            },
-            description: "Search query"
-          },
-          {
-            name: "phase",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
-            },
-            description: "Lunar phase filter (e.g. new, full, waxing-crescent)"
-          },
-          {
-            name: "tags",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
-            },
-            description: "Comma-separated list of tags"
-          },
-          {
-            name: "limit",
-            in: "query",
-            required: false,
-            schema: {
-              type: "integer",
-              default: 20
-            },
-            description: "Maximum results"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Matching Echoes list",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: {
-                    "$ref": "#/components/schemas/Echo"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      post: {
-        operationId: "create_echo",
-        summary: "Create Personal Echo (User Observation)",
-        description: "Create a direct personal user observation. Server enforces provenance: author=user, kind=original_echo. Automatically stamps current lunar metadata.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/CreateEchoInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Created Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/reflections/conversation": {
-      post: {
-        operationId: "create_conversation_reflection",
-        summary: "Create Conversation Reflection (Co-Created Insight)",
-        description: "Save an insight or reflection derived from dialogue with the user. Server enforces provenance: author=co-created, kind=conversation_reflection, source=luna_conversation.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/CreateConversationReflectionInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Created Conversation Reflection record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes/{id}": {
-      get: {
-        operationId: "get_echo",
-        summary: "Get Echo by ID",
-        description: "Retrieve a specific Echo by its unique stable ID (e.g. 'e178802...').",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo unique ID"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Echo details",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      },
-      patch: {
-        operationId: "update_echo",
-        summary: "Update Echo Metadata / Tags",
-        description: "Update tags, loop associations, or status of an existing Echo. Text content and lunar context are strictly immutable.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo unique ID"
-          }
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/UpdateEchoInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Updated Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes/{id}/archive": {
-      post: {
-        operationId: "archive_echo",
-        summary: "Archive Echo",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo ID to archive"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Archived Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes/{id}/restore": {
-      post: {
-        operationId: "restore_echo",
-        summary: "Restore Archived Echo",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Echo ID to restore"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Restored Echo record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Echo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/echoes/{id}/reflections": {
-      get: {
-        operationId: "get_echo_reflections",
-        summary: "Get Reflections Attached to an Echo",
-        description: "List all AI reflections or conversation insights attached to a specific user Echo.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Target Echo ID"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "List of attached reflections",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: {
-                    "$ref": "#/components/schemas/Reflection"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      post: {
-        operationId: "attach_reflection",
-        summary: "Attach AI Reflection to an Echo",
-        description: "Attaches an AI reflection to an existing Echo without mutating the original Echo content.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Target Echo ID"
-          }
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/AttachReflectionInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Created reflection record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Reflection"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/loops": {
-      get: {
-        operationId: "list_loops",
-        summary: "List Loops",
-        description: "List user loops filtered by status (active, completed, archived), lunar phase, or scope.",
-        parameters: [
-          {
-            name: "status",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-              enum: [
-                "active",
-                "completed",
-                "archived",
-                "all"
-              ],
-              default: "active"
-            },
-            description: "Loop status filter"
-          },
-          {
-            name: "scope",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-              enum: [
-                "cycle",
-                "phase",
-                "micro"
-              ],
-              default: "cycle"
-            },
-            description: "Loop temporal scope"
-          },
-          {
-            name: "phase",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string"
-            },
-            description: "Filter by target lunar phase"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "List of loops",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "array",
-                  items: {
-                    "$ref": "#/components/schemas/Loop"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      post: {
-        operationId: "create_loop",
-        summary: "Create a Loop",
-        description: "Create a new intention loop tied to a lunar cycle or phase with optional subtasks.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/CreateLoopInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Created loop record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/loops/{id}": {
-      get: {
-        operationId: "get_loop",
-        summary: "Get Loop Details",
-        description: "Get full details of a loop, including subtasks, connected echoes, and completion state.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID (e.g. 'l1788...')"
-          }
-        ],
-        responses: {
-          "200": {
-            description: "Loop details",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      },
-      patch: {
-        operationId: "update_loop",
-        summary: "Update Loop",
-        description: "Update title, description, subtasks, or tags for an active loop.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID"
-          }
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                "$ref": "#/components/schemas/UpdateLoopInput"
-              }
-            }
-          }
-        },
-        responses: {
-          "200": {
-            description: "Updated loop record",
-            content: {
-              "application/json": {
-                schema: {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/loops/{id}/close": {
-      "post": {
-        "operationId": "close_loop",
-        "summary": "Close/Complete Loop",
-        "description": "Mark a loop as completed with an optional reflection closing note.",
-        "parameters": [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID to close"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseLoopInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Closed loop record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/loops/{id}/carry-forward": {
-      "post": {
-        "operationId": "carry_loop_forward",
-        "summary": "Carry Loop Forward into New Cycle",
-        "description": "Carry an active or incomplete loop into the current lunar cycle.",
-        "parameters": [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string"
-            },
-            description: "Loop ID to carry forward"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CarryLoopForwardInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "New carried forward loop record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Loop"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/threads": {
-      "get": {
-        "operationId": "list_threads",
-        "summary": "List Thematic Threads",
-        "description": "List longitudinal threads that weave multiple echoes and loops together.",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "archived",
-                "all"
-              ],
-              "default": "active"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of threads",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Thread"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "operationId": "create_thread",
-        "summary": "Create a Thematic Thread",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateThreadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Created thread record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Thread"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/threads/{id}": {
-      "get": {
-        "operationId": "get_thread",
-        "summary": "Get Thread Details",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Thread details with connected items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Thread"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "operationId": "update_thread",
-        "summary": "Update Thread",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateThreadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated thread record",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Thread"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/threads/{id}/echoes/{echoId}": {
-      "post": {
-        "operationId": "connect_echo_to_thread",
-        "summary": "Connect Echo to Thread",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Thread ID"
-          },
-          {
-            "name": "echoId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Echo ID to connect"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectEchoToThreadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Connection confirmed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActionSuccess"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "disconnect_echo_from_thread",
-        "summary": "Disconnect Echo from Thread",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Thread ID"
-          },
-          {
-            "name": "echoId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Echo ID to disconnect"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Disconnection confirmed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActionSuccess"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+  "paths": {
     "/api/chat/sessions": {
       "get": {
         "operationId": "list_chat_sessions",
@@ -969,36 +136,6 @@ export const LUNA_OPENAPI_SPEC = {
         }
       }
     },
-    "/api/chat/turns/{id}": {
-      "get": {
-        "operationId": "get_chat_turn_trace",
-        "summary": "Get Granular Chat Turn Trace Bundle",
-        "description": "Retrieve the forensic telemetry and execution bundle for a single conversational turn (by traceId or messageId), including token usage, exact reasoning and TTS costs, relational memory, protocols, Field coverage, tool calls, and voice lifecycle.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Telemetry trace ID (e.g. 'trace_...') or Assistant Message ID (e.g. 'chat_...')"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Comprehensive turn trace and execution bundle",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatTurnTraceResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/chat/evaluations": {
       "get": {
         "operationId": "get_chat_evaluations",
@@ -1094,7 +231,15 @@ export const LUNA_OPENAPI_SPEC = {
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+              "enum": [
+                "proposed",
+                "ready",
+                "in_progress",
+                "blocked",
+                "implementation_ready",
+                "verification",
+                "completed"
+              ]
             },
             "description": "Filter by issue status"
           },
@@ -1104,7 +249,12 @@ export const LUNA_OPENAPI_SPEC = {
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["low", "medium", "high", "critical"]
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
             },
             "description": "Filter by priority"
           },
@@ -1153,12 +303,19 @@ export const LUNA_OPENAPI_SPEC = {
                   },
                   "acceptanceCriteria": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "List of verifiable acceptance criteria"
                   },
                   "priority": {
                     "type": "string",
-                    "enum": ["low", "medium", "high", "critical"],
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "critical"
+                    ],
                     "default": "medium"
                   },
                   "assignedAgent": {
@@ -1166,7 +323,10 @@ export const LUNA_OPENAPI_SPEC = {
                     "default": "gemini"
                   }
                 },
-                "required": ["title", "description"]
+                "required": [
+                  "title",
+                  "description"
+                ]
               }
             }
           }
@@ -1195,7 +355,9 @@ export const LUNA_OPENAPI_SPEC = {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Issue ID (e.g. iss_...)"
           }
         ],
@@ -1221,7 +383,9 @@ export const LUNA_OPENAPI_SPEC = {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Issue ID"
           }
         ],
@@ -1234,7 +398,15 @@ export const LUNA_OPENAPI_SPEC = {
                 "properties": {
                   "status": {
                     "type": "string",
-                    "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+                    "enum": [
+                      "proposed",
+                      "ready",
+                      "in_progress",
+                      "blocked",
+                      "implementation_ready",
+                      "verification",
+                      "completed"
+                    ]
                   },
                   "notes": {
                     "type": "string",
@@ -1245,7 +417,9 @@ export const LUNA_OPENAPI_SPEC = {
                     "description": "Optional active session ID"
                   }
                 },
-                "required": ["status"]
+                "required": [
+                  "status"
+                ]
               }
             }
           }
@@ -1274,7 +448,9 @@ export const LUNA_OPENAPI_SPEC = {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Issue ID"
           }
         ],
@@ -1304,13 +480,26 @@ export const LUNA_OPENAPI_SPEC = {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "issueId": { "type": "string" },
-                  "agent": { "type": "string", "default": "gemini" },
-                  "model": { "type": "string" },
-                  "repository": { "type": "string" },
-                  "branch": { "type": "string" }
+                  "issueId": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string",
+                    "default": "gemini"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  }
                 },
-                "required": ["issueId"]
+                "required": [
+                  "issueId"
+                ]
               }
             }
           }
@@ -1339,7 +528,9 @@ export const LUNA_OPENAPI_SPEC = {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Session ID"
           }
         ],
@@ -1350,7 +541,9 @@ export const LUNA_OPENAPI_SPEC = {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "issueId": { "type": "string" },
+                  "issueId": {
+                    "type": "string"
+                  },
                   "type": {
                     "type": "string",
                     "enum": [
@@ -1365,28 +558,61 @@ export const LUNA_OPENAPI_SPEC = {
                       "verification.reported"
                     ]
                   },
-                  "author": { "type": "string", "enum": ["gemini", "luna", "user"] },
-                  "content": { "type": "string" },
+                  "author": {
+                    "type": "string",
+                    "enum": [
+                      "gemini",
+                      "luna",
+                      "user"
+                    ]
+                  },
+                  "content": {
+                    "type": "string"
+                  },
                   "metadata": {
                     "type": "object",
                     "properties": {
-                      "proposal": { "type": "string" },
-                      "decisionRequired": { "type": "string" },
-                      "decision": { "type": "string" },
-                      "status": { "type": "string" },
-                      "command": { "type": "string" },
-                      "passed": { "type": "integer" },
-                      "failed": { "type": "integer" },
-                      "hash": { "type": "string" },
-                      "branch": { "type": "string" },
+                      "proposal": {
+                        "type": "string"
+                      },
+                      "decisionRequired": {
+                        "type": "string"
+                      },
+                      "decision": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "command": {
+                        "type": "string"
+                      },
+                      "passed": {
+                        "type": "integer"
+                      },
+                      "failed": {
+                        "type": "integer"
+                      },
+                      "hash": {
+                        "type": "string"
+                      },
+                      "branch": {
+                        "type": "string"
+                      },
                       "changedFiles": {
                         "type": "array",
-                        "items": { "type": "string" }
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     }
                   }
                 },
-                "required": ["issueId", "type", "content"]
+                "required": [
+                  "issueId",
+                  "type",
+                  "content"
+                ]
               }
             }
           }
@@ -1415,7 +641,9 @@ export const LUNA_OPENAPI_SPEC = {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Session ID"
           }
         ],
@@ -1426,7 +654,9 @@ export const LUNA_OPENAPI_SPEC = {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "summary": { "type": "string" }
+                  "summary": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -2668,52 +1898,115 @@ export const LUNA_OPENAPI_SPEC = {
       "DevIssue": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "userId": { "type": "string" },
-          "title": { "type": "string" },
-          "description": { "type": "string" },
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
           "acceptanceCriteria": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "status": {
             "type": "string",
-            "enum": ["proposed", "ready", "in_progress", "blocked", "implementation_ready", "verification", "completed"]
+            "enum": [
+              "proposed",
+              "ready",
+              "in_progress",
+              "blocked",
+              "implementation_ready",
+              "verification",
+              "completed"
+            ]
           },
           "priority": {
             "type": "string",
-            "enum": ["low", "medium", "high", "critical"]
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
           },
-          "assignedAgent": { "type": "string" },
-          "createdAt": { "type": "string" },
-          "updatedAt": { "type": "string" },
-          "completedAt": { "type": "string" }
+          "assignedAgent": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          }
         }
       },
       "DevSession": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "issueId": { "type": "string" },
-          "agent": { "type": "string" },
-          "status": { "type": "string" },
-          "repository": { "type": "string" },
-          "branch": { "type": "string" },
-          "startedAt": { "type": "string" },
-          "lastActivityAt": { "type": "string" },
-          "endedAt": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "issueId": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "type": "string"
+          },
+          "endedAt": {
+            "type": "string"
+          }
         }
       },
       "DevEvent": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "issueId": { "type": "string" },
-          "sessionId": { "type": "string" },
-          "type": { "type": "string" },
-          "author": { "type": "string" },
-          "content": { "type": "string" },
-          "createdAt": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "issueId": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
         }
       },
       "DevEvidenceSummary": {
@@ -2722,58 +2015,115 @@ export const LUNA_OPENAPI_SPEC = {
           "implementation": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "summary": { "type": "string" },
-              "changedFiles": { "type": "array", "items": { "type": "string" } },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "changedFiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           },
           "tests": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "status": { "type": "string" },
-              "command": { "type": "string" },
-              "passed": { "type": "integer" },
-              "failed": { "type": "integer" },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           },
           "build": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "status": { "type": "string" },
-              "command": { "type": "string" },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           },
           "commit": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "hash": { "type": "string" },
-              "branch": { "type": "string" },
-              "message": { "type": "string" },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "hash": {
+                "type": "string"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           },
           "deployment": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "environment": { "type": "string" },
-              "url": { "type": "string" },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "environment": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           },
           "verification": {
             "type": "object",
             "properties": {
-              "reported": { "type": "boolean" },
-              "verifiedBy": { "type": "string" },
-              "notes": { "type": "string" },
-              "timestamp": { "type": "string" }
+              "reported": {
+                "type": "boolean"
+              },
+              "verifiedBy": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              }
             }
           }
         }
@@ -2781,9 +2131,15 @@ export const LUNA_OPENAPI_SPEC = {
       "DevIssueDetailResponse": {
         "type": "object",
         "properties": {
-          "issue": { "$ref": "#/components/schemas/DevIssue" },
-          "latestSession": { "$ref": "#/components/schemas/DevSession" },
-          "evidence": { "$ref": "#/components/schemas/DevEvidenceSummary" }
+          "issue": {
+            "$ref": "#/components/schemas/DevIssue"
+          },
+          "latestSession": {
+            "$ref": "#/components/schemas/DevSession"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/DevEvidenceSummary"
+          }
         }
       },
       "DevIssueListResponse": {
@@ -2791,9 +2147,13 @@ export const LUNA_OPENAPI_SPEC = {
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/DevIssue" }
+            "items": {
+              "$ref": "#/components/schemas/DevIssue"
+            }
           },
-          "count": { "type": "integer" }
+          "count": {
+            "type": "integer"
+          }
         }
       },
       "DevEventListResponse": {
@@ -2801,10 +2161,16 @@ export const LUNA_OPENAPI_SPEC = {
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/DevEvent" }
+            "items": {
+              "$ref": "#/components/schemas/DevEvent"
+            }
           },
-          "count": { "type": "integer" },
-          "evidence": { "$ref": "#/components/schemas/DevEvidenceSummary" }
+          "count": {
+            "type": "integer"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/DevEvidenceSummary"
+          }
         }
       }
     },
@@ -2822,61 +2188,4 @@ export const LUNA_OPENAPI_SPEC = {
       "BearerAuth": []
     }
   ]
-};
-
-const CORE_PATH_KEYS = [
-  '/api/lunar/current',
-  '/api/search',
-  '/api/echoes',
-  '/api/echoes/{id}',
-  '/api/echoes/{id}/archive',
-  '/api/echoes/{id}/restore',
-  '/api/echoes/{id}/reflections',
-  '/api/loops',
-  '/api/loops/{id}',
-  '/api/loops/{id}/close',
-  '/api/loops/{id}/carry-forward',
-  '/api/threads',
-  '/api/threads/{id}',
-  '/api/threads/{id}/echoes/{echoId}'
-];
-
-const DEV_PATH_KEYS = [
-  '/api/chat/sessions',
-  '/api/chat/sessions/{id}',
-  '/api/chat/messages',
-  '/api/chat/telemetry/{id}',
-  '/api/chat/evaluations',
-  '/api/chat/inference-summary',
-  '/api/dev/issues',
-  '/api/dev/issues/{id}',
-  '/api/dev/issues/{id}/events',
-  '/api/dev/sessions',
-  '/api/dev/sessions/{id}/events',
-  '/api/dev/sessions/{id}/end'
-];
-
-export const LUNA_CORE_OPENAPI_SPEC = {
-  ...LUNA_OPENAPI_SPEC,
-  info: {
-    ...LUNA_OPENAPI_SPEC.info,
-    title: 'Luna Core Field API',
-    description: 'Core personal reflection, lunar grounding, loops, echoes, and threads API.'
-  },
-  paths: Object.fromEntries(
-    Object.entries(LUNA_OPENAPI_SPEC.paths).filter(([k]) => CORE_PATH_KEYS.includes(k))
-  )
-};
-
-export const LUNA_DEV_OPENAPI_SPEC = {
-  ...LUNA_OPENAPI_SPEC,
-  info: {
-    ...LUNA_OPENAPI_SPEC.info,
-    title: 'Luna Dev Bridge & Observability API',
-    description: 'Development bridge issues, sessions, event stream, and telemetry observability API.'
-  },
-  paths: Object.fromEntries(
-    Object.entries(LUNA_OPENAPI_SPEC.paths).filter(([k]) => DEV_PATH_KEYS.includes(k))
-  )
-};
-
+}

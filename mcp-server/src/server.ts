@@ -904,11 +904,21 @@ app.post('/api/reflections/conversation', authenticateRest, async (req, res) => 
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 registerDevBridgeRoutes(app, authenticateRest);
 
-import { LUNA_OPENAPI_SPEC } from './openapi.js';
+import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC } from './openapi.js';
 
 app.get(['/openapi.json', '/api/openapi.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.json(LUNA_OPENAPI_SPEC);
+});
+
+app.get(['/openapi-core.json', '/api/openapi-core.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json(LUNA_CORE_OPENAPI_SPEC);
+});
+
+app.get(['/openapi-dev.json', '/api/openapi-dev.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json(LUNA_DEV_OPENAPI_SPEC);
 });
 
 app.get('/status', (req, res) => {
