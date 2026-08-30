@@ -1,5 +1,6 @@
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseAnon } from './db.js';
 
 export interface DevIssue {
   id: string;
@@ -23,6 +24,8 @@ export interface DevSession {
   agent: string;
   model?: string | null;
   status: 'requested' | 'authenticated' | 'connected' | 'working' | 'idle' | 'completed' | 'failed' | 'ended';
+  token?: string;
+  tokenExpiresAt?: string;
   repository?: string | null;
   branch?: string | null;
   environment: Record<string, any>;
@@ -106,9 +109,17 @@ export interface DevEvidenceSummary {
   };
 }
 
-const generateId = (prefix = 'dev') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+export interface DevIssueDetail {
+  issue: DevIssue;
+  latestSession?: DevSession | null;
+  evidence: DevEvidenceSummary;
+}
 
-// ─── Schema Mappers ─────────────────────────────────────────────────────────
+// ─── ID & Model Mappings ──────────────────────────────────────────────────────
+
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+}
 
 export function mapDevIssue(row: any): DevIssue {
   return {
@@ -135,6 +146,8 @@ export function mapDevSession(row: any): DevSession {
     agent: row.agent || 'gemini',
     model: row.model || null,
     status: row.status || 'connected',
+    token: row.token || undefined,
+    tokenExpiresAt: row.token_expires_at || undefined,
     repository: row.repository || null,
     branch: row.branch || null,
     environment: row.environment || {},
@@ -199,9 +212,9 @@ export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
     } else if (evt.type === 'commit.reported') {
       summary.commit = {
         reported: true,
-        hash: evt.metadata?.hash || evt.metadata?.commit,
+        hash: evt.metadata?.hash,
         branch: evt.metadata?.branch,
-        message: evt.content || evt.metadata?.message,
+        message: evt.metadata?.message || evt.content,
         timestamp: evt.createdAt
       };
     } else if (evt.type === 'deployment.reported') {
@@ -224,7 +237,36 @@ export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
   return summary;
 }
 
-// ─── Service Methods ─────────────────────────────────────────────────────────
+// ─── Ephemeral Dev Session Token Validation ──────────────────────────────────
+
+export async function validateDevSessionToken(
+  token: string
+): Promise<{ session: DevSession; userId: string } | null> {
+  if (!token || !token.startsWith('dtk_')) return null;
+  const anonSupabase = getSupabaseAnon();
+  const now = new Date().toISOString();
+
+  const { data, error } = await anonSupabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('token', token)
+    .eq('status', 'connected')
+    .gt('token_expires_at', now)
+    .single();
+
+  if (error || !data) return null;
+
+  // Refresh session activity and extend expiry on activity (30m rolling window)
+  const newExpiry = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  await anonSupabase
+    .from('dev_sessions')
+    .update({ last_activity_at: now, token_expires_at: newExpiry })
+    .eq('id', data.id);
+
+  return { session: mapDevSession(data), userId: data.user_id };
+}
+
+// ─── Core Service Operations ──────────────────────────────────────────────────
 
 export async function listDevIssues(
   supabase: SupabaseClient,
@@ -256,18 +298,21 @@ export async function getDevIssue(
   supabase: SupabaseClient,
   userId: string,
   issueId: string
-): Promise<{ issue: DevIssue; latestSession: DevSession | null; evidence: DevEvidenceSummary }> {
-  const { data: issueRow, error: issueErr } = await supabase
+): Promise<DevIssueDetail> {
+  const { data: issueRow, error: issueError } = await supabase
     .from('dev_issues')
     .select('*')
     .eq('id', issueId)
     .eq('user_id', userId)
     .single();
 
-  if (issueErr || !issueRow) throw new Error(issueErr?.message || `Dev Issue not found: ${issueId}`);
+  if (issueError || !issueRow) {
+    throw new Error(issueError?.message || `Dev Issue not found: ${issueId}`);
+  }
+
   const issue = mapDevIssue(issueRow);
 
-  // Fetch latest session for this issue
+  // Fetch latest session
   const { data: sessionRows } = await supabase
     .from('dev_sessions')
     .select('*')
@@ -278,7 +323,7 @@ export async function getDevIssue(
 
   const latestSession = sessionRows && sessionRows.length > 0 ? mapDevSession(sessionRows[0]) : null;
 
-  // Fetch events for factual evidence summary
+  // Fetch events & compute factual evidence
   const { data: eventRows } = await supabase
     .from('dev_events')
     .select('*')
@@ -289,7 +334,11 @@ export async function getDevIssue(
   const events = (eventRows || []).map(mapDevEvent);
   const evidence = computeFactualEvidence(events);
 
-  return { issue, latestSession, evidence };
+  return {
+    issue,
+    latestSession,
+    evidence
+  };
 }
 
 export async function createDevIssue(
@@ -305,6 +354,8 @@ export async function createDevIssue(
   }
 ): Promise<DevIssue> {
   const id = generateId('iss');
+  const now = new Date().toISOString();
+
   const insertData = {
     id,
     user_id: userId,
@@ -315,8 +366,8 @@ export async function createDevIssue(
     priority: params.priority || 'medium',
     assigned_agent: params.assignedAgent || 'gemini',
     related_references: params.relatedReferences || [],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    created_at: now,
+    updated_at: now
   };
 
   const { data, error } = await supabase
@@ -329,10 +380,6 @@ export async function createDevIssue(
   return mapDevIssue(data);
 }
 
-/**
- * Non-linear status updates: allows looping backward (e.g. verification -> in_progress)
- * and logs an auditable status change event.
- */
 export async function updateDevIssueStatus(
   supabase: SupabaseClient,
   userId: string,
@@ -341,18 +388,19 @@ export async function updateDevIssueStatus(
   notes?: string,
   sessionId?: string
 ): Promise<DevIssue> {
-  const updatePayload: any = {
+  const now = new Date().toISOString();
+  const updateData: any = {
     status,
-    updated_at: new Date().toISOString()
+    updated_at: now
   };
 
   if (status === 'completed') {
-    updatePayload.completed_at = new Date().toISOString();
+    updateData.completed_at = now;
   }
 
   const { data, error } = await supabase
     .from('dev_issues')
-    .update(updatePayload)
+    .update(updateData)
     .eq('id', issueId)
     .eq('user_id', userId)
     .select()
@@ -361,19 +409,23 @@ export async function updateDevIssueStatus(
   if (error || !data) throw new Error(error?.message || `Failed to update status for issue ${issueId}`);
   const issue = mapDevIssue(data);
 
-  // If a session ID is supplied or active, record transition event
+  // Append transition event to durable stream
   if (sessionId) {
     await appendDevEvent(supabase, userId, {
       issueId,
       sessionId,
-      type: status === 'blocked' ? 'developer.blocked' : 'requirement.changed',
-      author: 'luna',
+      type: status === 'completed' ? 'session.completed' : 'requirement.changed',
+      author: 'gemini',
       content: notes || `Issue status changed to ${status}`,
-      metadata: { newStatus: status, previousStatus: data.status }
+      metadata: { previousStatus: issueRowStatus(issue), newStatus: status }
     });
   }
 
   return issue;
+}
+
+function issueRowStatus(issue: DevIssue): string {
+  return issue.status;
 }
 
 export async function createDevSession(
@@ -390,6 +442,8 @@ export async function createDevSession(
 ): Promise<DevSession> {
   const id = generateId('sess');
   const now = new Date().toISOString();
+  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   const insertData = {
     id,
@@ -398,6 +452,8 @@ export async function createDevSession(
     agent: params.agent || 'gemini',
     model: params.model || null,
     status: 'connected',
+    token,
+    token_expires_at: tokenExpiresAt,
     repository: params.repository || null,
     branch: params.branch || null,
     environment: params.environment || {},
@@ -447,16 +503,20 @@ export async function heartbeatDevSession(
   supabase: SupabaseClient,
   userId: string,
   sessionId: string
-): Promise<{ success: boolean; lastActivityAt: string }> {
+): Promise<{ success: boolean; lastActivityAt: string; tokenExpiresAt: string }> {
   const now = new Date().toISOString();
+  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   const { error } = await supabase
     .from('dev_sessions')
-    .update({ last_activity_at: now })
+    .update({ 
+      last_activity_at: now,
+      token_expires_at: tokenExpiresAt 
+    })
     .eq('id', sessionId)
     .eq('user_id', userId);
 
   if (error) throw error;
-  return { success: true, lastActivityAt: now };
+  return { success: true, lastActivityAt: now, tokenExpiresAt };
 }
 
 export async function endDevSession(
@@ -470,6 +530,8 @@ export async function endDevSession(
     .from('dev_sessions')
     .update({
       status: 'ended',
+      token: null,
+      token_expires_at: null,
       ended_at: now,
       last_activity_at: now
     })
@@ -532,10 +594,11 @@ export async function appendDevEvent(
 
   if (error || !data) throw new Error(error?.message || 'Failed to append Dev Event');
 
-  // Update session last_activity_at
+  // Update session last_activity_at and extend token
+  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   await supabase
     .from('dev_sessions')
-    .update({ last_activity_at: now })
+    .update({ last_activity_at: now, token_expires_at: tokenExpiresAt })
     .eq('id', params.sessionId)
     .eq('user_id', userId);
 
@@ -571,36 +634,60 @@ export async function answerDevQuestion(
     issueId: string;
     sessionId: string;
     questionEventId?: string;
-    decision: 'approved' | 'rejected';
+    decision: 'approved' | 'rejected' | 'guidance';
     answer: string;
+    metadata?: Record<string, any>;
   }
 ): Promise<DevEvent> {
-  const eventType: DevEventType = params.decision === 'approved' ? 'decision.approved' : 'decision.rejected';
+  const type: DevEventType = params.decision === 'approved' 
+    ? 'decision.approved' 
+    : params.decision === 'rejected' 
+      ? 'decision.rejected' 
+      : 'requirement.changed';
+
   return appendDevEvent(supabase, userId, {
     issueId: params.issueId,
     sessionId: params.sessionId,
-    type: eventType,
+    type,
     author: 'luna',
     content: params.answer,
     metadata: {
-      questionEventId: params.questionEventId || null,
-      decision: params.decision
+      questionEventId: params.questionEventId,
+      decision: params.decision,
+      ...params.metadata
     }
   });
 }
 
-// ─── REST Route Registrations ────────────────────────────────────────────────
+// ─── REST Route Registrations & Scoped Security Boundary ──────────────────────
+
+async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean }> {
+  if ((req as any).devUserId) {
+    return { userId: (req as any).devUserId, isAgentSession: true };
+  }
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return { userId: user?.id || null, isAgentSession: false };
+  } catch {
+    return { userId: null, isAgentSession: false };
+  }
+}
 
 export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   // 1. Issues CRUD & Filtering
   app.get('/api/dev/issues', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      // Agents with ephemeral tokens cannot list all issues; they only access their assigned issue
+      if (isAgentSession) {
+        return res.status(403).json({ error: 'Dev session token cannot list all issues. Query assigned issue directly via GET /api/dev/issues/:id' });
+      }
 
       const { status, priority, limit } = req.query;
-      const issues = await listDevIssues(supabase, user.id, {
+      const issues = await listDevIssues(supabase, userId, {
         status: status as string,
         priority: priority as string,
         limit: limit ? parseInt(limit as string, 10) : undefined
@@ -615,15 +702,20 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/issues', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      // Agents cannot create arbitrary issues; creator/admin capability only
+      if (isAgentSession) {
+        return res.status(403).json({ error: 'Dev session token cannot create arbitrary issues' });
+      }
 
       const { title, description, acceptanceCriteria, priority, assignedAgent, relatedReferences } = req.body;
       if (!title || !description) {
         return res.status(400).json({ error: 'title and description are required' });
       }
 
-      const issue = await createDevIssue(supabase, user.id, {
+      const issue = await createDevIssue(supabase, userId, {
         title,
         description,
         acceptanceCriteria,
@@ -641,10 +733,15 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.get('/api/dev/issues/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const details = await getDevIssue(supabase, user.id, req.params.id);
+      // If agent session, verify issue matches the assigned session issue
+      if (isAgentSession && (req as any).devSession?.issueId !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to issue ${(req as any).devSession?.issueId}` });
+      }
+
+      const details = await getDevIssue(supabase, userId, req.params.id);
       res.json(details);
     } catch (err: any) {
       res.status(404).json({ error: err.message });
@@ -654,13 +751,17 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.patch('/api/dev/issues/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (isAgentSession && (req as any).devSession?.issueId !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to issue ${(req as any).devSession?.issueId}` });
+      }
 
       const { status, notes, sessionId } = req.body;
       if (!status) return res.status(400).json({ error: 'status is required' });
 
-      const updated = await updateDevIssueStatus(supabase, user.id, req.params.id, status, notes, sessionId);
+      const updated = await updateDevIssueStatus(supabase, userId, req.params.id, status, notes, sessionId);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -671,13 +772,13 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/sessions', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
       const { issueId, agent, model, repository, branch, environment } = req.body;
       if (!issueId) return res.status(400).json({ error: 'issueId is required' });
 
-      const session = await createDevSession(supabase, user.id, {
+      const session = await createDevSession(supabase, userId, {
         issueId,
         agent,
         model,
@@ -695,10 +796,14 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.get('/api/dev/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const session = await getDevSession(supabase, user.id, req.params.id);
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
+
+      const session = await getDevSession(supabase, userId, req.params.id);
       res.json(session);
     } catch (err: any) {
       res.status(404).json({ error: err.message });
@@ -708,10 +813,14 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/sessions/:id/heartbeat', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const result = await heartbeatDevSession(supabase, user.id, req.params.id);
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
+
+      const result = await heartbeatDevSession(supabase, userId, req.params.id);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -721,11 +830,15 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/sessions/:id/end', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
 
       const { summary } = req.body;
-      const session = await endDevSession(supabase, user.id, req.params.id, summary);
+      const session = await endDevSession(supabase, userId, req.params.id, summary);
       res.json(session);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -736,15 +849,36 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/sessions/:id/events', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
 
       const { issueId, type, author, content, metadata } = req.body;
       if (!issueId || !type || !content) {
         return res.status(400).json({ error: 'issueId, type, and content are required' });
       }
 
-      const event = await appendDevEvent(supabase, user.id, {
+      if (isAgentSession) {
+        const allowedAgentTypes = [
+          'developer.question',
+          'developer.blocked',
+          'implementation.started',
+          'implementation.reported',
+          'tests.reported',
+          'build.reported',
+          'commit.reported',
+          'session.completed',
+          'session.failed'
+        ];
+        if (!allowedAgentTypes.includes(type)) {
+          return res.status(403).json({ error: `Event type '${type}' is restricted to admin/creator authority` });
+        }
+      }
+
+      const event = await appendDevEvent(supabase, userId, {
         issueId,
         sessionId: req.params.id,
         type,
@@ -762,13 +896,17 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.get('/api/dev/sessions/:id/events', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
 
       const { issueId } = req.query;
       if (!issueId) return res.status(400).json({ error: 'issueId is required' });
 
-      const events = await listDevEvents(supabase, user.id, issueId as string, req.params.id);
+      const events = await listDevEvents(supabase, userId, issueId as string, req.params.id);
       res.json({ items: events, count: events.length });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -778,10 +916,14 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.get('/api/dev/issues/:id/events', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const events = await listDevEvents(supabase, user.id, req.params.id);
+      if (isAgentSession && (req as any).devSession?.issueId !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to issue ${(req as any).devSession?.issueId}` });
+      }
+
+      const events = await listDevEvents(supabase, userId, req.params.id);
       const evidence = computeFactualEvidence(events);
 
       res.json({ items: events, count: events.length, evidence });

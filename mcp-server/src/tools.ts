@@ -569,6 +569,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   {
+    name: 'authorize_dev_session',
+    description: 'Authorize and start an ephemeral Dev Session for an issue, issuing a short-lived scoped credential for the local Dev Bridge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string', description: 'Issue ID to authorize' },
+        agent: { type: 'string', description: 'Agent identifier (default: gemini)' },
+        model: { type: 'string', description: 'Model identifier (default: gemini-2.5-pro)' }
+      },
+      required: ['issueId']
+    }
+  },
+  {
     name: 'get_dev_events',
     description: 'Retrieve the append-only chronological audit event stream for a development issue or specific session.',
     inputSchema: {
@@ -2115,6 +2128,29 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         args.sessionId
       );
       return { content: [{ type: 'text', text: JSON.stringify(updatedIssue, null, 2) }] };
+    }
+
+    case 'authorize_dev_session':
+    case 'create_dev_session': {
+      const session = await createDevSession(supabase, userId, {
+        issueId: args.issueId,
+        agent: args.agent,
+        model: args.model,
+        repository: args.repository,
+        branch: args.branch,
+        environment: args.environment
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            session,
+            token: session.token,
+            expiresAt: session.tokenExpiresAt,
+            connectCommand: `node bin/luna-dev.mjs start ${args.issueId} --token ${session.token}`
+          }, null, 2)
+        }]
+      };
     }
 
     case 'get_dev_events': {

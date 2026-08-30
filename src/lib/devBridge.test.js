@@ -234,4 +234,71 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     });
     expect(commitReport).toBeDefined();
   });
+
+  // ─── 5. Ephemeral Dev Session Authorization Model ─────────────────────────
+
+  it('creates and authorizes ephemeral Dev Sessions with short-lived tokens', async () => {
+    let insertedSession = null;
+    const customHandlers = {
+      dev_sessions: {
+        insert: vi.fn().mockImplementation((data) => {
+          insertedSession = data;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  ...data,
+                  token: 'dtk_abcdef1234567890',
+                  token_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+                },
+                error: null
+              })
+            })
+          };
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'sess_123',
+                    status: 'ended',
+                    token: null,
+                    token_expires_at: null
+                  },
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      },
+      dev_events: {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'evt_started', type: 'session.started' },
+              error: null
+            })
+          })
+        })
+      }
+    };
+
+    const supabase = createMockSupabase(customHandlers);
+
+    const authResult = await executeTool(supabase, 'authorize_dev_session', {
+      issueId: 'iss_1788132031507_65z7',
+      agent: 'gemini',
+      model: 'gemini-2.5-pro'
+    });
+
+    expect(authResult).toBeDefined();
+    const parsed = JSON.parse(authResult.content[0].text);
+    expect(parsed.token).toMatch(/^dtk_/);
+    expect(parsed.expiresAt).toBeDefined();
+    expect(parsed.connectCommand).toContain('iss_1788132031507_65z7');
+    expect(parsed.connectCommand).toContain('--token dtk_');
+  });
 });

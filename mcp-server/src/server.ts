@@ -602,12 +602,30 @@ app.get('/', (req, res) => {
 
 // ─── REST API Fallback (for Custom GPT Actions) ────────────────────────────────
 
+import { validateDevSessionToken } from './devBridge.js';
+import { getSupabaseAnon } from './db.js';
+
 const authenticateRest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     res.status(401).json({ error: 'Missing token' });
     return;
   }
+
+  // Ephemeral Dev Session Token
+  if (token.startsWith('dtk_')) {
+    const validated = await validateDevSessionToken(token);
+    if (!validated) {
+      res.status(401).json({ error: 'Invalid or expired Dev Session Token' });
+      return;
+    }
+    (req as any).devSession = validated.session;
+    (req as any).devUserId = validated.userId;
+    req.body.supabaseClient = getSupabaseAnon();
+    next();
+    return;
+  }
+
   const userId = await getUserIdFromToken(token);
   if (!userId) {
     res.status(401).json({ error: 'Invalid token' });
