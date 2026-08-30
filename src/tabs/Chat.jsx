@@ -12,14 +12,24 @@ export function Chat({ userId, lunarData }) {
   const [selectedModel, setSelectedModel] = useState(
     localStorage.getItem('luna_model_key') || 'anthropic-fable'
   );
-  
-  const chatEndRef = useRef(null);
+
+  // Exact 3-Turn Conversational Voice Cache
+  const [recentVoiceTurns, setRecentVoiceTurns] = useState([]);
+  const [savingEchoTurnId, setSavingEchoTurnId] = useState(null);
+  const [echoSaveSuccessId, setEchoSaveSuccessId] = useState(null);
+
+  // Voice Review State (7-10 lines multiline editor before sending)
+  const [voiceReviewText, setVoiceReviewText] = useState('');
+  const [isReviewingVoice, setIsReviewingVoice] = useState(false);
   const pendingVoiceMetaRef = useRef(null);
+
+  const chatEndRef = useRef(null);
 
   // Voice recording integration
   const handleTranscriptReady = useCallback((transcript, metadata) => {
-    setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
     pendingVoiceMetaRef.current = metadata;
+    setVoiceReviewText(transcript);
+    setIsReviewingVoice(true);
   }, []);
 
   const {
@@ -37,7 +47,7 @@ export function Chat({ userId, lunarData }) {
     userId,
   });
 
-  // Voice playback integration (Luna Voice Output V0)
+  // Voice playback integration (Luna Voice Output)
   const {
     playbackStates,
     playMessage,
@@ -111,19 +121,67 @@ export function Chat({ userId, lunarData }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // 3. Send message handler
-  const handleSend = async (e) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || loading || isRecording || isTranscribing || !sessionId) return;
+  // Save a recent voice turn as an Original User Echo
+  const handleSaveVoiceTurnAsEcho = async (voiceTurn) => {
+    if (!voiceTurn || !userId) return;
+    setSavingEchoTurnId(voiceTurn.id);
 
-    const userText = input.trim();
-    const voiceMeta = pendingVoiceMetaRef.current;
+    try {
+      const echoId = `echo_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const { error: insertErr } = await supabase
+        .from('echoes')
+        .insert({
+          id: echoId,
+          user_id: userId,
+          content: voiceTurn.text,
+          provenance_author: 'user',
+          provenance_kind: 'original_echo',
+          provenance_source: 'voice_chat',
+          phase_name: voiceTurn.lunarContext?.phase?.name || lunarData?.phase?.name || 'New Moon',
+          illumination: voiceTurn.lunarContext?.illumination ?? lunarData?.illumination ?? 0,
+          day_of_cycle: voiceTurn.lunarContext?.dayOfCycle ?? lunarData?.dayOfCycle ?? 1,
+          created_at: voiceTurn.timestamp || new Date().toISOString()
+        });
+
+      if (insertErr) throw insertErr;
+
+      setEchoSaveSuccessId(voiceTurn.id);
+      setTimeout(() => {
+        setEchoSaveSuccessId(null);
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to save voice turn as echo:', err);
+      setError('Could not save voice turn as Echo.');
+    } finally {
+      setSavingEchoTurnId(null);
+    }
+  };
+
+  // 3. Send message handler (guarantees responses never disappear)
+  const executeSendMessage = async (textToSend, voiceMeta = null) => {
+    if (!textToSend.trim() || loading || !sessionId) return;
+
+    const userText = textToSend.trim();
     const inputType = voiceMeta ? 'voice' : 'text';
 
     setInput('');
+    setVoiceReviewText('');
+    setIsReviewingVoice(false);
     pendingVoiceMetaRef.current = null;
     setError('');
     setLoading(true);
+
+    // If voice input, record to rolling 3-turn voice cache
+    if (inputType === 'voice') {
+      const newVoiceTurn = {
+        id: `vturn_${Date.now()}`,
+        text: userText,
+        timestamp: new Date().toISOString(),
+        lunarContext: lunarData,
+        metadata: voiceMeta
+      };
+      setRecentVoiceTurns((prev) => [newVoiceTurn, ...prev].slice(0, 3));
+    }
 
     // Optimistically add user message to list
     const tempUserMsg = {
@@ -140,7 +198,7 @@ export function Chat({ userId, lunarData }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      // Get base URL for backend API (from Vite environment, fallback to active Railway)
+      // Get base URL for backend API
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
 
       // Call Express API chat endpoint
@@ -174,24 +232,58 @@ export function Chat({ userId, lunarData }) {
       }
 
       const data = await response.json();
-      
-      // Update messages list (fetching latest to stay perfectly in sync)
-      const { data: msgs, error: msgsErr } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
 
-      if (msgsErr) throw msgsErr;
-      setMessages(msgs || []);
+      // STRICT IMMUTABILITY: Add confirmed user and assistant turns immediately to in-memory state
+      const confirmedUserMsg = {
+        id: data.userMessageId || tempUserMsg.id,
+        session_id: sessionId,
+        role: 'user',
+        content: userText,
+        input_type: inputType,
+        created_at: tempUserMsg.created_at
+      };
+
+      const assistantMsg = {
+        id: data.assistantMessageId || `ast_${Date.now()}`,
+        session_id: sessionId,
+        role: 'assistant',
+        content: data.reply,
+        trace_id: data.traceId,
+        created_at: new Date().toISOString()
+      };
+
+      setMessages((prev) => {
+        const withoutTemp = prev.filter((m) => m.id !== tempUserMsg.id);
+        return [...withoutTemp, confirmedUserMsg, assistantMsg];
+      });
+
+      // Background non-destructive sync (never wipes in-memory messages if DB fetch returns empty)
+      try {
+        const { data: msgs } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true });
+
+        if (msgs && msgs.length > 0) {
+          setMessages(msgs);
+        }
+      } catch (syncErr) {
+        console.warn('Background sync error (ignored to preserve state):', syncErr);
+      }
     } catch (err) {
       console.error('Error sending message:', err);
       setError(err.message || 'Connection lost. Please try again.');
-      // Remove the last optimistic message since it failed
+      // Remove optimistic message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSend = (e) => {
+    if (e) e.preventDefault();
+    executeSendMessage(input, pendingVoiceMetaRef.current);
   };
 
   const moonLabel = lunarData?.phase?.name || 'Luna';
@@ -220,37 +312,42 @@ export function Chat({ userId, lunarData }) {
           gap: '6px'
         }}
       >
-        {/* Row 1: Title & Sky Context */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '15px',
-              fontFamily: 'serif',
-              color: '#f5e6c8',
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            ✦ Luna Chat
-          </h1>
+        {/* Row 1: Title and Lunar Status */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>✦</span>
+            <h1
+              style={{
+                fontFamily: 'serif',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#f5e6c8',
+                letterSpacing: '0.02em',
+                margin: 0
+              }}
+            >
+              Luna Direct
+            </h1>
+          </div>
           <p
             style={{
-              margin: 0,
               fontSize: '11px',
-              color: 'var(--color-text-faint)',
               fontFamily: 'monospace',
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              color: 'var(--color-text-faint)',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
             }}
           >
-            {moonEmoji} {moonLabel} · {lunarData?.zodiac?.sign || 'Pisces'}
+            <span>{moonEmoji}</span>
+            <span>{moonLabel}</span>
+            <span>·</span>
+            <span>{lunarData?.illumination ?? 0}%</span>
           </p>
         </div>
 
-        {/* Row 2: Full-width Engine Selector */}
+        {/* Row 2: Model Engine Selector */}
         <div
           style={{
             display: 'flex',
@@ -321,7 +418,7 @@ export function Chat({ userId, lunarData }) {
           padding: '16px 20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px'
+          gap: '20px'
         }}
       >
         {messages.length === 0 && !loading && (
@@ -343,222 +440,291 @@ export function Chat({ userId, lunarData }) {
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           const isVoice = msg.input_type === 'voice' || msg.metadata?.input_type === 'voice';
+
+          if (isUser) {
+            // User Message Bubble (Right Aligned)
+            return (
+              <div
+                key={msg.id}
+                style={{
+                  alignSelf: 'flex-end',
+                  maxWidth: '85%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  gap: '4px'
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '9px',
+                    color: 'var(--color-text-faint)',
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {isVoice && <span title="Recorded via voice" style={{ fontSize: '10px' }}>🎙</span>}
+                  You
+                </span>
+
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '14px 14px 4px 14px',
+                    background: '#1a243d',
+                    border: '1px solid rgba(245, 230, 200, 0.15)',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    lineHeight: '1.55',
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: 'sans-serif'
+                  }}
+                >
+                  {msg.content}
+                </div>
+
+                {/* Optional Save Voice to Echo action for recent voice turns */}
+                {isVoice && (
+                  <div style={{ marginTop: '2px' }}>
+                    {echoSaveSuccessId === msg.id ? (
+                      <span style={{ fontSize: '10.5px', color: '#a7f3d0', fontFamily: 'monospace' }}>
+                        ✓ Saved to Personal Echoes
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSaveVoiceTurnAsEcho({ id: msg.id, text: msg.content, timestamp: msg.created_at, lunarContext: lunarData })}
+                        disabled={savingEchoTurnId === msg.id}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-text-faint)',
+                          fontSize: '10px',
+                          fontFamily: 'monospace',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: '2px 4px'
+                        }}
+                      >
+                        {savingEchoTurnId === msg.id ? 'Saving Echo...' : '✦ Save as Original Echo'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Luna Editorial Full-Width Layout (Non-Bubbled)
           return (
             <div
               key={msg.id}
               style={{
-                alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
+                alignSelf: 'stretch',
+                width: '100%',
+                maxWidth: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: isUser ? 'flex-end' : 'flex-start',
-                gap: '4px'
+                gap: '6px',
+                padding: '4px 0 12px 0',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.04)'
               }}
             >
-              {/* Provenance label */}
-              <span
-                style={{
-                  fontSize: '9px',
-                  color: 'var(--color-text-faint)',
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                {isUser ? (
-                  <>
-                    {isVoice && <span title="Recorded via voice" style={{ fontSize: '10px' }}>🎙</span>}
-                    You
-                  </>
-                ) : (
-                  '✦ Luna'
-                )}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span
+                  style={{
+                    fontSize: '10.5px',
+                    color: '#c4b5fd',
+                    fontFamily: 'serif',
+                    letterSpacing: '0.04em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  ✦ Luna
+                </span>
+              </div>
 
+              {/* Editorial Full-width text */}
               <div
                 style={{
-                  padding: '10px 14px',
-                  borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: isUser ? '#1a243d' : 'rgba(167, 139, 250, 0.06)',
-                  border: isUser ? '1px solid rgba(245, 230, 200, 0.15)' : '1px solid rgba(167, 139, 250, 0.2)',
-                  boxShadow: isUser ? 'none' : '0 4px 12px rgba(167, 139, 250, 0.03)',
-                  color: 'var(--color-text)',
-                  fontSize: '13.5px',
-                  lineHeight: '1.55',
+                  color: '#f5e6c8',
+                  fontSize: '15px',
+                  lineHeight: '1.7',
                   whiteSpace: 'pre-wrap',
-                  fontFamily: isUser ? 'sans-serif' : 'serif',
-                  letterSpacing: isUser ? 'normal' : '0.01em'
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  letterSpacing: '0.01em'
                 }}
               >
                 {msg.content}
+              </div>
 
-                {/* Luna Voice Output Playback Controls */}
-                {!isUser && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-                    {playbackStates[msg.id] === 'loading' && (
-                      <span style={{ fontSize: '11.5px', color: '#c4b5fd', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <span style={{ display: 'inline-block', animation: 'spin 1.5s linear infinite' }}>✦</span> Preparing voice...
-                      </span>
-                    )}
+              {/* Luna Voice Output Playback Controls */}
+              <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                {playbackStates[msg.id] === 'loading' && (
+                  <span style={{ fontSize: '11.5px', color: '#c4b5fd', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ display: 'inline-block', animation: 'spin 1.5s linear infinite' }}>✦</span> Preparing voice...
+                  </span>
+                )}
 
-                    {playbackStates[msg.id] === 'playing' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => pausePlayback(msg.id)}
-                          title="Pause voice playback"
-                          style={{
-                            background: 'rgba(167, 139, 250, 0.25)',
-                            border: '1px solid rgba(167, 139, 250, 0.7)',
-                            borderRadius: '12px',
-                            padding: '4px 10px',
-                            color: '#e9d5ff',
-                            fontSize: '11.5px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            boxShadow: '0 0 10px rgba(167, 139, 250, 0.4)'
-                          }}
-                        >
-                          ⏸ Pause
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => stopPlayback(msg.id)}
-                          title="Stop voice playback"
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            padding: '4px 10px',
-                            color: 'var(--color-text-faint)',
-                            fontSize: '11.5px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px'
-                          }}
-                        >
-                          ⏹ Stop
-                        </button>
-                      </>
-                    )}
+                {playbackStates[msg.id] === 'playing' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => pausePlayback(msg.id)}
+                      title="Pause voice playback"
+                      style={{
+                        background: 'rgba(167, 139, 250, 0.25)',
+                        border: '1px solid rgba(167, 139, 250, 0.7)',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        color: '#e9d5ff',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        boxShadow: '0 0 10px rgba(167, 139, 250, 0.4)'
+                      }}
+                    >
+                      ⏸ Pause
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stopPlayback(msg.id)}
+                      title="Stop voice playback"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        color: 'var(--color-text-faint)',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      ⏹ Stop
+                    </button>
+                  </>
+                )}
 
-                    {playbackStates[msg.id] === 'paused' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => resumePlayback(msg.id)}
-                          title="Resume voice playback"
-                          style={{
-                            background: 'rgba(52, 211, 153, 0.25)',
-                            border: '1px solid rgba(52, 211, 153, 0.6)',
-                            borderRadius: '12px',
-                            padding: '4px 10px',
-                            color: '#a7f3d0',
-                            fontSize: '11.5px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px'
-                          }}
-                        >
-                          ▶️ Resume
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => replayPlayback(msg.id, msg.content)}
-                          title="Restart from beginning"
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            padding: '4px 10px',
-                            color: 'var(--color-text-faint)',
-                            fontSize: '11.5px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px'
-                          }}
-                        >
-                          🔄 Replay
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => stopPlayback(msg.id)}
-                          title="Stop voice playback"
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            padding: '4px 10px',
-                            color: 'var(--color-text-faint)',
-                            fontSize: '11.5px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px'
-                          }}
-                        >
-                          ⏹ Stop
-                        </button>
-                      </>
-                    )}
+                {playbackStates[msg.id] === 'paused' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => resumePlayback(msg.id)}
+                      title="Resume voice playback"
+                      style={{
+                        background: 'rgba(52, 211, 153, 0.25)',
+                        border: '1px solid rgba(52, 211, 153, 0.6)',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        color: '#a7f3d0',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      ▶️ Resume
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => replayPlayback(msg.id, msg.content)}
+                      title="Restart from beginning"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        color: 'var(--color-text-faint)',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      🔄 Replay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stopPlayback(msg.id)}
+                      title="Stop voice playback"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        color: 'var(--color-text-faint)',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      ⏹ Stop
+                    </button>
+                  </>
+                )}
 
-                    {playbackStates[msg.id] === 'error' && (
-                      <button
-                        type="button"
-                        onClick={() => playMessage(msg.id, msg.content)}
-                        title="Retry voice playback"
-                        style={{
-                          background: 'rgba(244, 63, 94, 0.2)',
-                          border: '1px solid rgba(244, 63, 94, 0.5)',
-                          borderRadius: '12px',
-                          padding: '4px 10px',
-                          color: '#fecdd3',
-                          fontSize: '11.5px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px'
-                        }}
-                      >
-                        ⚠️ Retry Voice
-                      </button>
-                    )}
+                {playbackStates[msg.id] === 'error' && (
+                  <button
+                    type="button"
+                    onClick={() => playMessage(msg.id, msg.content)}
+                    title="Retry voice playback"
+                    style={{
+                      background: 'rgba(244, 63, 94, 0.2)',
+                      border: '1px solid rgba(244, 63, 94, 0.5)',
+                      borderRadius: '12px',
+                      padding: '4px 10px',
+                      color: '#fecdd3',
+                      fontSize: '11.5px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    ⚠️ Retry Voice
+                  </button>
+                )}
 
-                    {(!playbackStates[msg.id] || playbackStates[msg.id] === 'idle') && (
-                      <button
-                        type="button"
-                        onClick={() => playMessage(msg.id, msg.content)}
-                        title="Listen to Luna aloud"
-                        style={{
-                          background: 'rgba(167, 139, 250, 0.12)',
-                          border: '1px solid rgba(167, 139, 250, 0.35)',
-                          borderRadius: '12px',
-                          padding: '4px 10px',
-                          color: '#d8b4fe',
-                          fontSize: '11.5px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <span style={{ fontSize: '12px' }}>🔊</span> Listen
-                      </button>
-                    )}
-                  </div>
+                {(!playbackStates[msg.id] || playbackStates[msg.id] === 'idle') && (
+                  <button
+                    type="button"
+                    onClick={() => playMessage(msg.id, msg.content)}
+                    title="Listen to Luna aloud"
+                    style={{
+                      background: 'rgba(167, 139, 250, 0.12)',
+                      border: '1px solid rgba(167, 139, 250, 0.35)',
+                      borderRadius: '12px',
+                      padding: '4px 10px',
+                      color: '#d8b4fe',
+                      fontSize: '11.5px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '12px' }}>🔊</span> Listen
+                  </button>
                 )}
               </div>
             </div>
@@ -569,26 +735,18 @@ export function Chat({ userId, lunarData }) {
         {loading && (
           <div
             style={{
-              alignSelf: 'flex-start',
+              alignSelf: 'stretch',
+              width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              gap: '4px'
+              gap: '6px',
+              padding: '8px 0'
             }}
           >
-            <span style={{ fontSize: '9px', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
-              ✦ Luna
+            <span style={{ fontSize: '10.5px', color: '#c4b5fd', fontFamily: 'serif' }}>
+              ✦ Luna is contemplating...
             </span>
-            <div
-              style={{
-                padding: '12px 20px',
-                borderRadius: '16px 16px 16px 4px',
-                background: 'rgba(167, 139, 250, 0.04)',
-                border: '1px solid rgba(167, 139, 250, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
               <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out' }}></div>
               <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.2s' }}></div>
               <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.4s' }}></div>
@@ -618,7 +776,104 @@ export function Chat({ userId, lunarData }) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Voice Recording / Transcribing Action Bar Overlay */}
+      {/* Expanded Multiline Voice Transcription Review Panel (7-10 lines) */}
+      {isReviewingVoice && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '75px',
+            left: '16px',
+            right: '16px',
+            padding: '14px 16px',
+            borderRadius: '16px',
+            background: 'rgba(13, 21, 39, 0.98)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(167, 139, 250, 0.4)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            zIndex: 20
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              🎙 Review Voice Transcription (Editable)
+            </span>
+            <span style={{ fontSize: '10.5px', color: 'var(--color-text-faint)' }}>
+              Edit words if needed before sending
+            </span>
+          </div>
+
+          {/* 7-10 line comfortable multiline textarea */}
+          <textarea
+            rows={8}
+            value={voiceReviewText}
+            onChange={(e) => setVoiceReviewText(e.target.value)}
+            placeholder="Your transcribed voice reflection..."
+            style={{
+              width: '100%',
+              minHeight: '140px',
+              maxHeight: '220px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              background: '#060a14',
+              border: '1px solid rgba(167, 139, 250, 0.3)',
+              color: '#f5e6c8',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              fontFamily: 'sans-serif',
+              outline: 'none',
+              resize: 'vertical',
+              boxSizing: 'border-box'
+            }}
+          />
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsReviewingVoice(false);
+                setVoiceReviewText('');
+                pendingVoiceMetaRef.current = null;
+              }}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: 'none',
+                color: 'var(--color-text-faint)',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => executeSendMessage(voiceReviewText, pendingVoiceMetaRef.current)}
+              disabled={!voiceReviewText.trim() || loading}
+              style={{
+                padding: '7px 16px',
+                borderRadius: '8px',
+                background: '#f5e6c8',
+                border: 'none',
+                color: '#040810',
+                fontSize: '12.5px',
+                fontWeight: '600',
+                cursor: voiceReviewText.trim() && !loading ? 'pointer' : 'default',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              ✦ Send to Luna
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Voice Recording / Transcribing Overlay */}
       {isRecording && (
         <div
           style={{
@@ -650,7 +905,7 @@ export function Chat({ userId, lunarData }) {
               }}
             />
             <span style={{ fontSize: 'var(--font-sm)', color: '#f5e6c8', fontWeight: '500' }}>
-              Listening...
+              Listening to your reflection...
             </span>
             <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
               {formatDuration(recordingDuration)}
@@ -687,7 +942,7 @@ export function Chat({ userId, lunarData }) {
                 cursor: 'pointer'
               }}
             >
-              Done
+              Review
             </button>
           </div>
         </div>
@@ -714,7 +969,7 @@ export function Chat({ userId, lunarData }) {
         >
           <div className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1s infinite' }} />
           <span style={{ fontSize: 'var(--font-sm)', color: '#c4b5fd' }}>
-            Transcribing speech to text...
+            Transcribing speech to text for review...
           </span>
         </div>
       )}
@@ -774,8 +1029,8 @@ export function Chat({ userId, lunarData }) {
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={loading || isTranscribing}
-          title={isRecording ? 'Stop recording' : 'Speak to Luna'}
+          disabled={loading || isTranscribing || isReviewingVoice}
+          title={isRecording ? 'Stop and review recording' : 'Speak to Luna'}
           aria-label="Voice input"
           style={{
             width: '38px',
@@ -791,7 +1046,7 @@ export function Chat({ userId, lunarData }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: loading || isTranscribing ? 'default' : 'pointer',
+            cursor: loading || isTranscribing || isReviewingVoice ? 'default' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s',
             WebkitTapHighlightColor: 'transparent'
@@ -814,16 +1069,14 @@ export function Chat({ userId, lunarData }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Speak or type to Luna...'}
-          disabled={loading || isRecording || isTranscribing}
+          disabled={loading || isRecording || isTranscribing || isReviewingVoice}
           style={{
             flex: 1,
             height: '38px',
             padding: '8px 12px',
             borderRadius: '10px',
             background: '#040810',
-            border: pendingVoiceMetaRef.current
-              ? '1px solid rgba(245, 230, 200, 0.5)'
-              : '1px solid var(--color-border)',
+            border: '1px solid var(--color-border)',
             color: 'var(--color-text)',
             fontSize: '13px',
             outline: 'none',
@@ -831,23 +1084,23 @@ export function Chat({ userId, lunarData }) {
             WebkitAppearance: 'none'
           }}
           onFocus={(e) => (e.target.style.borderColor = 'rgba(245, 230, 200, 0.4)')}
-          onBlur={(e) => (e.target.style.borderColor = pendingVoiceMetaRef.current ? 'rgba(245, 230, 200, 0.5)' : 'var(--color-border)')}
+          onBlur={(e) => (e.target.style.borderColor = 'var(--color-border)')}
         />
 
         {/* Send Button */}
         <button
           type="submit"
-          disabled={loading || isRecording || isTranscribing || !input.trim()}
+          disabled={loading || isRecording || isTranscribing || !input.trim() || isReviewingVoice}
           style={{
             padding: '0 14px',
             height: '38px',
             borderRadius: '10px',
-            background: input.trim() && !loading ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
+            background: input.trim() && !loading && !isReviewingVoice ? '#f5e6c8' : 'rgba(255, 255, 255, 0.05)',
             border: 'none',
-            color: input.trim() && !loading ? '#040810' : 'var(--color-text-faint)',
+            color: input.trim() && !loading && !isReviewingVoice ? '#040810' : 'var(--color-text-faint)',
             fontSize: '13px',
             fontWeight: '600',
-            cursor: input.trim() && !loading ? 'pointer' : 'default',
+            cursor: input.trim() && !loading && !isReviewingVoice ? 'pointer' : 'default',
             transition: 'all 0.2s',
             WebkitTapHighlightColor: 'transparent',
             flexShrink: 0

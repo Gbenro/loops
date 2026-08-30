@@ -1,8 +1,8 @@
 // Luna Loops - Lunar Calculations (Server-side)
-// Pure JS Julian Date mathematics (no external library dependencies)
+// Canonical Astronomical Algorithms (Jean Meeus Moon Ephemeris)
 
-const SYNODIC = 29.53058867; // Average synodic month in days
-const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
+export const SYNODIC = 29.53058867; // Average synodic month in days
+export const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC (known new moon JD)
 
 // Phase Type Classification
 const PHASE_TYPE: Record<string, string> = {
@@ -21,17 +21,18 @@ const PHASE_DURATION: Record<string, number> = {
   flow: 5.55,
 };
 
-const FULL_MOON_PEAK = SYNODIC / 2; // ~14.7653
+export const HALF_THRESHOLD = PHASE_DURATION.threshold / 2; // 0.925 days
+export const FULL_MOON_PEAK = SYNODIC / 2; // ~14.7653 days
 
-const PHASES = [
-  { name: 'New Moon', key: 'new', start: 0, end: 1.85, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
-  { name: 'Waxing Crescent', key: 'waxing-crescent', start: 1.85, end: 7.38, next: 'First Quarter', nextKey: 'first-quarter' },
-  { name: 'First Quarter', key: 'first-quarter', start: 7.38, end: 9.22, next: 'Waxing Gibbous', nextKey: 'waxing-gibbous' },
-  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: 9.22, end: FULL_MOON_PEAK, next: 'Full Moon', nextKey: 'full' },
-  { name: 'Full Moon', key: 'full', start: FULL_MOON_PEAK, end: 16.61, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
-  { name: 'Waning Gibbous', key: 'waning-gibbous', start: 16.61, end: 22.15, next: 'Last Quarter', nextKey: 'last-quarter' },
-  { name: 'Last Quarter', key: 'last-quarter', start: 22.15, end: 23.99, next: 'Waning Crescent', nextKey: 'waning-crescent' },
-  { name: 'Waning Crescent', key: 'waning-crescent', start: 23.99, end: 29.53, next: 'New Moon', nextKey: 'new' },
+export const PHASES = [
+  { name: 'New Moon', key: 'new', start: 0, end: HALF_THRESHOLD, next: 'Waxing Crescent', nextKey: 'waxing-crescent' },
+  { name: 'Waxing Crescent', key: 'waxing-crescent', start: HALF_THRESHOLD, end: (SYNODIC / 4) - HALF_THRESHOLD, next: 'First Quarter', nextKey: 'first-quarter' },
+  { name: 'First Quarter', key: 'first-quarter', start: (SYNODIC / 4) - HALF_THRESHOLD, end: (SYNODIC / 4) + HALF_THRESHOLD, next: 'Waxing Gibbous', nextKey: 'waxing-gibbous' },
+  { name: 'Waxing Gibbous', key: 'waxing-gibbous', start: (SYNODIC / 4) + HALF_THRESHOLD, end: FULL_MOON_PEAK - HALF_THRESHOLD, next: 'Full Moon', nextKey: 'full' },
+  { name: 'Full Moon', key: 'full', start: FULL_MOON_PEAK - HALF_THRESHOLD, end: FULL_MOON_PEAK + HALF_THRESHOLD, next: 'Waning Gibbous', nextKey: 'waning-gibbous' },
+  { name: 'Waning Gibbous', key: 'waning-gibbous', start: FULL_MOON_PEAK + HALF_THRESHOLD, end: (3 * SYNODIC / 4) - HALF_THRESHOLD, next: 'Last Quarter', nextKey: 'last-quarter' },
+  { name: 'Last Quarter', key: 'last-quarter', start: (3 * SYNODIC / 4) - HALF_THRESHOLD, end: (3 * SYNODIC / 4) + HALF_THRESHOLD, next: 'Waning Crescent', nextKey: 'waning-crescent' },
+  { name: 'Waning Crescent', key: 'waning-crescent', start: (3 * SYNODIC / 4) + HALF_THRESHOLD, end: SYNODIC - HALF_THRESHOLD, next: 'New Moon', nextKey: 'new' },
 ];
 
 const PHASE_CONTENT: Record<string, { title: string; symbol: string; energy: string }> = {
@@ -55,23 +56,70 @@ export function fromJulianDate(jd: number): Date {
   return new Date((jd - 2440587.5) * 86400000);
 }
 
-// Get moon age
+// Calculate Moon's astronomical elongation angle relative to the Sun (0° to 360°)
+export function getMoonElongation(date: Date = new Date()): number {
+  const jd = toJulianDate(date);
+  const T = (jd - 2451545.0) / 36525;
+
+  // Sun's mean anomaly & ecliptic longitude
+  const M_sun = (357.52911 + 35999.05029 * T) * (Math.PI / 180);
+  const L_sun = (280.46646 + 36000.76983 * T + 1.914602 * Math.sin(M_sun) + 0.019993 * Math.sin(2 * M_sun)) % 360;
+
+  // Moon's mean longitude, mean anomaly, and elongation
+  const L_moon = (218.3165 + 481267.8813 * T) % 360;
+  const M_moon = (134.9634 + 477198.8675 * T) * (Math.PI / 180);
+  const D = (297.8501921 + 445267.1114034 * T) % 360; // Mean elongation
+
+  // Periodic orbital perturbations (Meeus astronomical model)
+  const periodicTerms =
+    6.289 * Math.sin(M_moon) -
+    1.274 * Math.sin(2 * (D * Math.PI / 180) - M_moon) +
+    0.658 * Math.sin(2 * (D * Math.PI / 180)) -
+    0.214 * Math.sin(2 * M_moon) -
+    0.186 * Math.sin(M_sun);
+
+  const trueMoonLong = (L_moon + periodicTerms + 360) % 360;
+  const trueSunLong = (L_sun + 360) % 360;
+
+  return ((trueMoonLong - trueSunLong + 360) % 360);
+}
+
+// Get moon age derived from astronomical elongation (0-29.53 days)
 export function getMoonAge(date: Date = new Date()): number {
-  const JD = toJulianDate(date);
-  return ((JD - KNOWN_NEW_MOON) % SYNODIC + SYNODIC) % SYNODIC;
+  const elongation = getMoonElongation(date);
+  const age = (elongation / 360) * SYNODIC;
+  return age >= SYNODIC - 0.1 ? 0 : age;
 }
 
 // Get illumination percentage
 export function getIllumination(date: Date = new Date()): number {
-  const age = getMoonAge(date);
-  const illumination = (1 - Math.cos((age / SYNODIC) * 2 * Math.PI)) / 2;
+  const elongation = getMoonElongation(date);
+  const illumination = (1 - Math.cos((elongation * Math.PI) / 180)) / 2;
   return Math.round(illumination * 100);
 }
 
 // Get phase info
 export function getPhaseInfo(age: number) {
+  // If age is near the end of cycle, wrap to New Moon
+  if (age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD) {
+    return {
+      name: 'New Moon',
+      key: 'new',
+      energy: 'Seed',
+      symbol: '🌑',
+      isWaning: false,
+      isNew: true,
+      isFull: false,
+      phaseType: 'threshold',
+      phaseDuration: PHASE_DURATION.threshold,
+      dayInPhase: age >= SYNODIC - HALF_THRESHOLD ? age - (SYNODIC - HALF_THRESHOLD) : age + HALF_THRESHOLD,
+      isThreshold: true,
+      isFlow: false,
+    };
+  }
+
   for (const phase of PHASES) {
-    if (age >= phase.start && age < phase.end) {
+    if (phase.key !== 'new' && age >= phase.start && age < phase.end) {
       const phaseType = PHASE_TYPE[phase.key] || 'flow';
       const phaseDuration = PHASE_DURATION[phaseType] || 5.55;
       const dayInPhase = age - phase.start;
@@ -82,7 +130,7 @@ export function getPhaseInfo(age: number) {
         energy: content.energy,
         symbol: content.symbol,
         isWaning: phase.key.includes('waning') || phase.key === 'last-quarter',
-        isNew: phase.key === 'new',
+        isNew: false,
         isFull: phase.key === 'full',
         phaseType,
         phaseDuration,
@@ -101,7 +149,7 @@ export function getPhaseInfo(age: number) {
     isNew: true,
     isFull: false,
     phaseType: 'threshold',
-    phaseDuration: 1.85,
+    phaseDuration: PHASE_DURATION.threshold,
     dayInPhase: 0,
     isThreshold: true,
     isFlow: false,
@@ -126,9 +174,16 @@ export function getLunarMonthName(date: Date = new Date()): string {
 export function getDaysUntilPhase(targetPhase: number, date: Date = new Date()): number {
   const age = getMoonAge(date);
   const targetAge = targetPhase * SYNODIC;
+  let diff = targetAge - age;
+  while (diff < -SYNODIC / 2) diff += SYNODIC;
+  while (diff > SYNODIC / 2) diff -= SYNODIC;
+  if (Math.abs(diff) <= 0.75) return 0;
+
   let daysUntil = targetAge - age;
-  if (daysUntil < 0) daysUntil += SYNODIC;
-  return Math.round(daysUntil);
+  while (daysUntil < 0) daysUntil += SYNODIC;
+  while (daysUntil >= SYNODIC) daysUntil -= SYNODIC;
+  const rounded = Math.round(daysUntil);
+  return rounded >= Math.round(SYNODIC) ? 0 : rounded;
 }
 
 // Get approximate moon zodiac sign
@@ -180,6 +235,8 @@ export function getLunarData(date: Date = new Date()) {
       isWaning: phase.isWaning,
       isNew: phase.isNew,
       isFull: phase.isFull,
+      phaseType: phase.phaseType,
+      phaseDuration: phase.phaseDuration,
     },
     illumination,
     lunarMonth,

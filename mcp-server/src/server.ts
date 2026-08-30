@@ -17,6 +17,7 @@ import {
 import { getUserIdFromToken, getSupabaseForUser } from './db.js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 import { registerChatRoutes } from './chat.js';
+import { getLunarData } from './lunar.js';
 
 dotenv.config();
 
@@ -627,6 +628,36 @@ const authenticateRestOptional = async (req: express.Request, res: express.Respo
   }
   next();
 };
+
+app.get('/api/lunar/current', authenticateRestOptional, async (req, res) => {
+  try {
+    const lunar = getLunarData();
+    res.json({
+      phase: {
+        key: lunar.phase.key,
+        name: lunar.phase.name,
+      },
+      illumination: lunar.illumination,
+      dayOfCycle: lunar.dayOfCycle,
+      zodiac: {
+        sign: lunar.zodiac.sign,
+      },
+      lunarMonth: lunar.lunarMonth,
+      phaseType: lunar.phase.phaseType,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/search', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/context', authenticateRest, async (req, res) => {
   try {
