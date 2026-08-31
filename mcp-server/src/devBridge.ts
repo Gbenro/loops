@@ -787,16 +787,24 @@ export async function claimHandoffTicket(
 
 export async function listPendingDevSessions(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  since?: string
 ): Promise<{ items: Array<{ id: string; issueId: string; agent: string; startedAt: string; status: string }> }> {
+  if (!userId) {
+    throw new Error('Authorized userId is required for pending session discovery');
+  }
   const now = new Date().toISOString();
-  // Return unclaimed pending sessions (without token expiry constraint) and active connected sessions
-  const { data, error } = await supabase
+  let query = supabase
     .from('dev_sessions')
     .select('id, issue_id, agent, status, started_at, token_expires_at')
     .eq('user_id', userId)
-    .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`)
-    .order('started_at', { ascending: false });
+    .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`);
+
+  if (since) {
+    query = query.gte('started_at', since);
+  }
+
+  const { data, error } = await query.order('started_at', { ascending: false });
 
   if (error) throw error;
   return {
@@ -1278,11 +1286,12 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
 
   app.get('/api/dev/agent/pending-sessions', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
+    const since = typeof req.query.since === 'string' ? req.query.since : undefined;
     try {
       const { userId } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const pending = await listPendingDevSessions(supabase, userId);
+      const pending = await listPendingDevSessions(supabase, userId, since);
       res.json(pending);
     } catch (err: any) {
       res.status(500).json({ error: err.message });

@@ -672,6 +672,8 @@ async function runBridge() {
     const timeoutIdx = args.indexOf('--timeout');
     const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : (isDaemon ? 86400 : 300);
     const autoClaim = args.includes('--claim');
+    const sinceIdx = args.indexOf('--since');
+    const sinceTimestamp = sinceIdx !== -1 && args[sinceIdx + 1] ? args[sinceIdx + 1] : (isDaemon ? new Date().toISOString() : null);
 
     // Requirement 4: CLI watch-pending must fail visibly/actionably on missing discovery credentials
     if (!activeToken) {
@@ -680,7 +682,7 @@ async function runBridge() {
       process.exit(1);
     }
 
-    console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (mode: ${isDaemon ? 'continuous daemon' : 'single-shot'}, timeout: ${timeoutSec}s)...`);
+    console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (mode: ${isDaemon ? 'continuous daemon' : 'single-shot'}, since: ${sinceTimestamp || 'all'}, timeout: ${timeoutSec}s)...`);
 
     const startTime = Date.now();
     let pollIntervalMs = 4000;
@@ -718,7 +720,10 @@ async function runBridge() {
           }
         }
 
-        const pending = await apiCall('/api/dev/agent/pending-sessions', 'GET', null, activeToken);
+        const pendingUrl = sinceTimestamp
+          ? `/api/dev/agent/pending-sessions?since=${encodeURIComponent(sinceTimestamp)}`
+          : '/api/dev/agent/pending-sessions';
+        const pending = await apiCall(pendingUrl, 'GET', null, activeToken);
         const sessions = pending.items || [];
         const unclaimed = sessions.filter(s => s.status === 'pending');
 

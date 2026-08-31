@@ -774,5 +774,49 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(rearmed.activeSessionId).toBeNull();
     expect(rearmed.pollIntervalMs).toBe(4000);
   });
+
+  it('listPendingDevSessions applies since cutoff filter and excludes older sessions', async () => {
+    const targetUserId = 'usr_cutoff_test_1';
+    const cutoffTimestamp = '2026-08-31T20:50:00.000Z';
+    let gteField = null;
+    let gteVal = null;
+
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            or: vi.fn().mockReturnValue({
+              gte: vi.fn().mockImplementation((field, val) => {
+                gteField = field;
+                gteVal = val;
+                return {
+                  order: vi.fn().mockResolvedValue({
+                    data: [
+                      {
+                        id: 'sess_newer_1',
+                        issue_id: 'iss_newer_1',
+                        user_id: targetUserId,
+                        agent: 'gemini',
+                        status: 'pending',
+                        started_at: '2026-08-31T20:55:00.000Z'
+                      }
+                    ],
+                    error: null
+                  })
+                };
+              })
+            })
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const result = await listPendingDevSessions(supabase, targetUserId, cutoffTimestamp);
+    expect(gteField).toBe('started_at');
+    expect(gteVal).toBe(cutoffTimestamp);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].issueId).toBe('iss_newer_1');
+  });
 });
 
