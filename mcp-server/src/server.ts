@@ -603,7 +603,7 @@ app.get('/', (req, res) => {
 // ─── REST API Fallback (for Custom GPT Actions) ────────────────────────────────
 
 import { validateDevSessionToken, validateDevDiscoveryToken } from './devBridge.js';
-import { getSupabaseAnon } from './db.js';
+import { getSupabaseAnon, getSupabaseService } from './db.js';
 
 const authenticateRest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -634,7 +634,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
 
     (req as any).isDiscoverySession = true;
     (req as any).devUserId = discovery.userId;
-    req.body.supabaseClient = getSupabaseAnon();
+    req.body.supabaseClient = getSupabaseService();
     next();
     return;
   }
@@ -648,7 +648,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     }
     (req as any).devSession = validated.session;
     (req as any).devUserId = validated.userId;
-    req.body.supabaseClient = getSupabaseAnon();
+    req.body.supabaseClient = getSupabaseService();
     next();
     return;
   }

@@ -697,9 +697,10 @@ async function runBridge() {
       try {
         const pending = await apiCall('/api/dev/agent/pending-sessions', 'GET', null, activeToken);
         const sessions = pending.items || [];
+        const unclaimed = sessions.filter(s => s.status === 'pending');
 
-        if (sessions.length > 0) {
-          const target = sessions[0];
+        if (unclaimed.length > 0) {
+          const target = unclaimed[0];
           console.log('\n================================================================');
           console.log(`✦ [AUTONOMOUS WAKE TRIGGER] New pending assignment discovered: ${target.issueId}`);
           console.log(`  Session ID: ${target.id}`);

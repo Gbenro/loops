@@ -688,5 +688,46 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     const empty = await validateDevDiscoveryToken('');
     expect(empty).toBeNull();
   });
+
+  it('listPendingDevSessions enforces user isolation and only returns authorized user sessions', async () => {
+    const targetUserId = 'usr_authorized_123';
+    const otherUserId = 'usr_other_456';
+    let queriedUserId = null;
+
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockImplementation((col, val) => {
+            if (col === 'user_id') queriedUserId = val;
+            return {
+              or: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: 'sess_auth_1',
+                      issue_id: 'iss_auth_1',
+                      user_id: targetUserId,
+                      agent: 'gemini',
+                      status: 'pending',
+                      started_at: new Date().toISOString()
+                    }
+                  ],
+                  error: null
+                })
+              })
+            };
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const result = await listPendingDevSessions(supabase, targetUserId);
+    expect(queriedUserId).toBe(targetUserId);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].issueId).toBe('iss_auth_1');
+    expect(result.items[0].status).toBe('pending');
+    expect(result.items[0].token).toBeUndefined(); // Minimal metadata only
+  });
 });
 

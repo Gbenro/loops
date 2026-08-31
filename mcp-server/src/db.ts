@@ -49,6 +49,16 @@ export function getSupabaseForUser(token: string): SupabaseClient {
  * Creates a server-scoped Supabase client for telemetry logging and public reads.
  */
 export function getSupabaseAnon(): SupabaseClient {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false }
+  });
+}
+
+/**
+ * Creates a server-scoped privileged Supabase client with service_role privileges
+ * used strictly for server-side validated machine discovery and authority minting.
+ */
+export function getSupabaseService(): SupabaseClient {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
   return createClient(SUPABASE_URL, serviceKey, {
     auth: { persistSession: false }
