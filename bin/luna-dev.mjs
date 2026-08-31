@@ -668,8 +668,9 @@ async function runBridge() {
   }
 
   if (command === 'watch-pending' || command === 'watch') {
+    const isDaemon = args.includes('--daemon');
     const timeoutIdx = args.indexOf('--timeout');
-    const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : 300;
+    const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : (isDaemon ? 86400 : 300);
     const autoClaim = args.includes('--claim');
 
     // Requirement 4: CLI watch-pending must fail visibly/actionably on missing discovery credentials
@@ -679,10 +680,11 @@ async function runBridge() {
       process.exit(1);
     }
 
-    console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (timeout: ${timeoutSec}s)...`);
+    console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (mode: ${isDaemon ? 'continuous daemon' : 'single-shot'}, timeout: ${timeoutSec}s)...`);
 
     const startTime = Date.now();
     let pollIntervalMs = 4000;
+    let activeClaimedSessionId = null;
 
     const poll = async () => {
       if ((Date.now() - startTime) >= timeoutSec * 1000) {
@@ -695,6 +697,27 @@ async function runBridge() {
       }
 
       try {
+        // If in daemon mode and tracking an active claimed session, monitor until ended before re-arming discovery
+        if (isDaemon && activeClaimedSessionId) {
+          try {
+            const sessionData = await apiCall(`/api/dev/sessions/${activeClaimedSessionId}`, 'GET', null, activeToken);
+            const sess = sessionData.session || sessionData;
+            if (sess.status === 'ended' || sess.endedAt) {
+              console.log(`\n✦ [Daemon Watcher] Active session ${activeClaimedSessionId} completed/ended. Re-arming idle pending discovery...`);
+              activeClaimedSessionId = null;
+              pollIntervalMs = 4000;
+            } else {
+              // Active session still in progress; wait before checking session status again without claiming new work
+              setTimeout(poll, 5000);
+              return;
+            }
+          } catch (sessErr) {
+            console.log(`\n✦ [Daemon Watcher] Active session completed or unavailable. Re-arming idle pending discovery...`);
+            activeClaimedSessionId = null;
+            pollIntervalMs = 4000;
+          }
+        }
+
         const pending = await apiCall('/api/dev/agent/pending-sessions', 'GET', null, activeToken);
         const sessions = pending.items || [];
         const unclaimed = sessions.filter(s => s.status === 'pending');
@@ -727,7 +750,14 @@ async function runBridge() {
             timestamp: new Date().toISOString()
           }, null, 2));
 
-          process.exit(0);
+          if (!isDaemon) {
+            process.exit(0);
+          } else {
+            activeClaimedSessionId = target.id;
+            pollIntervalMs = 5000;
+            setTimeout(poll, pollIntervalMs);
+            return;
+          }
         }
       } catch (err) {
         // Requirement 1 & 4: Fail actionably on rejected credentials or missing server configuration

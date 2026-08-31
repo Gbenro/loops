@@ -8,7 +8,9 @@ import {
   createDevSession,
   listPendingDevSessions,
   claimPendingDevSession,
-  validateDevDiscoveryToken
+  validateDevDiscoveryToken,
+  handleWatcherDiscoveryEvent,
+  handleWatcherSessionEndedEvent
 } from '../../mcp-server/dist/devBridge.js';
 import { getSupabaseService } from '../../mcp-server/dist/db.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
@@ -752,6 +754,25 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
       if (originalKey) process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
       else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     }
+  });
+
+  it('handleWatcherDiscoveryEvent terminates in single-shot mode and stays alive in daemon mode', () => {
+    const singleShotState = { mode: 'single-shot', activeSessionId: null, pollIntervalMs: 4000 };
+    const singleRes = handleWatcherDiscoveryEvent(singleShotState, 'sess_discovered_1');
+    expect(singleRes.shouldExit).toBe(true);
+    expect(singleRes.nextState.activeSessionId).toBe('sess_discovered_1');
+
+    const daemonState = { mode: 'daemon', activeSessionId: null, pollIntervalMs: 4000 };
+    const daemonRes = handleWatcherDiscoveryEvent(daemonState, 'sess_discovered_1');
+    expect(daemonRes.shouldExit).toBe(false);
+    expect(daemonRes.nextState.activeSessionId).toBe('sess_discovered_1');
+  });
+
+  it('handleWatcherSessionEndedEvent re-arms idle discovery polling in daemon mode', () => {
+    const activeState = { mode: 'daemon', activeSessionId: 'sess_active_123', pollIntervalMs: 5000 };
+    const rearmed = handleWatcherSessionEndedEvent(activeState);
+    expect(rearmed.activeSessionId).toBeNull();
+    expect(rearmed.pollIntervalMs).toBe(4000);
   });
 });
 

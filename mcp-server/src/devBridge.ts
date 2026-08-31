@@ -1342,3 +1342,39 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
     }
   });
 }
+
+/**
+ * Watcher Lifecycle State Machine & Single-Worker Supervisor Helpers
+ */
+export interface WatcherState {
+  mode: 'single-shot' | 'daemon';
+  activeSessionId: string | null;
+  pollIntervalMs: number;
+}
+
+export function handleWatcherDiscoveryEvent(
+  state: WatcherState,
+  discoveredSessionId: string
+): { nextState: WatcherState; shouldExit: boolean } {
+  if (state.mode === 'single-shot') {
+    return {
+      nextState: { ...state, activeSessionId: discoveredSessionId },
+      shouldExit: true
+    };
+  }
+  // Daemon mode: transitions to tracking active session without exiting
+  return {
+    nextState: { ...state, activeSessionId: discoveredSessionId, pollIntervalMs: 5000 },
+    shouldExit: false
+  };
+}
+
+export function handleWatcherSessionEndedEvent(
+  state: WatcherState
+): WatcherState {
+  return {
+    ...state,
+    activeSessionId: null,
+    pollIntervalMs: 4000
+  };
+}
