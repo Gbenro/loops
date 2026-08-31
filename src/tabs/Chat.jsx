@@ -149,18 +149,29 @@ export function Chat({ userId, lunarData }) {
       // 1. Resolve authentic recorded audio path
       let audioPath = voiceTurn.audioPath || voiceTurn.metadata?.audioPath || voiceTurn.audio_path || null;
 
-      // 2. Fallback on-demand promotion if audioBlob is cached in memory but not yet stored in cloud
+      // 2. Correlate with short-lived in-memory rolling voice cache across ID transitions
+      const cachedTurn = recentVoiceTurns.find((t) =>
+        t.id === voiceTurn.id ||
+        (voiceTurn.metadata?.voiceTurnId && t.id === voiceTurn.metadata.voiceTurnId) ||
+        (t.text === voiceTurn.text && Math.abs(new Date(t.timestamp).getTime() - new Date(voiceTurn.timestamp).getTime()) < 15000)
+      );
+
+      if (!audioPath && cachedTurn?.audioPath) {
+        audioPath = cachedTurn.audioPath;
+      }
+
+      // 3. Fallback on-demand promotion if audioBlob is cached in memory but not yet stored in cloud
       const cachedBlob = voiceTurn.audioBlob ||
         voiceTurn.metadata?.audioBlob ||
-        recentVoiceTurns.find((t) => t.id === voiceTurn.id)?.metadata?.audioBlob ||
-        recentVoiceTurns.find((t) => t.id === voiceTurn.id)?.audioBlob;
+        cachedTurn?.audioBlob ||
+        cachedTurn?.metadata?.audioBlob;
 
       if (!audioPath && cachedBlob && userId) {
         try {
           const audioId = `aud_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-          const saveResult = await saveAudio(audioId, cachedBlob, userId);
-          if (saveResult && saveResult.path && saveResult.path !== 'TOO_LARGE') {
-            audioPath = saveResult.path;
+          const path = await saveAudio(audioId, cachedBlob, userId);
+          if (path && path !== 'TOO_LARGE') {
+            audioPath = path;
           }
         } catch (uploadErr) {
           console.warn('[handleSaveVoiceTurnAsEcho] On-demand audio promotion skipped/failed:', uploadErr);
@@ -222,10 +233,12 @@ export function Chat({ userId, lunarData }) {
     setError('');
     setLoading(true);
 
-    // If voice input, record to rolling 3-turn voice cache
+    let vturnId = null;
+    // If voice input, record to rolling 3-turn voice cache with authentic audioBlob
     if (inputType === 'voice') {
+      vturnId = `vturn_${Date.now()}`;
       const newVoiceTurn = {
-        id: `vturn_${Date.now()}`,
+        id: vturnId,
         text: userText,
         timestamp: new Date().toISOString(),
         lunarContext: lunarData,
@@ -236,13 +249,15 @@ export function Chat({ userId, lunarData }) {
       setRecentVoiceTurns((prev) => [newVoiceTurn, ...prev].slice(0, 3));
     }
 
-    // Optimistically add user message to list
+    const turnMeta = { ...(voiceMeta || {}), ...(vturnId ? { voiceTurnId: vturnId } : {}) };
+
+    // Optimistically add user message to list with metadata and correlated turn ID
     const tempUserMsg = {
       id: `temp_${Date.now()}`,
       role: 'user',
       content: userText,
       input_type: inputType,
-      metadata: voiceMeta || {},
+      metadata: turnMeta,
       audio_path: voiceMeta?.audioPath || null,
       created_at: new Date().toISOString()
     };
@@ -268,7 +283,7 @@ export function Chat({ userId, lunarData }) {
           sessionId: sessionId,
           modelKey: selectedModel,
           inputType,
-          metadata: voiceMeta || {}
+          metadata: turnMeta
         })
       });
 
@@ -295,7 +310,7 @@ export function Chat({ userId, lunarData }) {
         role: 'user',
         content: userText,
         input_type: inputType,
-        metadata: voiceMeta || {},
+        metadata: turnMeta,
         audio_path: voiceMeta?.audioPath || null,
         created_at: tempUserMsg.created_at
       };

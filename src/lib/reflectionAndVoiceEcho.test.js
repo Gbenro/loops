@@ -159,8 +159,9 @@ describe('Reflection & Original Voice Echo Mutations Suite', () => {
     expect(insertData.provenance_author).toBe('user');
   });
 
-  it('promotes cached audioBlob fallback when initial capture had no audioPath', async () => {
-    const mockSaveAudio = vi.fn().mockResolvedValue({ path: 'voice/usr_test_123/aud_promoted_99.webm' });
+  it('promotes cached audioBlob fallback when initial capture had no audioPath (string return contract)', async () => {
+    // saveAudio contract: returns string path directly
+    const mockSaveAudio = vi.fn().mockResolvedValue('voice/usr_test_123/aud_promoted_99.webm');
     const dummyBlob = new Blob(['fake audio content'], { type: 'audio/webm' });
 
     const voiceTurnWithoutPath = {
@@ -176,14 +177,59 @@ describe('Reflection & Original Voice Echo Mutations Suite', () => {
 
     let resolvedPath = voiceTurnWithoutPath.audioPath || voiceTurnWithoutPath.metadata?.audioPath || null;
     if (!resolvedPath && voiceTurnWithoutPath.metadata?.audioBlob) {
-      const saveRes = await mockSaveAudio('aud_promoted_99', voiceTurnWithoutPath.metadata.audioBlob, mockUser.id);
-      if (saveRes?.path) {
-        resolvedPath = saveRes.path;
+      const path = await mockSaveAudio('aud_promoted_99', voiceTurnWithoutPath.metadata.audioBlob, mockUser.id);
+      if (path && path !== 'TOO_LARGE') {
+        resolvedPath = path;
       }
     }
 
     expect(mockSaveAudio).toHaveBeenCalled();
     expect(resolvedPath).toBe('voice/usr_test_123/aud_promoted_99.webm');
+  });
+
+  it('recovers authentic audioBlob from rolling voice cache across persisted message ID transition', async () => {
+    const dummyBlob = new Blob(['authentic voice'], { type: 'audio/webm' });
+    const originalTurnId = 'vturn_1788143000000';
+    const originalTimestamp = '2026-08-31T02:30:00.000Z';
+    const textContent = 'Speaking with genuine reflection';
+
+    // In-memory 3-turn rolling cache recorded during voice input
+    const recentVoiceTurns = [
+      {
+        id: originalTurnId,
+        text: textContent,
+        timestamp: originalTimestamp,
+        audioPath: 'voice/usr_test_123/aud_1788143000000.webm',
+        audioBlob: dummyBlob,
+        metadata: {
+          audioPath: 'voice/usr_test_123/aud_1788143000000.webm',
+          audioBlob: dummyBlob
+        }
+      }
+    ];
+
+    // Persisted message in database has different ID (e.g. msg_123456)
+    const persistedMessage = {
+      id: 'msg_987654321',
+      content: textContent,
+      created_at: originalTimestamp,
+      metadata: {
+        voiceTurnId: originalTurnId,
+        audioPath: 'voice/usr_test_123/aud_1788143000000.webm'
+      }
+    };
+
+    // Correlation lookup in handleSaveVoiceTurnAsEcho
+    const correlatedTurn = recentVoiceTurns.find((t) =>
+      t.id === persistedMessage.id ||
+      (persistedMessage.metadata?.voiceTurnId && t.id === persistedMessage.metadata.voiceTurnId) ||
+      (t.text === persistedMessage.content && Math.abs(new Date(t.timestamp).getTime() - new Date(persistedMessage.created_at).getTime()) < 15000)
+    );
+
+    expect(correlatedTurn).toBeDefined();
+    expect(correlatedTurn.id).toBe(originalTurnId);
+    expect(correlatedTurn.audioPath).toBe('voice/usr_test_123/aud_1788143000000.webm');
+    expect(correlatedTurn.audioBlob).toBe(dummyBlob);
   });
 
   it('truthfully reports audio availability without falsely claiming complete preservation', () => {

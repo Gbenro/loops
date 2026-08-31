@@ -111,9 +111,9 @@ export function useVoiceRecorder({ onTranscriptReady, userId }) {
           if (userId) {
             try {
               const audioId = generateId('aud');
-              const saveResult = await saveAudio(audioId, audioBlob, userId);
-              if (saveResult && saveResult.path) {
-                audioPath = saveResult.path;
+              const path = await saveAudio(audioId, audioBlob, userId);
+              if (path && path !== 'TOO_LARGE') {
+                audioPath = path;
               }
             } catch (err) {
               console.warn('[useVoiceRecorder] Audio persistence skipped:', err.message);
