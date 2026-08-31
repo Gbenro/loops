@@ -474,11 +474,12 @@ Commands:
 
   // Fetch target issue
   let targetIssue = null;
+  let targetIssueDetail = null;
   const issueIdArg = paramArg;
   try {
     if (issueIdArg) {
-      const res = await apiCall(`/api/dev/issues/${issueIdArg}`, 'GET', null, activeToken);
-      targetIssue = res.issue || res;
+      targetIssueDetail = await apiCall(`/api/dev/issues/${issueIdArg}`, 'GET', null, activeToken);
+      targetIssue = targetIssueDetail.issue || targetIssueDetail;
     } else {
       const res = await apiCall('/api/dev/issues?status=ready&limit=1', 'GET', null, activeToken);
       if (res.items && res.items.length > 0) {
@@ -497,27 +498,31 @@ Commands:
   const activeIssueId = targetIssue?.id || issueIdArg || 'iss_local_scratch';
   console.log(`  Active Issue:  ${targetIssue?.title || activeIssueId}`);
 
-  // Create Dev Session in Cloud Service
-  let session = null;
-  try {
-    session = await apiCall('/api/dev/sessions', 'POST', {
-      issueId: activeIssueId,
-      agent: 'gemini',
-      model: 'gemini-2.5-pro',
-      repository: path.basename(process.cwd()),
-      branch: envInfo.branch,
-      environment: envInfo
-    });
+  // Use active session from issue or create one
+  let session = targetIssueDetail?.latestSession || null;
+  if (session) {
     console.log(`  Session ID:    ${session.id} (status: ${session.status})`);
-  } catch (err) {
-    console.warn(`  [Notice] Cloud session creation fallback: ${err.message}`);
-    session = {
-      id: `sess_local_${Date.now()}`,
-      issueId: activeIssueId,
-      status: 'connected',
-      startedAt: new Date().toISOString(),
-      lastActivityAt: new Date().toISOString()
-    };
+  } else {
+    try {
+      session = await apiCall('/api/dev/sessions', 'POST', {
+        issueId: activeIssueId,
+        agent: 'gemini',
+        model: 'gemini-2.5-pro',
+        repository: path.basename(process.cwd()),
+        branch: envInfo.branch,
+        environment: envInfo
+      }, activeToken);
+      console.log(`  Session ID:    ${session.id} (status: ${session.status})`);
+    } catch (err) {
+      console.warn(`  [Notice] Cloud session creation fallback: ${err.message}`);
+      session = {
+        id: `sess_local_${Date.now()}`,
+        issueId: activeIssueId,
+        status: 'connected',
+        startedAt: new Date().toISOString(),
+        lastActivityAt: new Date().toISOString()
+      };
+    }
   }
 
   // Idle timeout management (default: 15m)
@@ -584,7 +589,7 @@ Commands:
 
       if (pathname === '/events' && req.method === 'GET') {
         try {
-          const eventsData = await apiCall(`/api/dev/sessions/${session.id}/events?issueId=${activeIssueId}`);
+          const eventsData = await apiCall(`/api/dev/issues/${activeIssueId}/events`, 'GET', null, activeToken || session.token);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(eventsData));
         } catch (err) {
@@ -615,7 +620,7 @@ Commands:
                   proposal: body.proposal,
                   decisionRequired: body.decisionRequired
                 }
-              });
+              }, activeToken || session.token);
               res.writeHead(201, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(event));
               return;
@@ -633,7 +638,7 @@ Commands:
                   passed: body.passed,
                   failed: body.failed
                 }
-              });
+              }, activeToken || session.token);
               res.writeHead(201, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(event));
               return;
@@ -649,7 +654,7 @@ Commands:
                   status: body.status || 'passed',
                   command: body.command
                 }
-              });
+              }, activeToken || session.token);
               res.writeHead(201, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(event));
               return;
@@ -665,7 +670,7 @@ Commands:
                   hash: body.hash,
                   branch: body.branch
                 }
-              });
+              }, activeToken || session.token);
               res.writeHead(201, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(event));
               return;
@@ -674,7 +679,7 @@ Commands:
             if (pathname === '/complete') {
               const ended = await apiCall(`/api/dev/sessions/${session.id}/end`, 'POST', {
                 summary: body.finalSummary || 'Session completed successfully'
-              });
+              }, activeToken || session.token);
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(ended));
 
@@ -709,6 +714,9 @@ Commands:
     console.log(`  Coding Agent RPC:  http://127.0.0.1:${port}/issue`);
     console.log(`  Events & Polling:  http://127.0.0.1:${port}/events`);
     console.log(`  Auto-Idle Timeout: ${DEFAULT_IDLE_MINUTES} minutes\n`);
+
+    // Start background event listener
+    startEventListener(activeIssueId, session.id, activeToken || session.token);
   });
 
   // Clean shutdown handlers
