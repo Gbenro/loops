@@ -57,9 +57,13 @@ export function getSupabaseAnon(): SupabaseClient {
 /**
  * Creates a server-scoped privileged Supabase client with service_role privileges
  * used strictly for server-side validated machine discovery and authority minting.
+ * Fails closed with an explicit error if SUPABASE_SERVICE_ROLE_KEY is absent.
  */
 export function getSupabaseService(): SupabaseClient {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    throw new Error('Server configuration error: SUPABASE_SERVICE_ROLE_KEY is required for privileged machine discovery and authority minting');
+  }
   return createClient(SUPABASE_URL, serviceKey, {
     auth: { persistSession: false }
   });

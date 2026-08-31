@@ -10,6 +10,7 @@ import {
   claimPendingDevSession,
   validateDevDiscoveryToken
 } from '../../mcp-server/dist/devBridge.js';
+import { getSupabaseService } from '../../mcp-server/dist/db.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
 
 describe('Luna Development Bridge (V1) Test Suite', () => {
@@ -728,6 +729,29 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(result.items[0].issueId).toBe('iss_auth_1');
     expect(result.items[0].status).toBe('pending');
     expect(result.items[0].token).toBeUndefined(); // Minimal metadata only
+  });
+
+  it('getSupabaseService fails closed when SUPABASE_SERVICE_ROLE_KEY is absent', () => {
+    const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      expect(() => getSupabaseService()).toThrow(/SUPABASE_SERVICE_ROLE_KEY is required/);
+    } finally {
+      if (originalKey) process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+    }
+  });
+
+  it('getSupabaseService succeeds and creates client when SUPABASE_SERVICE_ROLE_KEY is provided', () => {
+    const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'test_service_role_secret_key_12345';
+      const client = getSupabaseService();
+      expect(client).toBeDefined();
+      expect(client.from).toBeDefined();
+    } finally {
+      if (originalKey) process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+      else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    }
   });
 });
 

@@ -632,9 +632,15 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
       return;
     }
 
+    try {
+      req.body.supabaseClient = getSupabaseService();
+    } catch (err: any) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
+
     (req as any).isDiscoverySession = true;
     (req as any).devUserId = discovery.userId;
-    req.body.supabaseClient = getSupabaseService();
     next();
     return;
   }
@@ -646,9 +652,14 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
       res.status(401).json({ error: 'Invalid or expired Dev Session Token' });
       return;
     }
+    try {
+      req.body.supabaseClient = getSupabaseService();
+    } catch (err: any) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
     (req as any).devSession = validated.session;
     (req as any).devUserId = validated.userId;
-    req.body.supabaseClient = getSupabaseService();
     next();
     return;
   }
@@ -968,9 +979,11 @@ app.get(['/openapi-dev.json', '/api/openapi-dev.json'], (req, res) => {
 });
 
 app.get('/status', (req, res) => {
+  const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   res.json({
     status: 'healthy',
     activeSessionsCount: activeSessions.size,
+    privilegedDiscoveryConfigured: hasServiceRole,
     timestamp: new Date().toISOString()
   });
 });

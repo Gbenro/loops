@@ -730,8 +730,13 @@ async function runBridge() {
           process.exit(0);
         }
       } catch (err) {
-        // Requirement 4: Fail actionably on rejected/invalid credentials
+        // Requirement 1 & 4: Fail actionably on rejected credentials or missing server configuration
         const msg = (err.message || '').toLowerCase();
+        if (msg.includes('503') || msg.includes('service_role') || msg.includes('configuration error')) {
+          console.error(`\n✗ [Pending Watcher] Fatal Server Configuration Error: ${err.message}`);
+          console.error('  Railway production is missing SUPABASE_SERVICE_ROLE_KEY. Privileged discovery cannot proceed.');
+          process.exit(1);
+        }
         if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('invalid') || msg.includes('missing token')) {
           console.error(`\n✗ [Pending Watcher] Fatal Authentication Error: ${err.message}`);
           console.error('  Discovery credentials rejected by Development Service. Aborting watcher.');
