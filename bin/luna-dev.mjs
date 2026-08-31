@@ -197,18 +197,13 @@ async function runBridge() {
 
     console.log(`\n✦ Posting developer.question to Issue ${issueId}...`);
     try {
-      // First ensure session exists
-      const envInfo = getEnvironmentInfo();
-      const session = await apiCall('/api/dev/sessions', 'POST', {
-        issueId,
-        agent: 'gemini',
-        model: 'gemini-2.5-pro',
-        repository: path.basename(process.cwd()),
-        branch: envInfo.branch,
-        environment: envInfo
-      }, activeToken);
+      const issueRes = await apiCall(`/api/dev/issues/${issueId}`, 'GET', null, activeToken);
+      const sessionId = issueRes.latestSession?.id;
+      if (!sessionId) {
+        throw new Error(`No active Dev Session found for issue ${issueId}. Authorize a session first.`);
+      }
 
-      const event = await apiCall(`/api/dev/sessions/${session.id}/events`, 'POST', {
+      const event = await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
         issueId,
         type: 'developer.question',
         author: 'gemini',
