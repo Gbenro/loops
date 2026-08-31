@@ -509,14 +509,91 @@ async function runBridge() {
     return;
   }
 
+  if (command === 'wait-event' || command === 'wait') {
+    const issueId = paramArg;
+    if (!issueId) {
+      console.error('Usage: luna-dev wait-event <issueId> [--timeout <seconds>] [--since <eventId>]');
+      process.exit(1);
+    }
+
+    const timeoutIdx = args.indexOf('--timeout');
+    const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : 300;
+
+    console.log(`\n✦ [Event Waiter] Monitoring Issue ${issueId} for incoming Luna events (timeout: ${timeoutSec}s)...`);
+
+    const knownEvents = new Set();
+    const startTime = Date.now();
+
+    // Pre-populate known events
+    try {
+      const initial = await apiCall(`/api/dev/issues/${issueId}/events`, 'GET', null, activeToken);
+      const items = initial.items || [];
+      items.forEach(e => knownEvents.add(e.id));
+      console.log(`  [Event Waiter] Initialized with ${items.length} baseline event(s).`);
+    } catch (err) {
+      console.warn(`  [Notice] Pre-fetch warning: ${err.message}`);
+    }
+
+    // Polling loop that exits process cleanly on event arrival
+    const interval = setInterval(async () => {
+      // Check for timeout
+      if ((Date.now() - startTime) >= timeoutSec * 1000) {
+        clearInterval(interval);
+        console.log(JSON.stringify({
+          status: 'timeout',
+          message: `No new Luna events arrived within ${timeoutSec} seconds.`,
+          issueId,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+        process.exit(0);
+      }
+
+      try {
+        const res = await apiCall(`/api/dev/issues/${issueId}/events`, 'GET', null, activeToken);
+        const events = res.items || [];
+
+        for (const evt of events) {
+          if (!knownEvents.has(evt.id)) {
+            // Found a new incoming event!
+            clearInterval(interval);
+            const intent = classifyEventIntent(evt);
+
+            console.log('\n================================================================');
+            console.log(`✦ [AUTONOMOUS WAKE TRIGGER] New event detected: ${evt.id}`);
+            console.log(`  Author:   ${evt.author}`);
+            console.log(`  Type:     ${evt.type}`);
+            console.log(`  Intent:   ${intent.intent}`);
+            console.log(`  Content:  "${evt.content}"`);
+            console.log('================================================================\n');
+
+            console.log(JSON.stringify({
+              status: 'event_received',
+              event: evt,
+              intent: intent,
+              issueId,
+              timestamp: new Date().toISOString()
+            }, null, 2));
+
+            process.exit(0);
+          }
+        }
+      } catch (err) {
+        // network transient
+      }
+    }, 2500);
+
+    return;
+  }
+
   if (command !== 'start') {
     console.log(`
-Usage: luna-dev [check|list|get|question|listen|resume|start|login|set-token] [issueId] [options]
+Usage: luna-dev [check|list|get|question|listen|wait-event|resume|start|login|set-token] [issueId] [options]
 
 Commands:
   check / list             Check assigned development issues from Luna
   get <issueId>            Retrieve complete details, latest session & evidence for an issue
   question <issueId> "..." Post a developer.question to the issue on Development Service
+  wait-event <issueId>     Wait for next Luna event and exit with payload to wake the agent
   listen <issueId>         Actively listen for Luna decisions/events and automatically resume execution
   start [issueId]          Start local ephemeral Dev Bridge RPC & active listener on 127.0.0.1:4888
   login <email> <password> Authenticate with Supabase and store token locally
