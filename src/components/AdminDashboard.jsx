@@ -227,7 +227,7 @@ export function AdminDashboard({ isOpen, onClose, currentUserEmail: _currentUser
                 fontSize: 20,
               }}
             >
-              〜
+              ◎
             </div>
           ) : (
             <>

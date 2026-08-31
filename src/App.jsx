@@ -41,9 +41,9 @@ import { ThemeProvider } from './lib/ThemeContext.jsx';
 const TABS = [
   { id: 'sky', label: 'Sky', icon: '☽' },
   { id: 'loops', label: 'Loops', icon: '◯' },
-  { id: 'echoes', label: 'Echoes', icon: '〜' },
+  { id: 'echoes', label: 'Echoes', icon: '◎' },
   ...(IS_V2 ? [
-    { id: 'rhythm', label: 'Rhythm', icon: '◎' },
+    { id: 'rhythm', label: 'Rhythm', icon: '〜' },
     { id: 'chat', label: 'Chat', icon: '✦' }
   ] : []),
 ];

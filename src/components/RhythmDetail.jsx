@@ -446,7 +446,7 @@ export function RhythmDetail({ rhythm, lunarData, userId, onClose }) {
             {!instance
               ? '◌ LOADING…'
               : instance.intentionType && instance.intentionType !== 'none'
-                ? '◎ INTENTION SET — TAP TO EDIT'
+                ? '〜 INTENTION SET — TAP TO EDIT'
                 : '◌ SET INTENTION'}
           </button>
         </div>

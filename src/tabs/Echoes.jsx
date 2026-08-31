@@ -858,7 +858,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           fontSize: 18,
         }}
       >
-        〜
+        ◎
       </div>
     );
   }

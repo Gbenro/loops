@@ -415,7 +415,7 @@ export function PhaseTransitionCard({
             textAlign: 'center',
           }}
         >
-          〜 OPEN ECHOES — CAPTURE THIS MOMENT
+          ◎ OPEN ECHOES — CAPTURE THIS MOMENT
         </button>
       </div>
     </div>
