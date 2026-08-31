@@ -900,7 +900,7 @@ export async function appendDevEvent(
 
   if (error || !data) throw new Error(error?.message || 'Failed to append Dev Event');
 
-  // Update session last_activity_at and extend token only for connected sessions
+  // Update session last_activity_at and extend token only for active sessions
   const { data: currentSession } = await supabase
     .from('dev_sessions')
     .select('status')
@@ -908,16 +908,18 @@ export async function appendDevEvent(
     .eq('user_id', userId)
     .single();
 
-  const updateFields: any = { last_activity_at: now };
-  if (currentSession?.status === 'connected') {
-    updateFields.token_expires_at = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  }
+  if (currentSession && currentSession.status !== 'ended') {
+    const updateFields: any = { last_activity_at: now };
+    if (currentSession.status === 'connected') {
+      updateFields.token_expires_at = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    }
 
-  await supabase
-    .from('dev_sessions')
-    .update(updateFields)
-    .eq('id', params.sessionId)
-    .eq('user_id', userId);
+    await supabase
+      .from('dev_sessions')
+      .update(updateFields)
+      .eq('id', params.sessionId)
+      .eq('user_id', userId);
+  }
 
   return mapDevEvent(data);
 }
