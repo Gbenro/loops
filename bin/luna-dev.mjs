@@ -113,14 +113,84 @@ async function apiCall(endpoint, method = 'GET', body = null, token = null) {
   return res.json();
 }
 
-// 3. Automated Evidence & Verification Pipeline
-async function executeVerificationAndEvidencePipeline(issueId, sessionId, token) {
+// 3. Intent-Aware Event Classification & Dispatch
+function classifyEventIntent(event) {
+  const content = event.content || '';
+  const metadata = event.metadata || {};
+  const type = event.type || '';
+
+  // 1. Read-only investigations & diagnostics
+  if (metadata.investigationType || metadata.status === 'bridge_read_test' || /READ-ONLY INVESTIGATION|DIAGNOSTIC/i.test(content)) {
+    return {
+      intent: 'read_only_investigation',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Read-only diagnostic/investigation request'
+    };
+  }
+
+  // 2. Read-only scope requests
+  if (metadata.scopeRequest || /READ-ONLY SCOPE REQUEST|SCOPE REQUEST/i.test(content)) {
+    return {
+      intent: 'read_only_scope_request',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Read-only scope analysis request'
+    };
+  }
+
+  // 3. Developer questions / clarifications
+  if (type === 'developer.question' || metadata.decisionRequired) {
+    return {
+      intent: 'clarification',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Developer question or clarification request'
+    };
+  }
+
+  // 4. Explicit session completion / close actions
+  if (type === 'session.completed' || metadata.action === 'complete') {
+    return {
+      intent: 'session_action',
+      isReadOnly: false,
+      requiresWorkflow: false,
+      requiresCompletion: true,
+      directiveSummary: 'Explicit session completion requested'
+    };
+  }
+
+  // 5. Authorized implementation directives
+  if (metadata.status === 'approved_for_implementation' || /APPROVED — Implement|PROCEED WITH IMPLEMENTATION|EXECUTE IMPLEMENTATION/i.test(content)) {
+    return {
+      intent: 'implementation_directive',
+      isReadOnly: false,
+      requiresWorkflow: true,
+      requiresCompletion: false, // Session stays open until explicit verification
+      directiveSummary: 'Authorized implementation directive'
+    };
+  }
+
+  return {
+    intent: 'general_decision',
+    isReadOnly: false,
+    requiresWorkflow: false,
+    requiresCompletion: false,
+    directiveSummary: content.substring(0, 100)
+  };
+}
+
+// 4. Automated Evidence & Verification Pipeline
+async function executeVerificationAndEvidencePipeline(issueId, sessionId, token, options = {}) {
   console.log('\n================================================================');
   console.log(`✦ Resuming Gemini Execution Pipeline for Issue ${issueId}...`);
   console.log('================================================================\n');
 
   // Step 1: Run automated tests
-  console.log('▶ [Pipeline 1/4] Running automated test suite (vitest)...');
+  console.log('▶ [Pipeline 1/3] Running automated test suite (vitest)...');
   let testStatus = 'passed';
   let passedCount = 0;
   let failedCount = 0;
@@ -156,7 +226,7 @@ async function executeVerificationAndEvidencePipeline(issueId, sessionId, token)
   console.log('✓ Recorded tests.reported evidence to Development Service');
 
   // Step 2: Run build
-  console.log('\n▶ [Pipeline 2/4] Running frontend production build (vite build)...');
+  console.log('\n▶ [Pipeline 2/3] Running frontend production build (vite build)...');
   let buildStatus = 'passed';
   try {
     execSync('npm run build', { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -180,7 +250,7 @@ async function executeVerificationAndEvidencePipeline(issueId, sessionId, token)
   console.log('✓ Recorded build.reported evidence to Development Service');
 
   // Step 3: Report commit evidence
-  console.log('\n▶ [Pipeline 3/4] Recording git commit evidence...');
+  console.log('\n▶ [Pipeline 3/3] Recording git commit evidence...');
   const gitInfo = getGitInfo();
   await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
     issueId,
@@ -194,45 +264,47 @@ async function executeVerificationAndEvidencePipeline(issueId, sessionId, token)
   }, token);
   console.log('✓ Recorded commit.reported evidence to Development Service');
 
-  // Step 4: Report implementation and session completion
-  console.log('\n▶ [Pipeline 4/4] Submitting final implementation and verification report...');
-  await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
-    issueId,
-    type: 'implementation.reported',
-    author: 'gemini',
-    content: 'Completed full end-to-end Dev Bridge circuit verification. Automated tests and build verified successfully.',
-    metadata: {
-      circuitVerified: true,
-      decisionReceivedAndConsumed: true
-    }
-  }, token);
+  // Report implementation summary (without closing session unless explicitly requested)
+  if (options.implementationSummary) {
+    await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
+      issueId,
+      type: 'implementation.reported',
+      author: 'gemini',
+      content: options.implementationSummary,
+      metadata: {
+        changedFiles: options.changedFiles || []
+      }
+    }, token);
+    console.log('✓ Recorded implementation.reported evidence to Development Service');
+  }
 
-  await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
-    issueId,
-    type: 'session.completed',
-    author: 'gemini',
-    content: 'Dev Bridge circuit verification completed successfully with all acceptance criteria met.',
-    metadata: {
-      circuitStatus: 'verified'
-    }
-  }, token);
+  if (options.completeSession) {
+    await apiCall(`/api/dev/sessions/${sessionId}/events`, 'POST', {
+      issueId,
+      type: 'session.completed',
+      author: 'gemini',
+      content: 'Dev Session completed with all verification steps verified.',
+      metadata: {
+        circuitStatus: 'verified'
+      }
+    }, token);
+    console.log('✓ Recorded session.completed event');
+  }
 
-  console.log('✓ Recorded implementation.reported and session.completed events');
   console.log('\n================================================================');
-  console.log('✦ Circuit Verification & Evidence Pipeline Finished Successfully!');
+  console.log('✦ Pipeline Execution Finished Successfully!');
   console.log('================================================================\n');
 }
 
-// 4. Continuous Event Listener & Active Worker
+// 5. Continuous Event Listener & Active Worker
 async function startEventListener(issueId, sessionId, token, options = {}) {
   const seenEvents = new Set();
-  let isExecuting = false;
 
   console.log(`\n✦ Active Event Listener initialized for Issue ${issueId}`);
   console.log(`  Session ID:   ${sessionId}`);
   console.log('  Listening for decision.approved, decision.rejected, requirement changes...\n');
 
-  // Pre-load existing events so we don't duplicate on first tick unless autoResume is requested
+  // Pre-load existing events so we don't duplicate on first tick
   try {
     const existing = await apiCall(`/api/dev/issues/${issueId}/events`, 'GET', null, token);
     const events = existing.items || [];
@@ -240,25 +312,12 @@ async function startEventListener(issueId, sessionId, token, options = {}) {
       seenEvents.add(evt.id);
     }
     console.log(`  [Listener] Loaded ${events.length} existing event(s).`);
-
-    // Check if there is an unconsumed decision.approved event
-    if (options.autoResume) {
-      const decisionEvt = events.find(e => e.type === 'decision.approved');
-      if (decisionEvt) {
-        console.log(`\n✦ Found approved decision: "${decisionEvt.content}"`);
-        isExecuting = true;
-        await executeVerificationAndEvidencePipeline(issueId, sessionId, token);
-        return;
-      }
-    }
   } catch (err) {
     console.warn(`  [Listener Notice] Could not pre-fetch events: ${err.message}`);
   }
 
   // Active polling loop (3-second interval)
   const pollInterval = setInterval(async () => {
-    if (isExecuting) return;
-
     try {
       const res = await apiCall(`/api/dev/issues/${issueId}/events`, 'GET', null, token);
       const events = res.items || [];
@@ -269,12 +328,13 @@ async function startEventListener(issueId, sessionId, token, options = {}) {
           console.log(`\n✦ [Bridge Event] Received "${evt.type}" from ${evt.author}:`);
           console.log(`  "${evt.content}"`);
 
-          if (evt.type === 'decision.approved') {
-            console.log('  → Triggering automated resume pipeline...');
-            isExecuting = true;
-            clearInterval(pollInterval);
-            await executeVerificationAndEvidencePipeline(issueId, sessionId, token);
-            return;
+          const intent = classifyEventIntent(evt);
+          console.log(`  → Event Intent: ${intent.intent} (isReadOnly: ${intent.isReadOnly}, requiresWorkflow: ${intent.requiresWorkflow})`);
+
+          if (intent.isReadOnly) {
+            console.log('  → Read-only event. Acknowledged without triggering workflow.');
+          } else if (intent.intent === 'implementation_directive') {
+            console.log('  → Authorized implementation directive detected.');
           } else if (evt.type === 'decision.rejected') {
             console.warn('  → Decision rejected. Halting pipeline.');
           } else if (evt.type === 'requirement.changed') {

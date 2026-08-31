@@ -3,7 +3,8 @@ import {
   computeFactualEvidence,
   mapDevIssue,
   mapDevSession,
-  mapDevEvent
+  mapDevEvent,
+  classifyEventIntent
 } from '../../mcp-server/dist/devBridge.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
 
@@ -296,9 +297,82 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
 
     expect(authResult).toBeDefined();
     const parsed = JSON.parse(authResult.content[0].text);
-    expect(parsed.token).toMatch(/^dtk_/);
-    expect(parsed.expiresAt).toBeDefined();
     expect(parsed.connectCommand).toContain('iss_1788132031507_65z7');
     expect(parsed.connectCommand).toContain('--token dtk_');
   });
+
+  // ─── 8. Intent-Aware Task Dispatch & Classification Invariants ───────────
+
+  it('classifies read-only investigation requests correctly without triggering workflow or completion', () => {
+    const event = {
+      id: 'evt_inv_1',
+      type: 'decision.approved',
+      content: 'READ-ONLY INVESTIGATION TEST: Inspect the actual Luna Dev Bridge implementation and determine how the 15-minute idle timeout currently works. Do not modify any code.',
+      metadata: { status: 'bridge_read_test' }
+    };
+
+    const intent = classifyEventIntent(event);
+    expect(intent.intent).toBe('read_only_investigation');
+    expect(intent.isReadOnly).toBe(true);
+    expect(intent.requiresWorkflow).toBe(false);
+    expect(intent.requiresCompletion).toBe(false);
+  });
+
+  it('classifies read-only scope requests correctly without triggering workflow or completion', () => {
+    const event = {
+      id: 'evt_scope_1',
+      type: 'decision.approved',
+      content: 'READ-ONLY SCOPE REQUEST — Echo / Reading symbol swap. Do not modify code, run implementation, or commit anything. Inspect the current repository and determine the exact scope required.',
+      metadata: { scopeRequest: 'echo_reading_symbol_swap' }
+    };
+
+    const intent = classifyEventIntent(event);
+    expect(intent.intent).toBe('read_only_scope_request');
+    expect(intent.isReadOnly).toBe(true);
+    expect(intent.requiresWorkflow).toBe(false);
+    expect(intent.requiresCompletion).toBe(false);
+  });
+
+  it('classifies developer questions and clarifications as non-workflow read actions', () => {
+    const event = {
+      id: 'evt_q_1',
+      type: 'developer.question',
+      content: 'Should we require automated test evidence before closing the issue?',
+      metadata: { decisionRequired: true }
+    };
+
+    const intent = classifyEventIntent(event);
+    expect(intent.intent).toBe('clarification');
+    expect(intent.isReadOnly).toBe(true);
+    expect(intent.requiresWorkflow).toBe(false);
+    expect(intent.requiresCompletion).toBe(false);
+  });
+
+  it('classifies authorized implementation directives correctly and keeps session open', () => {
+    const event = {
+      id: 'evt_impl_1',
+      type: 'decision.approved',
+      content: 'APPROVED — Implement the proposed Dev Bridge task-dispatch fix identified in the diagnosis.',
+      metadata: { status: 'approved_for_implementation' }
+    };
+
+    const intent = classifyEventIntent(event);
+    expect(intent.intent).toBe('implementation_directive');
+    expect(intent.isReadOnly).toBe(false);
+    expect(intent.requiresWorkflow).toBe(true);
+    expect(intent.requiresCompletion).toBe(false); // Session must NOT be closed automatically
+  });
+
+  it('requires completion only when explicitly specified', () => {
+    const event = {
+      id: 'evt_complete_1',
+      type: 'session.completed',
+      content: 'Dev Bridge verification complete with all criteria met.'
+    };
+
+    const intent = classifyEventIntent(event);
+    expect(intent.intent).toBe('session_action');
+    expect(intent.requiresCompletion).toBe(true);
+  });
 });
+

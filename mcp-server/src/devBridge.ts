@@ -237,6 +237,92 @@ export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
   return summary;
 }
 
+// ─── Intent-Aware Event Classification & Task Dispatch ───────────────────────
+
+export interface EventIntent {
+  intent: 'read_only_investigation' | 'read_only_scope_request' | 'clarification' | 'implementation_directive' | 'session_action' | 'general_decision';
+  isReadOnly: boolean;
+  requiresWorkflow: boolean;
+  requiresCompletion: boolean;
+  directiveSummary?: string;
+  matchedRule?: string;
+}
+
+export function classifyEventIntent(event: Partial<DevEvent>): EventIntent {
+  const content = event.content || '';
+  const metadata = event.metadata || {};
+  const type = event.type || '';
+
+  // 1. Read-only investigations & diagnostics
+  if (metadata.investigationType || metadata.status === 'bridge_read_test' || /READ-ONLY INVESTIGATION|DIAGNOSTIC/i.test(content)) {
+    return {
+      intent: 'read_only_investigation',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Read-only diagnostic/investigation request',
+      matchedRule: 'investigation_pattern'
+    };
+  }
+
+  // 2. Read-only scope requests
+  if (metadata.scopeRequest || /READ-ONLY SCOPE REQUEST|SCOPE REQUEST/i.test(content)) {
+    return {
+      intent: 'read_only_scope_request',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Read-only scope analysis request',
+      matchedRule: 'scope_request_pattern'
+    };
+  }
+
+  // 3. Developer questions / clarifications
+  if (type === 'developer.question' || metadata.decisionRequired) {
+    return {
+      intent: 'clarification',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Developer question or clarification request',
+      matchedRule: 'question_type'
+    };
+  }
+
+  // 4. Explicit session completion / close actions
+  if (type === 'session.completed' || metadata.action === 'complete') {
+    return {
+      intent: 'session_action',
+      isReadOnly: false,
+      requiresWorkflow: false,
+      requiresCompletion: true,
+      directiveSummary: 'Explicit session completion requested',
+      matchedRule: 'session_completed_type'
+    };
+  }
+
+  // 5. Authorized implementation directives
+  if (metadata.status === 'approved_for_implementation' || /APPROVED — Implement|PROCEED WITH IMPLEMENTATION|EXECUTE IMPLEMENTATION/i.test(content)) {
+    return {
+      intent: 'implementation_directive',
+      isReadOnly: false,
+      requiresWorkflow: true,
+      requiresCompletion: false, // Session stays open until explicit verification
+      directiveSummary: 'Authorized implementation directive',
+      matchedRule: 'approved_for_implementation_pattern'
+    };
+  }
+
+  return {
+    intent: 'general_decision',
+    isReadOnly: false,
+    requiresWorkflow: false,
+    requiresCompletion: false,
+    directiveSummary: content.substring(0, 100),
+    matchedRule: 'fallback_decision'
+  };
+}
+
 // ─── Ephemeral Dev Session Token Validation ──────────────────────────────────
 
 export async function validateDevSessionToken(
