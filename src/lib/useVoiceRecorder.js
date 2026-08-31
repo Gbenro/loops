@@ -123,6 +123,7 @@ export function useVoiceRecorder({ onTranscriptReady, userId }) {
           const metadata = {
             inputType: 'voice',
             audioPath,
+            audioBlob,
             durationMs,
             provider: 'groq_whisper',
             timestamp: new Date().toISOString()

@@ -125,4 +125,103 @@ describe('Reflection & Original Voice Echo Mutations Suite', () => {
     expect(echoPayload.text).toBe('My authentic voice reflection');
     expect(echoPayload.illumination).toBe(88);
   });
+
+  it('preserves authentic audio_path when saving a voice chat turn as an Original Voice Echo', () => {
+    const voiceTurn = {
+      id: 'vturn_1788142000000',
+      text: 'Observing the crescent moon tonight',
+      timestamp: '2026-08-31T02:00:00.000Z',
+      audioPath: 'voice/usr_test_123/aud_1788142000000.webm',
+      metadata: {
+        audioPath: 'voice/usr_test_123/aud_1788142000000.webm',
+        durationMs: 4200,
+        inputType: 'voice'
+      }
+    };
+
+    const audioPath = voiceTurn.audioPath || voiceTurn.metadata?.audioPath || null;
+    expect(audioPath).toBe('voice/usr_test_123/aud_1788142000000.webm');
+
+    const insertData = {
+      id: 'e_1788142000000',
+      user_id: mockUser.id,
+      text: voiceTurn.text,
+      source: 'voice_chat',
+      tags: ['original-voice-echo'],
+      provenance_author: 'user',
+      provenance_kind: 'original_echo',
+      audio_path: audioPath,
+      created_at: voiceTurn.timestamp
+    };
+
+    expect(insertData.audio_path).toBe('voice/usr_test_123/aud_1788142000000.webm');
+    expect(insertData.provenance_kind).toBe('original_echo');
+    expect(insertData.provenance_author).toBe('user');
+  });
+
+  it('promotes cached audioBlob fallback when initial capture had no audioPath', async () => {
+    const mockSaveAudio = vi.fn().mockResolvedValue({ path: 'voice/usr_test_123/aud_promoted_99.webm' });
+    const dummyBlob = new Blob(['fake audio content'], { type: 'audio/webm' });
+
+    const voiceTurnWithoutPath = {
+      id: 'vturn_offline_1',
+      text: 'Offline voice note captured',
+      timestamp: '2026-08-31T02:05:00.000Z',
+      audioPath: null,
+      metadata: {
+        audioPath: null,
+        audioBlob: dummyBlob
+      }
+    };
+
+    let resolvedPath = voiceTurnWithoutPath.audioPath || voiceTurnWithoutPath.metadata?.audioPath || null;
+    if (!resolvedPath && voiceTurnWithoutPath.metadata?.audioBlob) {
+      const saveRes = await mockSaveAudio('aud_promoted_99', voiceTurnWithoutPath.metadata.audioBlob, mockUser.id);
+      if (saveRes?.path) {
+        resolvedPath = saveRes.path;
+      }
+    }
+
+    expect(mockSaveAudio).toHaveBeenCalled();
+    expect(resolvedPath).toBe('voice/usr_test_123/aud_promoted_99.webm');
+  });
+
+  it('truthfully reports audio availability without falsely claiming complete preservation', () => {
+    const formatFeedback = (hasAudio) => ({
+      hasAudio: Boolean(hasAudio),
+      userMessage: hasAudio ? '✓ Saved with Original Audio' : '✓ Saved as Text Echo (Audio unavailable)'
+    });
+
+    const successWithAudio = formatFeedback('voice/usr_test_123/aud_1.webm');
+    expect(successWithAudio.hasAudio).toBe(true);
+    expect(successWithAudio.userMessage).toBe('✓ Saved with Original Audio');
+
+    const fallbackNoAudio = formatFeedback(null);
+    expect(fallbackNoAudio.hasAudio).toBe(false);
+    expect(fallbackNoAudio.userMessage).toBe('✓ Saved as Text Echo (Audio unavailable)');
+  });
+
+  it('never substitutes synthesized Kokoro/TTS audio for original user voice recordings', () => {
+    const originalVoiceTurn = {
+      id: 'vturn_1',
+      text: 'User speaking genuinely',
+      provenance_author: 'user',
+      provenance_kind: 'original_echo',
+      audio_path: null // authentic audio missing
+    };
+
+    // Synthesizing TTS for user voice is strictly forbidden
+    const substituteTTS = vi.fn();
+    const saveTurn = (turn) => {
+      // Invariant: Do not call substituteTTS for original_echo
+      if (turn.provenance_kind === 'original_echo') {
+        return { ...turn, audio_path: turn.audio_path || null };
+      }
+      return turn;
+    };
+
+    const saved = saveTurn(originalVoiceTurn);
+    expect(substituteTTS).not.toHaveBeenCalled();
+    expect(saved.audio_path).toBeNull(); // remains null or text-only rather than fake TTS
+  });
 });

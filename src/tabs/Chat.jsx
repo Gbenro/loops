@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { saveAudio } from '../lib/audioStorage.js';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js';
 import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
@@ -16,7 +17,7 @@ export function Chat({ userId, lunarData }) {
   // Exact 3-Turn Conversational Voice Cache
   const [recentVoiceTurns, setRecentVoiceTurns] = useState([]);
   const [savingEchoTurnId, setSavingEchoTurnId] = useState(null);
-  const [echoSaveSuccessId, setEchoSaveSuccessId] = useState(null);
+  const [echoSaveSuccess, setEchoSaveSuccess] = useState(null); // { id: string, hasAudio: boolean }
 
   const pendingVoiceMetaRef = useRef(null);
   const textareaRef = useRef(null);
@@ -130,7 +131,7 @@ export function Chat({ userId, lunarData }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Save a recent voice turn as an Original User Echo (Fixed column schema & provenance)
+  // Save a recent voice turn as an Original User Echo (Preserves authentic user audio & provenance)
   const handleSaveVoiceTurnAsEcho = async (voiceTurn) => {
     if (!voiceTurn || !userId) return;
     setSavingEchoTurnId(voiceTurn.id);
@@ -145,6 +146,27 @@ export function Chat({ userId, lunarData }) {
       const dayOfCycle = voiceTurn.lunarContext?.dayOfCycle ?? lunarData?.dayOfCycle ?? 1;
       const zodiacSign = voiceTurn.lunarContext?.zodiac?.sign || lunarData?.zodiac?.sign || 'Aries';
 
+      // 1. Resolve authentic recorded audio path
+      let audioPath = voiceTurn.audioPath || voiceTurn.metadata?.audioPath || voiceTurn.audio_path || null;
+
+      // 2. Fallback on-demand promotion if audioBlob is cached in memory but not yet stored in cloud
+      const cachedBlob = voiceTurn.audioBlob ||
+        voiceTurn.metadata?.audioBlob ||
+        recentVoiceTurns.find((t) => t.id === voiceTurn.id)?.metadata?.audioBlob ||
+        recentVoiceTurns.find((t) => t.id === voiceTurn.id)?.audioBlob;
+
+      if (!audioPath && cachedBlob && userId) {
+        try {
+          const audioId = `aud_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+          const saveResult = await saveAudio(audioId, cachedBlob, userId);
+          if (saveResult && saveResult.path && saveResult.path !== 'TOO_LARGE') {
+            audioPath = saveResult.path;
+          }
+        } catch (uploadErr) {
+          console.warn('[handleSaveVoiceTurnAsEcho] On-demand audio promotion skipped/failed:', uploadErr);
+        }
+      }
+
       const insertData = {
         id: echoId,
         user_id: userId,
@@ -153,6 +175,7 @@ export function Chat({ userId, lunarData }) {
         tags: ['original-voice-echo'],
         provenance_author: 'user',
         provenance_kind: 'original_echo',
+        audio_path: audioPath,
         phase: phaseKey,
         phase_name: phaseName,
         phase_type: phaseType,
@@ -170,10 +193,13 @@ export function Chat({ userId, lunarData }) {
 
       if (insertErr) throw insertErr;
 
-      setEchoSaveSuccessId(voiceTurn.id);
+      setEchoSaveSuccess({
+        id: voiceTurn.id,
+        hasAudio: Boolean(audioPath)
+      });
       setTimeout(() => {
-        setEchoSaveSuccessId(null);
-      }, 3000);
+        setEchoSaveSuccess(null);
+      }, 4000);
     } catch (err) {
       console.error('Failed to save voice turn as echo:', err);
       setError(`Could not save voice turn as Echo: ${err.message || 'database error'}`);
@@ -203,7 +229,9 @@ export function Chat({ userId, lunarData }) {
         text: userText,
         timestamp: new Date().toISOString(),
         lunarContext: lunarData,
-        metadata: voiceMeta
+        metadata: voiceMeta,
+        audioPath: voiceMeta?.audioPath || null,
+        audioBlob: voiceMeta?.audioBlob || null
       };
       setRecentVoiceTurns((prev) => [newVoiceTurn, ...prev].slice(0, 3));
     }
@@ -214,6 +242,8 @@ export function Chat({ userId, lunarData }) {
       role: 'user',
       content: userText,
       input_type: inputType,
+      metadata: voiceMeta || {},
+      audio_path: voiceMeta?.audioPath || null,
       created_at: new Date().toISOString()
     };
     setMessages((prev) => [...prev, tempUserMsg]);
@@ -265,6 +295,8 @@ export function Chat({ userId, lunarData }) {
         role: 'user',
         content: userText,
         input_type: inputType,
+        metadata: voiceMeta || {},
+        audio_path: voiceMeta?.audioPath || null,
         created_at: tempUserMsg.created_at
       };
 
@@ -524,14 +556,31 @@ export function Chat({ userId, lunarData }) {
                 {/* Save Voice to Echo action for recent voice turns */}
                 {isVoice && (
                   <div style={{ marginTop: '2px' }}>
-                    {echoSaveSuccessId === msg.id ? (
-                      <span style={{ fontSize: '10.5px', color: '#a7f3d0', fontFamily: 'monospace' }}>
-                        ✓ Saved to Personal Echoes
+                    {echoSaveSuccess?.id === msg.id ? (
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          color: echoSaveSuccess.hasAudio ? '#a7f3d0' : '#fbbf24',
+                          fontFamily: 'monospace'
+                        }}
+                      >
+                        {echoSaveSuccess.hasAudio
+                          ? '✓ Saved with Original Audio'
+                          : '✓ Saved as Text Echo (Audio unavailable)'}
                       </span>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleSaveVoiceTurnAsEcho({ id: msg.id, text: msg.content, timestamp: msg.created_at, lunarContext: lunarData })}
+                        onClick={() =>
+                          handleSaveVoiceTurnAsEcho({
+                            id: msg.id,
+                            text: msg.content,
+                            timestamp: msg.created_at,
+                            lunarContext: lunarData,
+                            metadata: msg.metadata,
+                            audioPath: msg.metadata?.audioPath || msg.audio_path
+                          })
+                        }
                         disabled={savingEchoTurnId === msg.id}
                         style={{
                           background: 'none',
