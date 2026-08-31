@@ -956,6 +956,8 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
           'tests.reported',
           'build.reported',
           'commit.reported',
+          'deployment.reported',
+          'verification.reported',
           'session.completed',
           'session.failed'
         ];

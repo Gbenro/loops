@@ -374,5 +374,46 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(intent.intent).toBe('session_action');
     expect(intent.requiresCompletion).toBe(true);
   });
+
+  // ─── 9. Distinct Evidence-Event Typing & Verification Reporting ─────────
+
+  it('preserves distinct event types for verification and deployment evidence without collapsing to implementation', () => {
+    const events = [
+      {
+        id: 'evt_v_1',
+        issueId: 'iss_test_1',
+        sessionId: 'sess_1',
+        userId: mockUser.id,
+        type: 'verification.reported',
+        author: 'gemini',
+        content: 'Autonomous wake circuit independently verified',
+        metadata: { verifiedBy: 'gemini', branch: 'main' },
+        createdAt: '2026-08-31T01:36:00.000Z'
+      },
+      {
+        id: 'evt_d_1',
+        issueId: 'iss_test_1',
+        sessionId: 'sess_1',
+        userId: mockUser.id,
+        type: 'deployment.reported',
+        author: 'gemini',
+        content: 'Deployed to production',
+        metadata: { environment: 'production', url: 'https://loops-app.com' },
+        createdAt: '2026-08-31T01:40:00.000Z'
+      }
+    ];
+
+    const evidence = computeFactualEvidence(events);
+    expect(evidence.verification.reported).toBe(true);
+    expect(evidence.verification.verifiedBy).toBe('gemini');
+    expect(evidence.verification.notes).toBe('Autonomous wake circuit independently verified');
+
+    expect(evidence.deployment.reported).toBe(true);
+    expect(evidence.deployment.environment).toBe('production');
+    expect(evidence.deployment.url).toBe('https://loops-app.com');
+
+    // Ensure implementation is NOT falsely marked as reported when only verification occurred
+    expect(evidence.implementation.reported).toBe(false);
+  });
 });
 

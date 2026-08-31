@@ -813,6 +813,39 @@ Commands:
               return;
             }
 
+            if (pathname === '/report-deployment') {
+              const event = await apiCall(`/api/dev/sessions/${session.id}/events`, 'POST', {
+                issueId: activeIssueId,
+                type: 'deployment.reported',
+                author: 'gemini',
+                content: body.details || `Deployment to ${body.environment || 'production'}`,
+                metadata: {
+                  environment: body.environment || 'production',
+                  url: body.url,
+                  ...body.metadata
+                }
+              }, activeToken || session.token);
+              res.writeHead(201, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify(event));
+              return;
+            }
+
+            if (pathname === '/report-verification') {
+              const event = await apiCall(`/api/dev/sessions/${session.id}/events`, 'POST', {
+                issueId: activeIssueId,
+                type: 'verification.reported',
+                author: 'gemini',
+                content: body.notes || body.content || 'Verification completed successfully',
+                metadata: {
+                  verifiedBy: body.verifiedBy || 'gemini',
+                  ...body.metadata
+                }
+              }, activeToken || session.token);
+              res.writeHead(201, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify(event));
+              return;
+            }
+
             if (pathname === '/complete') {
               const ended = await apiCall(`/api/dev/sessions/${session.id}/end`, 'POST', {
                 summary: body.finalSummary || 'Session completed successfully'
