@@ -537,12 +537,15 @@ export async function createDevSession(
     repository?: string;
     branch?: string;
     environment?: Record<string, any>;
+    status?: 'pending' | 'connected';
   }
 ): Promise<DevSession> {
   const id = generateId('sess');
   const now = new Date().toISOString();
-  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const isPending = params.status === 'pending';
+  // Unclaimed pending assignments expose metadata only; active issue token is minted on claim
+  const token = isPending ? null : 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const tokenExpiresAt = isPending ? null : new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   const insertData = {
     id,
@@ -550,7 +553,7 @@ export async function createDevSession(
     user_id: userId,
     agent: params.agent || 'gemini',
     model: params.model || null,
-    status: 'connected',
+    status: isPending ? 'pending' : 'connected',
     token,
     token_expires_at: tokenExpiresAt,
     repository: params.repository || null,
@@ -767,12 +770,12 @@ export async function listPendingDevSessions(
   userId: string
 ): Promise<{ items: Array<{ id: string; issueId: string; agent: string; startedAt: string; status: string }> }> {
   const now = new Date().toISOString();
+  // Return unclaimed pending sessions (without token expiry constraint) and active connected sessions
   const { data, error } = await supabase
     .from('dev_sessions')
-    .select('id, issue_id, agent, status, started_at')
+    .select('id, issue_id, agent, status, started_at, token_expires_at')
     .eq('user_id', userId)
-    .eq('status', 'connected')
-    .gt('token_expires_at', now)
+    .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`)
     .order('started_at', { ascending: false });
 
   if (error) throw error;
@@ -784,6 +787,58 @@ export async function listPendingDevSessions(
       startedAt: row.started_at,
       status: row.status
     }))
+  };
+}
+
+/**
+ * Atomically claim a pending or connected session and mint/activate a fresh short-lived issue token
+ */
+export async function claimPendingDevSession(
+  supabase: SupabaseClient,
+  userId: string,
+  sessionId: string,
+  agentName: string = 'gemini'
+): Promise<{ session: DevSession; token: string }> {
+  const now = new Date().toISOString();
+  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+  const { data: existingSession, error: fetchErr } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchErr || !existingSession) {
+    throw new Error(`Dev Session ${sessionId} not found`);
+  }
+
+  if (existingSession.status !== 'pending' && existingSession.status !== 'connected') {
+    throw new Error(`Dev Session ${sessionId} cannot be claimed (current status: ${existingSession.status})`);
+  }
+
+  const { data, error } = await supabase
+    .from('dev_sessions')
+    .update({
+      status: 'connected',
+      token,
+      token_expires_at: tokenExpiresAt,
+      last_activity_at: now,
+      agent: agentName
+    })
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to claim Dev Session');
+  }
+
+  return {
+    session: mapDevSession(data),
+    token
   };
 }
 
@@ -825,11 +880,22 @@ export async function appendDevEvent(
 
   if (error || !data) throw new Error(error?.message || 'Failed to append Dev Event');
 
-  // Update session last_activity_at and extend token
-  const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  // Update session last_activity_at and extend token only for connected sessions
+  const { data: currentSession } = await supabase
+    .from('dev_sessions')
+    .select('status')
+    .eq('id', params.sessionId)
+    .eq('user_id', userId)
+    .single();
+
+  const updateFields: any = { last_activity_at: now };
+  if (currentSession?.status === 'connected') {
+    updateFields.token_expires_at = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  }
+
   await supabase
     .from('dev_sessions')
-    .update({ last_activity_at: now, token_expires_at: tokenExpiresAt })
+    .update(updateFields)
     .eq('id', params.sessionId)
     .eq('user_id', userId);
 
@@ -1193,6 +1259,20 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       res.json(pending);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/sessions/:id/claim', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { agent } = req.body || {};
+      const claimed = await claimPendingDevSession(supabase, userId, req.params.id, agent || 'gemini');
+      res.json(claimed);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   });
 

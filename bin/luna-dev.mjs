@@ -661,15 +661,82 @@ async function runBridge() {
     return;
   }
 
+  if (command === 'watch-pending' || command === 'watch') {
+    const timeoutIdx = args.indexOf('--timeout');
+    const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : 300;
+    const autoClaim = args.includes('--claim');
+
+    console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (timeout: ${timeoutSec}s)...`);
+
+    const startTime = Date.now();
+    let pollIntervalMs = 4000;
+
+    const poll = async () => {
+      if ((Date.now() - startTime) >= timeoutSec * 1000) {
+        console.log(JSON.stringify({
+          status: 'timeout',
+          message: `No new pending assignments arrived within ${timeoutSec} seconds.`,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+        process.exit(0);
+      }
+
+      try {
+        const pending = await apiCall('/api/dev/agent/pending-sessions', 'GET', null, activeToken);
+        const sessions = pending.items || [];
+
+        if (sessions.length > 0) {
+          const target = sessions[0];
+          console.log('\n================================================================');
+          console.log(`✦ [AUTONOMOUS WAKE TRIGGER] New pending assignment discovered: ${target.issueId}`);
+          console.log(`  Session ID: ${target.id}`);
+          console.log(`  Agent:      ${target.agent}`);
+          console.log(`  Status:     ${target.status}`);
+          console.log(`  Started:    ${target.startedAt}`);
+          console.log('================================================================\n');
+
+          let claimResult = null;
+          if (autoClaim) {
+            console.log(`✦ [Pending Watcher] Auto-claiming session ${target.id}...`);
+            try {
+              claimResult = await apiCall(`/api/dev/sessions/${target.id}/claim`, 'POST', { agent: 'gemini' }, activeToken);
+              console.log(`  ✓ Successfully claimed session. Active token minted: ${claimResult.token ? claimResult.token.substring(0, 10) + '...' : 'n/a'}`);
+            } catch (claimErr) {
+              console.warn(`  [Notice] Claim error: ${claimErr.message}`);
+            }
+          }
+
+          console.log(JSON.stringify({
+            status: 'assignment_discovered',
+            session: target,
+            claim: claimResult,
+            timestamp: new Date().toISOString()
+          }, null, 2));
+
+          process.exit(0);
+        }
+      } catch (err) {
+        // network transient
+      }
+
+      pollIntervalMs = Math.min(pollIntervalMs * 1.25, 20000);
+      setTimeout(poll, pollIntervalMs);
+    };
+
+    poll();
+    return;
+  }
+
   if (command !== 'start') {
     console.log(`
-Usage: luna-dev [check|list|get|question|listen|wait-event|resume|start|login|set-token] [issueId] [options]
+Usage: luna-dev [check|list|get|question|listen|wait-event|watch-pending|resume|start|login|set-token] [issueId] [options]
 
 Commands:
   check / list             Check assigned development issues from Luna
   get <issueId>            Retrieve complete details, latest session & evidence for an issue
   question <issueId> "..." Post a developer.question to the issue on Development Service
   wait-event <issueId>     Wait for next Luna event and exit with payload to wake the agent
+  watch-pending            Monitor for unclaimed/pending Luna assignments and wake the agent
   listen <issueId>         Actively listen for Luna decisions/events and automatically resume execution
   start [issueId]          Start local ephemeral Dev Bridge RPC & active listener on 127.0.0.1:4888
   login <email> <password> Authenticate with Supabase and store token locally

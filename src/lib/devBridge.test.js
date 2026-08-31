@@ -4,7 +4,10 @@ import {
   mapDevIssue,
   mapDevSession,
   mapDevEvent,
-  classifyEventIntent
+  classifyEventIntent,
+  createDevSession,
+  listPendingDevSessions,
+  claimPendingDevSession
 } from '../../mcp-server/dist/devBridge.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
 
@@ -242,6 +245,16 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     let insertedSession = null;
     const customHandlers = {
       dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'sess_123', status: 'connected' },
+                error: null
+              })
+            })
+          })
+        }),
         insert: vi.fn().mockImplementation((data) => {
           insertedSession = data;
           return {
@@ -478,6 +491,136 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(discoveryItems[0].loops).toBeUndefined();
     expect(discoveryItems[0].echoes).toBeUndefined();
     expect(discoveryItems[0].token).toBeUndefined(); // Raw session token is not leaked in discovery listing
+  });
+
+  // ─── 11. Cold-Start Pending Assignment Lifecycle & Atomic Claim ────────
+
+  it('creates an unclaimed pending session without active token credentials', async () => {
+    let inserted = null;
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'sess_pending_123', status: 'pending' },
+                error: null
+              })
+            })
+          })
+        }),
+        insert: vi.fn().mockImplementation((data) => {
+          inserted = data;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { ...data, id: 'sess_pending_123' },
+                error: null
+              })
+            })
+          };
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis()
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const session = await createDevSession(supabase, mockUser.id, {
+      issueId: 'iss_cold_start_1',
+      status: 'pending'
+    });
+
+    expect(session.status).toBe('pending');
+    expect(session.token).toBeUndefined();
+    expect(session.tokenExpiresAt).toBeUndefined();
+    expect(inserted.status).toBe('pending');
+    expect(inserted.token).toBeNull();
+    expect(inserted.token_expires_at).toBeNull();
+  });
+
+  it('atomically claims a pending session, minting an active token with 30m rolling expiration', async () => {
+    let updated = null;
+    const pendingSessionRow = {
+      id: 'sess_pending_999',
+      issue_id: 'iss_cold_start_999',
+      user_id: mockUser.id,
+      agent: 'gemini',
+      model: null,
+      status: 'pending',
+      token: null,
+      token_expires_at: null,
+      repository: null,
+      branch: null,
+      environment: {},
+      started_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString()
+    };
+
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: pendingSessionRow, error: null })
+            })
+          })
+        }),
+        update: vi.fn().mockImplementation((data) => {
+          updated = data;
+          return {
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { ...pendingSessionRow, ...data },
+                    error: null
+                  })
+                })
+              })
+            })
+          };
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const result = await claimPendingDevSession(supabase, mockUser.id, 'sess_pending_999', 'gemini');
+
+    expect(result.session.status).toBe('connected');
+    expect(result.token).toMatch(/^dtk_/);
+    expect(updated.status).toBe('connected');
+    expect(updated.token).toMatch(/^dtk_/);
+    expect(new Date(updated.token_expires_at).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('rejects claim attempts on sessions that are already ended or invalid', async () => {
+    const endedSessionRow = {
+      id: 'sess_ended_999',
+      issue_id: 'iss_cold_start_999',
+      user_id: mockUser.id,
+      status: 'ended'
+    };
+
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: endedSessionRow, error: null })
+            })
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    await expect(
+      claimPendingDevSession(supabase, mockUser.id, 'sess_ended_999', 'gemini')
+    ).rejects.toThrow(/cannot be claimed/);
   });
 });
 
