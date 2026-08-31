@@ -674,14 +674,13 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
   });
 
   it('validates dedicated Development discovery credentials (dsc_...) and rejects invalid tokens', async () => {
-    const valid = await validateDevDiscoveryToken('dsc_luna_dev_bridge_discovery_token_2026');
+    const valid = await validateDevDiscoveryToken('dsc_test_machine_discovery_credential_123');
     expect(valid).not.toBeNull();
     expect(valid.valid).toBe(true);
     expect(valid.userId).toBeDefined();
 
-    const randomDiscovery = await validateDevDiscoveryToken('dsc_random_machine_discovery_12345');
-    expect(randomDiscovery).not.toBeNull();
-    expect(randomDiscovery.valid).toBe(true);
+    const shortToken = await validateDevDiscoveryToken('dsc_short');
+    expect(shortToken).toBeNull();
 
     const invalid = await validateDevDiscoveryToken('invalid_token_xyz');
     expect(invalid).toBeNull();

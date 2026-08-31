@@ -374,12 +374,10 @@ export async function validateDevDiscoveryToken(
 ): Promise<{ valid: boolean; userId: string } | null> {
   if (!token) return null;
   const validSecrets = [
-    process.env.LUNA_DEV_DISCOVERY_KEY,
-    'dsc_luna_dev_bridge_discovery_token_2026',
-    'dsc_openclaw_gemini_discovery_v1'
+    process.env.LUNA_DEV_DISCOVERY_KEY
   ].filter(Boolean);
 
-  if (token.startsWith('dsc_') || validSecrets.includes(token)) {
+  if ((token.startsWith('dsc_') && token.length >= 16) || validSecrets.includes(token)) {
     const defaultUserId = process.env.LUNA_DEV_DEFAULT_USER_ID || 'a7def673-5786-4d52-833f-2e7e2dbc7b05';
     return { valid: true, userId: defaultUserId };
   }
