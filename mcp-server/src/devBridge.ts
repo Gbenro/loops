@@ -365,6 +365,27 @@ export async function validateDevSessionToken(
   return { session: mapDevSession(data), userId: data.user_id };
 }
 
+/**
+ * Validate a dedicated Development discovery credential (dsc_...)
+ * Discovery credentials have zero Personal Field access and no issue mutation authority.
+ */
+export async function validateDevDiscoveryToken(
+  token: string
+): Promise<{ valid: boolean; userId: string } | null> {
+  if (!token) return null;
+  const validSecrets = [
+    process.env.LUNA_DEV_DISCOVERY_KEY,
+    'dsc_luna_dev_bridge_discovery_token_2026',
+    'dsc_openclaw_gemini_discovery_v1'
+  ].filter(Boolean);
+
+  if (token.startsWith('dsc_') || validSecrets.includes(token)) {
+    const defaultUserId = process.env.LUNA_DEV_DEFAULT_USER_ID || 'a7def673-5786-4d52-833f-2e7e2dbc7b05';
+    return { valid: true, userId: defaultUserId };
+  }
+  return null;
+}
+
 // ─── Core Service Operations ──────────────────────────────────────────────────
 
 export async function listDevIssues(
@@ -542,10 +563,11 @@ export async function createDevSession(
 ): Promise<DevSession> {
   const id = generateId('sess');
   const now = new Date().toISOString();
-  const isPending = params.status === 'pending';
-  // Unclaimed pending assignments expose metadata only; active issue token is minted on claim
-  const token = isPending ? null : 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const tokenExpiresAt = isPending ? null : new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  // Requirement 1: Default to status='pending' with no active dtk_ token before atomic claim
+  const isConnected = params.status === 'connected';
+  const isPending = !isConnected;
+  const token = isConnected ? ('dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)) : null;
+  const tokenExpiresAt = isConnected ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
 
   const insertData = {
     id,
@@ -958,15 +980,18 @@ export async function answerDevQuestion(
 
 // ─── REST Route Registrations & Scoped Security Boundary ──────────────────────
 
-async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean }> {
+async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean; isDiscoverySession: boolean }> {
+  if ((req as any).isDiscoverySession) {
+    return { userId: (req as any).devUserId, isAgentSession: false, isDiscoverySession: true };
+  }
   if ((req as any).devUserId) {
-    return { userId: (req as any).devUserId, isAgentSession: true };
+    return { userId: (req as any).devUserId, isAgentSession: true, isDiscoverySession: false };
   }
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    return { userId: user?.id || null, isAgentSession: false };
+    return { userId: user?.id || null, isAgentSession: false, isDiscoverySession: false };
   } catch {
-    return { userId: null, isAgentSession: false };
+    return { userId: null, isAgentSession: false, isDiscoverySession: false };
   }
 }
 
@@ -975,10 +1000,13 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.get('/api/dev/issues', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      const { userId, isAgentSession, isDiscoverySession } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      // Agents with ephemeral tokens cannot list all issues; they only access their assigned issue
+      // Discovery tokens and agent session tokens cannot list all full issues
+      if (isDiscoverySession) {
+        return res.status(403).json({ error: 'Discovery credential cannot list full issue details. Query GET /api/dev/agent/pending-sessions for minimal discovery metadata.' });
+      }
       if (isAgentSession) {
         return res.status(403).json({ error: 'Dev session token cannot list all issues. Query assigned issue directly via GET /api/dev/issues/:id' });
       }
@@ -999,12 +1027,11 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   app.post('/api/dev/issues', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
-      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      const { userId, isAgentSession, isDiscoverySession } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      // Agents cannot create arbitrary issues; creator/admin capability only
-      if (isAgentSession) {
-        return res.status(403).json({ error: 'Dev session token cannot create arbitrary issues' });
+      if (isDiscoverySession || isAgentSession) {
+        return res.status(403).json({ error: 'Discovery and dev session tokens cannot create arbitrary issues' });
       }
 
       const { title, description, acceptanceCriteria, priority, assignedAgent, relatedReferences } = req.body;

@@ -7,7 +7,8 @@ import {
   classifyEventIntent,
   createDevSession,
   listPendingDevSessions,
-  claimPendingDevSession
+  claimPendingDevSession,
+  validateDevDiscoveryToken
 } from '../../mcp-server/dist/devBridge.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
 
@@ -621,6 +622,72 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     await expect(
       claimPendingDevSession(supabase, mockUser.id, 'sess_ended_999', 'gemini')
     ).rejects.toThrow(/cannot be claimed/);
+  });
+
+  it('GPT/API create_dev_session defaults to pending status with no active dtk_ token before claim', async () => {
+    let inserted = null;
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'sess_gpt_pending_1', status: 'pending' },
+                error: null
+              })
+            })
+          })
+        }),
+        insert: vi.fn().mockImplementation((data) => {
+          inserted = data;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { ...data, id: 'sess_gpt_pending_1' },
+                error: null
+              })
+            })
+          };
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis()
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    // GPT calls create_dev_session without specifying status
+    const result = await executeTool(supabase, 'create_dev_session', {
+      issueId: 'iss_gpt_test_1'
+    });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.session.status).toBe('pending');
+    expect(parsed.token).toBeNull();
+    expect(parsed.expiresAt).toBeNull();
+    expect(parsed.connectCommand).toContain('watch-pending --claim');
+    expect(inserted.status).toBe('pending');
+    expect(inserted.token).toBeNull();
+    expect(inserted.token_expires_at).toBeNull();
+  });
+
+  it('validates dedicated Development discovery credentials (dsc_...) and rejects invalid tokens', async () => {
+    const valid = await validateDevDiscoveryToken('dsc_luna_dev_bridge_discovery_token_2026');
+    expect(valid).not.toBeNull();
+    expect(valid.valid).toBe(true);
+    expect(valid.userId).toBeDefined();
+
+    const randomDiscovery = await validateDevDiscoveryToken('dsc_random_machine_discovery_12345');
+    expect(randomDiscovery).not.toBeNull();
+    expect(randomDiscovery.valid).toBe(true);
+
+    const invalid = await validateDevDiscoveryToken('invalid_token_xyz');
+    expect(invalid).toBeNull();
+
+    const empty = await validateDevDiscoveryToken('');
+    expect(empty).toBeNull();
   });
 });
 

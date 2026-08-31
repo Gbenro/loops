@@ -12,7 +12,9 @@ import {
   appendDevEvent,
   listDevEvents,
   answerDevQuestion,
-  computeFactualEvidence
+  computeFactualEvidence,
+  claimPendingDevSession,
+  listPendingDevSessions
 } from './devBridge.js';
 
 // Schema types for tool declarations
@@ -570,15 +572,37 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'authorize_dev_session',
-    description: 'Authorize and start an ephemeral Dev Session for an issue, issuing a short-lived scoped credential for the local Dev Bridge.',
+    description: 'Authorize a Dev Session for an issue. Defaults to pending state for unclaimed assignments where active credentials are minted upon atomic claim.',
     inputSchema: {
       type: 'object',
       properties: {
         issueId: { type: 'string', description: 'Issue ID to authorize' },
         agent: { type: 'string', description: 'Agent identifier (default: gemini)' },
-        model: { type: 'string', description: 'Model identifier (default: gemini-2.5-pro)' }
+        model: { type: 'string', description: 'Model identifier (default: gemini-2.5-pro)' },
+        status: { type: 'string', enum: ['pending', 'connected'], description: 'Session lifecycle status (default: pending)' }
       },
       required: ['issueId']
+    }
+  },
+  {
+    name: 'claim_dev_session',
+    description: 'Atomically claim an unclaimed pending Dev Session, minting a fresh short-lived ephemeral token (dtk_) and activating the 30-minute rolling authority.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Dev Session ID to claim' },
+        agent: { type: 'string', description: 'Claiming agent identifier (default: gemini)' }
+      },
+      required: ['sessionId']
+    }
+  },
+  {
+    name: 'list_pending_dev_sessions',
+    description: 'List pending and active development sessions for discovery with minimal metadata and zero Personal Field access.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
     }
   },
   {
@@ -2138,17 +2162,45 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         model: args.model,
         repository: args.repository,
         branch: args.branch,
-        environment: args.environment
+        environment: args.environment,
+        status: args.status || 'pending'
       });
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             session,
-            token: session.token,
-            expiresAt: session.tokenExpiresAt,
-            connectCommand: `node bin/luna-dev.mjs start ${args.issueId} --token ${session.token}`
+            token: session.token || null,
+            expiresAt: session.tokenExpiresAt || null,
+            connectCommand: session.token 
+              ? `node bin/luna-dev.mjs start ${args.issueId} --token ${session.token}`
+              : `node bin/luna-dev.mjs watch-pending --claim`
           }, null, 2)
+        }]
+      };
+    }
+
+    case 'claim_dev_session': {
+      const claimed = await claimPendingDevSession(supabase, userId, args.sessionId, args.agent || 'gemini');
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            session: claimed.session,
+            token: claimed.token,
+            expiresAt: claimed.session.tokenExpiresAt,
+            connectCommand: `node bin/luna-dev.mjs start ${claimed.session.issueId} --token ${claimed.token}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    case 'list_pending_dev_sessions': {
+      const pending = await listPendingDevSessions(supabase, userId);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(pending, null, 2)
         }]
       };
     }

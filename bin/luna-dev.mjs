@@ -36,6 +36,7 @@ function getAuthFilePath() {
 function resolveAuthToken(explicitToken = null) {
   if (explicitToken) return explicitToken;
   if (process.env.LUNA_DEV_TOKEN) return process.env.LUNA_DEV_TOKEN;
+  if (process.env.LUNA_DEV_DISCOVERY_KEY) return process.env.LUNA_DEV_DISCOVERY_KEY;
   if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN;
 
   // Check ~/.luna/auth.json
@@ -43,8 +44,11 @@ function resolveAuthToken(explicitToken = null) {
     const authFile = getAuthFilePath();
     if (fs.existsSync(authFile)) {
       const data = JSON.parse(fs.readFileSync(authFile, 'utf8'));
+      if (data.discoveryToken) return data.discoveryToken;
+      if (data.devToken) return data.devToken;
       if (data.accessToken) return data.accessToken;
       if (data.access_token) return data.access_token;
+      if (data.token) return data.token;
     }
   } catch {}
 
@@ -53,8 +57,10 @@ function resolveAuthToken(explicitToken = null) {
     const envLocal = path.join(process.cwd(), '.env.local');
     if (fs.existsSync(envLocal)) {
       const content = fs.readFileSync(envLocal, 'utf8');
-      const match = content.match(/LUNA_DEV_TOKEN=([^\r\n]+)/);
-      if (match) return match[1].trim();
+      const discMatch = content.match(/LUNA_DEV_DISCOVERY_KEY=([^\r\n]+)/);
+      if (discMatch) return discMatch[1].trim();
+      const devMatch = content.match(/LUNA_DEV_TOKEN=([^\r\n]+)/);
+      if (devMatch) return devMatch[1].trim();
     }
   } catch {}
 
@@ -666,6 +672,13 @@ async function runBridge() {
     const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : 300;
     const autoClaim = args.includes('--claim');
 
+    // Requirement 4: CLI watch-pending must fail visibly/actionably on missing discovery credentials
+    if (!activeToken) {
+      console.error('\n✗ [Pending Watcher] Fatal Error: No discovery credential found.');
+      console.error('  Provide --token <discovery_or_dev_token>, or configure LUNA_DEV_DISCOVERY_KEY / LUNA_DEV_TOKEN in ~/.luna/auth.json or environment.');
+      process.exit(1);
+    }
+
     console.log(`\n✦ [Pending Watcher] Monitoring for unclaimed/pending Luna assignments (timeout: ${timeoutSec}s)...`);
 
     const startTime = Date.now();
@@ -716,7 +729,14 @@ async function runBridge() {
           process.exit(0);
         }
       } catch (err) {
-        // network transient
+        // Requirement 4: Fail actionably on rejected/invalid credentials
+        const msg = (err.message || '').toLowerCase();
+        if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('invalid') || msg.includes('missing token')) {
+          console.error(`\n✗ [Pending Watcher] Fatal Authentication Error: ${err.message}`);
+          console.error('  Discovery credentials rejected by Development Service. Aborting watcher.');
+          process.exit(1);
+        }
+        console.warn(`  [Pending Watcher] Network transient: ${err.message}`);
       }
 
       pollIntervalMs = Math.min(pollIntervalMs * 1.25, 20000);

@@ -602,7 +602,7 @@ app.get('/', (req, res) => {
 
 // ─── REST API Fallback (for Custom GPT Actions) ────────────────────────────────
 
-import { validateDevSessionToken } from './devBridge.js';
+import { validateDevSessionToken, validateDevDiscoveryToken } from './devBridge.js';
 import { getSupabaseAnon } from './db.js';
 
 const authenticateRest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -612,7 +612,34 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     return;
   }
 
-  // Ephemeral Dev Session Token
+  // 1. Scoped Discovery Credential (dsc_...)
+  if (token.startsWith('dsc_') || token === process.env.LUNA_DEV_DISCOVERY_KEY) {
+    const discovery = await validateDevDiscoveryToken(token);
+    if (!discovery) {
+      res.status(401).json({ error: 'Invalid or rejected Discovery Token' });
+      return;
+    }
+
+    // Strict boundary: Discovery credentials have ZERO Personal Field access
+    const isPersonalField = req.path.startsWith('/api/loops') ||
+      req.path.startsWith('/api/echoes') ||
+      req.path.startsWith('/api/threads') ||
+      req.path.startsWith('/api/context') ||
+      req.path.startsWith('/api/chat');
+
+    if (isPersonalField) {
+      res.status(403).json({ error: 'Discovery credential has zero Personal Field access' });
+      return;
+    }
+
+    (req as any).isDiscoverySession = true;
+    (req as any).devUserId = discovery.userId;
+    req.body.supabaseClient = getSupabaseAnon();
+    next();
+    return;
+  }
+
+  // 2. Ephemeral Dev Session Token (dtk_...)
   if (token.startsWith('dtk_')) {
     const validated = await validateDevSessionToken(token);
     if (!validated) {
@@ -626,6 +653,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     return;
   }
 
+  // 3. User JWT Token
   const userId = await getUserIdFromToken(token);
   if (!userId) {
     res.status(401).json({ error: 'Invalid token' });

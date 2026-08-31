@@ -1028,7 +1028,13 @@ export const LUNA_OPENAPI_SPEC = {
                   "agent": { "type": "string", "default": "gemini" },
                   "model": { "type": "string" },
                   "repository": { "type": "string" },
-                  "branch": { "type": "string" }
+                  "branch": { "type": "string" },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "connected"],
+                    "default": "pending",
+                    "description": "Initial session lifecycle state. Defaults to 'pending' for unclaimed assignments where active authority is minted on claim."
+                  }
                 },
                 "required": ["issueId"]
               }
@@ -1118,6 +1124,85 @@ export const LUNA_OPENAPI_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DevEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/sessions/{id}/claim": {
+      "post": {
+        "operationId": "claim_dev_session",
+        "summary": "Atomically Claim Pending Dev Session",
+        "description": "Atomically claims an unclaimed pending Dev Session, mints a fresh ephemeral token (dtk_), and activates 30-minute rolling authority.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Session ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent": { "type": "string", "default": "gemini" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Claimed session and fresh ephemeral token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": { "$ref": "#/components/schemas/DevSession" },
+                    "token": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/agent/pending-sessions": {
+      "get": {
+        "operationId": "list_pending_dev_sessions",
+        "summary": "List Pending Dev Sessions",
+        "description": "Lists pending and active development sessions for discovery with minimal metadata and zero Personal Field access.",
+        "responses": {
+          "200": {
+            "description": "List of pending sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "issueId": { "type": "string" },
+                          "agent": { "type": "string" },
+                          "startedAt": { "type": "string" },
+                          "status": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2531,8 +2616,10 @@ const DEV_PATH_KEYS = [
   '/api/dev/issues/{id}',
   '/api/dev/issues/{id}/events',
   '/api/dev/sessions',
+  '/api/dev/sessions/{id}/claim',
   '/api/dev/sessions/{id}/events',
-  '/api/dev/sessions/{id}/end'
+  '/api/dev/sessions/{id}/end',
+  '/api/dev/agent/pending-sessions'
 ];
 
 export const LUNA_CORE_OPENAPI_SPEC = {
