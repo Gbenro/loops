@@ -163,6 +163,17 @@ function classifyEventIntent(event) {
     };
   }
 
+  // 5. Explicit session handoff transitions
+  if (type === 'session.handoff' || metadata.action === 'handoff') {
+    return {
+      intent: 'session_action',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Session handoff transition requested'
+    };
+  }
+
   // 5. Authorized implementation directives
   if (metadata.status === 'approved_for_implementation' || /APPROVED — Implement|PROCEED WITH IMPLEMENTATION|EXECUTE IMPLEMENTATION/i.test(content)) {
     return {
@@ -510,14 +521,30 @@ async function runBridge() {
   }
 
   if (command === 'wait-event' || command === 'wait') {
-    const issueId = paramArg;
-    if (!issueId) {
-      console.error('Usage: luna-dev wait-event <issueId> [--timeout <seconds>] [--since <eventId>]');
-      process.exit(1);
-    }
-
+    let issueId = paramArg;
     const timeoutIdx = args.indexOf('--timeout');
     const timeoutSec = timeoutIdx !== -1 && args[timeoutIdx + 1] ? parseInt(args[timeoutIdx + 1], 10) : 300;
+
+    if (!issueId) {
+      console.log(`\n✦ [Event Waiter] No specific issue provided. Checking for pending authorized Gemini sessions...`);
+      try {
+        const pending = await apiCall('/api/dev/agent/pending-sessions', 'GET', null, activeToken);
+        const sessions = pending.items || [];
+        if (sessions.length > 0) {
+          issueId = sessions[0].issueId;
+          console.log(`  ✓ Auto-discovered pending session ${sessions[0].id} on issue ${issueId}`);
+        } else {
+          console.log(`  [Notice] No active pending sessions found.`);
+        }
+      } catch (err) {
+        console.warn(`  [Notice] Pending session check: ${err.message}`);
+      }
+    }
+
+    if (!issueId) {
+      console.error('Usage: luna-dev wait-event <issueId> [--timeout <seconds>]');
+      process.exit(1);
+    }
 
     console.log(`\n✦ [Event Waiter] Monitoring Issue ${issueId} for incoming Luna events (timeout: ${timeoutSec}s)...`);
 
@@ -565,6 +592,55 @@ async function runBridge() {
             console.log(`  Intent:   ${intent.intent}`);
             console.log(`  Content:  "${evt.content}"`);
             console.log('================================================================\n');
+
+            // Handle in-band secure session handoff
+            if (evt.type === 'session.handoff' && evt.metadata?.handoffTicket && evt.metadata?.nextSessionId) {
+              console.log(`\n✦ [Secure Session Handoff] Detected handoff to ${evt.metadata.nextIssueId} / ${evt.metadata.nextSessionId}`);
+              try {
+                const claimRes = await apiCall('/api/dev/sessions/claim-handoff', 'POST', {
+                  fromSessionId: evt.sessionId,
+                  targetSessionId: evt.metadata.nextSessionId,
+                  targetIssueId: evt.metadata.nextIssueId,
+                  handoffTicket: evt.metadata.handoffTicket
+                }, activeToken);
+
+                console.log(`✓ Claimed target session token for session: ${claimRes.sessionId}`);
+
+                // Post acknowledgment to new session
+                await apiCall(`/api/dev/sessions/${claimRes.sessionId}/events`, 'POST', {
+                  issueId: claimRes.issueId,
+                  type: 'session.started',
+                  author: 'gemini',
+                  content: `Dev Session ${claimRes.sessionId} attached autonomously via secure handoff. Ready for directives.`,
+                  metadata: {
+                    handoffFrom: evt.sessionId,
+                    previousIssueId: issueId
+                  }
+                }, claimRes.token);
+
+                console.log(JSON.stringify({
+                  status: 'event_received',
+                  event: evt,
+                  intent: {
+                    intent: 'session_action',
+                    isReadOnly: true,
+                    requiresWorkflow: false,
+                    requiresHandoff: true
+                  },
+                  handoff: {
+                    newIssueId: claimRes.issueId,
+                    newSessionId: claimRes.sessionId,
+                    newToken: claimRes.token
+                  },
+                  issueId,
+                  timestamp: new Date().toISOString()
+                }, null, 2));
+
+                process.exit(0);
+              } catch (claimErr) {
+                console.error(`✗ Error claiming handoff ticket: ${claimErr.message}`);
+              }
+            }
 
             console.log(JSON.stringify({
               status: 'event_received',

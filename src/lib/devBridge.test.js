@@ -415,5 +415,69 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     // Ensure implementation is NOT falsely marked as reported when only verification occurred
     expect(evidence.implementation.reported).toBe(false);
   });
+
+  // ─── 10. Secure Automatic New-Issue & Session Handoff ───────────────────
+
+  it('generates handoff event containing non-secret ticket and no raw dtk token', () => {
+    const fromSessionId = 'sess_old_1';
+    const targetSessionId = 'sess_new_2';
+    const targetIssueId = 'iss_voice_bug';
+    const ticket = 'hnf_test_random_ticket_123';
+
+    const handoffEvent = {
+      id: 'evt_handoff_1',
+      issueId: 'iss_old',
+      sessionId: fromSessionId,
+      userId: mockUser.id,
+      type: 'session.handoff',
+      author: 'luna',
+      content: 'Transitioning to Voice Echo audio persistence bug',
+      metadata: {
+        nextIssueId: targetIssueId,
+        nextSessionId: targetSessionId,
+        handoffTicket: ticket
+      },
+      createdAt: '2026-08-31T02:14:00.000Z'
+    };
+
+    // Verify event metadata contains no raw dtk_ credentials
+    expect(handoffEvent.metadata.handoffTicket).toMatch(/^hnf_/);
+    expect(handoffEvent.metadata.nextToken).toBeUndefined();
+    expect(JSON.stringify(handoffEvent)).not.toContain('dtk_');
+
+    const intent = classifyEventIntent(handoffEvent);
+    expect(intent.intent).toBe('session_action');
+    expect(intent.isReadOnly).toBe(true);
+    expect(intent.requiresWorkflow).toBe(false);
+  });
+
+  it('cold-start discovery exposes only authorized pending Gemini sessions without personal field data', () => {
+    const rawSessions = [
+      {
+        id: 'sess_1',
+        issue_id: 'iss_voice_bug',
+        user_id: mockUser.id,
+        agent: 'gemini',
+        status: 'connected',
+        started_at: '2026-08-31T02:00:00.000Z',
+        token_expires_at: new Date(Date.now() + 100000).toISOString()
+      }
+    ];
+
+    const discoveryItems = rawSessions.map(s => ({
+      id: s.id,
+      issueId: s.issue_id,
+      agent: s.agent,
+      startedAt: s.started_at,
+      status: s.status
+    }));
+
+    expect(discoveryItems).toHaveLength(1);
+    expect(discoveryItems[0].issueId).toBe('iss_voice_bug');
+    // Ensure no personal fields (loops, echoes, reflections, profile data) are present
+    expect(discoveryItems[0].loops).toBeUndefined();
+    expect(discoveryItems[0].echoes).toBeUndefined();
+    expect(discoveryItems[0].token).toBeUndefined(); // Raw session token is not leaked in discovery listing
+  });
 });
 

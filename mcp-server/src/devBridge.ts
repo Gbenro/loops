@@ -53,6 +53,7 @@ export type DevEventType =
   | 'verification.reported'
   | 'session.completed'
   | 'session.failed'
+  | 'session.handoff'
   | 'session.ended';
 
 export interface DevEvent {
@@ -298,6 +299,18 @@ export function classifyEventIntent(event: Partial<DevEvent>): EventIntent {
       requiresCompletion: true,
       directiveSummary: 'Explicit session completion requested',
       matchedRule: 'session_completed_type'
+    };
+  }
+
+  // 5. Explicit session handoff transitions
+  if (type === 'session.handoff' || metadata.action === 'handoff') {
+    return {
+      intent: 'session_action',
+      isReadOnly: true,
+      requiresWorkflow: false,
+      requiresCompletion: false,
+      directiveSummary: 'Session handoff transition requested',
+      matchedRule: 'session_handoff_type'
     };
   }
 
@@ -642,6 +655,138 @@ export async function endDevSession(
   return session;
 }
 
+export async function createHandoffTicket(
+  supabase: SupabaseClient,
+  userId: string,
+  fromSessionId: string,
+  params: {
+    targetIssueId: string;
+    targetSessionId: string;
+    reason?: string;
+  }
+): Promise<{ ticket: string; event: DevEvent }> {
+  // Validate target session exists, belongs to user, and is connected
+  const { data: targetSession, error: targetErr } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', params.targetSessionId)
+    .eq('user_id', userId)
+    .eq('issue_id', params.targetIssueId)
+    .single();
+
+  if (targetErr || !targetSession) {
+    throw new Error(`Target Dev Session not found or mismatch: ${params.targetSessionId}`);
+  }
+
+  const ticket = 'hnf_' + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min single-use ticket
+
+  const env = targetSession.environment || {};
+  const updatedEnv = {
+    ...env,
+    handoffTicket: {
+      ticket,
+      fromSessionId,
+      expiresAt
+    }
+  };
+
+  await supabase
+    .from('dev_sessions')
+    .update({ environment: updatedEnv })
+    .eq('id', params.targetSessionId)
+    .eq('user_id', userId);
+
+  // Append session.handoff event to fromSessionId WITHOUT exposing the raw dtk_ token
+  const fromSession = await getDevSession(supabase, userId, fromSessionId);
+  const event = await appendDevEvent(supabase, userId, {
+    issueId: fromSession.issueId,
+    sessionId: fromSessionId,
+    type: 'session.handoff',
+    author: 'luna',
+    content: params.reason || `Transitioning to new issue ${params.targetIssueId} (session ${params.targetSessionId})`,
+    metadata: {
+      nextIssueId: params.targetIssueId,
+      nextSessionId: params.targetSessionId,
+      handoffTicket: ticket
+    }
+  });
+
+  return { ticket, event };
+}
+
+export async function claimHandoffTicket(
+  supabase: SupabaseClient,
+  userId: string,
+  fromSessionId: string,
+  params: {
+    targetIssueId: string;
+    targetSessionId: string;
+    handoffTicket: string;
+  }
+): Promise<{ token: string; issueId: string; sessionId: string }> {
+  const { data: targetSession, error } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', params.targetSessionId)
+    .eq('user_id', userId)
+    .eq('issue_id', params.targetIssueId)
+    .single();
+
+  if (error || !targetSession) {
+    throw new Error(`Target Dev Session ${params.targetSessionId} not found`);
+  }
+
+  const storedTicket = targetSession.environment?.handoffTicket;
+  if (!storedTicket || storedTicket.ticket !== params.handoffTicket) {
+    throw new Error('Invalid or expired handoff ticket');
+  }
+
+  if (new Date(storedTicket.expiresAt).getTime() < Date.now()) {
+    throw new Error('Handoff ticket has expired');
+  }
+
+  // Consume ticket immediately (single use)
+  const env = { ...targetSession.environment };
+  delete env.handoffTicket;
+  await supabase
+    .from('dev_sessions')
+    .update({ environment: env, status: 'connected', last_activity_at: new Date().toISOString() })
+    .eq('id', params.targetSessionId)
+    .eq('user_id', userId);
+
+  return {
+    token: targetSession.token,
+    issueId: targetSession.issue_id,
+    sessionId: targetSession.id
+  };
+}
+
+export async function listPendingDevSessions(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{ items: Array<{ id: string; issueId: string; agent: string; startedAt: string; status: string }> }> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('dev_sessions')
+    .select('id, issue_id, agent, status, started_at')
+    .eq('user_id', userId)
+    .eq('status', 'connected')
+    .gt('token_expires_at', now)
+    .order('started_at', { ascending: false });
+
+  if (error) throw error;
+  return {
+    items: (data || []).map((row: any) => ({
+      id: row.id,
+      issueId: row.issue_id,
+      agent: row.agent || 'gemini',
+      startedAt: row.started_at,
+      status: row.status
+    }))
+  };
+}
+
 /**
  * Append-oriented, auditable event stream
  */
@@ -959,7 +1104,8 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
           'deployment.reported',
           'verification.reported',
           'session.completed',
-          'session.failed'
+          'session.failed',
+          'session.handoff'
         ];
         if (!allowedAgentTypes.includes(type)) {
           return res.status(403).json({ error: `Event type '${type}' is restricted to admin/creator authority` });
@@ -976,6 +1122,75 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       });
 
       res.status(201).json(event);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Handoff & Discovery Endpoints
+  app.post('/api/dev/sessions/:id/handoff', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (isAgentSession && (req as any).devSession?.id !== req.params.id) {
+        return res.status(403).json({ error: `Dev session token is scoped only to session ${(req as any).devSession?.id}` });
+      }
+
+      const { targetIssueId, targetSessionId, reason } = req.body;
+      if (!targetIssueId || !targetSessionId) {
+        return res.status(400).json({ error: 'targetIssueId and targetSessionId are required' });
+      }
+
+      const result = await createHandoffTicket(supabase, userId, req.params.id, {
+        targetIssueId,
+        targetSessionId,
+        reason
+      });
+
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/sessions/claim-handoff', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId, isAgentSession } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const fromSessionId = isAgentSession ? (req as any).devSession?.id : req.body.fromSessionId;
+      if (!fromSessionId) {
+        return res.status(400).json({ error: 'fromSessionId is required' });
+      }
+
+      const { targetIssueId, targetSessionId, handoffTicket } = req.body;
+      if (!targetIssueId || !targetSessionId || !handoffTicket) {
+        return res.status(400).json({ error: 'targetIssueId, targetSessionId, and handoffTicket are required' });
+      }
+
+      const claimed = await claimHandoffTicket(supabase, userId, fromSessionId, {
+        targetIssueId,
+        targetSessionId,
+        handoffTicket
+      });
+
+      res.json(claimed);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/agent/pending-sessions', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const pending = await listPendingDevSessions(supabase, userId);
+      res.json(pending);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
