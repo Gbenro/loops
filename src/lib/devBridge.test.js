@@ -818,5 +818,74 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].issueId).toBe('iss_newer_1');
   });
+
+  it('listPendingDevSessions auto-creates pending sessions for unassigned ready issues', async () => {
+    const targetUserId = 'usr_auto_ready_1';
+    let insertedSession = null;
+
+    const customHandlers = {
+      dev_issues: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [{ id: 'iss_ready_new_1', assigned_agent: 'gemini' }],
+              error: null
+            })
+          })
+        })
+      },
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            or: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 'sess_auto_1',
+                    issue_id: 'iss_ready_new_1',
+                    agent: 'gemini',
+                    status: 'pending',
+                    started_at: new Date().toISOString()
+                  }
+                ],
+                error: null
+              })
+            }),
+            eq: vi.fn().mockReturnValue({
+              or: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: 'sess_auto_1',
+                      issue_id: 'iss_ready_new_1',
+                      agent: 'gemini',
+                      status: 'pending',
+                      started_at: new Date().toISOString()
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        }),
+        insert: vi.fn().mockImplementation((data) => {
+          insertedSession = data;
+          return { error: null };
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const result = await listPendingDevSessions(supabase, targetUserId);
+    expect(insertedSession).toBeDefined();
+    expect(insertedSession.issue_id).toBe('iss_ready_new_1');
+    expect(insertedSession.status).toBe('pending');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].issueId).toBe('iss_ready_new_1');
+  });
 });
+
 

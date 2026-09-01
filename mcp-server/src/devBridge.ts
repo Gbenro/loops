@@ -794,6 +794,44 @@ export async function listPendingDevSessions(
     throw new Error('Authorized userId is required for pending session discovery');
   }
   const now = new Date().toISOString();
+
+  // 1. Auto-surface any Ready issues that do not yet have an active/pending session
+  try {
+    const { data: readyIssues } = await supabase
+      .from('dev_issues')
+      .select('id, assigned_agent')
+      .eq('user_id', userId)
+      .eq('status', 'ready');
+
+    if (readyIssues && readyIssues.length > 0) {
+      for (const rIssue of readyIssues) {
+        const { data: existingSess } = await supabase
+          .from('dev_sessions')
+          .select('id, status, token_expires_at')
+          .eq('issue_id', rIssue.id)
+          .eq('user_id', userId)
+          .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`)
+          .limit(1);
+
+        if (!existingSess || existingSess.length === 0) {
+          const sessId = generateId('sess');
+          await supabase.from('dev_sessions').insert({
+            id: sessId,
+            issue_id: rIssue.id,
+            user_id: userId,
+            agent: rIssue.assigned_agent || 'gemini',
+            status: 'pending',
+            started_at: now,
+            last_activity_at: now
+          });
+        }
+      }
+    }
+  } catch (discoveryErr) {
+    console.warn('[Discovery] Auto-session minting for ready issues failed:', discoveryErr);
+  }
+
+  // 2. Query all pending and connected sessions
   let query = supabase
     .from('dev_sessions')
     .select('id, issue_id, agent, status, started_at, token_expires_at')
@@ -927,6 +965,41 @@ export async function appendDevEvent(
       .update(updateFields)
       .eq('id', params.sessionId)
       .eq('user_id', userId);
+  }
+
+  // Automatic lifecycle status transition on milestone events
+  try {
+    if (params.type === 'implementation.started') {
+      const { data: currentIssue } = await supabase
+        .from('dev_issues')
+        .select('status')
+        .eq('id', params.issueId)
+        .eq('user_id', userId)
+        .single();
+      if (currentIssue && (currentIssue.status === 'ready' || currentIssue.status === 'proposed')) {
+        await supabase
+          .from('dev_issues')
+          .update({ status: 'in_progress', updated_at: now })
+          .eq('id', params.issueId)
+          .eq('user_id', userId);
+      }
+    } else if (params.type === 'verification.reported') {
+      const { data: currentIssue } = await supabase
+        .from('dev_issues')
+        .select('status')
+        .eq('id', params.issueId)
+        .eq('user_id', userId)
+        .single();
+      if (currentIssue && (currentIssue.status === 'in_progress' || currentIssue.status === 'ready')) {
+        await supabase
+          .from('dev_issues')
+          .update({ status: 'verification', updated_at: now })
+          .eq('id', params.issueId)
+          .eq('user_id', userId);
+      }
+    }
+  } catch (statusTransitionErr) {
+    console.warn('[Lifecycle] Auto status transition warning:', statusTransitionErr);
   }
 
   return mapDevEvent(data);
