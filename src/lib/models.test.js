@@ -133,7 +133,7 @@ const MODEL_REGISTRY = [
     key: 'openrouter-qwen-3.8-max',
     provider: 'openrouter',
     accessProvider: 'openrouter',
-    modelId: 'qwen/qwen-3.8-max',
+    modelId: 'qwen/qwen3.8-max',
     displayName: 'OpenRouter — Qwen 3.8 Max (Open-Weight Multimodal Flagship)',
     enabled: true,
     capabilityTier: 'frontier',
@@ -149,7 +149,7 @@ const MODEL_REGISTRY = [
     key: 'openrouter-kimi-k2.5',
     provider: 'openrouter',
     accessProvider: 'openrouter',
-    modelId: 'moonshot/kimi-k2.5',
+    modelId: 'moonshotai/kimi-k2.5',
     displayName: 'OpenRouter — Kimi K2.5 (Open-Weight Multimodal Agent)',
     enabled: true,
     capabilityTier: 'strong',
@@ -259,6 +259,27 @@ describe('Model Configuration Registry — August 2026 Frontier Lineup', () => {
 
     const qwen = resolveModelMock('qwen-3.8', allKeys);
     expect(qwen.provider).toBe('openrouter');
-    expect(qwen.modelId).toBe('qwen/qwen-3.8-max');
+    expect(qwen.modelId).toBe('qwen/qwen3.8-max');
+  });
+
+  it('validates OpenRouter canonical model ID formats and rejects invalid hyphenated Qwen ID', () => {
+    const openRouterModels = MODEL_REGISTRY.filter(m => m.provider === 'openrouter');
+    
+    // Explicit expected canonical OpenRouter IDs
+    const expectedMappings = {
+      'openrouter-glm-5.3': 'z-ai/glm-5.3',
+      'openrouter-deepseek-v4-pro': 'deepseek/deepseek-v4-pro',
+      'openrouter-deepseek-v4-flash': 'deepseek/deepseek-v4-flash',
+      'openrouter-qwen-3.8-max': 'qwen/qwen3.8-max',
+      'openrouter-kimi-k2.5': 'moonshotai/kimi-k2.5'
+    };
+
+    openRouterModels.forEach(model => {
+      expect(expectedMappings).toHaveProperty(model.key);
+      expect(model.modelId).toBe(expectedMappings[model.key]);
+      // Ensure known-invalid hyphenated ID is never emitted
+      expect(model.modelId).not.toBe('qwen/qwen-3.8-max');
+      expect(model.modelId).not.toBe('moonshot/kimi-k2.5');
+    });
   });
 });
