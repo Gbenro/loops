@@ -183,4 +183,32 @@ describe('Luna Expanded Model Laboratory & Catalog Validation Test Suite', () =>
     expect(record.systemPromptHash).toBe(systemPromptHash);
     expect(record.costUsd).toBeGreaterThan(0);
   });
+
+  // ─── 7. Production Regression Tests: Resolver & Selector Integrity ─────────
+
+  it('guarantees every enabled model resolves to valid accessProvider and modelId', async () => {
+    const userId = 'usr_test_production';
+    const enabledModels = MODEL_REGISTRY.filter(m => m.enabled);
+
+    for (const model of enabledModels) {
+      const resolved = await resolveModel(model.key, userId);
+      expect(resolved).toBeDefined();
+      expect(resolved.key).toBe(model.key);
+      expect(resolved.modelId).toBeTruthy();
+      expect(['openrouter', 'anthropic', 'openai', 'google']).toContain(resolved.accessProvider);
+    }
+  });
+
+  it('specifically resolves openrouter-deepseek-v4-pro-0813 to OpenRouter access provider', async () => {
+    const userId = 'usr_test_production';
+    const deepseek = await resolveModel('openrouter-deepseek-v4-pro-0813', userId);
+    expect(deepseek.key).toBe('openrouter-deepseek-v4-pro-0813');
+    expect(deepseek.accessProvider).toBe('openrouter');
+    expect(deepseek.modelId).toBe('deepseek/deepseek-v4-pro-0813');
+
+    // Also shorthand alias
+    const deepseekAlias = await resolveModel('openrouter-deepseek-v4-pro', userId);
+    expect(deepseekAlias.key).toBe('openrouter-deepseek-v4-pro-0813');
+    expect(deepseekAlias.accessProvider).toBe('openrouter');
+  });
 });

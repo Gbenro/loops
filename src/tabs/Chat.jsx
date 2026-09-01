@@ -578,19 +578,25 @@ export function Chat({ userId, lunarData }) {
               fontFamily: 'sans-serif'
             }}
           >
-            <optgroup label="OpenRouter Models (Open Frontier)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
-              <option value="openrouter-deepseek-v4-pro">DeepSeek V4 Pro (Open Frontier)</option>
-              <option value="openrouter-deepseek-v4-flash">DeepSeek V4 Flash (Open Economy)</option>
-              <option value="openrouter-glm-5.3">GLM 5.3 (Open Frontier)</option>
-              <option value="openrouter-qwen-3.8-max">Qwen 3.8 Max (Open Multimodal)</option>
-              <option value="openrouter-kimi-k2.5">Kimi K2.5 (Open Multimodal)</option>
+            <optgroup label="Proprietary / Closed Frontier Models" style={{ background: '#0d1527', color: '#f5e6c8', fontWeight: 'bold' }}>
+              <option value="anthropic-fable-5">Claude Fable 5 (Agentic Baseline · 1M Ctx)</option>
+              <option value="anthropic-sonnet-5">Claude Sonnet 5 (Frontier Reasoning · 1M Ctx)</option>
+              <option value="anthropic-opus-5">Claude Opus 5 (Deep Reasoning · 1M Ctx)</option>
+              <option value="openai-gpt-5.6-sol">GPT-5.6 Sol (Multi-Step Agent · 1.05M Ctx)</option>
+              <option value="openai-gpt-5.6-luna">GPT-5.6 Luna (Conversational · 1.05M Ctx)</option>
+              <option value="gemini-3.7-flash">Gemini 3.7 Flash (Native Audio & Multimodal · 1.05M Ctx)</option>
+              <option value="xai-grok-4.6">Grok 4.6 (Frontier Reasoning · 500k Ctx)</option>
             </optgroup>
-            <optgroup label="Direct Frontier Models" style={{ background: '#0d1527', color: '#f5e6c8', fontWeight: 'bold' }}>
-              <option value="anthropic-opus-5">Claude Opus 5 (Frontier)</option>
-              <option value="anthropic-fable">Claude Fable 5 (Agentic)</option>
-              <option value="openai-sol">GPT-5.6 Sol (Frontier)</option>
-              <option value="gemini-3.7-flash">Gemini 3.7 Flash (Fast)</option>
-              <option value="gemini-3.1-pro">Gemini 3.1 Pro (2M Context)</option>
+            <optgroup label="Open-Weight Frontier Models (OpenRouter)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
+              <option value="openrouter-deepseek-v4-pro-0813">DeepSeek V4 Pro 0813 (Frontier Reasoning · 1.05M Ctx)</option>
+              <option value="openrouter-deepseek-v4-flash">DeepSeek V4 Flash (Economy Engine · 1.05M Ctx)</option>
+              <option value="openrouter-qwen-3.8-max">Qwen 3.8 Max (Multimodal Flagship · 1M Ctx)</option>
+              <option value="openrouter-qwen-3.6-35b-a3b">Qwen 3.6 35B-A3B (Dense Reasoning · 262k Ctx)</option>
+              <option value="openrouter-qwen-3.6-27b">Qwen 3.6 27B (Efficiency Agent · 262k Ctx)</option>
+              <option value="openrouter-glm-5.3">GLM 5.3 (Frontier Long-Context · 1.31M Ctx)</option>
+              <option value="openrouter-glm-5.2">GLM 5.2 (Standard Baseline · 1.05M Ctx)</option>
+              <option value="openrouter-minimax-m2.5">MiniMax M2.5 (Conversational · 204k Ctx)</option>
+              <option value="openrouter-kimi-k2.5">Kimi K2.5 (Multimodal Agent · 262k Ctx)</option>
             </optgroup>
           </select>
         </div>

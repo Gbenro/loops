@@ -1026,7 +1026,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       // 3. Resolve Model via Config Registry (Authoritative session model fallback)
       const requestedModelKey = modelKey || currentSessionModel || DEFAULT_MODEL_KEY;
       modelConfig = await resolveModel(requestedModelKey, user.id);
-      const { provider, modelId, key: resolvedKey } = modelConfig;
+      const { provider, accessProvider, modelId, key: resolvedKey } = modelConfig;
+      const targetProvider = accessProvider || provider;
 
       // Upsert / Persist session record with authoritative model_key
       const { data: existingSessionCheck } = await supabase
@@ -1144,7 +1145,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
       // Multi-step Tool Calling Loop (up to 8 steps for complex search + attach workflows)
       while (loopCount < 8) {
-        if (provider === 'anthropic') {
+        if (targetProvider === 'anthropic') {
           const anthropicTools = getAnthropicTools();
           const response = await callClaude(modelId, agentMessages, systemPrompt, anthropicTools);
 
@@ -1192,7 +1193,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
             loopCount++;
             continue;
           }
-        } else if (provider === 'google') {
+        } else if (targetProvider === 'google') {
           const geminiTools = getGeminiTools();
           const response = await callGemini(modelId, agentMessages, systemPrompt, geminiTools);
 
@@ -1241,7 +1242,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
             loopCount++;
             continue;
           }
-        } else if (provider === 'openrouter') {
+        } else if (targetProvider === 'openrouter') {
           // OpenRouter Adapter
           const openAiTools = getOpenAiTools();
           const responseMsg = await callOpenRouter(modelId, agentMessages, systemPrompt, openAiTools);
@@ -1345,16 +1346,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       // Guarantee complete assistant response if response was empty or if loop exited right after tool calls
       if (!finalResponseText || !finalResponseText.trim()) {
         try {
-          if (provider === 'anthropic') {
+          if (targetProvider === 'anthropic') {
             const finalResp = await callClaude(modelId, agentMessages, systemPrompt, []);
             const textBlocks = finalResp.content?.filter((b: any) => b.type === 'text') || [];
             if (textBlocks.length > 0) finalResponseText = textBlocks.map((b: any) => b.text).join('\n');
-          } else if (provider === 'google') {
+          } else if (targetProvider === 'google') {
             const finalResp = await callGemini(modelId, agentMessages, systemPrompt, []);
             const parts = finalResp.candidates?.[0]?.content?.parts || [];
             const textParts = parts.filter((p: any) => p.text);
             if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
-          } else if (provider === 'openrouter') {
+          } else if (targetProvider === 'openrouter') {
             const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
             finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
           } else {
