@@ -5,7 +5,7 @@ import { getSupabaseAnon } from './db.js';
 import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
 import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
-import { resolveModel, getUserAllowedModels, MODEL_REGISTRY } from './models.js';
+import { resolveModel, getUserAllowedModels, MODEL_REGISTRY, DEFAULT_MODEL_KEY } from './models.js';
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -865,6 +865,35 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
+  // 3b. PATCH /api/chat/sessions/:id - Update session model or title
+  app.patch(['/api/chat/sessions/:id/model', '/api/chat/sessions/:id'], authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { modelKey, title } = req.body;
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (modelKey) {
+        const resolved = await resolveModel(modelKey, user.id);
+        updates.model_key = resolved.key;
+      }
+      if (title) updates.title = title;
+
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .update(updates)
+        .eq('id', req.params.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json({ session: data });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 4. GET /api/chat/messages - Search conversation messages
   app.get('/api/chat/messages', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
@@ -931,27 +960,57 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('User session not authenticated');
 
-      // 2. Resolve Model via Config Registry
-      modelConfig = await resolveModel(modelKey, user.id);
-      const { provider, modelId, key: resolvedKey } = modelConfig;
-
-      // 3. Resolve Session ID
+      // 2. Resolve Session ID and Session Model
+      let currentSessionModel: string | undefined = undefined;
       if (!sessionId) {
         const { data: existingSessions } = await supabase
           .from('chat_sessions')
-          .select('id')
+          .select('id, model_key')
+          .order('updated_at', { ascending: false })
           .limit(1);
 
         if (existingSessions && existingSessions.length > 0) {
           sessionId = existingSessions[0].id;
+          currentSessionModel = existingSessions[0].model_key;
         } else {
           sessionId = generateId('session');
-          await supabase.from('chat_sessions').insert({
-            id: sessionId,
-            user_id: user.id,
-            title: 'Continuous Reflection'
-          });
         }
+      } else {
+        const { data: sessionRow } = await supabase
+          .from('chat_sessions')
+          .select('id, model_key')
+          .eq('id', sessionId)
+          .maybeSingle();
+        if (sessionRow) {
+          currentSessionModel = sessionRow.model_key;
+        }
+      }
+
+      // 3. Resolve Model via Config Registry (Authoritative session model fallback)
+      const requestedModelKey = modelKey || currentSessionModel || DEFAULT_MODEL_KEY;
+      modelConfig = await resolveModel(requestedModelKey, user.id);
+      const { provider, modelId, key: resolvedKey } = modelConfig;
+
+      // Upsert / Persist session record with authoritative model_key
+      const { data: existingSessionCheck } = await supabase
+        .from('chat_sessions')
+        .select('id, model_key')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (!existingSessionCheck) {
+        await supabase.from('chat_sessions').insert({
+          id: sessionId,
+          user_id: user.id,
+          title: 'Continuous Reflection',
+          model_key: resolvedKey
+        });
+      } else if (modelKey && existingSessionCheck.model_key !== resolvedKey) {
+        // Explicit modelKey passed by user updates the session
+        await supabase
+          .from('chat_sessions')
+          .update({ model_key: resolvedKey, updated_at: new Date().toISOString() })
+          .eq('id', sessionId);
       }
 
       // Save user message to database with input provenance
@@ -1396,6 +1455,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
       res.json({
         sessionId,
+        modelKey: resolvedKey,
         message: {
           id: assistantMessageId,
           role: 'assistant',

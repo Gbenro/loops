@@ -26,6 +26,8 @@ export interface ModelConfig {
   defaultPriority: number;
 }
 
+export const DEFAULT_MODEL_KEY = 'anthropic-fable';
+
 /**
  * Luna Rotating Test Bench & Model Laboratory (August 2026 Frontier Lineup):
  * Curated 10 strategically diverse models across capability tiers, open-weight vs proprietary, and economics.

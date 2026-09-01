@@ -81,10 +81,11 @@ export function Chat({ userId, lunarData }) {
     async function initChat() {
       try {
         setError('');
-        // Fetch or create default session
+        // Fetch or create default session (authoritative model_key source)
         const { data: sessions, error: sessionErr } = await supabase
           .from('chat_sessions')
-          .select('id')
+          .select('id, model_key, title')
+          .order('updated_at', { ascending: false })
           .limit(1);
 
         if (sessionErr) throw sessionErr;
@@ -92,15 +93,20 @@ export function Chat({ userId, lunarData }) {
         let activeSessionId;
         if (sessions && sessions.length > 0) {
           activeSessionId = sessions[0].id;
+          if (sessions[0].model_key) {
+            setSelectedModel(sessions[0].model_key);
+          }
         } else {
-          // Create new session
+          // Create new session with initial model selection
           const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+          const initialModel = selectedModel || 'anthropic-fable';
           const { error: createErr } = await supabase
             .from('chat_sessions')
             .insert({
               id: newId,
               user_id: userId,
-              title: 'Continuous Reflection'
+              title: 'Continuous Reflection',
+              model_key: initialModel
             });
           if (createErr) throw createErr;
           activeSessionId = newId;
@@ -456,7 +462,14 @@ export function Chat({ userId, lunarData }) {
             onChange={(e) => {
               const newModel = e.target.value;
               setSelectedModel(newModel);
-              localStorage.setItem('luna_model_key', newModel);
+              if (sessionId) {
+                supabase
+                  .from('chat_sessions')
+                  .update({ model_key: newModel, updated_at: new Date().toISOString() })
+                  .eq('id', sessionId)
+                  .then(() => {})
+                  .catch(err => console.warn('Failed to update session model_key:', err));
+              }
             }}
             style={{
               flex: 1,

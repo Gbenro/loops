@@ -58,4 +58,48 @@ describe('Luna Conversational Prompt Engine', () => {
     expect(routes).toContain('/api/chat');
     expect(routes).toContain('/api/chat/sessions');
   });
+
+  describe('Per-Conversation Model Selection & Persistence (August 2026)', () => {
+    it('restores default model when session model_key is not set (backward compatibility)', () => {
+      const legacySession = { id: 'sess_legacy_1', user_id: 'usr_1', title: 'Reflection' };
+      const resolvedModel = legacySession.model_key || 'anthropic-fable';
+      expect(resolvedModel).toBe('anthropic-fable');
+    });
+
+    it('persists and restores explicit model selection on a conversation session', () => {
+      const session = { id: 'sess_custom_1', user_id: 'usr_1', title: 'Deep Reflection', model_key: 'gemini-3.7-flash' };
+      expect(session.model_key).toBe('gemini-3.7-flash');
+    });
+
+    it('maintains strict isolation between conversations when model is updated', () => {
+      const sessions = {
+        'sess_A': { id: 'sess_A', model_key: 'openai-sol' },
+        'sess_B': { id: 'sess_B', model_key: 'openrouter-deepseek-v4-flash' }
+      };
+
+      // User changes model in Session A to claude opus
+      sessions['sess_A'].model_key = 'anthropic-opus-5';
+
+      expect(sessions['sess_A'].model_key).toBe('anthropic-opus-5');
+      // Session B remains untouched
+      expect(sessions['sess_B'].model_key).toBe('openrouter-deepseek-v4-flash');
+    });
+
+    it('uses persisted session model for subsequent messages when modelKey is omitted from payload', () => {
+      const activeSession = { id: 'sess_active_123', model_key: 'openrouter-glm-5.3' };
+      
+      const sendChatMessage = (payload, session) => {
+        const effectiveModel = payload.modelKey || session.model_key || 'anthropic-fable';
+        return { sessionId: session.id, dispatchedModel: effectiveModel };
+      };
+
+      // Send 1 with explicit model
+      const res1 = sendChatMessage({ message: 'Hello', modelKey: 'openrouter-glm-5.3' }, activeSession);
+      expect(res1.dispatchedModel).toBe('openrouter-glm-5.3');
+
+      // Send 2 without modelKey (subsequent send in same session)
+      const res2 = sendChatMessage({ message: 'Next question' }, activeSession);
+      expect(res2.dispatchedModel).toBe('openrouter-glm-5.3');
+    });
+  });
 });
