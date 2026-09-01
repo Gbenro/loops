@@ -10,6 +10,8 @@ export function Chat({ userId, lunarData }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [showDrawer, setShowDrawer] = useState(false);
   const [selectedModel, setSelectedModel] = useState(
     localStorage.getItem('luna_model_key') || 'anthropic-fable'
   );
@@ -74,51 +76,55 @@ export function Chat({ userId, lunarData }) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // 1. Fetch active session and messages
+  // 1. Fetch active sessions and messages on initialization
   useEffect(() => {
     if (!userId) return;
 
     async function initChat() {
       try {
         setError('');
-        // Fetch or create default session (authoritative model_key source)
-        const { data: sessions, error: sessionErr } = await supabase
+        // Fetch all conversations for user ordered by recency
+        const { data: userSessions, error: sessionErr } = await supabase
           .from('chat_sessions')
-          .select('id, model_key, title')
-          .order('updated_at', { ascending: false })
-          .limit(1);
+          .select('id, model_key, title, updated_at, created_at')
+          .order('updated_at', { ascending: false });
 
         if (sessionErr) throw sessionErr;
 
-        let activeSessionId;
-        if (sessions && sessions.length > 0) {
-          activeSessionId = sessions[0].id;
-          if (sessions[0].model_key) {
-            setSelectedModel(sessions[0].model_key);
-          }
+        let activeSession;
+        if (userSessions && userSessions.length > 0) {
+          activeSession = userSessions[0];
+          setSessions(userSessions);
         } else {
-          // Create new session with initial model selection
+          // Create initial session with model selection
           const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
           const initialModel = selectedModel || 'anthropic-fable';
-          const { error: createErr } = await supabase
+          const { data: created, error: createErr } = await supabase
             .from('chat_sessions')
             .insert({
               id: newId,
               user_id: userId,
               title: 'Continuous Reflection',
               model_key: initialModel
-            });
+            })
+            .select()
+            .single();
+
           if (createErr) throw createErr;
-          activeSessionId = newId;
+          activeSession = created;
+          setSessions([created]);
         }
 
-        setSessionId(activeSessionId);
+        setSessionId(activeSession.id);
+        if (activeSession.model_key) {
+          setSelectedModel(activeSession.model_key);
+        }
 
-        // Fetch messages for this session
+        // Fetch messages for this active session
         const { data: msgs, error: msgsErr } = await supabase
           .from('chat_messages')
           .select('*')
-          .eq('session_id', activeSessionId)
+          .eq('session_id', activeSession.id)
           .order('created_at', { ascending: true });
 
         if (msgsErr) throw msgsErr;
@@ -131,6 +137,74 @@ export function Chat({ userId, lunarData }) {
 
     initChat();
   }, [userId]);
+
+  // Switch active conversation session
+  const selectSession = async (targetSessionId) => {
+    if (!targetSessionId || targetSessionId === sessionId) {
+      setShowDrawer(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setSessionId(targetSessionId);
+
+      // Restore session model_key
+      const targetSession = sessions.find((s) => s.id === targetSessionId);
+      if (targetSession?.model_key) {
+        setSelectedModel(targetSession.model_key);
+      }
+
+      const { data: msgs, error: msgsErr } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', targetSessionId)
+        .order('created_at', { ascending: true });
+
+      if (msgsErr) throw msgsErr;
+      setMessages(msgs || []);
+      setShowDrawer(false);
+    } catch (err) {
+      console.error('Error switching session:', err);
+      setError('Failed to switch conversation.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Explicitly create a new conversation session
+  const handleCreateNewChat = async () => {
+    if (!userId) return;
+    try {
+      setLoading(true);
+      const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const initialModel = selectedModel || 'anthropic-fable';
+      const title = `Conversation ${sessions.length + 1}`;
+
+      const { data: newSession, error: createErr } = await supabase
+        .from('chat_sessions')
+        .insert({
+          id: newId,
+          user_id: userId,
+          title: title,
+          model_key: initialModel
+        })
+        .select()
+        .single();
+
+      if (createErr) throw createErr;
+
+      setSessions((prev) => [newSession, ...prev]);
+      setSessionId(newId);
+      setMessages([]);
+      setSelectedModel(initialModel);
+      setShowDrawer(false);
+    } catch (err) {
+      console.error('Error creating new session:', err);
+      setError('Failed to create new chat.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 2. Scroll to bottom on new messages
   useEffect(() => {
@@ -397,7 +471,7 @@ export function Chat({ userId, lunarData }) {
           zIndex: 5
         }}
       >
-        {/* Row 1: Title and Lunar Status */}
+        {/* Row 1: Title, Chats Switcher, and Lunar Status */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '18px' }}>✦</span>
@@ -413,6 +487,26 @@ export function Chat({ userId, lunarData }) {
             >
               Luna Direct
             </h1>
+            <button
+              onClick={() => setShowDrawer((prev) => !prev)}
+              aria-label="Toggle chat conversations list"
+              style={{
+                background: showDrawer ? 'rgba(245, 230, 200, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '12px',
+                color: '#f5e6c8',
+                padding: '2px 8px',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <span>💬</span>
+              <span>{sessions.length > 0 ? `${sessions.length} chats` : 'Chats'}</span>
+            </button>
           </div>
           <p
             style={{
@@ -501,6 +595,129 @@ export function Chat({ userId, lunarData }) {
           </select>
         </div>
       </header>
+
+      {/* Conversations Drawer / Sheet */}
+      {showDrawer && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '74px',
+            left: '12px',
+            right: '12px',
+            maxWidth: '400px',
+            background: '#0d1527',
+            border: '1px solid rgba(245, 230, 200, 0.25)',
+            borderRadius: '12px',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.7)',
+            zIndex: 50,
+            padding: '12px',
+            maxHeight: '340px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              paddingBottom: '6px'
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '600', color: '#f5e6c8', fontFamily: 'serif' }}>
+              Conversations ({sessions.length})
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={handleCreateNewChat}
+                style={{
+                  background: 'linear-gradient(135deg, #f5e6c8, #d4af37)',
+                  color: '#080d1a',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                + New Chat
+              </button>
+              <button
+                onClick={() => setShowDrawer(false)}
+                aria-label="Close conversation list"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-text-faint)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '0 4px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {sessions.map((s) => {
+              const isActive = s.id === sessionId;
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => selectSession(s.id)}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: isActive ? 'rgba(245, 230, 200, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    border: isActive ? '1px solid rgba(245, 230, 200, 0.3)' : '1px solid transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'background 0.15s'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        color: isActive ? '#f5e6c8' : '#e0e0e0',
+                        fontWeight: isActive ? '600' : '400',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}
+                    >
+                      {isActive && <span style={{ color: '#d4af37', marginRight: '5px' }}>●</span>}
+                      {s.title || 'Continuous Reflection'}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
+                      {new Date(s.updated_at || s.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: 'var(--color-text-faint)',
+                      fontFamily: 'monospace',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      flexShrink: 0
+                    }}
+                  >
+                    {s.model_key?.replace('anthropic-', '').replace('openrouter-', '').replace('openai-', '') || 'fable'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Messages area */}
       <div

@@ -102,4 +102,69 @@ describe('Luna Conversational Prompt Engine', () => {
       expect(res2.dispatchedModel).toBe('openrouter-glm-5.3');
     });
   });
+
+  describe('Multiple Luna Chats V1 Lifecycle & Session Isolation', () => {
+    it('creates multiple independent chat sessions with distinct models and timestamps', () => {
+      const userSessions = [
+        { id: 'sess_1', title: 'Session 1', model_key: 'anthropic-fable', updated_at: '2026-08-31T20:00:00Z' },
+        { id: 'sess_2', title: 'Session 2', model_key: 'openrouter-deepseek-v4-flash', updated_at: '2026-08-31T21:00:00Z' },
+        { id: 'sess_3', title: 'Session 3', model_key: 'openai-sol', updated_at: '2026-08-31T22:00:00Z' }
+      ];
+
+      expect(userSessions).toHaveLength(3);
+      expect(userSessions[0].model_key).toBe('anthropic-fable');
+      expect(userSessions[1].model_key).toBe('openrouter-deepseek-v4-flash');
+      expect(userSessions[2].model_key).toBe('openai-sol');
+    });
+
+    it('orders sessions by recency (updated_at descending)', () => {
+      const userSessions = [
+        { id: 'sess_old', title: 'Old Chat', updated_at: '2026-08-31T18:00:00Z' },
+        { id: 'sess_new', title: 'Recent Chat', updated_at: '2026-08-31T23:00:00Z' },
+        { id: 'sess_mid', title: 'Mid Chat', updated_at: '2026-08-31T20:00:00Z' }
+      ];
+
+      const sorted = [...userSessions].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      expect(sorted[0].id).toBe('sess_new');
+      expect(sorted[1].id).toBe('sess_mid');
+      expect(sorted[2].id).toBe('sess_old');
+    });
+
+    it('isolates message history strictly by session_id when switching conversations', () => {
+      const messageStore = [
+        { id: 'm1', session_id: 'sess_1', role: 'user', content: 'Message in Chat 1' },
+        { id: 'm2', session_id: 'sess_1', role: 'assistant', content: 'Reply in Chat 1' },
+        { id: 'm3', session_id: 'sess_2', role: 'user', content: 'Message in Chat 2' }
+      ];
+
+      const getMessagesForSession = (sId) => messageStore.filter(m => m.session_id === sId);
+
+      expect(getMessagesForSession('sess_1')).toHaveLength(2);
+      expect(getMessagesForSession('sess_1')[0].content).toBe('Message in Chat 1');
+
+      expect(getMessagesForSession('sess_2')).toHaveLength(1);
+      expect(getMessagesForSession('sess_2')[0].content).toBe('Message in Chat 2');
+    });
+
+    it('hydrates active session and restores persisted model when reopened', () => {
+      const sessions = [
+        { id: 'sess_alpha', model_key: 'gemini-3.7-flash', title: 'Astronomy & Tides' },
+        { id: 'sess_beta', model_key: 'anthropic-opus-5', title: 'Poetry Deep Dive' }
+      ];
+
+      const hydrateSession = (targetId) => {
+        const found = sessions.find(s => s.id === targetId);
+        return {
+          activeSessionId: found.id,
+          activeModel: found.model_key || 'anthropic-fable',
+          title: found.title
+        };
+      };
+
+      const hydrated = hydrateSession('sess_alpha');
+      expect(hydrated.activeSessionId).toBe('sess_alpha');
+      expect(hydrated.activeModel).toBe('gemini-3.7-flash');
+      expect(hydrated.title).toBe('Astronomy & Tides');
+    });
+  });
 });

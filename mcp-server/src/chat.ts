@@ -830,10 +830,40 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .from('chat_sessions')
         .select('*')
         .order('updated_at', { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
       res.json({ sessions: data || [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 2b. POST /api/chat/sessions - Explicitly creates a new chat session
+  app.post('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { title, modelKey } = req.body || {};
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const newSessionId = generateId('session');
+      const resolved = await resolveModel(modelKey || DEFAULT_MODEL_KEY, user.id);
+      const sessionTitle = title?.trim() || 'Continuous Reflection';
+
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .insert({
+          id: newSessionId,
+          user_id: user.id,
+          title: sessionTitle,
+          model_key: resolved.key
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.status(201).json({ session: data });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
