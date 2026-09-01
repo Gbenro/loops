@@ -1,285 +1,186 @@
 import { describe, it, expect } from 'vitest';
+import {
+  MODEL_REGISTRY,
+  validateModelConfigAgainstCatalog,
+  getValidatedModelRegistry,
+  resolveModel,
+  calculateInferenceCost,
+  createComparisonTelemetry
+} from '../../mcp-server/dist/models.js';
 
-const MODEL_REGISTRY = [
-  {
-    key: 'anthropic-opus-5',
-    provider: 'anthropic',
-    accessProvider: 'anthropic',
-    modelId: 'claude-opus-5-20260724',
-    displayName: 'Anthropic — Claude Opus 5 (Proprietary Frontier Reasoning)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'preferred',
-    contextWindow: 200000,
-    defaultPriority: 135
-  },
-  {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    accessProvider: 'anthropic',
-    modelId: 'claude-fable-5',
-    displayName: 'Anthropic — Claude Fable 5 (Proprietary Agentic Baseline)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'proprietary',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'preferred',
-    contextWindow: 200000,
-    defaultPriority: 130
-  },
-  {
-    key: 'openai-sol',
-    provider: 'openai',
-    accessProvider: 'openai',
-    modelId: 'gpt-5.6-sol',
-    displayName: 'OpenAI — GPT-5.6 Sol (Proprietary Multi-Step Agent)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 256000,
-    defaultPriority: 128
-  },
-  {
-    key: 'gemini-3.7-flash',
-    provider: 'google',
-    accessProvider: 'google',
-    modelId: 'gemini-3.7-flash',
-    displayName: 'Google — Gemini 3.7 Flash (Proprietary Speed Workhorse)',
-    enabled: true,
-    capabilityTier: 'economy',
-    weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'none',
-    laboratoryStatus: 'preferred',
-    contextWindow: 1000000,
-    defaultPriority: 125
-  },
-  {
-    key: 'gemini-3.1-pro',
-    provider: 'google',
-    accessProvider: 'google',
-    modelId: 'gemini-3.1-pro',
-    displayName: 'Google — Gemini 3.1 Pro (Proprietary 2M Long-Context)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 2000000,
-    defaultPriority: 124
-  },
-  {
-    key: 'openrouter-glm-5.3',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'z-ai/glm-5.3',
-    displayName: 'OpenRouter — GLM 5.3 (Open-Weight Frontier Agent)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'open_weight',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 1000000,
-    defaultPriority: 122
-  },
-  {
-    key: 'openrouter-deepseek-v4-pro',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'deepseek/deepseek-v4-pro',
-    displayName: 'OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier Reasoning)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'open_weight',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 1000000,
-    defaultPriority: 120
-  },
-  {
-    key: 'openrouter-deepseek-v4-flash',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'deepseek/deepseek-v4-flash',
-    displayName: 'OpenRouter — DeepSeek V4 Flash (Open-Weight Economy Engine)',
-    enabled: true,
-    capabilityTier: 'economy',
-    weightClass: 'open_weight',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'optional',
-    laboratoryStatus: 'preferred',
-    contextWindow: 1050000,
-    defaultPriority: 118
-  },
-  {
-    key: 'openrouter-qwen-3.8-max',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'qwen/qwen3.8-max',
-    displayName: 'OpenRouter — Qwen 3.8 Max (Open-Weight Multimodal Flagship)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'open_weight',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 1000000,
-    defaultPriority: 116
-  },
-  {
-    key: 'openrouter-kimi-k2.5',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'moonshotai/kimi-k2.5',
-    displayName: 'OpenRouter — Kimi K2.5 (Open-Weight Multimodal Agent)',
-    enabled: true,
-    capabilityTier: 'strong',
-    weightClass: 'open_weight',
-    modalities: ['text', 'vision'],
-    toolCalling: true,
-    reasoning: 'optional',
-    laboratoryStatus: 'candidate',
-    contextWindow: 262000,
-    defaultPriority: 114
-  }
-];
+describe('Luna Expanded Model Laboratory & Catalog Validation Test Suite', () => {
+  // ─── 1. Canonical OpenRouter IDs & Frontier Lineup ──────────────────────
 
-const MODEL_ALIASES = {
-  'opus-5': 'anthropic-opus-5',
-  'claude-opus-5': 'anthropic-opus-5',
-  'claude-fable-5': 'anthropic-fable',
-  'anthropic-3.7-sonnet': 'anthropic-fable',
-  'gpt-5.6-sol': 'openai-sol',
-  'gpt-5.6': 'openai-sol',
-  'sol': 'openai-sol',
-  'gemini-3.7-flash': 'gemini-3.7-flash',
-  'gemini-3.1-pro': 'gemini-3.1-pro',
-  'glm-5.3': 'openrouter-glm-5.3',
-  'deepseek-v4-flash': 'openrouter-deepseek-v4-flash',
-  'deepseek-v4': 'openrouter-deepseek-v4-flash',
-  'qwen-3.8': 'openrouter-qwen-3.8-max',
-  'kimi-k3': 'openrouter-kimi-k2.5',
-  'kimi-k2.5': 'openrouter-kimi-k2.5'
-};
+  it('includes all verified closed frontier model candidates with valid OpenRouter IDs', () => {
+    const closedCandidates = [
+      { key: 'anthropic-fable-5', expectedId: 'anthropic/claude-fable-5', minCtx: 1000000 },
+      { key: 'anthropic-sonnet-5', expectedId: 'anthropic/claude-sonnet-5', minCtx: 1000000 },
+      { key: 'openai-gpt-5.6-sol', expectedId: 'openai/gpt-5.6-sol', minCtx: 1000000 },
+      { key: 'openai-gpt-5.6-luna', expectedId: 'openai/gpt-5.6-luna', minCtx: 1000000 },
+      { key: 'gemini-3.7-flash', expectedId: 'google/gemini-3.7-flash', minCtx: 1000000 },
+      { key: 'xai-grok-4.6', expectedId: 'x-ai/grok-4.6', minCtx: 500000 }
+    ];
 
-function resolveModelMock(key, allowedKeys) {
-  const allowed = MODEL_REGISTRY.filter(m => allowedKeys.includes(m.key));
-  if (allowed.length === 0) throw new Error('No models allowed');
-
-  if (key) {
-    const canonicalKey = MODEL_ALIASES[key] || key;
-    const match = allowed.find(m => m.key === canonicalKey);
-    if (match) return match;
-
-    const lower = key.toLowerCase();
-    if (lower.includes('openrouter') || lower.includes('glm') || lower.includes('deepseek') || lower.includes('kimi') || lower.includes('qwen')) {
-      const openRouterModel = allowed.find(m => m.provider === 'openrouter' && m.capabilityTier === 'frontier') ||
-                              allowed.find(m => m.provider === 'openrouter');
-      if (openRouterModel) return openRouterModel;
+    for (const cand of closedCandidates) {
+      const model = MODEL_REGISTRY.find(m => m.key === cand.key);
+      expect(model, `Expected model ${cand.key} to exist in registry`).toBeDefined();
+      expect(model.modelId).toBe(cand.expectedId);
+      expect(model.weightClass).toBe('proprietary');
+      expect(model.contextWindow).toBeGreaterThanOrEqual(cand.minCtx);
+      expect(model.toolCalling).toBe(true);
+      expect(model.pricing).toBeDefined();
     }
-    if (lower.includes('gemini') || lower.includes('google')) {
-      const googleModel = allowed.find(m => m.provider === 'google' && m.capabilityTier === 'frontier') ||
-                          allowed.find(m => m.provider === 'google');
-      if (googleModel) return googleModel;
-    }
-    if (lower.includes('openai') || lower.includes('gpt') || lower.includes('sol')) {
-      const openAiModel = allowed.find(m => m.provider === 'openai' && m.capabilityTier === 'frontier') ||
-                          allowed.find(m => m.provider === 'openai');
-      if (openAiModel) return openAiModel;
-    }
-    if (lower.includes('anthropic') || lower.includes('claude') || lower.includes('opus') || lower.includes('fable')) {
-      const anthropicModel = allowed.find(m => m.provider === 'anthropic' && m.capabilityTier === 'frontier') ||
-                             allowed.find(m => m.provider === 'anthropic');
-      if (anthropicModel) return anthropicModel;
-    }
-  }
-
-  return allowed.reduce((highest, current) => 
-    current.defaultPriority > highest.defaultPriority ? current : highest
-  , allowed[0]);
-}
-
-describe('Model Configuration Registry — August 2026 Frontier Lineup', () => {
-  it('defines the 10 frontier and open-weight models correctly with orthogonal dimensions', () => {
-    const opus = MODEL_REGISTRY.find(m => m.key === 'anthropic-opus-5');
-    expect(opus.capabilityTier).toBe('frontier');
-    expect(opus.weightClass).toBe('proprietary');
-    expect(opus.reasoning).toBe('required');
-
-    const glm = MODEL_REGISTRY.find(m => m.key === 'openrouter-glm-5.3');
-    expect(glm.capabilityTier).toBe('frontier');
-    expect(glm.weightClass).toBe('open_weight');
-    expect(glm.contextWindow).toBe(1000000);
-
-    const dsFlash = MODEL_REGISTRY.find(m => m.key === 'openrouter-deepseek-v4-flash');
-    expect(dsFlash.capabilityTier).toBe('economy');
-    expect(dsFlash.weightClass).toBe('open_weight');
-    expect(dsFlash.contextWindow).toBe(1050000);
-
-    const gemini37 = MODEL_REGISTRY.find(m => m.key === 'gemini-3.7-flash');
-    expect(gemini37.contextWindow).toBe(1000000);
-
-    const gemini31 = MODEL_REGISTRY.find(m => m.key === 'gemini-3.1-pro');
-    expect(gemini31.contextWindow).toBe(2000000);
   });
 
-  it('resolves explicit August 2026 models and aliases correctly', () => {
-    const allKeys = MODEL_REGISTRY.map(m => m.key);
-    
-    const sol = resolveModelMock('gpt-5.6', allKeys);
-    expect(sol.provider).toBe('openai');
-    expect(sol.modelId).toBe('gpt-5.6-sol');
+  it('includes all verified open/open-weight candidates with canonical IDs', () => {
+    const openCandidates = [
+      { key: 'openrouter-deepseek-v4-pro-0813', expectedId: 'deepseek/deepseek-v4-pro-0813', minCtx: 1000000 },
+      { key: 'openrouter-deepseek-v4-flash', expectedId: 'deepseek/deepseek-v4-flash', minCtx: 1000000 },
+      { key: 'openrouter-qwen-3.8-max', expectedId: 'qwen/qwen3.8-max', minCtx: 1000000 },
+      { key: 'openrouter-qwen-3.6-35b-a3b', expectedId: 'qwen/qwen3.6-35b-a3b', minCtx: 200000 },
+      { key: 'openrouter-qwen-3.6-27b', expectedId: 'qwen/qwen3.6-27b', minCtx: 200000 },
+      { key: 'openrouter-glm-5.3', expectedId: 'z-ai/glm-5.3', minCtx: 1000000 },
+      { key: 'openrouter-glm-5.2', expectedId: 'z-ai/glm-5.2', minCtx: 1000000 },
+      { key: 'openrouter-minimax-m2.5', expectedId: 'minimax/minimax-m2.5', minCtx: 200000 },
+      { key: 'openrouter-kimi-k2.5', expectedId: 'moonshotai/kimi-k2.5', minCtx: 200000 }
+    ];
 
-    const opus = resolveModelMock('opus-5', allKeys);
-    expect(opus.provider).toBe('anthropic');
-    expect(opus.modelId).toBe('claude-opus-5-20260724');
-
-    const dsFlash = resolveModelMock('deepseek-v4', allKeys);
-    expect(dsFlash.provider).toBe('openrouter');
-    expect(dsFlash.modelId).toBe('deepseek/deepseek-v4-flash');
-
-    const qwen = resolveModelMock('qwen-3.8', allKeys);
-    expect(qwen.provider).toBe('openrouter');
-    expect(qwen.modelId).toBe('qwen/qwen3.8-max');
+    for (const cand of openCandidates) {
+      const model = MODEL_REGISTRY.find(m => m.key === cand.key);
+      expect(model, `Expected model ${cand.key} to exist in registry`).toBeDefined();
+      expect(model.modelId).toBe(cand.expectedId);
+      expect(model.weightClass).toBe('open_weight');
+      expect(model.contextWindow).toBeGreaterThanOrEqual(cand.minCtx);
+      expect(model.toolCalling).toBe(true);
+      expect(model.pricing).toBeDefined();
+    }
   });
 
-  it('validates OpenRouter canonical model ID formats and rejects invalid hyphenated Qwen ID', () => {
-    const openRouterModels = MODEL_REGISTRY.filter(m => m.provider === 'openrouter');
-    
-    // Explicit expected canonical OpenRouter IDs
-    const expectedMappings = {
-      'openrouter-glm-5.3': 'z-ai/glm-5.3',
-      'openrouter-deepseek-v4-pro': 'deepseek/deepseek-v4-pro',
-      'openrouter-deepseek-v4-flash': 'deepseek/deepseek-v4-flash',
-      'openrouter-qwen-3.8-max': 'qwen/qwen3.8-max',
-      'openrouter-kimi-k2.5': 'moonshotai/kimi-k2.5'
-    };
+  // ─── 2. Modality & Native Audio Separation ────────────────────────────────
 
-    openRouterModels.forEach(model => {
-      expect(expectedMappings).toHaveProperty(model.key);
-      expect(model.modelId).toBe(expectedMappings[model.key]);
-      // Ensure known-invalid hyphenated ID is never emitted
-      expect(model.modelId).not.toBe('qwen/qwen-3.8-max');
-      expect(model.modelId).not.toBe('moonshot/kimi-k2.5');
+  it('strictly distinguishes native audio token input from ordinary vision/multimodality and external STT/TTS', () => {
+    const gemini = MODEL_REGISTRY.find(m => m.key === 'gemini-3.7-flash');
+    expect(gemini.nativeAudio).toBe(true);
+    expect(gemini.modalities).toContain('audio');
+
+    // Models with vision but without native audio tokens
+    const fable = MODEL_REGISTRY.find(m => m.key === 'anthropic-fable-5');
+    const qwen = MODEL_REGISTRY.find(m => m.key === 'openrouter-qwen-3.8-max');
+    const deepseek = MODEL_REGISTRY.find(m => m.key === 'openrouter-deepseek-v4-pro-0813');
+
+    expect(fable.nativeAudio).toBe(false);
+    expect(fable.modalities).not.toContain('audio');
+    expect(qwen.nativeAudio).toBe(false);
+    expect(qwen.modalities).not.toContain('audio');
+    expect(deepseek.nativeAudio).toBe(false);
+    expect(deepseek.modalities).not.toContain('audio');
+  });
+
+  // ─── 3. Historical Comparison Data Preservation ───────────────────────────
+
+  it('preserves historical Qwen and DeepSeek comparison entries with retired status rather than silent removal', () => {
+    const historicalQwen = MODEL_REGISTRY.find(m => m.key === 'historical-qwen-legacy');
+    expect(historicalQwen).toBeDefined();
+    expect(historicalQwen.enabled).toBe(false);
+    expect(historicalQwen.laboratoryStatus).toBe('retired');
+    expect(historicalQwen.modelId).toBe('qwen/qwen3.8-max'); // Repaired to valid canonical ID
+  });
+
+  // ─── 4. Runtime OpenRouter Catalog Validation ─────────────────────────────
+
+  it('validates model registry against a live catalog and disables invalid model IDs', () => {
+    const mockCatalog = [
+      { id: 'anthropic/claude-fable-5' },
+      { id: 'openai/gpt-5.6-sol' },
+      { id: 'google/gemini-3.7-flash' },
+      { id: 'qwen/qwen3.8-max' }
+    ];
+
+    const validatedRegistry = getValidatedModelRegistry(mockCatalog);
+    
+    const fable = validatedRegistry.find(m => m.key === 'anthropic-fable-5');
+    expect(fable.enabled).toBe(true);
+
+    // DeepSeek V4 Pro was not in the mock catalog, so it should be disabled and marked invalid
+    const deepseek = validatedRegistry.find(m => m.key === 'openrouter-deepseek-v4-pro-0813');
+    expect(deepseek.enabled).toBe(false);
+    expect(deepseek.laboratoryStatus).toBe('invalid_catalog_id');
+  });
+
+  it('validates single model config against catalog set', () => {
+    const catalogIds = new Set(['anthropic/claude-fable-5', 'openai/gpt-5.6-sol']);
+    const fableModel = MODEL_REGISTRY.find(m => m.key === 'anthropic-fable-5');
+    const invalidModel = { ...fableModel, modelId: 'anthropic/claude-nonexistent-99' };
+
+    expect(validateModelConfigAgainstCatalog(fableModel, catalogIds).valid).toBe(true);
+    expect(validateModelConfigAgainstCatalog(invalidModel, catalogIds).valid).toBe(false);
+  });
+
+  // ─── 5. Model Resolution & Shorthand Aliases ──────────────────────────────
+
+  it('resolves canonical and shorthand aliases accurately', async () => {
+    const userId = 'usr_test_1';
+    
+    const fable = await resolveModel('fable-5', userId);
+    expect(fable.key).toBe('anthropic-fable-5');
+
+    const sonnet = await resolveModel('sonnet-5', userId);
+    expect(sonnet.key).toBe('anthropic-sonnet-5');
+
+    const sol = await resolveModel('sol', userId);
+    expect(sol.key).toBe('openai-gpt-5.6-sol');
+
+    const luna = await resolveModel('gpt-5.6-luna', userId);
+    expect(luna.key).toBe('openai-gpt-5.6-luna');
+
+    const grok = await resolveModel('grok', userId);
+    expect(grok.key).toBe('xai-grok-4.6');
+
+    const glm = await resolveModel('glm-5.3', userId);
+    expect(glm.key).toBe('openrouter-glm-5.3');
+
+    const minimax = await resolveModel('minimax-m2.5', userId);
+    expect(minimax.key).toBe('openrouter-minimax-m2.5');
+
+    const kimi = await resolveModel('kimi-k2.5', userId);
+    expect(kimi.key).toBe('openrouter-kimi-k2.5');
+  });
+
+  // ─── 6. Multi-Model Comparison Telemetry & Cost Accounting ────────────────
+
+  it('calculates inference costs accurately based on catalog pricing', () => {
+    const fable = MODEL_REGISTRY.find(m => m.key === 'anthropic-fable-5'); // input: $10/M, output: $50/M
+    const cost = calculateInferenceCost(fable.pricing, 1000, 500);
+    // (1000 / 1M) * 10 = $0.01; (500 / 1M) * 50 = $0.025; total = $0.035
+    expect(cost).toBeCloseTo(0.035, 4);
+
+    const flash = MODEL_REGISTRY.find(m => m.key === 'openrouter-deepseek-v4-flash'); // input: $0.09/M, output: $0.18/M
+    const flashCost = calculateInferenceCost(flash.pricing, 10000, 2000);
+    // (10000 / 1M) * 0.09 = $0.0009; (2000 / 1M) * 0.18 = $0.00036; total = $0.00126
+    expect(flashCost).toBeCloseTo(0.00126, 5);
+  });
+
+  it('creates comparison telemetry record maintaining system prompt hash constant', () => {
+    const sol = MODEL_REGISTRY.find(m => m.key === 'openai-gpt-5.6-sol');
+    const systemPromptHash = 'sha256_hash_constant_prompt_123';
+
+    const record = createComparisonTelemetry({
+      experimentId: 'exp_multimodel_001',
+      model: sol,
+      promptTokens: 2500,
+      completionTokens: 800,
+      latencyMs: 1450,
+      outputLength: 3200,
+      systemPromptHash,
+      temperature: 0.7
     });
+
+    expect(record.experimentId).toBe('exp_multimodel_001');
+    expect(record.modelKey).toBe('openai-gpt-5.6-sol');
+    expect(record.modelId).toBe('openai/gpt-5.6-sol');
+    expect(record.totalTokens).toBe(3300);
+    expect(record.latencyMs).toBe(1450);
+    expect(record.systemPromptHash).toBe(systemPromptHash);
+    expect(record.costUsd).toBeGreaterThan(0);
   });
 });

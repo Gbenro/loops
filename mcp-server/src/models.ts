@@ -1,6 +1,6 @@
 export interface ModelConfig {
   key: string;            // internal identifier, e.g., 'openrouter-deepseek-v4-flash'
-  provider: 'openrouter' | 'anthropic' | 'openai' | 'google';
+  provider: 'openrouter' | 'anthropic' | 'openai' | 'google' | 'xai' | 'z-ai' | 'deepseek' | 'qwen' | 'minimax' | 'moonshot';
   accessProvider: 'openrouter' | 'anthropic' | 'openai' | 'google';
   modelId: string;        // official provider API identifier
   displayName: string;
@@ -9,10 +9,12 @@ export interface ModelConfig {
   // Orthogonal metadata dimensions
   capabilityTier: 'frontier' | 'strong' | 'medium' | 'economy';
   weightClass: 'open_weight' | 'proprietary';
-  modalities: ('text' | 'vision' | 'audio')[];
+  modalities: ('text' | 'vision' | 'audio' | 'video' | 'file')[];
+  nativeAudio: boolean;   // True ONLY if the model natively processes audio tokens, not derived from Luna STT/TTS
   toolCalling: boolean;
+  structuredOutputs: boolean;
   reasoning: 'none' | 'optional' | 'required';
-  laboratoryStatus: 'experimental' | 'candidate' | 'preferred' | 'retired';
+  laboratoryStatus: 'experimental' | 'candidate' | 'preferred' | 'retired' | 'invalid_catalog_id';
 
   // Physical & Economic parameters
   contextWindow: number;
@@ -23,262 +25,488 @@ export interface ModelConfig {
     cachedInputCostPer1M?: number;
   };
   
+  isPinned: boolean;         // True for exact versioned snapshots; false for floating latest aliases
   defaultPriority: number;
 }
 
 export const DEFAULT_MODEL_KEY = 'anthropic-fable';
 
 /**
- * Luna Rotating Test Bench & Model Laboratory (August 2026 Frontier Lineup):
- * Curated 10 strategically diverse models across capability tiers, open-weight vs proprietary, and economics.
+ * Luna Rotating Test Bench & Model Laboratory (Expanded Frontier Lineup):
+ * Curated open vs closed models with exact catalog validation and full modality breakdown.
  */
 export const MODEL_REGISTRY: ModelConfig[] = [
-  // ─── 1. Proprietary Frontier Reasoning & Agentic Leaders ──────────────────
+  // ─── 1. Closed / Proprietary Frontier Reasoning & Agentic Leaders ────────
+  {
+    key: 'anthropic-fable-5',
+    provider: 'anthropic',
+    accessProvider: 'openrouter',
+    modelId: 'anthropic/claude-fable-5',
+    displayName: 'Anthropic — Claude Fable 5 (Proprietary Agentic Baseline)',
+    enabled: true,
+    capabilityTier: 'frontier',
+    weightClass: 'proprietary',
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'preferred',
+    contextWindow: 1000000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 10.00, outputCostPer1M: 50.00 },
+    isPinned: true,
+    defaultPriority: 140
+  },
+  {
+    key: 'anthropic-sonnet-5',
+    provider: 'anthropic',
+    accessProvider: 'openrouter',
+    modelId: 'anthropic/claude-sonnet-5',
+    displayName: 'Anthropic — Claude Sonnet 5 (Proprietary Frontier Reasoning)',
+    enabled: true,
+    capabilityTier: 'frontier',
+    weightClass: 'proprietary',
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'preferred',
+    contextWindow: 1000000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 3.00, outputCostPer1M: 15.00 },
+    isPinned: true,
+    defaultPriority: 138
+  },
   {
     key: 'anthropic-opus-5',
     provider: 'anthropic',
     accessProvider: 'anthropic',
     modelId: 'claude-opus-5-20260724',
-    displayName: 'Anthropic — Claude Opus 5 (Proprietary Frontier Reasoning)',
+    displayName: 'Anthropic — Claude Opus 5 (Proprietary Deep Reasoning)',
     enabled: true,
     capabilityTier: 'frontier',
     weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'required',
-    laboratoryStatus: 'preferred',
-    contextWindow: 200000,
+    laboratoryStatus: 'candidate',
+    contextWindow: 1000000,
     speedClass: 'deliberate',
     pricing: { inputCostPer1M: 5.00, outputCostPer1M: 25.00 },
+    isPinned: true,
     defaultPriority: 135
   },
   {
-    key: 'anthropic-fable',
-    provider: 'anthropic',
-    accessProvider: 'anthropic',
-    modelId: 'claude-fable-5',
-    displayName: 'Anthropic — Claude Fable 5 (Proprietary Agentic Baseline)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'proprietary',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'preferred',
-    contextWindow: 200000,
-    speedClass: 'moderate',
-    pricing: { inputCostPer1M: 3.00, outputCostPer1M: 15.00 },
-    defaultPriority: 130
-  },
-  {
-    key: 'openai-sol',
+    key: 'openai-gpt-5.6-sol',
     provider: 'openai',
-    accessProvider: 'openai',
-    modelId: 'gpt-5.6-sol',
+    accessProvider: 'openrouter',
+    modelId: 'openai/gpt-5.6-sol',
     displayName: 'OpenAI — GPT-5.6 Sol (Proprietary Multi-Step Agent)',
     enabled: true,
     capabilityTier: 'frontier',
     weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'preferred',
+    contextWindow: 1050000,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 2.00, outputCostPer1M: 10.00 },
+    isPinned: true,
+    defaultPriority: 134
+  },
+  {
+    key: 'openai-gpt-5.6-luna',
+    provider: 'openai',
+    accessProvider: 'openrouter',
+    modelId: 'openai/gpt-5.6-luna',
+    displayName: 'OpenAI — GPT-5.6 Luna (Proprietary Conversational Reasoning)',
+    enabled: true,
+    capabilityTier: 'frontier',
+    weightClass: 'proprietary',
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'required',
     laboratoryStatus: 'candidate',
-    contextWindow: 256000,
+    contextWindow: 1050000,
     speedClass: 'moderate',
-    pricing: { inputCostPer1M: 2.50, outputCostPer1M: 10.00 },
-    defaultPriority: 128
+    pricing: { inputCostPer1M: 2.00, outputCostPer1M: 10.00 },
+    isPinned: true,
+    defaultPriority: 132
   },
-
-  // ─── 2. Proprietary High-Speed & Long-Context Workhorses ───────────────────
   {
     key: 'gemini-3.7-flash',
     provider: 'google',
-    accessProvider: 'google',
-    modelId: 'gemini-3.7-flash',
-    displayName: 'Google — Gemini 3.7 Flash (Proprietary Speed Workhorse)',
+    accessProvider: 'openrouter',
+    modelId: 'google/gemini-3.7-flash',
+    displayName: 'Google — Gemini 3.7 Flash (Proprietary Multimodal & Native Audio)',
     enabled: true,
     capabilityTier: 'economy',
     weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
+    modalities: ['text', 'vision', 'video', 'file', 'audio'],
+    nativeAudio: true, // Has native audio token processing capability
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'none',
     laboratoryStatus: 'preferred',
-    contextWindow: 1000000,
+    contextWindow: 1048576,
     speedClass: 'fast',
-    pricing: { inputCostPer1M: 0.075, outputCostPer1M: 0.30 },
-    defaultPriority: 125
+    pricing: { inputCostPer1M: 0.75, outputCostPer1M: 3.75 },
+    isPinned: true,
+    defaultPriority: 130
   },
   {
-    key: 'gemini-3.1-pro',
-    provider: 'google',
-    accessProvider: 'google',
-    modelId: 'gemini-3.1-pro',
-    displayName: 'Google — Gemini 3.1 Pro (Proprietary 2M Long-Context)',
+    key: 'xai-grok-4.6',
+    provider: 'xai',
+    accessProvider: 'openrouter',
+    modelId: 'x-ai/grok-4.6',
+    displayName: 'xAI — Grok 4.6 (Proprietary Frontier Reasoning)',
     enabled: true,
     capabilityTier: 'frontier',
     weightClass: 'proprietary',
-    modalities: ['text', 'vision'],
+    modalities: ['text', 'vision', 'file'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'required',
     laboratoryStatus: 'candidate',
-    contextWindow: 2000000,
-    speedClass: 'moderate',
-    pricing: { inputCostPer1M: 1.25, outputCostPer1M: 5.00 },
-    defaultPriority: 124
+    contextWindow: 500000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 1.25, outputCostPer1M: 2.50 },
+    isPinned: true,
+    defaultPriority: 128
   },
 
-  // ─── 3. Open-Weight Frontier Reasoning & Agentic Models ────────────────────
+  // ─── 2. Open / Open-Weight Frontier Reasoning & Agentic Models ───────────
   {
-    key: 'openrouter-glm-5.3',
-    provider: 'openrouter',
+    key: 'openrouter-deepseek-v4-pro-0813',
+    provider: 'deepseek',
     accessProvider: 'openrouter',
-    modelId: 'z-ai/glm-5.3',
-    displayName: 'OpenRouter — GLM 5.3 (Open-Weight Frontier Agent)',
+    modelId: 'deepseek/deepseek-v4-pro-0813',
+    displayName: 'DeepSeek — DeepSeek V4 Pro 0813 (Open-Weight Frontier Reasoning)',
     enabled: true,
     capabilityTier: 'frontier',
     weightClass: 'open_weight',
     modalities: ['text'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'required',
     laboratoryStatus: 'candidate',
-    contextWindow: 1000000,
-    speedClass: 'moderate',
-    pricing: { inputCostPer1M: 0.90, outputCostPer1M: 2.00 },
-    defaultPriority: 122
-  },
-  {
-    key: 'openrouter-deepseek-v4-pro',
-    provider: 'openrouter',
-    accessProvider: 'openrouter',
-    modelId: 'deepseek/deepseek-v4-pro',
-    displayName: 'OpenRouter — DeepSeek V4 Pro (Open-Weight Frontier Reasoning)',
-    enabled: true,
-    capabilityTier: 'frontier',
-    weightClass: 'open_weight',
-    modalities: ['text'],
-    toolCalling: true,
-    reasoning: 'required',
-    laboratoryStatus: 'candidate',
-    contextWindow: 1000000,
+    contextWindow: 1048576,
     speedClass: 'moderate',
     pricing: { inputCostPer1M: 0.50, outputCostPer1M: 1.50 },
-    defaultPriority: 120
+    isPinned: true,
+    defaultPriority: 126
   },
-
-  // ─── 4. Open-Weight High-Efficiency & Price/Performance ────────────────────
   {
     key: 'openrouter-deepseek-v4-flash',
-    provider: 'openrouter',
+    provider: 'deepseek',
     accessProvider: 'openrouter',
     modelId: 'deepseek/deepseek-v4-flash',
-    displayName: 'OpenRouter — DeepSeek V4 Flash (Open-Weight Economy Engine)',
+    displayName: 'DeepSeek — DeepSeek V4 Flash (Open-Weight Economy Engine)',
     enabled: true,
     capabilityTier: 'economy',
     weightClass: 'open_weight',
     modalities: ['text'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'optional',
     laboratoryStatus: 'preferred',
     contextWindow: 1050000,
     speedClass: 'fast',
     pricing: { inputCostPer1M: 0.09, outputCostPer1M: 0.18 },
-    defaultPriority: 118
+    isPinned: true,
+    defaultPriority: 124
   },
-
-  // ─── 5. Open-Weight Multimodal Flagships ───────────────────────────────────
   {
     key: 'openrouter-qwen-3.8-max',
-    provider: 'openrouter',
+    provider: 'qwen',
     accessProvider: 'openrouter',
     modelId: 'qwen/qwen3.8-max',
-    displayName: 'OpenRouter — Qwen 3.8 Max (Open-Weight Multimodal Flagship)',
+    displayName: 'Qwen — Qwen 3.8 Max (Open-Weight Multimodal Flagship)',
     enabled: true,
     capabilityTier: 'frontier',
     weightClass: 'open_weight',
-    modalities: ['text', 'vision'],
+    modalities: ['text', 'vision', 'video'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'required',
-    laboratoryStatus: 'candidate',
+    laboratoryStatus: 'preferred',
     contextWindow: 1000000,
     speedClass: 'fast',
     pricing: { inputCostPer1M: 0.35, outputCostPer1M: 0.70 },
+    isPinned: true,
+    defaultPriority: 122
+  },
+  {
+    key: 'openrouter-qwen-3.6-35b-a3b',
+    provider: 'qwen',
+    accessProvider: 'openrouter',
+    modelId: 'qwen/qwen3.6-35b-a3b',
+    displayName: 'Qwen — Qwen 3.6 35B-A3B (Open-Weight Dense Reasoning)',
+    enabled: true,
+    capabilityTier: 'strong',
+    weightClass: 'open_weight',
+    modalities: ['text'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'candidate',
+    contextWindow: 262144,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.25, outputCostPer1M: 1.25 },
+    isPinned: true,
+    defaultPriority: 120
+  },
+  {
+    key: 'openrouter-qwen-3.6-27b',
+    provider: 'qwen',
+    accessProvider: 'openrouter',
+    modelId: 'qwen/qwen3.6-27b',
+    displayName: 'Qwen — Qwen 3.6 27B (Open-Weight Efficiency Agent)',
+    enabled: true,
+    capabilityTier: 'strong',
+    weightClass: 'open_weight',
+    modalities: ['text'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'optional',
+    laboratoryStatus: 'candidate',
+    contextWindow: 262144,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.195, outputCostPer1M: 1.56 },
+    isPinned: true,
+    defaultPriority: 118
+  },
+  {
+    key: 'openrouter-glm-5.3',
+    provider: 'z-ai',
+    accessProvider: 'openrouter',
+    modelId: 'z-ai/glm-5.3',
+    displayName: 'GLM — GLM 5.3 (Open-Weight Frontier Long-Context)',
+    enabled: true,
+    capabilityTier: 'frontier',
+    weightClass: 'open_weight',
+    modalities: ['text'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'candidate',
+    contextWindow: 1310720,
+    speedClass: 'moderate',
+    pricing: { inputCostPer1M: 0.90, outputCostPer1M: 2.00 },
+    isPinned: true,
     defaultPriority: 116
   },
   {
+    key: 'openrouter-glm-5.2',
+    provider: 'z-ai',
+    accessProvider: 'openrouter',
+    modelId: 'z-ai/glm-5.2',
+    displayName: 'GLM — GLM 5.2 (Open-Weight Standard Baseline)',
+    enabled: true,
+    capabilityTier: 'strong',
+    weightClass: 'open_weight',
+    modalities: ['text'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'optional',
+    laboratoryStatus: 'candidate',
+    contextWindow: 1048576,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.50, outputCostPer1M: 1.00 },
+    isPinned: true,
+    defaultPriority: 114
+  },
+  {
+    key: 'openrouter-minimax-m2.5',
+    provider: 'minimax',
+    accessProvider: 'openrouter',
+    modelId: 'minimax/minimax-m2.5',
+    displayName: 'MiniMax — MiniMax M2.5 (Open-Weight Conversational Specialist)',
+    enabled: true,
+    capabilityTier: 'strong',
+    weightClass: 'open_weight',
+    modalities: ['text'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'optional',
+    laboratoryStatus: 'candidate',
+    contextWindow: 204800,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.30, outputCostPer1M: 1.20 },
+    isPinned: true,
+    defaultPriority: 112
+  },
+  {
     key: 'openrouter-kimi-k2.5',
-    provider: 'openrouter',
+    provider: 'moonshot',
     accessProvider: 'openrouter',
     modelId: 'moonshotai/kimi-k2.5',
-    displayName: 'OpenRouter — Kimi K2.5 (Open-Weight Multimodal Agent)',
+    displayName: 'MoonshotAI — Kimi K2.5 (Open-Weight Multimodal Agent)',
     enabled: true,
     capabilityTier: 'strong',
     weightClass: 'open_weight',
     modalities: ['text', 'vision'],
+    nativeAudio: false,
     toolCalling: true,
+    structuredOutputs: true,
     reasoning: 'optional',
     laboratoryStatus: 'candidate',
-    contextWindow: 262000,
+    contextWindow: 262144,
     speedClass: 'fast',
     pricing: { inputCostPer1M: 0.40, outputCostPer1M: 1.00 },
-    defaultPriority: 114
+    isPinned: true,
+    defaultPriority: 110
+  },
+
+  // ─── 3. Historical & Preserved Comparison Entries ─────────────────────────
+  {
+    key: 'historical-qwen-legacy',
+    provider: 'qwen',
+    accessProvider: 'openrouter',
+    modelId: 'qwen/qwen3.8-max', // Repaired mapping to valid canonical ID
+    displayName: 'Qwen — Qwen 3.8 Max (Historical Baseline Comparison)',
+    enabled: false,
+    capabilityTier: 'frontier',
+    weightClass: 'open_weight',
+    modalities: ['text', 'vision'],
+    nativeAudio: false,
+    toolCalling: true,
+    structuredOutputs: true,
+    reasoning: 'required',
+    laboratoryStatus: 'retired',
+    contextWindow: 1000000,
+    speedClass: 'fast',
+    pricing: { inputCostPer1M: 0.35, outputCostPer1M: 0.70 },
+    isPinned: true,
+    defaultPriority: 100
   }
 ];
 
 const MODEL_ALIASES: Record<string, string> = {
   // Anthropic Aliases
+  'anthropic-fable': 'anthropic-fable-5',
+  'claude-fable-5': 'anthropic-fable-5',
+  'fable-5': 'anthropic-fable-5',
+  'anthropic-fable-5': 'anthropic-fable-5',
+  'anthropic-sonnet': 'anthropic-sonnet-5',
+  'claude-sonnet-5': 'anthropic-sonnet-5',
+  'sonnet-5': 'anthropic-sonnet-5',
+  'anthropic-sonnet-5': 'anthropic-sonnet-5',
   'claude-opus-5': 'anthropic-opus-5',
   'opus-5': 'anthropic-opus-5',
   'anthropic-opus': 'anthropic-opus-5',
-  'claude-fable-5': 'anthropic-fable',
-  'anthropic-3.7-sonnet': 'anthropic-fable',
-  'anthropic-frontier': 'anthropic-opus-5',
-  'anthropic-default': 'anthropic-fable',
-  'claude-3.7': 'anthropic-fable',
   
   // OpenAI Aliases
-  'gpt-5.6-sol': 'openai-sol',
-  'gpt-5.6': 'openai-sol',
-  'sol': 'openai-sol',
-  'openai-frontier': 'openai-sol',
-  'openai-default': 'openai-sol',
-  'gpt-4o': 'openai-sol',
-  'openai-balanced': 'gemini-3.7-flash',
+  'openai-sol': 'openai-gpt-5.6-sol',
+  'gpt-5.6-sol': 'openai-gpt-5.6-sol',
+  'sol': 'openai-gpt-5.6-sol',
+  'openai-luna': 'openai-gpt-5.6-luna',
+  'gpt-5.6-luna': 'openai-gpt-5.6-luna',
+  'gpt-5.6': 'openai-gpt-5.6-sol',
+  'gpt-4o': 'openai-gpt-5.6-sol',
   
   // Google Aliases
   'gemini-3.7-flash': 'gemini-3.7-flash',
   'gemini-flash': 'gemini-3.7-flash',
   'gemini-default': 'gemini-3.7-flash',
-  'gemini-2.5-flash': 'gemini-3.7-flash',
-  'gemini-3.1-pro': 'gemini-3.1-pro',
-  'gemini-pro': 'gemini-3.1-pro',
-  'gemini-2.5-pro': 'gemini-3.1-pro',
-  'google-frontier': 'gemini-3.1-pro',
+  
+  // xAI Aliases
+  'grok-4.6': 'xai-grok-4.6',
+  'grok': 'xai-grok-4.6',
+  'xai-grok': 'xai-grok-4.6',
 
   // OpenRouter Aliases & Shorthands
-  'glm-5.3': 'openrouter-glm-5.3',
-  'glm5': 'openrouter-glm-5.3',
-  'deepseek-v4-pro': 'openrouter-deepseek-v4-pro',
+  'deepseek-v4-pro-0813': 'openrouter-deepseek-v4-pro-0813',
+  'deepseek-v4-pro': 'openrouter-deepseek-v4-pro-0813',
   'deepseek-v4-flash': 'openrouter-deepseek-v4-flash',
   'deepseek-v4': 'openrouter-deepseek-v4-flash',
   'deepseek-flash': 'openrouter-deepseek-v4-flash',
+  
   'qwen-3.8-max': 'openrouter-qwen-3.8-max',
   'qwen-3.8': 'openrouter-qwen-3.8-max',
   'qwen3.8': 'openrouter-qwen-3.8-max',
-  'kimi-k3': 'openrouter-kimi-k2.5',
+  'qwen-3.6-35b': 'openrouter-qwen-3.6-35b-a3b',
+  'qwen-3.6-35b-a3b': 'openrouter-qwen-3.6-35b-a3b',
+  'qwen-3.6-27b': 'openrouter-qwen-3.6-27b',
+
+  'glm-5.3': 'openrouter-glm-5.3',
+  'glm-5.2': 'openrouter-glm-5.2',
+  'glm5': 'openrouter-glm-5.3',
+
+  'minimax-m2.5': 'openrouter-minimax-m2.5',
+  'minimax-m2': 'openrouter-minimax-m2.5',
+  'minimax': 'openrouter-minimax-m2.5',
+
   'kimi-k2.5': 'openrouter-kimi-k2.5',
+  'kimi-k3': 'openrouter-kimi-k2.5',
   'kimi': 'openrouter-kimi-k2.5',
-  'minimax-m2.5': 'openrouter-deepseek-v4-flash',
   
-  // Historical / Legacy OpenRouter Aliases
-  'openrouter-deepseek-r1': 'openrouter-deepseek-v4-pro',
-  'openrouter-llama-3.3-70b': 'openrouter-glm-5.3',
-  'openrouter-mistral-large': 'openrouter-kimi-k2.5',
-  'openrouter-gemini-flash': 'openrouter-deepseek-v4-flash',
+  // Legacy / Historical OpenRouter Aliases
+  'openrouter-deepseek-r1': 'openrouter-deepseek-v4-pro-0813',
   'openrouter-qwen-72b': 'openrouter-qwen-3.8-max',
-  'openrouter-qwen3.8-27b': 'openrouter-qwen-3.8-max',
-  'deepseek-r1': 'openrouter-deepseek-v4-pro',
-  'llama-3.3': 'openrouter-glm-5.3',
+  'openrouter-deepseek-v4-pro': 'openrouter-deepseek-v4-pro-0813'
 };
+
+// ─── Runtime OpenRouter Catalog Validation ─────────────────────────────────
+
+/**
+ * Validates a single ModelConfig against a set of valid OpenRouter catalog IDs.
+ */
+export function validateModelConfigAgainstCatalog(
+  model: ModelConfig,
+  catalogIds: Set<string>
+): { valid: boolean; reason?: string } {
+  if (model.accessProvider === 'openrouter') {
+    if (!catalogIds.has(model.modelId)) {
+      return {
+        valid: false,
+        reason: `Model ID '${model.modelId}' is not found in OpenRouter live catalog.`
+      };
+    }
+  }
+  return { valid: true };
+}
+
+/**
+ * Filters the active MODEL_REGISTRY against OpenRouter catalog IDs,
+ * ensuring no invalid model IDs can ever be presented as active or selectable.
+ */
+export function getValidatedModelRegistry(catalogModels?: Array<{ id: string }>): ModelConfig[] {
+  if (!catalogModels || catalogModels.length === 0) {
+    return MODEL_REGISTRY;
+  }
+  const catalogIds = new Set(catalogModels.map(m => m.id));
+
+  return MODEL_REGISTRY.map(model => {
+    const check = validateModelConfigAgainstCatalog(model, catalogIds);
+    if (!check.valid) {
+      return {
+        ...model,
+        enabled: false,
+        laboratoryStatus: 'invalid_catalog_id'
+      };
+    }
+    return model;
+  });
+}
 
 /**
  * Entitlement Layer:
@@ -311,10 +539,11 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
       lowerKey.includes('glm') ||
       lowerKey.includes('deepseek') ||
       lowerKey.includes('kimi') ||
-      lowerKey.includes('qwen')
+      lowerKey.includes('qwen') ||
+      lowerKey.includes('minimax')
     ) {
       const openRouterModel = allowedModels.find(m => m.provider === 'openrouter' && m.capabilityTier === 'frontier') ||
-                              allowedModels.find(m => m.provider === 'openrouter');
+                              allowedModels.find(m => m.accessProvider === 'openrouter');
       if (openRouterModel) return openRouterModel;
     }
 
@@ -324,16 +553,21 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
       if (googleModel) return googleModel;
     }
 
-    if (lowerKey.includes('openai') || lowerKey.includes('gpt') || lowerKey.includes('sol')) {
+    if (lowerKey.includes('openai') || lowerKey.includes('gpt') || lowerKey.includes('sol') || lowerKey.includes('luna')) {
       const openAiModel = allowedModels.find(m => m.provider === 'openai' && m.capabilityTier === 'frontier') ||
                           allowedModels.find(m => m.provider === 'openai');
       if (openAiModel) return openAiModel;
     }
 
-    if (lowerKey.includes('anthropic') || lowerKey.includes('claude') || lowerKey.includes('opus') || lowerKey.includes('fable')) {
+    if (lowerKey.includes('anthropic') || lowerKey.includes('claude') || lowerKey.includes('opus') || lowerKey.includes('fable') || lowerKey.includes('sonnet')) {
       const anthropicModel = allowedModels.find(m => m.provider === 'anthropic' && m.capabilityTier === 'frontier') ||
                              allowedModels.find(m => m.provider === 'anthropic');
       if (anthropicModel) return anthropicModel;
+    }
+
+    if (lowerKey.includes('grok') || lowerKey.includes('xai')) {
+      const grokModel = allowedModels.find(m => m.provider === 'xai');
+      if (grokModel) return grokModel;
     }
   }
 
@@ -342,6 +576,81 @@ export async function resolveModel(key: string | undefined, userId: string): Pro
     current.defaultPriority > highest.defaultPriority ? current : highest
   , allowedModels[0]);
 }
+
+// ─── Multi-Model Comparison Telemetry ──────────────────────────────────────
+
+export interface ModelComparisonTelemetryRecord {
+  experimentId: string;
+  timestamp: string;
+  modelKey: string;
+  modelId: string;
+  provider: string;
+  weightClass: 'open_weight' | 'proprietary';
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  latencyMs: number;
+  costUsd: number;
+  finishReason: string;
+  outputLength: number;
+  systemPromptHash: string; // Proves system/memory context was held constant
+  temperature: number;
+}
+
+/**
+ * Calculates inference cost in USD based on model pricing configuration.
+ */
+export function calculateInferenceCost(
+  pricing: ModelConfig['pricing'],
+  promptTokens: number,
+  completionTokens: number
+): number {
+  if (!pricing) return 0;
+  const inputCost = (promptTokens / 1_000_000) * pricing.inputCostPer1M;
+  const outputCost = (completionTokens / 1_000_000) * pricing.outputCostPer1M;
+  return Number((inputCost + outputCost).toFixed(6));
+}
+
+/**
+ * Formats a telemetry record for multi-model benchmark evaluation.
+ */
+export function createComparisonTelemetry(params: {
+  experimentId: string;
+  model: ModelConfig;
+  promptTokens: number;
+  completionTokens: number;
+  latencyMs: number;
+  finishReason?: string;
+  outputLength: number;
+  systemPromptHash: string;
+  temperature?: number;
+}): ModelComparisonTelemetryRecord {
+  const costUsd = calculateInferenceCost(
+    params.model.pricing,
+    params.promptTokens,
+    params.completionTokens
+  );
+
+  return {
+    experimentId: params.experimentId,
+    timestamp: new Date().toISOString(),
+    modelKey: params.model.key,
+    modelId: params.model.modelId,
+    provider: params.model.provider,
+    weightClass: params.model.weightClass,
+    promptTokens: params.promptTokens,
+    completionTokens: params.completionTokens,
+    totalTokens: params.promptTokens + params.completionTokens,
+    latencyMs: params.latencyMs,
+    costUsd,
+    finishReason: params.finishReason || 'stop',
+    outputLength: params.outputLength,
+    systemPromptHash: params.systemPromptHash,
+    temperature: params.temperature ?? 0.7
+  };
+}
+
+// ─── TTS Models ────────────────────────────────────────────────────────────
 
 export interface TtsModelConfig {
   key: string;
