@@ -832,26 +832,39 @@ async function callGemini(modelId: string, messages: any[], systemPrompt: string
     };
   });
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: contents,
-      systemInstruction: {
-        parts: [{ text: systemPrompt }]
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
       },
-      tools: tools.length > 0 ? tools : undefined
-    })
-  });
+      body: JSON.stringify({
+        contents: contents,
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        tools: tools.length > 0 ? tools : undefined
+      }),
+      signal: controller.signal
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API error (${response.status}): ${errText}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Gemini inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s for model ${modelId}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 // ─── Route Registration ─────────────────────────────────────────────────────
@@ -1035,12 +1048,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     let rawToolResultsAccumulated = '';
     let fieldCoverageData: any = { recordsMatched: 0, recordsRetrieved: 0, limit: 20, hasMore: false, coverage: 'none' };
     let tokenUsageReport: TokenUsageReport = { inputTokens: 0, outputTokens: 0, totalTokens: 0, source: 'estimated' };
-    let modelConfig;
+    let modelConfig: any;
+
+    // Resolve user BEFORE try so catch block always has access for error telemetry
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      res.status(401).json({ error: 'User session not authenticated' });
+      return;
+    }
 
     try {
-      // 1. Resolve User
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error('User session not authenticated');
 
       // 2. Resolve Session ID and Session Model
       let currentSessionModel: string | undefined = undefined;
@@ -1106,6 +1123,20 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         content: message.trim(),
         input_type: inputType === 'voice' ? 'voice' : 'text',
         metadata: metadata || {}
+      });
+
+      // Early telemetry: create a 'pending' trace BEFORE inference begins.
+      // This guarantees a durable trace exists even if inference hangs/times out.
+      await supabase.from('chat_telemetry').insert({
+        id: telemetryId,
+        message_id: userMessageId,
+        session_id: sessionId,
+        user_id: user.id,
+        model: `${provider}:${modelId} (${resolvedKey})`,
+        prompt_version: '1.4-observability',
+        operation_class: 'conversation',
+        latency_ms: 0,
+        status: 'pending'
       });
 
       // Load and normalize conversation history (collapse consecutive identical-role orphan turns)
@@ -1494,18 +1525,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         ]
       };
 
-      // Log modular trace to telemetry table
+      // Update the early 'pending' telemetry trace with full observability data
       const latency = Date.now() - startTime;
-      const telemetryId = generateId('trace');
       const operationClass = classifyOperation(toolCallsTracked, message, fieldCoverageData);
 
-      await supabase.from('chat_telemetry').insert({
-        id: telemetryId,
+      await supabase.from('chat_telemetry').update({
         message_id: assistantMessageId,
-        session_id: sessionId,
-        user_id: user.id,
-        model: `${provider}:${modelId} (${resolvedKey})`,
-        prompt_version: '1.4-observability',
         operation_class: operationClass,
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
@@ -1541,7 +1566,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         },
         latency_ms: latency,
         status: 'success'
-      });
+      }).eq('id', telemetryId);
 
       // Update session timestamp
       await supabase.from('chat_sessions')
@@ -1569,33 +1594,27 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       console.error('[Orchestration loop failure]:', err);
 
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const timeCtx = getTimeContext('America/Chicago');
-          const lunarCtx = getLunarData();
-          await supabase.from('chat_telemetry').insert({
-            id: telemetryId,
-            user_id: user.id,
-            session_id: sessionId || null,
-            message_id: userMessageId || null,
-            model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId} (${modelConfig.key})` : 'unknown',
-            prompt_version: '1.4-observability',
-            operation_class: 'conversation',
-            time_context: timeCtx,
-            lunar_context: {
-              dayOfCycle: lunarCtx.dayOfCycle,
-              phaseName: lunarCtx.phase.name,
-              illumination: lunarCtx.illumination,
-              zodiacSign: lunarCtx.zodiac.sign,
-            },
-            latency_ms: Date.now() - startTime,
-            status: 'failed',
-            error_message: errorMessage,
-            database_mutations: []
-          });
-        }
+        // Update the early 'pending' telemetry trace with failure data.
+        // Uses pre-resolved user (no re-auth needed — resilient to connection degradation).
+        const timeCtx = getTimeContext('America/Chicago');
+        const lunarCtx = getLunarData();
+        await supabase.from('chat_telemetry').update({
+          model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId} (${modelConfig.key})` : 'unknown',
+          operation_class: 'conversation',
+          time_context: timeCtx,
+          lunar_context: {
+            dayOfCycle: lunarCtx.dayOfCycle,
+            phaseName: lunarCtx.phase.name,
+            illumination: lunarCtx.illumination,
+            zodiacSign: lunarCtx.zodiac.sign,
+          },
+          latency_ms: Date.now() - startTime,
+          status: 'failed',
+          error_message: errorMessage,
+          database_mutations: []
+        }).eq('id', telemetryId);
       } catch (telErr) {
-        console.error('[Failed to insert error telemetry]:', telErr);
+        console.error('[Failed to update error telemetry]:', telErr);
       }
 
       res.status(500).json({
