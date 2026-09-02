@@ -351,7 +351,10 @@ export function Chat({ userId, lunarData }) {
       // Get base URL for backend API
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
 
-      // Call Express API chat endpoint
+      // Call Express API chat endpoint with 90s client timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+
       const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: 'POST',
         headers: {
@@ -364,8 +367,10 @@ export function Chat({ userId, lunarData }) {
           modelKey: selectedModel,
           inputType,
           metadata: turnMeta
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         let errMsg = `Server error (${response.status})`;
@@ -385,7 +390,7 @@ export function Chat({ userId, lunarData }) {
 
       // STRICT IMMUTABILITY: Add confirmed user and assistant turns immediately to in-memory state
       const confirmedUserMsg = {
-        id: data.userMessageId || tempUserMsg.id,
+        id: data.userMessageId || data.message?.userMessageId || tempUserMsg.id,
         session_id: sessionId,
         role: 'user',
         content: userText,
@@ -395,13 +400,14 @@ export function Chat({ userId, lunarData }) {
         created_at: tempUserMsg.created_at
       };
 
+      const resolvedContent = data.message?.content || data.reply || '';
       const assistantMsg = {
-        id: data.assistantMessageId || `ast_${Date.now()}`,
+        id: data.message?.id || data.assistantMessageId || `ast_${Date.now()}`,
         session_id: sessionId,
         role: 'assistant',
-        content: data.reply,
-        trace_id: data.traceId,
-        created_at: new Date().toISOString()
+        content: resolvedContent,
+        trace_id: data.telemetryId || data.traceId || null,
+        created_at: data.message?.createdAt || new Date().toISOString()
       };
 
       setMessages((prev) => {
@@ -425,7 +431,11 @@ export function Chat({ userId, lunarData }) {
       }
     } catch (err) {
       console.error('Error sending message:', err);
-      setError(err.message || 'Connection lost. Please try again.');
+      if (err.name === 'AbortError') {
+        setError('Luna reflection timed out after 90s. Please retry.');
+      } else {
+        setError(err.message || 'Connection lost. Please try again.');
+      }
       // Remove optimistic message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
     } finally {

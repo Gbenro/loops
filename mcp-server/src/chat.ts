@@ -642,6 +642,10 @@ export function extractDatabaseMutation(toolName: string, toolArgs: any, parsedR
 
 // ─── Provider Orchestration Adapters ────────────────────────────────────────
 
+// Inference timeout: prevents indefinite hangs when upstream providers stall.
+// Reasoning models (DeepSeek, o-series) may take 30-60s; 90s provides headroom.
+const INFERENCE_TIMEOUT_MS = 90_000;
+
 // 1. Anthropic Claude Adapter
 async function callClaude(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -652,28 +656,41 @@ async function callClaude(modelId: string, messages: any[], systemPrompt: string
     content: m.content
   }));
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: 4000,
-      system: systemPrompt,
-      messages: formattedMessages,
-      tools: tools
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: formattedMessages,
+        tools: tools
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Anthropic inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s for model ${modelId}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 // 2. OpenAI Compatible Adapter
@@ -692,25 +709,38 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
     }))
   ];
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: modelId,
-      messages: formattedMessages,
-      tools: tools.length > 0 ? tools : undefined
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenAI API error (${response.status}): ${errText}`);
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: formattedMessages,
+        tools: tools.length > 0 ? tools : undefined
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API error (${response.status}): ${errText}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`OpenAI inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s for model ${modelId}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 // 3. OpenRouter Adapter
@@ -729,27 +759,40 @@ async function callOpenRouter(modelId: string, messages: any[], systemPrompt: st
     }))
   ];
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://lunaloops.app',
-      'X-Title': 'Luna Loops',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: modelId,
-      messages: formattedMessages,
-      tools: tools.length > 0 ? tools : undefined
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://lunaloops.app',
+        'X-Title': 'Luna Loops',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: formattedMessages,
+        tools: tools.length > 0 ? tools : undefined
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`OpenRouter inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s for model ${modelId}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 // 4. Google Gemini Adapter
@@ -982,6 +1025,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
     const startTime = Date.now();
     let sessionId = clientSessionId;
+    let userMessageId: string | null = null;
+    const telemetryId = generateId('trace');
     let status: 'success' | 'failed' = 'success';
     let errorMessage: string | null = null;
     let toolCallsTracked: any[] = [];
@@ -1052,7 +1097,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       }
 
       // Save user message to database with input provenance
-      const userMessageId = generateId('msg');
+      userMessageId = generateId('msg');
       await supabase.from('chat_messages').insert({
         id: userMessageId,
         session_id: sessionId,
@@ -1063,14 +1108,26 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         metadata: metadata || {}
       });
 
-      // Load conversation history
+      // Load and normalize conversation history (collapse consecutive identical-role orphan turns)
       const { data: history } = await supabase
         .from('chat_messages')
         .select('role, content')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
 
-      const conversationMessages = history ? [...history] : [{ role: 'user', content: message }];
+      const rawHistory = history && history.length > 0 ? history : [{ role: 'user', content: message.trim() }];
+      const cleanedHistory: Array<{ role: string; content: string }> = [];
+      for (const h of rawHistory) {
+        if (!h.content || !h.content.trim()) continue;
+        const last = cleanedHistory[cleanedHistory.length - 1];
+        if (last && last.role === h.role) {
+          last.content = `${last.content}\n\n${h.content.trim()}`;
+        } else {
+          cleanedHistory.push({ role: h.role, content: h.content.trim() });
+        }
+      }
+
+      const conversationMessages = cleanedHistory.length > 0 ? cleanedHistory : [{ role: 'user', content: message.trim() }];
 
       // 1. Authoritative Time Grounding (America/Chicago)
       const timeContext = getTimeContext('America/Chicago');
@@ -1494,13 +1551,17 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       res.json({
         sessionId,
         modelKey: resolvedKey,
+        reply: finalResponseText.trim(),
+        userMessageId,
+        assistantMessageId,
         message: {
           id: assistantMessageId,
           role: 'assistant',
           content: finalResponseText.trim(),
           createdAt: new Date().toISOString()
         },
-        telemetryId
+        telemetryId,
+        traceId: telemetryId
       });
     } catch (err: any) {
       status = 'failed';
@@ -1513,10 +1574,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           const timeCtx = getTimeContext('America/Chicago');
           const lunarCtx = getLunarData();
           await supabase.from('chat_telemetry').insert({
-            id: generateId('trace'),
+            id: telemetryId,
             user_id: user.id,
             session_id: sessionId || null,
-            model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId}` : 'unknown',
+            message_id: userMessageId || null,
+            model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId} (${modelConfig.key})` : 'unknown',
             prompt_version: '1.4-observability',
             operation_class: 'conversation',
             time_context: timeCtx,
@@ -1532,9 +1594,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
             database_mutations: []
           });
         }
-      } catch {}
+      } catch (telErr) {
+        console.error('[Failed to insert error telemetry]:', telErr);
+      }
 
-      res.status(500).json({ error: err.message });
+      res.status(500).json({
+        error: err.message,
+        userMessageId,
+        telemetryId,
+        status: 'failed'
+      });
     }
   });
 
