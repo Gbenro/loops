@@ -1125,20 +1125,6 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         metadata: metadata || {}
       });
 
-      // Early telemetry: create a 'pending' trace BEFORE inference begins.
-      // This guarantees a durable trace exists even if inference hangs/times out.
-      await supabase.from('chat_telemetry').insert({
-        id: telemetryId,
-        message_id: userMessageId,
-        session_id: sessionId,
-        user_id: user.id,
-        model: `${provider}:${modelId} (${resolvedKey})`,
-        prompt_version: '1.4-observability',
-        operation_class: 'conversation',
-        latency_ms: 0,
-        status: 'pending'
-      });
-
       // Load and normalize conversation history (collapse consecutive identical-role orphan turns)
       const { data: history } = await supabase
         .from('chat_messages')
@@ -1529,8 +1515,13 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       const latency = Date.now() - startTime;
       const operationClass = classifyOperation(toolCallsTracked, message, fieldCoverageData);
 
-      await supabase.from('chat_telemetry').update({
+      await supabase.from('chat_telemetry').insert({
+        id: telemetryId,
         message_id: assistantMessageId,
+        session_id: sessionId,
+        user_id: user.id,
+        model: `${provider}:${modelId} (${resolvedKey})`,
+        prompt_version: '1.4-observability',
         operation_class: operationClass,
         retrieved_context_ids: retrievedContextIds,
         tool_calls: toolCallsTracked,
@@ -1566,7 +1557,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         },
         latency_ms: latency,
         status: 'success'
-      }).eq('id', telemetryId);
+      });
 
       // Update session timestamp
       await supabase.from('chat_sessions')
@@ -1594,12 +1585,15 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       console.error('[Orchestration loop failure]:', err);
 
       try {
-        // Update the early 'pending' telemetry trace with failure data.
-        // Uses pre-resolved user (no re-auth needed — resilient to connection degradation).
         const timeCtx = getTimeContext('America/Chicago');
         const lunarCtx = getLunarData();
-        await supabase.from('chat_telemetry').update({
+        await supabase.from('chat_telemetry').insert({
+          id: telemetryId,
+          message_id: userMessageId || null,
+          session_id: sessionId || null,
+          user_id: user?.id,
           model: modelConfig ? `${modelConfig.provider}:${modelConfig.modelId} (${modelConfig.key})` : 'unknown',
+          prompt_version: '1.4-observability',
           operation_class: 'conversation',
           time_context: timeCtx,
           lunar_context: {
@@ -1612,9 +1606,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           status: 'failed',
           error_message: errorMessage,
           database_mutations: []
-        }).eq('id', telemetryId);
+        });
       } catch (telErr) {
-        console.error('[Failed to update error telemetry]:', telErr);
+        console.error('[Failed to insert error telemetry]:', telErr);
       }
 
       res.status(500).json({
@@ -1955,7 +1949,22 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .order('created_at', { ascending: true });
 
       if (msgErr) throw msgErr;
-      res.json({ session, messages: messages || [] });
+
+      // Join with telemetry traces if available
+      const messageIds = (messages || []).map(m => m.id);
+      const { data: telemetryList } = await supabase
+        .from('chat_telemetry')
+        .select('id, message_id, model, prompt_version, latency_ms, status, token_usage, inference_cost')
+        .in('message_id', messageIds);
+
+      const telMap = new Map((telemetryList || []).map(t => [t.message_id, t]));
+
+      const messagesWithTelemetry = (messages || []).map(m => ({
+        ...m,
+        telemetry: telMap.get(m.id) || null
+      }));
+
+      res.json({ session, messages: messagesWithTelemetry });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -1987,9 +1996,24 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         dbQuery = dbQuery.ilike('content', `%${query}%`);
       }
 
-      const { data, error } = await dbQuery;
+      const { data: messages, error } = await dbQuery;
       if (error) throw error;
-      res.json({ messages: data || [] });
+
+      // Join with telemetry traces if available
+      const messageIds = (messages || []).map(m => m.id);
+      const { data: telemetryList } = await supabase
+        .from('chat_telemetry')
+        .select('id, message_id, model, prompt_version, latency_ms, status, token_usage, inference_cost')
+        .in('message_id', messageIds);
+
+      const telMap = new Map((telemetryList || []).map(t => [t.message_id, t]));
+
+      const messagesWithTelemetry = (messages || []).map(m => ({
+        ...m,
+        telemetry: telMap.get(m.id) || null
+      }));
+
+      res.json({ messages: messagesWithTelemetry });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
