@@ -86,9 +86,25 @@ serve(async (req) => {
 
     console.log("Received audio file:", audioFile.name, audioFile.size, "bytes");
 
+    // Inspect audio file extension from name or mime type
+    const mime = audioFile.type || "";
+    const fileName = audioFile.name || "";
+    let ext = "webm";
+    if (fileName.includes(".")) {
+      ext = fileName.split(".").pop() || "webm";
+    } else if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac")) {
+      ext = "mp4";
+    } else if (mime.includes("ogg") || mime.includes("opus")) {
+      ext = "ogg";
+    } else if (mime.includes("wav")) {
+      ext = "wav";
+    } else if (mime.includes("flac")) {
+      ext = "flac";
+    }
+
     // Create form data for Groq API
     const groqFormData = new FormData();
-    groqFormData.append("file", audioFile, "audio.webm");
+    groqFormData.append("file", audioFile, `audio.${ext}`);
     groqFormData.append("model", "whisper-large-v3");
     groqFormData.append("language", "en");
     groqFormData.append("response_format", "json");
@@ -105,7 +121,12 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Groq API error:", response.status, errorText);
-      throw new Error(`Groq API error: ${response.status}`);
+      let parsedMessage = "";
+      try {
+        const parsed = JSON.parse(errorText);
+        parsedMessage = parsed.error?.message || "";
+      } catch {}
+      throw new Error(parsedMessage ? `Groq API error (${response.status}): ${parsedMessage}` : `Groq API error: ${response.status}`);
     }
 
     const result = await response.json();

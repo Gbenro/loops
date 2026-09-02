@@ -10,7 +10,10 @@ const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
 // ─── Supabase Storage ─────────────────────────────────────────────────────────
 
 function storagePath(userId, echoId, mimeType) {
-  const ext = mimeType?.includes('mp4') ? 'mp4' : mimeType?.includes('ogg') ? 'ogg' : 'webm';
+  const ext = mimeType?.includes('mp4') || mimeType?.includes('m4a') || mimeType?.includes('aac') ? 'mp4' :
+              mimeType?.includes('ogg') || mimeType?.includes('opus') ? 'ogg' :
+              mimeType?.includes('wav') ? 'wav' :
+              mimeType?.includes('flac') ? 'flac' : 'webm';
   return `${userId}/${echoId}.${ext}`;
 }
 
@@ -130,3 +133,94 @@ export async function deleteLegacyAudio(echoId) {
     /* ignore */
   }
 }
+
+// ─── Durable Draft Audio Storage (IndexedDB) ──────────────────────────────────
+// Preserves raw audio blobs across failed transcriptions, reloads, and offline edits
+
+const DRAFT_IDB_NAME = 'luna_draft_audio_db';
+const DRAFT_STORE = 'draft_recordings';
+
+async function openDraftDB() {
+  if (typeof indexedDB === 'undefined') return null;
+  return new Promise((resolve) => {
+    const req = indexedDB.open(DRAFT_IDB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(DRAFT_STORE)) {
+        db.createObjectStore(DRAFT_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+
+export async function saveDraftAudio(draftId, audioBlob, metadata = {}) {
+  try {
+    const db = await openDraftDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(DRAFT_STORE, 'readwrite');
+      const store = tx.objectStore(DRAFT_STORE);
+      const record = {
+        id: draftId,
+        blob: audioBlob,
+        size: audioBlob.size,
+        type: audioBlob.type,
+        createdAt: new Date().toISOString(),
+        metadata
+      };
+      store.put(record);
+      tx.oncomplete = () => resolve(record);
+      tx.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function getDraftAudio(draftId) {
+  try {
+    const db = await openDraftDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(DRAFT_STORE, 'readonly');
+      const req = tx.objectStore(DRAFT_STORE).get(draftId);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function getAllDraftAudio() {
+  try {
+    const db = await openDraftDB();
+    if (!db) return [];
+    return new Promise((resolve) => {
+      const tx = db.transaction(DRAFT_STORE, 'readonly');
+      const req = tx.objectStore(DRAFT_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteDraftAudio(draftId) {
+  try {
+    const db = await openDraftDB();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      const tx = db.transaction(DRAFT_STORE, 'readwrite');
+      tx.objectStore(DRAFT_STORE).delete(draftId);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+}
+

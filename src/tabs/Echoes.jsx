@@ -17,7 +17,7 @@ import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
-import { saveAudio, getAudioUrl, getAudio, deleteAudio } from '../lib/audioStorage.js';
+import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, deleteDraftAudio, getAllDraftAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -183,6 +183,10 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
   const pendingAudioBlobRef = useRef(null); // Store audio blob until echo is saved
+  const draftAudioIdRef = useRef(null);
+  const [draftAudioBlob, setDraftAudioBlob] = useState(null);
+  const [isPlayingDraft, setIsPlayingDraft] = useState(false);
+  const draftAudioPlayerRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -500,8 +504,17 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
 
         if (audioBlob.size > 0) {
-          // Save blob for later storage
+          const draftId = `draft_aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          draftAudioIdRef.current = draftId;
           pendingAudioBlobRef.current = audioBlob;
+          setDraftAudioBlob(audioBlob);
+
+          // Save to durable IndexedDB immediately before starting transcription
+          await saveDraftAudio(draftId, audioBlob, {
+            phase: lunarData.phase.key,
+            source: 'voice',
+            mimeType: audioBlob.type
+          });
 
           setIsTranscribing(true);
           try {
@@ -509,6 +522,9 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             if (text) {
               if (isOneTapEchoPendingRef.current) {
                 await saveEchoDirect(text, audioBlob);
+                await deleteDraftAudio(draftId);
+                draftAudioIdRef.current = null;
+                setDraftAudioBlob(null);
               } else {
                 setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
               }
@@ -626,15 +642,21 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   }, [userId, sessionKey, decryptField]);
 
   const saveEcho = async () => {
-    if (!currentText.trim()) return;
+    if (!currentText.trim() && !pendingAudioBlobRef.current && !draftAudioBlob) return;
 
     if (isRecording) {
       stopRecording();
     }
 
-    const blob = pendingAudioBlobRef.current;
+    const blob = pendingAudioBlobRef.current || draftAudioBlob;
+    const currentDraftId = draftAudioIdRef.current;
     pendingAudioBlobRef.current = null;
-    await saveEchoDirect(currentText, blob);
+    setDraftAudioBlob(null);
+    draftAudioIdRef.current = null;
+    await saveEchoDirect(currentText.trim() || 'Voice reflection', blob);
+    if (currentDraftId) {
+      await deleteDraftAudio(currentDraftId);
+    }
   };
 
   const deleteEcho = async (id) => {
@@ -660,11 +682,17 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     if (isRecording) {
       stopRecording();
     }
+    const currentDraftId = draftAudioIdRef.current;
     setIsWriting(false);
     setCurrentText('');
     setSource('text');
     setRecordingTime(0);
     pendingAudioBlobRef.current = null;
+    setDraftAudioBlob(null);
+    draftAudioIdRef.current = null;
+    if (currentDraftId) {
+      deleteDraftAudio(currentDraftId);
+    }
   };
 
   const handleEchoClick = async () => {
@@ -1369,21 +1397,95 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               </button>
             </div>
 
-            {/* Audio ready indicator */}
+            {/* Audio ready indicator and draft controls */}
             {source === 'voice' &&
-              pendingAudioBlobRef.current &&
+              (pendingAudioBlobRef.current || draftAudioBlob) &&
               !isRecording &&
               !isTranscribing && (
                 <div
                   style={{
-                    fontSize: 9,
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.08em',
-                    color: 'rgba(167, 139, 250, 0.6)',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(167, 139, 250, 0.08)',
+                    border: '1px solid rgba(167, 139, 250, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                     marginBottom: 12,
+                    fontSize: 10,
+                    fontFamily: 'monospace',
                   }}
                 >
-                  ◉ VOICE RECORDING READY · WILL SAVE TO CLOUD
+                  <span style={{ color: '#A78BFA', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ◉ VOICE RECORDING PRESERVED
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = pendingAudioBlobRef.current || draftAudioBlob;
+                        if (!blob) return;
+                        if (draftAudioPlayerRef.current) {
+                          if (isPlayingDraft) {
+                            draftAudioPlayerRef.current.pause();
+                            setIsPlayingDraft(false);
+                          } else {
+                            draftAudioPlayerRef.current.play();
+                            setIsPlayingDraft(true);
+                          }
+                        } else {
+                          const url = URL.createObjectURL(blob);
+                          const audio = new Audio(url);
+                          draftAudioPlayerRef.current = audio;
+                          audio.onended = () => setIsPlayingDraft(false);
+                          audio.play();
+                          setIsPlayingDraft(true);
+                        }
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 4,
+                        border: '1px solid rgba(167, 139, 250, 0.3)',
+                        background: 'rgba(167, 139, 250, 0.1)',
+                        color: '#A78BFA',
+                        fontSize: 9,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isPlayingDraft ? '■ STOP' : '▶ LISTEN'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const blob = pendingAudioBlobRef.current || draftAudioBlob;
+                        if (!blob) return;
+                        setIsTranscribing(true);
+                        try {
+                          const text = await transcribeAudio(blob, setModelProgress);
+                          if (text) {
+                            setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
+                          } else {
+                            alert('No speech detected in this recording.');
+                          }
+                        } catch (err) {
+                          alert('Retry transcription failed: ' + err.message);
+                        } finally {
+                          setIsTranscribing(false);
+                        }
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 4,
+                        border: '1px solid rgba(167, 139, 250, 0.3)',
+                        background: 'rgba(167, 139, 250, 0.1)',
+                        color: '#A78BFA',
+                        fontSize: 9,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ↻ RETRY TRANSCRIBE
+                    </button>
+                  </div>
                 </div>
               )}
 
