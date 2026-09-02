@@ -514,6 +514,78 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
 
+  // ─── Chat Session Lifecycle Tools ──────────────────────────────────────────
+  {
+    name: 'list_chat_sessions',
+    description: 'List the user\'s continuous reflection chat sessions with optional status filter (active, archived, all).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['active', 'archived', 'all'], default: 'active', description: 'Filter active, archived, or all chat sessions' },
+        limit: { type: 'number', description: 'Max records to retrieve (default 20)' }
+      }
+    }
+  },
+  {
+    name: 'rename_chat_session',
+    description: 'Rename a chat session display title without modifying any underlying messages or transcripts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Chat session ID to rename' },
+        title: { type: 'string', description: 'New descriptive title for the session' }
+      },
+      required: ['id', 'title']
+    }
+  },
+  {
+    name: 'archive_chat_session',
+    description: 'Archive a chat session. Removes it from active conversation list while fully preserving its entire conversation transcript and telemetry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Chat session ID to archive' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'restore_chat_session',
+    description: 'Restore a previously archived chat session back to the active conversation list with full conversational history intact.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Archived chat session ID to restore' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_chat_session',
+    description: 'Permanently delete a chat session and its transcripts. Requires explicit confirmation flag. Default cleanup should always be archive instead of delete.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Chat session ID to permanently delete' },
+        confirmPermanentDelete: { type: 'boolean', description: 'Explicit boolean confirmation to perform irreversible deletion' }
+      },
+      required: ['id', 'confirmPermanentDelete']
+    }
+  },
+  {
+    name: 'preserve_chat_to_field',
+    description: 'Preserve key insights or material from a chat session to the user\'s Field as an Echo reflection before archiving or deleting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Chat session ID to preserve material from' },
+        reflectionText: { type: 'string', description: 'Optional specific reflection text; if omitted, generates a consolidated summary from session turns' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Tags to attach to the preserved Echo' }
+      },
+      required: ['sessionId']
+    }
+  },
+
   // ─── Luna Development Bridge Tools ─────────────────────────────────────────
 
   // Luna-facing tools
@@ -2336,6 +2408,153 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         }
       });
       return { content: [{ type: 'text', text: JSON.stringify(commitEvent, null, 2) }] };
+    }
+
+    case 'list_chat_sessions': {
+      const statusFilter = args.status || 'active';
+      const limit = Math.min(Number(args.limit) || 20, 100);
+      let query = supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(limit);
+
+      if (statusFilter === 'archived') {
+        query = query.or('is_archived.eq.true,archived_at.not.is.null');
+      } else if (statusFilter === 'active') {
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify({ sessions: data || [] }, null, 2) }] };
+    }
+
+    case 'rename_chat_session': {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .update({ title: args.title.trim(), updated_at: new Date().toISOString() })
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error || !data) throw new Error(`Rename failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      return { content: [{ type: 'text', text: JSON.stringify({ session: data }, null, 2) }] };
+    }
+
+    case 'archive_chat_session': {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .update({
+          is_archived: true,
+          archived_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error || !data) throw new Error(`Archive failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      return { content: [{ type: 'text', text: JSON.stringify({ session: data }, null, 2) }] };
+    }
+
+    case 'restore_chat_session': {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .update({
+          is_archived: false,
+          archived_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error || !data) throw new Error(`Restore failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      return { content: [{ type: 'text', text: JSON.stringify({ session: data }, null, 2) }] };
+    }
+
+    case 'delete_chat_session': {
+      if (!args.confirmPermanentDelete) {
+        throw new Error('Permanent deletion requires explicit confirmPermanentDelete: true flag. Consider archive_chat_session instead.');
+      }
+
+      const { data: existing, error: findErr } = await supabase
+        .from('chat_sessions')
+        .select('id, title')
+        .eq('id', args.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (findErr || !existing) {
+        throw new Error(`Delete failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      }
+
+      const { error: delErr } = await supabase
+        .from('chat_sessions')
+        .delete()
+        .eq('id', args.id)
+        .eq('user_id', userId);
+
+      if (delErr) throw delErr;
+      return { content: [{ type: 'text', text: JSON.stringify({ deletedSessionId: args.id, title: existing.title, permanent: true }, null, 2) }] };
+    }
+
+    case 'preserve_chat_to_field': {
+      const { data: session, error: sErr } = await supabase
+        .from('chat_sessions')
+        .select('id, title')
+        .eq('id', args.sessionId)
+        .eq('user_id', userId)
+        .single();
+
+      if (sErr || !session) throw new Error(`Session with ID "${args.sessionId}" not found or unauthorized.`);
+
+      let echoText = args.reflectionText?.trim();
+      if (!echoText) {
+        const { data: msgs } = await supabase
+          .from('chat_messages')
+          .select('role, content')
+          .eq('session_id', args.sessionId)
+          .order('created_at', { ascending: true });
+
+        if (msgs && msgs.length > 0) {
+          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+        } else {
+          echoText = `Preserved Reflection from Chat "${session.title}"`;
+        }
+      }
+
+      const lunar = getLunarData();
+      const echoId = `e_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const { data: newEcho, error: echoErr } = await supabase
+        .from('echoes')
+        .insert({
+          id: echoId,
+          user_id: userId,
+          text: echoText,
+          source: 'text',
+          phase: lunar.phase.key,
+          phase_name: lunar.phase.name,
+          phase_type: lunar.phase.phaseType || null,
+          lunar_month: lunar.lunarMonth,
+          day_of_cycle: lunar.dayOfCycle,
+          zodiac: lunar.zodiac.sign,
+          illumination: lunar.illumination,
+          tags: Array.isArray(args.tags) ? args.tags : ['chat-reflection'],
+          provenance_author: 'user',
+          provenance_kind: 'chat_reflection',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (echoErr) throw echoErr;
+      return { content: [{ type: 'text', text: JSON.stringify({ preservedEcho: newEcho }, null, 2) }] };
     }
 
     case 'complete_dev_session': {

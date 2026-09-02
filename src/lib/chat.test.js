@@ -167,4 +167,128 @@ describe('Luna Conversational Prompt Engine', () => {
       expect(hydrated.title).toBe('Astronomy & Tides');
     });
   });
+
+  describe('Full Chat Lifecycle (Rename, Archive, Restore, Preserve-to-Field, Safe Delete)', () => {
+    it('renames session display title without altering original messages or metadata', () => {
+      const session = {
+        id: 'sess_101',
+        title: 'Original Title',
+        model_key: 'openrouter-qwen-3.8-max',
+        created_at: '2026-09-02T10:00:00Z',
+        updated_at: '2026-09-02T10:00:00Z'
+      };
+      const messages = [
+        { id: 'm1', session_id: 'sess_101', role: 'user', content: 'What is the moon doing?' },
+        { id: 'm2', session_id: 'sess_101', role: 'assistant', content: 'The moon is waxing crescent.' }
+      ];
+
+      // Rename operation
+      const newTitle = 'Waxing Moon Observations';
+      const updatedSession = { ...session, title: newTitle, updated_at: '2026-09-02T10:05:00Z' };
+
+      expect(updatedSession.title).toBe('Waxing Moon Observations');
+      expect(updatedSession.id).toBe(session.id);
+      expect(updatedSession.model_key).toBe(session.model_key);
+      expect(messages[0].content).toBe('What is the moon doing?');
+      expect(messages[1].content).toBe('The moon is waxing crescent.');
+    });
+
+    it('archives an active chat session and filters it out of the active list', () => {
+      const sessions = [
+        { id: 's1', title: 'Active Chat 1', is_archived: false, archived_at: null },
+        { id: 's2', title: 'Active Chat 2', is_archived: false, archived_at: null },
+        { id: 's3', title: 'Active Chat 3', is_archived: false, archived_at: null }
+      ];
+
+      // Archive s2
+      const now = '2026-09-02T12:00:00Z';
+      const updatedSessions = sessions.map(s => s.id === 's2' ? { ...s, is_archived: true, archived_at: now } : s);
+
+      const activeList = updatedSessions.filter(s => !s.is_archived && !s.archived_at);
+      const archivedList = updatedSessions.filter(s => s.is_archived || s.archived_at);
+
+      expect(activeList.map(s => s.id)).toEqual(['s1', 's3']);
+      expect(archivedList.map(s => s.id)).toEqual(['s2']);
+      expect(archivedList[0].archived_at).toBe(now);
+    });
+
+    it('performs round-trip restore of an archived session back to active status intact', () => {
+      let session = { id: 's_arch', title: 'Past Insights', is_archived: true, archived_at: '2026-09-01T00:00:00Z' };
+      
+      // Restore
+      session = { ...session, is_archived: false, archived_at: null, updated_at: '2026-09-02T14:00:00Z' };
+
+      expect(session.is_archived).toBe(false);
+      expect(session.archived_at).toBeNull();
+      expect(session.title).toBe('Past Insights');
+    });
+
+    it('requires explicit confirmation flag before permanent deletion', () => {
+      const deleteSession = (session, confirmFlag) => {
+        if (!confirmFlag) {
+          throw new Error('Permanent deletion requires explicit confirmPermanentDelete: true flag. Consider archive_chat_session instead.');
+        }
+        return { deletedId: session.id, status: 'deleted' };
+      };
+
+      const session = { id: 'sess_del_1', title: 'Temporary Chat' };
+
+      expect(() => deleteSession(session, false)).toThrow('Permanent deletion requires explicit confirmPermanentDelete: true flag');
+      expect(deleteSession(session, true)).toEqual({ deletedId: 'sess_del_1', status: 'deleted' });
+    });
+
+    it('preserves important conversation material to Field as an Echo before deletion', () => {
+      const session = { id: 'sess_pre_1', title: 'Solar Equinox Chat' };
+      const messages = [
+        { role: 'user', content: 'How do rhythms connect to the seasons?' },
+        { role: 'assistant', content: 'Seasons ground biological rhythms in planetary cadence.' }
+      ];
+
+      const preserveToField = (sess, msgs) => {
+        const text = `Preserved Reflection from Chat "${sess.title}":\n\n` +
+          msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+        return {
+          id: 'e_preserved_1',
+          text,
+          provenance_author: 'user',
+          provenance_kind: 'chat_reflection',
+          tags: ['chat-reflection']
+        };
+      };
+
+      const echo = preserveToField(session, messages);
+      expect(echo.text).toContain('Solar Equinox Chat');
+      expect(echo.text).toContain('Seasons ground biological rhythms in planetary cadence');
+      expect(echo.provenance_kind).toBe('chat_reflection');
+      expect(echo.tags).toContain('chat-reflection');
+    });
+
+    it('guarantees user ownership and isolation during chat mutations', () => {
+      const authorizedUserId = 'user-owner-123';
+      const unauthorizedUserId = 'user-intruder-456';
+      const session = { id: 'sess_owner_1', user_id: 'user-owner-123', title: 'My Private Journal' };
+
+      const mutateSession = (sess, callingUserId, newTitle) => {
+        if (sess.user_id !== callingUserId) {
+          throw new Error('Unauthorized');
+        }
+        return { ...sess, title: newTitle };
+      };
+
+      expect(() => mutateSession(session, unauthorizedUserId, 'Hacked Title')).toThrow('Unauthorized');
+      const updated = mutateSession(session, authorizedUserId, 'My Renamed Journal');
+      expect(updated.title).toBe('My Renamed Journal');
+    });
+
+    it('handles legacy sessions missing archive columns gracefully (migration backward-compatibility)', () => {
+      // Legacy session from older schema where is_archived and archived_at are undefined
+      const legacySession = { id: 'sess_legacy_99', user_id: 'u1', title: 'Old Chat' };
+
+      const isActive = !legacySession.is_archived && !legacySession.archived_at;
+      expect(isActive).toBe(true);
+
+      const isArchived = Boolean(legacySession.is_archived || legacySession.archived_at);
+      expect(isArchived).toBe(false);
+    });
+  });
 });

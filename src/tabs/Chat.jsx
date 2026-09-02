@@ -16,6 +16,14 @@ export function Chat({ userId, lunarData }) {
     localStorage.getItem('luna_model_key') || 'anthropic-fable'
   );
 
+  // Chat Lifecycle & Archive States
+  const [drawerTab, setDrawerTab] = useState('active'); // 'active' | 'archived'
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingSessionTitle, setEditingSessionTitle] = useState('');
+  const [deleteConfirmSession, setDeleteConfirmSession] = useState(null); // { id, title }
+  const [preserveBeforeDelete, setPreserveBeforeDelete] = useState(true);
+  const [actionFeedback, setActionFeedback] = useState(null); // { text, type }
+
   // Exact 3-Turn Conversational Voice Cache
   const [recentVoiceTurns, setRecentVoiceTurns] = useState([]);
   const [savingEchoTurnId, setSavingEchoTurnId] = useState(null);
@@ -76,6 +84,12 @@ export function Chat({ userId, lunarData }) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  // Notification feedback helper
+  const showFeedback = (text, type = 'info') => {
+    setActionFeedback({ text, type });
+    setTimeout(() => setActionFeedback(null), 3500);
+  };
+
   // 1. Fetch active sessions and messages on initialization
   useEffect(() => {
     if (!userId) return;
@@ -86,15 +100,38 @@ export function Chat({ userId, lunarData }) {
         // Fetch all conversations for user ordered by recency
         const { data: userSessions, error: sessionErr } = await supabase
           .from('chat_sessions')
-          .select('id, model_key, title, updated_at, created_at')
+          .select('id, model_key, title, updated_at, created_at, is_archived, archived_at')
           .order('updated_at', { ascending: false });
 
         if (sessionErr) throw sessionErr;
 
         let activeSession;
-        if (userSessions && userSessions.length > 0) {
-          activeSession = userSessions[0];
-          setSessions(userSessions);
+        const allSessions = userSessions || [];
+        const nonArchived = allSessions.filter((s) => !s.is_archived && !s.archived_at);
+
+        if (nonArchived.length > 0) {
+          activeSession = nonArchived[0];
+          setSessions(allSessions);
+        } else if (allSessions.length > 0) {
+          // All are archived; create a fresh active session
+          const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+          const initialModel = selectedModel || 'anthropic-fable';
+          const { data: created, error: createErr } = await supabase
+            .from('chat_sessions')
+            .insert({
+              id: newId,
+              user_id: userId,
+              title: 'Continuous Reflection',
+              model_key: initialModel,
+              is_archived: false,
+              archived_at: null
+            })
+            .select()
+            .single();
+
+          if (createErr) throw createErr;
+          activeSession = created;
+          setSessions([created, ...allSessions]);
         } else {
           // Create initial session with model selection
           const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -105,7 +142,9 @@ export function Chat({ userId, lunarData }) {
               id: newId,
               user_id: userId,
               title: 'Continuous Reflection',
-              model_key: initialModel
+              model_key: initialModel,
+              is_archived: false,
+              archived_at: null
             })
             .select()
             .single();
@@ -178,7 +217,8 @@ export function Chat({ userId, lunarData }) {
       setLoading(true);
       const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
       const initialModel = selectedModel || 'anthropic-fable';
-      const title = `Conversation ${sessions.length + 1}`;
+      const activeCount = sessions.filter((s) => !s.is_archived && !s.archived_at).length;
+      const title = `Conversation ${activeCount + 1}`;
 
       const { data: newSession, error: createErr } = await supabase
         .from('chat_sessions')
@@ -186,7 +226,9 @@ export function Chat({ userId, lunarData }) {
           id: newId,
           user_id: userId,
           title: title,
-          model_key: initialModel
+          model_key: initialModel,
+          is_archived: false,
+          archived_at: null
         })
         .select()
         .single();
@@ -198,11 +240,198 @@ export function Chat({ userId, lunarData }) {
       setMessages([]);
       setSelectedModel(initialModel);
       setShowDrawer(false);
+      setDrawerTab('active');
     } catch (err) {
       console.error('Error creating new session:', err);
       setError('Failed to create new chat.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Rename session
+  const handleStartRename = (session, e) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingSessionTitle(session.title || 'Continuous Reflection');
+  };
+
+  const handleSaveRename = async (session, e) => {
+    if (e) e.stopPropagation();
+    const newTitle = editingSessionTitle.trim();
+    if (!newTitle || newTitle === session.title) {
+      setEditingSessionId(null);
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ title: newTitle, updated_at: now })
+        .eq('id', session.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === session.id ? { ...s, title: newTitle, updated_at: now } : s))
+      );
+      setEditingSessionId(null);
+      showFeedback(`Renamed to "${newTitle}"`);
+    } catch (err) {
+      console.error('Rename error:', err);
+      showFeedback('Failed to rename session.', 'error');
+    }
+  };
+
+  // Archive session (removes from active list, preserves full conversation)
+  const handleArchiveSession = async (session, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ is_archived: true, archived_at: now, updated_at: now })
+        .eq('id', session.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === session.id ? { ...s, is_archived: true, archived_at: now, updated_at: now } : s))
+      );
+
+      // If active session was archived, switch to next active session
+      if (session.id === sessionId) {
+        const remainingActive = sessions.filter(
+          (s) => s.id !== session.id && !s.is_archived && !s.archived_at
+        );
+        if (remainingActive.length > 0) {
+          selectSession(remainingActive[0].id);
+        } else {
+          handleCreateNewChat();
+        }
+      }
+
+      showFeedback(`Archived "${session.title}". Transcripts preserved.`);
+    } catch (err) {
+      console.error('Archive error:', err);
+      showFeedback('Failed to archive session.', 'error');
+    }
+  };
+
+  // Restore archived session
+  const handleRestoreSession = async (session, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ is_archived: false, archived_at: null, updated_at: now })
+        .eq('id', session.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === session.id ? { ...s, is_archived: false, archived_at: null, updated_at: now } : s))
+      );
+
+      showFeedback(`Restored "${session.title}" to active chats.`);
+    } catch (err) {
+      console.error('Restore error:', err);
+      showFeedback('Failed to restore session.', 'error');
+    }
+  };
+
+  // Preserve key material / transcript into the Field as an Echo
+  const handlePreserveToField = async (session, e) => {
+    if (e) e.stopPropagation();
+    try {
+      let sessionMsgs = messages;
+      if (session.id !== sessionId) {
+        const { data: fetchedMsgs } = await supabase
+          .from('chat_messages')
+          .select('role, content, created_at')
+          .eq('session_id', session.id)
+          .order('created_at', { ascending: true });
+        sessionMsgs = fetchedMsgs || [];
+      }
+
+      let echoText;
+      if (sessionMsgs.length > 0) {
+        echoText = `Preserved Reflection from Chat "${session.title}":\n\n` +
+          sessionMsgs.map((m) => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+      } else {
+        echoText = `Preserved Reflection from Chat "${session.title}"`;
+      }
+
+      const echoId = `e${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
+      const { error: insertErr } = await supabase.from('echoes').insert({
+        id: echoId,
+        user_id: userId,
+        text: echoText,
+        source: 'chat_reflection',
+        phase: lunarData.phase.key,
+        phase_name: lunarData.phase.name,
+        phase_type: lunarData.phase.phaseType || null,
+        lunar_month: lunarData.lunarMonth,
+        day_of_cycle: lunarData.dayOfCycle,
+        zodiac: lunarData.zodiac.sign,
+        illumination: lunarData.illumination,
+        tags: ['chat-reflection'],
+        provenance_author: 'user',
+        provenance_kind: 'chat_reflection',
+        created_at: new Date().toISOString()
+      });
+
+      if (insertErr) throw insertErr;
+      showFeedback(`✦ Preserved to Field as Echo reflection!`);
+      return true;
+    } catch (err) {
+      console.error('Preserve error:', err);
+      showFeedback('Failed to preserve chat to Field.', 'error');
+      return false;
+    }
+  };
+
+  // Permanent Delete Confirmation Execution
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirmSession) return;
+    const sessionToDelete = deleteConfirmSession;
+    setDeleteConfirmSession(null);
+
+    try {
+      if (preserveBeforeDelete) {
+        await handlePreserveToField(sessionToDelete);
+      }
+
+      const { error: delErr } = await supabase
+        .from('chat_sessions')
+        .delete()
+        .eq('id', sessionToDelete.id)
+        .eq('user_id', userId);
+
+      if (delErr) throw delErr;
+
+      setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
+
+      if (sessionToDelete.id === sessionId) {
+        const remainingActive = sessions.filter(
+          (s) => s.id !== sessionToDelete.id && !s.is_archived && !s.archived_at
+        );
+        if (remainingActive.length > 0) {
+          selectSession(remainingActive[0].id);
+        } else {
+          handleCreateNewChat();
+        }
+      }
+
+      showFeedback(`Permanently deleted "${sessionToDelete.title}".`);
+    } catch (err) {
+      console.error('Delete error:', err);
+      showFeedback('Failed to delete session.', 'error');
     }
   };
 
@@ -612,6 +841,161 @@ export function Chat({ userId, lunarData }) {
         </div>
       </header>
 
+      {/* Action Feedback Toast */}
+      {actionFeedback && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '64px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: actionFeedback.type === 'error' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(21, 32, 54, 0.95)',
+            border: actionFeedback.type === 'error' ? '1px solid #ef4444' : '1px solid rgba(245, 230, 200, 0.3)',
+            color: '#f5e6c8',
+            padding: '6px 14px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: '500',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+            zIndex: 60,
+            pointerEvents: 'none',
+            transition: 'all 0.2s ease-in-out'
+          }}
+        >
+          {actionFeedback.text}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmSession && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '16px'
+          }}
+        >
+          <div
+            style={{
+              maxWidth: '420px',
+              width: '100%',
+              background: '#0d1527',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '14px',
+              boxShadow: '0 20px 48px rgba(0, 0, 0, 0.8)',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <span style={{ fontSize: '15px', fontWeight: '600', fontFamily: 'serif' }}>
+                Permanently Delete Conversation?
+              </span>
+            </div>
+
+            <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.5', margin: 0 }}>
+              You are about to permanently delete <strong style={{ color: '#f5e6c8' }}>"{deleteConfirmSession.title}"</strong> and all its transcripts. This cannot be undone.
+            </p>
+
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '11.5px',
+                  color: '#f5e6c8',
+                  cursor: 'pointer'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={preserveBeforeDelete}
+                  onChange={(e) => setPreserveBeforeDelete(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span>✦ Preserve conversation reflections to Field before deleting</span>
+              </label>
+              <span style={{ fontSize: '10px', color: 'var(--color-text-faint)', paddingLeft: '22px' }}>
+                Saves authentic user wisdom & dialogue turns as an Echo without cluttering active chats.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  handleArchiveSession(deleteConfirmSession);
+                  setDeleteConfirmSession(null);
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#f5e6c8',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '6px',
+                  padding: '7px 12px',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                📦 Archive Instead
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmSession(null)}
+                style={{
+                  background: 'transparent',
+                  color: 'var(--color-text-faint)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '7px 12px',
+                  fontSize: '11px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirmed}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '7px 14px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Conversations Drawer / Sheet */}
       {showDrawer && (
         <div
@@ -620,40 +1004,75 @@ export function Chat({ userId, lunarData }) {
             top: '74px',
             left: '12px',
             right: '12px',
-            maxWidth: '400px',
+            maxWidth: '430px',
             background: '#0d1527',
             border: '1px solid rgba(245, 230, 200, 0.25)',
             borderRadius: '12px',
             boxShadow: '0 12px 32px rgba(0, 0, 0, 0.7)',
             zIndex: 50,
             padding: '12px',
-            maxHeight: '340px',
+            maxHeight: '400px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '8px'
+            gap: '10px'
           }}
         >
+          {/* Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              paddingBottom: '6px'
+              paddingBottom: '8px'
             }}
           >
-            <span style={{ fontSize: '12px', fontWeight: '600', color: '#f5e6c8', fontFamily: 'serif' }}>
-              Conversations ({sessions.length})
-            </span>
+            {/* Tabs: Active vs Archived */}
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255, 255, 255, 0.04)', padding: '2px', borderRadius: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setDrawerTab('active')}
+                style={{
+                  background: drawerTab === 'active' ? 'rgba(245, 230, 200, 0.15)' : 'transparent',
+                  color: drawerTab === 'active' ? '#f5e6c8' : 'var(--color-text-faint)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: drawerTab === 'active' ? '600' : '400',
+                  cursor: 'pointer'
+                }}
+              >
+                Active ({sessions.filter((s) => !s.is_archived && !s.archived_at).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerTab('archived')}
+                style={{
+                  background: drawerTab === 'archived' ? 'rgba(245, 230, 200, 0.15)' : 'transparent',
+                  color: drawerTab === 'archived' ? '#f5e6c8' : 'var(--color-text-faint)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: drawerTab === 'archived' ? '600' : '400',
+                  cursor: 'pointer'
+                }}
+              >
+                📦 Archived ({sessions.filter((s) => s.is_archived || s.archived_at).length})
+              </button>
+            </div>
+
             <div style={{ display: 'flex', gap: '6px' }}>
               <button
+                type="button"
                 onClick={handleCreateNewChat}
                 style={{
                   background: 'linear-gradient(135deg, #f5e6c8, #d4af37)',
                   color: '#080d1a',
                   border: 'none',
                   borderRadius: '6px',
-                  padding: '3px 8px',
+                  padding: '4px 9px',
                   fontSize: '11px',
                   fontWeight: '600',
                   cursor: 'pointer'
@@ -662,6 +1081,7 @@ export function Chat({ userId, lunarData }) {
                 + New Chat
               </button>
               <button
+                type="button"
                 onClick={() => setShowDrawer(false)}
                 aria-label="Close conversation list"
                 style={{
@@ -678,59 +1098,232 @@ export function Chat({ userId, lunarData }) {
             </div>
           </div>
 
-          <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {sessions.map((s) => {
-              const isActive = s.id === sessionId;
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => selectSession(s.id)}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: '8px',
-                    background: isActive ? 'rgba(245, 230, 200, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                    border: isActive ? '1px solid rgba(245, 230, 200, 0.3)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transition: 'background 0.15s'
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
-                    <span
-                      style={{
-                        fontSize: '12px',
-                        color: isActive ? '#f5e6c8' : '#e0e0e0',
-                        fontWeight: isActive ? '600' : '400',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {isActive && <span style={{ color: '#d4af37', marginRight: '5px' }}>●</span>}
-                      {s.title || 'Continuous Reflection'}
-                    </span>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
-                      {new Date(s.updated_at || s.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <span
+          {/* Session List */}
+          <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {sessions
+              .filter((s) => (drawerTab === 'archived' ? s.is_archived || s.archived_at : !s.is_archived && !s.archived_at))
+              .map((s) => {
+                const isActive = s.id === sessionId;
+                const isEditing = editingSessionId === s.id;
+
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => !isEditing && selectSession(s.id)}
                     style={{
-                      fontSize: '10px',
-                      color: 'var(--color-text-faint)',
-                      fontFamily: 'monospace',
-                      padding: '1px 5px',
-                      borderRadius: '4px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      flexShrink: 0
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      background: isActive ? 'rgba(245, 230, 200, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                      border: isActive ? '1px solid rgba(245, 230, 200, 0.3)' : '1px solid transparent',
+                      cursor: isEditing ? 'default' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      transition: 'background 0.15s'
                     }}
                   >
-                    {s.model_key?.replace('anthropic-', '').replace('openrouter-', '').replace('openai-', '') || 'fable'}
-                  </span>
-                </div>
-              );
-            })}
+                    {/* Left: Title / Inline Edit */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1 }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={editingSessionTitle}
+                            onChange={(e) => setEditingSessionTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveRename(s, e);
+                              if (e.key === 'Escape') setEditingSessionId(null);
+                            }}
+                            autoFocus
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.4)',
+                              color: '#f5e6c8',
+                              border: '1px solid #d4af37',
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              fontSize: '11.5px',
+                              outline: 'none',
+                              flex: 1
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveRename(s, e)}
+                            title="Save Title"
+                            style={{
+                              background: '#d4af37',
+                              color: '#080d1a',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              fontSize: '10px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSessionId(null);
+                            }}
+                            title="Cancel"
+                            style={{
+                              background: 'transparent',
+                              color: 'var(--color-text-faint)',
+                              border: 'none',
+                              fontSize: '10px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            color: isActive ? '#f5e6c8' : '#e0e0e0',
+                            fontWeight: isActive ? '600' : '400',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {isActive && <span style={{ color: '#d4af37', marginRight: '5px' }}>●</span>}
+                          {s.title || 'Continuous Reflection'}
+                        </span>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--color-text-faint)', fontFamily: 'monospace' }}>
+                          {new Date(s.updated_at || s.created_at).toLocaleDateString()}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            color: 'var(--color-text-faint)',
+                            fontFamily: 'monospace',
+                            padding: '0 4px',
+                            borderRadius: '3px',
+                            background: 'rgba(255, 255, 255, 0.05)'
+                          }}
+                        >
+                          {s.model_key?.replace('anthropic-', '').replace('openrouter-', '').replace('openai-', '') || 'fable'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Actions */}
+                    {!isEditing && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                        {/* Rename Action */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleStartRename(s, e)}
+                          title="Rename Conversation"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--color-text-faint)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            padding: '3px 4px',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          ✎
+                        </button>
+
+                        {/* Archive or Restore Action */}
+                        {drawerTab === 'archived' ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleRestoreSession(s, e)}
+                            title="Restore to Active Chats"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#a78bfa',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              padding: '3px 4px',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            ↺ Restore
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleArchiveSession(s, e)}
+                            title="Archive Conversation"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--color-text-faint)',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              padding: '3px 4px',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            📦
+                          </button>
+                        )}
+
+                        {/* Preserve to Field (Echo) Action */}
+                        <button
+                          type="button"
+                          onClick={(e) => handlePreserveToField(s, e)}
+                          title="Preserve to Field as Echo Reflection"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#d4af37',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            padding: '3px 4px',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          ✦
+                        </button>
+
+                        {/* Permanent Delete Action */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmSession(s);
+                          }}
+                          title="Delete Permanently"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'rgba(239, 68, 68, 0.7)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            padding: '3px 4px',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+            {sessions.filter((s) => (drawerTab === 'archived' ? s.is_archived || s.archived_at : !s.is_archived && !s.archived_at)).length === 0 && (
+              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-faint)', fontSize: '11px' }}>
+                {drawerTab === 'archived' ? 'No archived conversations.' : 'No active conversations.'}
+              </div>
+            )}
           </div>
         </div>
       )}

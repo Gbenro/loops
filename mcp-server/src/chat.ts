@@ -885,16 +885,32 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 2. GET /api/chat/sessions - Lists recent continuous chat sessions
+  // 2. GET /api/chat/sessions - Lists continuous chat sessions (active, archived, or all)
   app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
+    const { status = 'active', archived, limit = 50 } = req.query;
+    const maxLimit = Math.min(Number(limit) || 50, 100);
     try {
-      const { data, error } = await supabase
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+      let query = supabase
         .from('chat_sessions')
         .select('*')
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false })
-        .limit(50);
+        .limit(maxLimit);
 
+      if (status === 'archived' || archived === 'true') {
+        query = query.or('is_archived.eq.true,archived_at.not.is.null');
+      } else if (status === 'all') {
+        // Return all sessions regardless of archive status
+      } else {
+        // Default: active sessions only
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       res.json({ sessions: data || [] });
     } catch (err: any) {
@@ -902,7 +918,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 2b. POST /api/chat/sessions - Explicitly creates a new chat session
+  // 2b. POST /api/chat/sessions - Explicitly creates a new active chat session
   app.post('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { title, modelKey } = req.body || {};
@@ -920,7 +936,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: newSessionId,
           user_id: user.id,
           title: sessionTitle,
-          model_key: resolved.key
+          model_key: resolved.key,
+          is_archived: false,
+          archived_at: null
         })
         .select()
         .single();
@@ -932,17 +950,21 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 3. GET /api/chat/sessions/:id - Get specific session and recent message history
+  // 3. GET /api/chat/sessions/:id - Get specific session and message history with telemetry
   app.get('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
       const { data: session, error: sError } = await supabase
         .from('chat_sessions')
         .select('*')
         .eq('id', req.params.id)
+        .eq('user_id', user.id)
         .single();
 
-      if (sError || !session) throw new Error('Session not found');
+      if (sError || !session) throw new Error('Session not found or unauthorized');
 
       const { data: messages, error: mError } = await supabase
         .from('chat_messages')
@@ -952,16 +974,29 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
       if (mError) throw mError;
 
-      res.json({ session, messages: messages || [] });
+      // Join with telemetry traces if available
+      const messageIds = (messages || []).map(m => m.id);
+      const { data: telemetryList } = await supabase
+        .from('chat_telemetry')
+        .select('id, message_id, model, prompt_version, latency_ms, status, token_usage, inference_cost')
+        .in('message_id', messageIds);
+
+      const telMap = new Map((telemetryList || []).map(t => [t.message_id, t]));
+      const messagesWithTelemetry = (messages || []).map(m => ({
+        ...m,
+        telemetry: telMap.get(m.id) || null
+      }));
+
+      res.json({ session, messages: messagesWithTelemetry });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // 3b. PATCH /api/chat/sessions/:id - Update session model or title
+  // 3b. PATCH /api/chat/sessions/:id - Update session title (rename), model, or archive/restore status
   app.patch(['/api/chat/sessions/:id/model', '/api/chat/sessions/:id'], authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const { modelKey, title } = req.body;
+    const { modelKey, title, isArchived, archived, archivedAt } = req.body;
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
@@ -971,17 +1006,119 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         const resolved = await resolveModel(modelKey, user.id);
         updates.model_key = resolved.key;
       }
-      if (title) updates.title = title;
+      if (typeof title === 'string') {
+        updates.title = title.trim();
+      }
+      if (typeof isArchived === 'boolean' || typeof archived === 'boolean') {
+        const shouldArchive = typeof isArchived === 'boolean' ? isArchived : archived;
+        updates.is_archived = shouldArchive;
+        updates.archived_at = shouldArchive ? (archivedAt || new Date().toISOString()) : null;
+      }
 
       const { data, error } = await supabase
         .from('chat_sessions')
         .update(updates)
         .eq('id', req.params.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error || !data) throw new Error(`Update failed: Session with ID "${req.params.id}" not found or unauthorized.`);
       res.json({ session: data });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 3c. DELETE /api/chat/sessions/:id - Deliberate permanent deletion of a session
+  app.delete('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { data: existing, error: findErr } = await supabase
+        .from('chat_sessions')
+        .select('id, title')
+        .eq('id', req.params.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (findErr || !existing) {
+        return res.status(404).json({ error: 'Chat session not found or unauthorized' });
+      }
+
+      const { error: delErr } = await supabase
+        .from('chat_sessions')
+        .delete()
+        .eq('id', req.params.id)
+        .eq('user_id', user.id);
+
+      if (delErr) throw delErr;
+      res.json({ success: true, deletedSessionId: req.params.id, title: existing.title });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 3d. POST /api/chat/sessions/:id/preserve-to-field - Preserve key material/reflection to Field (Echo)
+  app.post(['/api/chat/sessions/:id/preserve-to-field', '/api/chat/sessions/:id/preserve'], authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    const { customText, tags = ['chat-reflection'] } = req.body || {};
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { data: session, error: sErr } = await supabase
+        .from('chat_sessions')
+        .select('id, title')
+        .eq('id', req.params.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (sErr || !session) return res.status(404).json({ error: 'Session not found or unauthorized' });
+
+      let echoText = customText?.trim();
+      if (!echoText) {
+        const { data: msgs } = await supabase
+          .from('chat_messages')
+          .select('role, content')
+          .eq('session_id', req.params.id)
+          .order('created_at', { ascending: true });
+
+        if (msgs && msgs.length > 0) {
+          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+        } else {
+          echoText = `Preserved Reflection from Chat "${session.title}"`;
+        }
+      }
+
+      const lunar = getLunarData();
+      const echoId = generateId('e');
+      const { data: newEcho, error: echoErr } = await supabase
+        .from('echoes')
+        .insert({
+          id: echoId,
+          user_id: user.id,
+          text: echoText,
+          source: 'text',
+          phase: lunar.phase.key,
+          phase_name: lunar.phase.name,
+          phase_type: lunar.phase.phaseType || null,
+          lunar_month: lunar.lunarMonth,
+          day_of_cycle: lunar.dayOfCycle,
+          zodiac: lunar.zodiac.sign,
+          illumination: lunar.illumination,
+          tags: Array.isArray(tags) ? tags : ['chat-reflection'],
+          provenance_author: 'user',
+          provenance_kind: 'chat_reflection',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (echoErr) throw echoErr;
+      res.status(201).json({ success: true, echo: newEcho });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -1904,71 +2041,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 6d. GET /api/chat/sessions - List chat sessions for authenticated user
-  app.get('/api/chat/sessions', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Unauthorized');
 
-      const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(limit);
-
-      if (error) throw error;
-      res.json({ sessions: data || [] });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // 6e. GET /api/chat/sessions/:id - Get specific session and its messages
-  app.get('/api/chat/sessions/:id', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Unauthorized');
-
-      const { data: session, error: sessionErr } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('id', req.params.id)
-        .eq('user_id', user.id)
-        .single();
-
-      if (sessionErr || !session) throw new Error('Session not found');
-
-      const { data: messages, error: msgErr } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', req.params.id)
-        .order('created_at', { ascending: true });
-
-      if (msgErr) throw msgErr;
-
-      // Join with telemetry traces if available
-      const messageIds = (messages || []).map(m => m.id);
-      const { data: telemetryList } = await supabase
-        .from('chat_telemetry')
-        .select('id, message_id, model, prompt_version, latency_ms, status, token_usage, inference_cost')
-        .in('message_id', messageIds);
-
-      const telMap = new Map((telemetryList || []).map(t => [t.message_id, t]));
-
-      const messagesWithTelemetry = (messages || []).map(m => ({
-        ...m,
-        telemetry: telMap.get(m.id) || null
-      }));
-
-      res.json({ session, messages: messagesWithTelemetry });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
 
   // 6f. GET /api/chat/messages - Search & filter chat messages
   app.get('/api/chat/messages', authenticateRest, async (req: Request, res: Response) => {
