@@ -2557,7 +2557,12 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           .order('created_at', { ascending: true });
 
         if (msgs && msgs.length > 0) {
-          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+          const turns = msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`);
+          const full = turns.join('\n\n');
+          const formatted = full.length > 6000
+            ? `...[Earlier conversation archived in session history]...\n\n` + turns.slice(-10).join('\n\n')
+            : full;
+          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + formatted;
         } else {
           echoText = `Preserved Reflection from Chat "${session.title}"`;
         }
@@ -2565,13 +2570,13 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       const lunar = getLunarData();
       const echoId = `e_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-      const { data: newEcho, error: echoErr } = await supabase
+      let { data: newEcho, error: echoErr } = await supabase
         .from('echoes')
         .insert({
           id: echoId,
           user_id: userId,
           text: echoText,
-          source: 'text',
+          source: 'chat_reflection',
           phase: lunar.phase.key,
           phase_name: lunar.phase.name,
           phase_type: lunar.phase.phaseType || null,
@@ -2587,7 +2592,31 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .select()
         .single();
 
-      if (echoErr) throw echoErr;
+      if (echoErr) {
+        const retry = await supabase
+          .from('echoes')
+          .insert({
+            id: echoId,
+            user_id: userId,
+            text: echoText,
+            source: 'chat_reflection',
+            phase: lunar.phase.key,
+            phase_name: lunar.phase.name,
+            phase_type: lunar.phase.phaseType || null,
+            lunar_month: lunar.lunarMonth,
+            day_of_cycle: lunar.dayOfCycle,
+            zodiac: lunar.zodiac.sign,
+            illumination: lunar.illumination,
+            tags: Array.isArray(args.tags) ? args.tags : ['chat-reflection'],
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (retry.error) throw retry.error;
+        newEcho = retry.data;
+      }
+
       return { content: [{ type: 'text', text: JSON.stringify({ preservedEcho: newEcho }, null, 2) }] };
     }
 

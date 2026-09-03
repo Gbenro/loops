@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { saveAudio } from '../lib/audioStorage.js';
+import { getLunarData } from '../lib/lunar.js';
+import { saveEcho } from '../lib/storage.js';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js';
 import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
@@ -420,50 +422,89 @@ export function Chat({ userId, lunarData }) {
   // Preserve key material / transcript into the Field as an Echo
   const handlePreserveToField = async (session, e) => {
     if (e) e.stopPropagation();
+    if (!userId) {
+      showFeedback('Please log in to preserve reflections.', 'error');
+      return false;
+    }
+
     try {
+      // Fetch messages for session if not already loaded in state
       let sessionMsgs = messages;
       if (session.id !== sessionId) {
-        const { data: fetchedMsgs } = await supabase
+        const { data: fetchedMsgs, error: fetchErr } = await supabase
           .from('chat_messages')
           .select('role, content, created_at')
           .eq('session_id', session.id)
           .order('created_at', { ascending: true });
-        sessionMsgs = fetchedMsgs || [];
+        if (!fetchErr && fetchedMsgs) {
+          sessionMsgs = fetchedMsgs;
+        }
       }
 
-      let echoText;
+      // Format bounded reflection text
+      let formattedTurns = '';
       if (sessionMsgs.length > 0) {
-        echoText = `Preserved Reflection from Chat "${session.title}":\n\n` +
-          sessionMsgs.map((m) => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
-      } else {
-        echoText = `Preserved Reflection from Chat "${session.title}"`;
+        const turns = sessionMsgs.map((m) => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`);
+        const fullText = turns.join('\n\n');
+        if (fullText.length > 6000) {
+          const recentTurns = turns.slice(-10);
+          formattedTurns = `...[Earlier conversation archived in session history]...\n\n` + recentTurns.join('\n\n');
+        } else {
+          formattedTurns = fullText;
+        }
       }
 
+      const echoText = formattedTurns
+        ? `Preserved Reflection from Chat "${session.title || 'Continuous Reflection'}":\n\n${formattedTurns}`
+        : `Preserved Reflection from Chat "${session.title || 'Continuous Reflection'}"`;
+
+      const lunar = (lunarData && lunarData.phase) ? lunarData : getLunarData();
       const echoId = `e${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
-      const { error: insertErr } = await supabase.from('echoes').insert({
+
+      const echoRecord = {
         id: echoId,
-        user_id: userId,
         text: echoText,
         source: 'chat_reflection',
-        phase: lunarData.phase.key,
-        phase_name: lunarData.phase.name,
-        phase_type: lunarData.phase.phaseType || null,
-        lunar_month: lunarData.lunarMonth,
-        day_of_cycle: lunarData.dayOfCycle,
-        zodiac: lunarData.zodiac.sign,
-        illumination: lunarData.illumination,
+        phase: lunar.phase?.key || 'new',
+        phaseName: lunar.phase?.name || 'New Moon',
+        phaseType: lunar.phase?.phaseType || 'threshold',
+        lunarMonth: lunar.lunarMonth || 'Current Moon',
+        dayOfCycle: lunar.dayOfCycle || 1,
+        zodiac: lunar.zodiac?.sign || 'Aries',
+        illumination: lunar.illumination ?? 0,
         tags: ['chat-reflection'],
-        provenance_author: 'user',
-        provenance_kind: 'chat_reflection',
-        created_at: new Date().toISOString()
-      });
+        provenanceAuthor: 'user',
+        provenanceKind: 'chat_reflection',
+        createdAt: new Date().toISOString()
+      };
 
-      if (insertErr) throw insertErr;
+      try {
+        await saveEcho(echoRecord, userId);
+      } catch (dbErr) {
+        console.warn('saveEcho failed, falling back to direct core insert:', dbErr);
+        const { error: directErr } = await supabase.from('echoes').insert({
+          id: echoRecord.id,
+          user_id: userId,
+          text: echoRecord.text,
+          source: echoRecord.source,
+          phase: echoRecord.phase,
+          phase_name: echoRecord.phaseName,
+          phase_type: echoRecord.phaseType,
+          lunar_month: echoRecord.lunarMonth,
+          day_of_cycle: echoRecord.dayOfCycle,
+          zodiac: echoRecord.zodiac,
+          illumination: echoRecord.illumination,
+          tags: echoRecord.tags,
+          created_at: echoRecord.createdAt
+        });
+        if (directErr) throw directErr;
+      }
+
       showFeedback(`✦ Preserved to Field as Echo reflection!`);
       return true;
     } catch (err) {
       console.error('Preserve error:', err);
-      showFeedback('Failed to preserve chat to Field.', 'error');
+      showFeedback(`Failed to preserve chat to Field: ${err.message || ''}`, 'error');
       return false;
     }
   };

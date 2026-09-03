@@ -1141,7 +1141,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           .order('created_at', { ascending: true });
 
         if (msgs && msgs.length > 0) {
-          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`).join('\n\n');
+          const turns = msgs.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`);
+          const full = turns.join('\n\n');
+          const formatted = full.length > 6000
+            ? `...[Earlier conversation archived in session history]...\n\n` + turns.slice(-10).join('\n\n')
+            : full;
+          echoText = `Preserved Reflection from Chat "${session.title}":\n\n` + formatted;
         } else {
           echoText = `Preserved Reflection from Chat "${session.title}"`;
         }
@@ -1149,13 +1154,13 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
       const lunar = getLunarData();
       const echoId = generateId('e');
-      const { data: newEcho, error: echoErr } = await supabase
+      let { data: newEcho, error: echoErr } = await supabase
         .from('echoes')
         .insert({
           id: echoId,
           user_id: user.id,
           text: echoText,
-          source: 'text',
+          source: 'chat_reflection',
           phase: lunar.phase.key,
           phase_name: lunar.phase.name,
           phase_type: lunar.phase.phaseType || null,
@@ -1171,7 +1176,32 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .select()
         .single();
 
-      if (echoErr) throw echoErr;
+      if (echoErr) {
+        // Fallback to core echoes columns
+        const retry = await supabase
+          .from('echoes')
+          .insert({
+            id: echoId,
+            user_id: user.id,
+            text: echoText,
+            source: 'chat_reflection',
+            phase: lunar.phase.key,
+            phase_name: lunar.phase.name,
+            phase_type: lunar.phase.phaseType || null,
+            lunar_month: lunar.lunarMonth,
+            day_of_cycle: lunar.dayOfCycle,
+            zodiac: lunar.zodiac.sign,
+            illumination: lunar.illumination,
+            tags: Array.isArray(tags) ? tags : ['chat-reflection'],
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (retry.error) throw retry.error;
+        newEcho = retry.data;
+      }
+
       res.status(201).json({ success: true, echo: newEcho });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

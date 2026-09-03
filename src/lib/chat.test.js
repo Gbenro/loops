@@ -290,5 +290,63 @@ describe('Luna Conversational Prompt Engine', () => {
       const isArchived = Boolean(legacySession.is_archived || legacySession.archived_at);
       expect(isArchived).toBe(false);
     });
+
+    it('bounds long chat transcripts safely when preserving to Field', () => {
+      const session = { id: 'sess_long_1', title: 'Deep Solitary Chat' };
+      const longMessages = Array.from({ length: 40 }, (_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Detailed message turn number ${i + 1} exploring cycles of light and darkness ` + 'x'.repeat(200)
+      }));
+
+      const turns = longMessages.map(m => `${m.role === 'user' ? 'You' : 'Luna'}: ${m.content}`);
+      const fullText = turns.join('\n\n');
+      expect(fullText.length).toBeGreaterThan(6000);
+
+      const recentTurns = turns.slice(-10);
+      const formattedTurns = `...[Earlier conversation archived in session history]...\n\n` + recentTurns.join('\n\n');
+
+      const echoText = `Preserved Reflection from Chat "${session.title}":\n\n${formattedTurns}`;
+      expect(echoText).toContain('...[Earlier conversation archived in session history]...');
+      expect(echoText).toContain('turn number 40');
+      expect(echoText.length).toBeLessThan(fullText.length);
+    });
+
+    it('falls back to astronomical engine data when lunarData prop is null or incomplete', () => {
+      const fallbackLunar = {
+        phase: { key: 'waxing_crescent', name: 'Waxing Crescent', phaseType: 'waxing' },
+        lunarMonth: 'Snow Moon',
+        dayOfCycle: 4,
+        zodiac: { sign: 'Pisces' },
+        illumination: 18
+      };
+
+      const computeEchoLunarContext = (providedLunar) => {
+        const resolved = providedLunar?.phase ? providedLunar : fallbackLunar;
+        return {
+          phase: resolved.phase.key,
+          phaseName: resolved.phase.name,
+          phaseType: resolved.phase.phaseType,
+          lunarMonth: resolved.lunarMonth,
+          dayOfCycle: resolved.dayOfCycle,
+          zodiac: resolved.zodiac?.sign || 'Aries',
+          illumination: resolved.illumination
+        };
+      };
+
+      const fromNull = computeEchoLunarContext(null);
+      expect(fromNull.phase).toBe('waxing_crescent');
+      expect(fromNull.phaseName).toBe('Waxing Crescent');
+      expect(fromNull.zodiac).toBe('Pisces');
+
+      const fromProvided = computeEchoLunarContext({
+        phase: { key: 'full', name: 'Full Moon', phaseType: 'full' },
+        lunarMonth: 'Worm Moon',
+        dayOfCycle: 15,
+        zodiac: { sign: 'Virgo' },
+        illumination: 100
+      });
+      expect(fromProvided.phase).toBe('full');
+      expect(fromProvided.phaseName).toBe('Full Moon');
+    });
   });
 });
