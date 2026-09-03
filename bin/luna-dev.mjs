@@ -754,15 +754,38 @@ async function runBridge() {
           }
         }
 
-        const pendingUrl = sinceTimestamp
-          ? `/api/dev/agent/pending-sessions?since=${encodeURIComponent(sinceTimestamp)}`
-          : '/api/dev/agent/pending-sessions';
-        const pending = await apiCall(pendingUrl, 'GET', null, activeToken);
-        const sessions = pending.items || [];
-        const unclaimed = sessions.filter(s => s.status === 'pending');
+        // 1. Primary Source of Truth: Reconcile and inspect Durable Development Queue
+        let target = null;
+        try {
+          const queueRes = await apiCall('/api/dev/queue', 'GET', null, activeToken);
+          const queueItems = queueRes.items || [];
+          const eligibleItem = queueItems.find(i => i.isEligible && (i.status === 'queued' || i.status === 'discovered'));
+          
+          if (eligibleItem && eligibleItem.currentSessionId) {
+            target = {
+              id: eligibleItem.currentSessionId,
+              issueId: eligibleItem.issueId,
+              agent: 'gemini',
+              status: 'pending',
+              startedAt: eligibleItem.handoffTimestamps?.discoveredAt || eligibleItem.createdAt
+            };
+          }
+        } catch {}
 
-        if (unclaimed.length > 0) {
-          const target = unclaimed[0];
+        // 2. Secondary: Fast wake from pending sessions
+        if (!target) {
+          const pendingUrl = sinceTimestamp
+            ? `/api/dev/agent/pending-sessions?since=${encodeURIComponent(sinceTimestamp)}`
+            : '/api/dev/agent/pending-sessions';
+          const pending = await apiCall(pendingUrl, 'GET', null, activeToken);
+          const sessions = pending.items || [];
+          const unclaimed = sessions.filter(s => s.status === 'pending');
+          if (unclaimed.length > 0) {
+            target = unclaimed[0];
+          }
+        }
+
+        if (target) {
           console.log('\n================================================================');
           console.log(`✦ [AUTONOMOUS WAKE TRIGGER] New pending assignment discovered: ${target.issueId}`);
           console.log(`  Session ID: ${target.id}`);

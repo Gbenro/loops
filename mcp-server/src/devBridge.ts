@@ -902,14 +902,16 @@ export async function listPendingDevSessions(
   }
 
   // 2. Query all pending and connected sessions
+  // Pending work is ALWAYS returned regardless of 'since' filter so durable queue items are never missed!
   let query = supabase
     .from('dev_sessions')
     .select('id, issue_id, agent, status, started_at, token_expires_at')
-    .eq('user_id', userId)
-    .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`);
+    .eq('user_id', userId);
 
   if (since) {
-    query = query.gte('started_at', since);
+    query = query.or(`status.eq.pending,and(started_at.gte.${since},status.eq.connected,token_expires_at.gt.${now})`);
+  } else {
+    query = query.or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`);
   }
 
   const { data, error } = await query.order('started_at', { ascending: false });
@@ -1195,6 +1197,7 @@ export interface DevTelemetrySummary {
     acceptedCount: number;
     blockedCount: number;
     failedVerificationCount: number;
+    idleState: 'WORKING' | 'AWAITING_ACCEPTANCE' | 'EMPTY_IDLE' | 'BLOCKED_IDLE' | 'QUEUED_IDLE';
     nextEligibleIssueId: string | null;
   };
   deliveryMetrics: {
@@ -1484,6 +1487,19 @@ export async function getDevTelemetry(
 
   const unhandledLagCount = queueState.items.filter(i => i.isEligible && (i.status === 'queued' || i.status === 'discovered')).length;
 
+  let idleState: 'WORKING' | 'AWAITING_ACCEPTANCE' | 'EMPTY_IDLE' | 'BLOCKED_IDLE' | 'QUEUED_IDLE' = 'WORKING';
+  if (queueState.summary.working > 0) {
+    idleState = 'WORKING';
+  } else if (queueState.summary.awaitingAcceptance > 0 && queueState.summary.queued === 0) {
+    idleState = 'AWAITING_ACCEPTANCE';
+  } else if (queueState.summary.blocked > 0 && queueState.summary.queued === 0) {
+    idleState = 'BLOCKED_IDLE';
+  } else if (queueState.summary.queued > 0) {
+    idleState = 'QUEUED_IDLE';
+  } else {
+    idleState = 'EMPTY_IDLE';
+  }
+
   return {
     watcherHealth: {
       status: 'healthy',
@@ -1499,6 +1515,7 @@ export async function getDevTelemetry(
       acceptedCount: queueState.summary.accepted,
       blockedCount: queueState.summary.blocked,
       failedVerificationCount: queueState.summary.failedVerification,
+      idleState,
       nextEligibleIssueId: queueState.nextEligibleIssueId
     },
     deliveryMetrics: {
