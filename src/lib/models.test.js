@@ -5,7 +5,12 @@ import {
   getValidatedModelRegistry,
   resolveModel,
   calculateInferenceCost,
-  createComparisonTelemetry
+  createComparisonTelemetry,
+  classifyQueryDepth,
+  selectAdaptiveModel,
+  budgetContextWindow,
+  computeTurnInferenceTelemetry,
+  resolveFallbackModelWithDegradation
 } from '../../mcp-server/dist/models.js';
 
 describe('Luna Expanded Model Laboratory & Catalog Validation Test Suite', () => {
@@ -210,5 +215,79 @@ describe('Luna Expanded Model Laboratory & Catalog Validation Test Suite', () =>
     const deepseekAlias = await resolveModel('openrouter-deepseek-v4-pro', userId);
     expect(deepseekAlias.key).toBe('openrouter-deepseek-v4-pro-0813');
     expect(deepseekAlias.accessProvider).toBe('openrouter');
+  });
+
+  // ─── 8. Adaptive Answer Depth & Cost-per-Quality Inference Budgeting ────────
+
+  it('classifies query depth into shallow_factual, conversational_reflective, and deep_synthesis tiers', () => {
+    const shallow = classifyQueryDepth('what phase is the moon tonight?');
+    expect(shallow.tier).toBe('shallow_factual');
+    expect(shallow.targetModelTier).toBe('economy');
+    expect(shallow.targetContextBudget).toBe(4000);
+    expect(shallow.maxOutputTokens).toBe(1000);
+
+    const conversational = classifyQueryDepth('I felt really grounded while walking this evening.');
+    expect(conversational.tier).toBe('conversational_reflective');
+    expect(conversational.targetModelTier).toBe('strong');
+    expect(conversational.targetContextBudget).toBe(16000);
+    expect(conversational.maxOutputTokens).toBe(2500);
+
+    const deep = classifyQueryDepth('Synthesize my themes and loops across the entire Sturgeon cycle.');
+    expect(deep.tier).toBe('deep_synthesis');
+    expect(deep.targetModelTier).toBe('frontier');
+    expect(deep.targetContextBudget).toBe(32000);
+    expect(deep.maxOutputTokens).toBe(8000);
+  });
+
+  it('selects appropriate adaptive model based on query depth tier', () => {
+    const deepModel = selectAdaptiveModel('deep_synthesis', 'openrouter');
+    expect(deepModel.capabilityTier).toBe('frontier');
+
+    const conversationalModel = selectAdaptiveModel('conversational_reflective', 'openrouter');
+    expect(['strong', 'frontier']).toContain(conversationalModel.capabilityTier);
+
+    const shallowModel = selectAdaptiveModel('shallow_factual', 'openrouter');
+    expect(['economy', 'medium', 'strong']).toContain(shallowModel.capabilityTier);
+  });
+
+  it('allocates and budgets context window dynamically based on depth tier', () => {
+    const mockHistory = Array.from({ length: 30 }, (_, i) => ({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Turn ${i}` }));
+    const mockField = Array.from({ length: 20 }, (_, i) => ({ id: `e_${i}`, text: `Echo ${i}` }));
+
+    const shallowAlloc = budgetContextWindow({
+      depthTier: 'shallow_factual',
+      history: mockHistory,
+      fieldRecords: mockField,
+      userQuery: 'what phase'
+    });
+    expect(shallowAlloc.allocatedFieldRecords.length).toBeLessThanOrEqual(3);
+    expect(shallowAlloc.prunedHistory.length).toBeLessThanOrEqual(4);
+
+    const deepAlloc = budgetContextWindow({
+      depthTier: 'deep_synthesis',
+      history: mockHistory,
+      fieldRecords: mockField,
+      userQuery: 'Sturgeon cycle synthesis'
+    });
+    expect(deepAlloc.allocatedFieldRecords.length).toBe(20);
+    expect(deepAlloc.prunedHistory.length).toBe(25);
+  });
+
+  it('computes accurate turn inference telemetry including dollar cost accounting', () => {
+    const fable = MODEL_REGISTRY.find(m => m.key === 'anthropic-fable-5');
+    const tele = computeTurnInferenceTelemetry(fable, 10000, 500, 850);
+
+    expect(tele.modelKey).toBe('anthropic-fable-5');
+    expect(tele.totalTokens).toBe(10500);
+    expect(tele.latencyMs).toBe(850);
+    expect(tele.estimatedCostUsd).toBeGreaterThan(0);
+    expect(tele.qualityTier).toBe('frontier');
+  });
+
+  it('gracefully degrades to fallback model on rate limit or provider error without abrupt crash', () => {
+    const fallback = resolveFallbackModelWithDegradation('anthropic-fable-5', 'rate_limit_exceeded');
+    expect(fallback).toBeDefined();
+    expect(fallback.key).not.toBe('anthropic-fable-5');
+    expect(fallback.enabled).toBe(true);
   });
 });

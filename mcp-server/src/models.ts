@@ -723,3 +723,166 @@ export function resolveTtsModel(keyOrModelId?: string): TtsModelConfig {
   }
   return TTS_MODEL_REGISTRY[0]; // Default to openrouter-kokoro
 }
+
+// ─── Adaptive Answer Depth & Cost-per-Quality Inference Budgeting ─────────────
+
+export type QueryDepthTier = 'shallow_factual' | 'conversational_reflective' | 'deep_synthesis';
+
+export interface QueryDepthClassification {
+  tier: QueryDepthTier;
+  targetModelTier: 'economy' | 'medium' | 'strong' | 'frontier';
+  targetContextBudget: number;
+  maxOutputTokens: number;
+  rationale: string;
+}
+
+export function classifyQueryDepth(query: string): QueryDepthClassification {
+  const q = (query || '').toLowerCase().trim();
+
+  // 1. Deep Synthesis Triggers (Longitudinal patterns, multi-cycle retrospectives, complex thematic cross-referencing)
+  const isDeep = q.includes('entire') || q.includes('all cycle') || q.includes('whole cycle') ||
+                 q.includes('across cycles') || q.includes('longitudinal') || q.includes('history of') ||
+                 q.includes('all echoes') || q.includes('pattern across') || q.includes('synthesize') ||
+                 q.includes('sturgeon') || q.includes('snow moon') || q.includes('over time');
+
+  if (isDeep) {
+    return {
+      tier: 'deep_synthesis',
+      targetModelTier: 'frontier',
+      targetContextBudget: 32000,
+      maxOutputTokens: 8000,
+      rationale: 'Longitudinal or multi-cycle synthesis requiring exhaustive Field evidence and frontier reasoning.'
+    };
+  }
+
+  // 2. Shallow Factual Triggers (Simple CRUD, phase lookups, single state checks)
+  const isShallow = q.includes('tag this') || q.includes('close loop') || q.includes('archive') ||
+                    q.includes('what phase') || q.includes('current moon') || q.includes('what time') ||
+                    (q.length < 25 && !q.includes('why') && !q.includes('how') && !q.includes('feel'));
+
+  if (isShallow) {
+    return {
+      tier: 'shallow_factual',
+      targetModelTier: 'economy',
+      targetContextBudget: 4000,
+      maxOutputTokens: 1000,
+      rationale: 'Factual lookup or discrete CRUD state action requiring rapid, cost-efficient response.'
+    };
+  }
+
+  // 3. Conversational Reflective Default
+  return {
+    tier: 'conversational_reflective',
+    targetModelTier: 'strong',
+    targetContextBudget: 16000,
+    maxOutputTokens: 2500,
+    rationale: 'Standard conversational reflection and empathetic journaling with selective Field attunement.'
+  };
+}
+
+export function selectAdaptiveModel(tier: QueryDepthTier, preferredProvider = 'openrouter'): ModelConfig {
+  switch (tier) {
+    case 'deep_synthesis': {
+      const frontier = MODEL_REGISTRY.find(m => m.enabled && m.capabilityTier === 'frontier' && m.accessProvider === preferredProvider) ||
+                       MODEL_REGISTRY.find(m => m.enabled && m.capabilityTier === 'frontier') ||
+                       MODEL_REGISTRY[0];
+      return frontier;
+    }
+    case 'shallow_factual': {
+      const economy = MODEL_REGISTRY.find(m => m.enabled && (m.capabilityTier === 'economy' || m.capabilityTier === 'medium') && m.accessProvider === preferredProvider) ||
+                      MODEL_REGISTRY.find(m => m.enabled && m.key.includes('flash')) ||
+                      MODEL_REGISTRY[0];
+      return economy;
+    }
+    case 'conversational_reflective':
+    default: {
+      const strong = MODEL_REGISTRY.find(m => m.enabled && (m.capabilityTier === 'strong' || m.capabilityTier === 'frontier') && m.accessProvider === preferredProvider) ||
+                     MODEL_REGISTRY.find(m => m.enabled && m.laboratoryStatus === 'preferred') ||
+                     MODEL_REGISTRY[0];
+      return strong;
+    }
+  }
+}
+
+export interface ContextBudgetAllocation {
+  depthTier: QueryDepthTier;
+  prunedHistory: any[];
+  allocatedFieldRecords: any[];
+  estimatedTotalTokens: number;
+  isBudgetEnforced: boolean;
+}
+
+export function budgetContextWindow(options: {
+  depthTier: QueryDepthTier;
+  history: any[];
+  fieldRecords: any[];
+  userQuery: string;
+}): ContextBudgetAllocation {
+  const { depthTier, history, fieldRecords } = options;
+  const classification = classifyQueryDepth(options.userQuery);
+
+  // Allocate field records according to tier budget
+  let allocatedFieldRecords = [...fieldRecords];
+  if (depthTier === 'shallow_factual') {
+    allocatedFieldRecords = fieldRecords.slice(0, 3);
+  } else if (depthTier === 'conversational_reflective') {
+    allocatedFieldRecords = fieldRecords.slice(0, 10);
+  } // deep_synthesis retains full field records
+
+  // Prune conversation history to keep recent salient turns
+  const maxHistoryTurns = depthTier === 'shallow_factual' ? 4 : depthTier === 'conversational_reflective' ? 12 : 25;
+  const prunedHistory = history.slice(-maxHistoryTurns);
+
+  const estimatedTokens = Math.ceil(
+    (JSON.stringify(prunedHistory).length + JSON.stringify(allocatedFieldRecords).length + (options.userQuery || '').length) / 4
+  );
+
+  return {
+    depthTier,
+    prunedHistory,
+    allocatedFieldRecords,
+    estimatedTotalTokens: estimatedTokens,
+    isBudgetEnforced: true
+  };
+}
+
+export interface TurnInferenceTelemetry {
+  modelKey: string;
+  modelId: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latencyMs: number;
+  estimatedCostUsd: number;
+  qualityTier: string;
+}
+
+export function computeTurnInferenceTelemetry(
+  model: ModelConfig,
+  inputTokens: number,
+  outputTokens: number,
+  latencyMs: number
+): TurnInferenceTelemetry {
+  const costUsd = calculateInferenceCost(model.pricing, inputTokens, outputTokens);
+  return {
+    modelKey: model.key,
+    modelId: model.modelId,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    latencyMs,
+    estimatedCostUsd: costUsd,
+    qualityTier: model.capabilityTier
+  };
+}
+
+export function resolveFallbackModelWithDegradation(primaryModelKey: string, failedReason?: string): ModelConfig {
+  const primary = MODEL_REGISTRY.find(m => m.key === primaryModelKey) || MODEL_REGISTRY[0];
+  
+  // Degrade to fast/reliable fallback
+  const fallback = MODEL_REGISTRY.find(m => m.enabled && m.key !== primary.key && (m.key.includes('flash') || m.capabilityTier === 'medium' || m.capabilityTier === 'strong')) ||
+                   MODEL_REGISTRY[0];
+                   
+  return fallback;
+}
+
