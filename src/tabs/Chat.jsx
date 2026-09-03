@@ -97,13 +97,80 @@ export function Chat({ userId, lunarData }) {
     async function initChat() {
       try {
         setError('');
-        // Fetch all conversations for user ordered by recency
-        const { data: userSessions, error: sessionErr } = await supabase
+        // Helper to insert a session with fallback for database schema versions
+        const insertChatSession = async (newId, initialModel, title) => {
+          let { data: created, error: createErr } = await supabase
+            .from('chat_sessions')
+            .insert({
+              id: newId,
+              user_id: userId,
+              title: title,
+              model_key: initialModel,
+              is_archived: false,
+              archived_at: null
+            })
+            .select()
+            .single();
+
+          if (createErr) {
+            let retry = await supabase
+              .from('chat_sessions')
+              .insert({
+                id: newId,
+                user_id: userId,
+                title: title,
+                model_key: initialModel
+              })
+              .select()
+              .single();
+
+            if (retry.error) {
+              let baseRetry = await supabase
+                .from('chat_sessions')
+                .insert({
+                  id: newId,
+                  user_id: userId,
+                  title: title
+                })
+                .select()
+                .single();
+
+              if (baseRetry.error) throw baseRetry.error;
+              created = baseRetry.data;
+            } else {
+              created = retry.data;
+            }
+          }
+          return created;
+        };
+
+        // Fetch all conversations for user ordered by recency (with graceful schema fallback)
+        let userSessions = [];
+        const { data, error: sessionErr } = await supabase
           .from('chat_sessions')
           .select('id, model_key, title, updated_at, created_at, is_archived, archived_at')
           .order('updated_at', { ascending: false });
 
-        if (sessionErr) throw sessionErr;
+        if (sessionErr) {
+          // Schema fallback: if is_archived or archived_at columns don't exist yet in database
+          const retry = await supabase
+            .from('chat_sessions')
+            .select('id, model_key, title, updated_at, created_at')
+            .order('updated_at', { ascending: false });
+
+          if (retry.error) {
+            const baseRetry = await supabase
+              .from('chat_sessions')
+              .select('id, title, updated_at, created_at')
+              .order('updated_at', { ascending: false });
+            if (baseRetry.error) throw baseRetry.error;
+            userSessions = baseRetry.data || [];
+          } else {
+            userSessions = retry.data || [];
+          }
+        } else {
+          userSessions = data || [];
+        }
 
         let activeSession;
         const allSessions = userSessions || [];
@@ -116,40 +183,14 @@ export function Chat({ userId, lunarData }) {
           // All are archived; create a fresh active session
           const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
           const initialModel = selectedModel || 'anthropic-fable';
-          const { data: created, error: createErr } = await supabase
-            .from('chat_sessions')
-            .insert({
-              id: newId,
-              user_id: userId,
-              title: 'Continuous Reflection',
-              model_key: initialModel,
-              is_archived: false,
-              archived_at: null
-            })
-            .select()
-            .single();
-
-          if (createErr) throw createErr;
+          const created = await insertChatSession(newId, initialModel, 'Continuous Reflection');
           activeSession = created;
           setSessions([created, ...allSessions]);
         } else {
           // Create initial session with model selection
           const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
           const initialModel = selectedModel || 'anthropic-fable';
-          const { data: created, error: createErr } = await supabase
-            .from('chat_sessions')
-            .insert({
-              id: newId,
-              user_id: userId,
-              title: 'Continuous Reflection',
-              model_key: initialModel,
-              is_archived: false,
-              archived_at: null
-            })
-            .select()
-            .single();
-
-          if (createErr) throw createErr;
+          const created = await insertChatSession(newId, initialModel, 'Continuous Reflection');
           activeSession = created;
           setSessions([created]);
         }
@@ -220,7 +261,8 @@ export function Chat({ userId, lunarData }) {
       const activeCount = sessions.filter((s) => !s.is_archived && !s.archived_at).length;
       const title = `Conversation ${activeCount + 1}`;
 
-      const { data: newSession, error: createErr } = await supabase
+      let newSession;
+      const { data, error: createErr } = await supabase
         .from('chat_sessions')
         .insert({
           id: newId,
@@ -233,7 +275,37 @@ export function Chat({ userId, lunarData }) {
         .select()
         .single();
 
-      if (createErr) throw createErr;
+      if (createErr) {
+        const retry = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: newId,
+            user_id: userId,
+            title: title,
+            model_key: initialModel
+          })
+          .select()
+          .single();
+
+        if (retry.error) {
+          const baseRetry = await supabase
+            .from('chat_sessions')
+            .insert({
+              id: newId,
+              user_id: userId,
+              title: title
+            })
+            .select()
+            .single();
+
+          if (baseRetry.error) throw baseRetry.error;
+          newSession = baseRetry.data;
+        } else {
+          newSession = retry.data;
+        }
+      } else {
+        newSession = data;
+      }
 
       setSessions((prev) => [newSession, ...prev]);
       setSessionId(newId);

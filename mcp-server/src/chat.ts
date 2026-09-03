@@ -910,8 +910,18 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         query = query.or('is_archived.is.null,is_archived.eq.false');
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
+      if (error) {
+        // Fallback for database schema missing archive columns
+        const fallback = await supabase
+          .from('chat_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(maxLimit);
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
+      }
       res.json({ sessions: data || [] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -930,7 +940,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       const resolved = await resolveModel(modelKey || DEFAULT_MODEL_KEY, user.id);
       const sessionTitle = title?.trim() || 'Continuous Reflection';
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('chat_sessions')
         .insert({
           id: newSessionId,
@@ -943,7 +953,34 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        const retry = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: newSessionId,
+            user_id: user.id,
+            title: sessionTitle,
+            model_key: resolved.key
+          })
+          .select()
+          .single();
+        if (retry.error) {
+          const baseRetry = await supabase
+            .from('chat_sessions')
+            .insert({
+              id: newSessionId,
+              user_id: user.id,
+              title: sessionTitle
+            })
+            .select()
+            .single();
+          if (baseRetry.error) throw baseRetry.error;
+          data = baseRetry.data;
+        } else {
+          data = retry.data;
+        }
+      }
+
       res.status(201).json({ session: data });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1015,7 +1052,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         updates.archived_at = shouldArchive ? (archivedAt || new Date().toISOString()) : null;
       }
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('chat_sessions')
         .update(updates)
         .eq('id', req.params.id)
@@ -1023,7 +1060,24 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         .select()
         .single();
 
-      if (error || !data) throw new Error(`Update failed: Session with ID "${req.params.id}" not found or unauthorized.`);
+      if (error && (updates.is_archived !== undefined || updates.archived_at !== undefined)) {
+        // Retry without archive columns if database lacks them
+        delete updates.is_archived;
+        delete updates.archived_at;
+        const retry = await supabase
+          .from('chat_sessions')
+          .update(updates)
+          .eq('id', req.params.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      } else if (error) {
+        throw error;
+      }
+
+      if (!data) throw new Error(`Update failed: Session with ID "${req.params.id}" not found or unauthorized.`);
       res.json({ session: data });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

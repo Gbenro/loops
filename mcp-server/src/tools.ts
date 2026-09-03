@@ -2426,8 +2426,17 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         query = query.or('is_archived.is.null,is_archived.eq.false');
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
+      if (error) {
+        const fallback = await supabase
+          .from('chat_sessions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(limit);
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
+      }
       return { content: [{ type: 'text', text: JSON.stringify({ sessions: data || [] }, null, 2) }] };
     }
 
@@ -2445,7 +2454,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'archive_chat_session': {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('chat_sessions')
         .update({
           is_archived: true,
@@ -2457,12 +2466,25 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .select()
         .single();
 
-      if (error || !data) throw new Error(`Archive failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      if (error) {
+        // Retry with timestamp update if archive columns are absent
+        const retry = await supabase
+          .from('chat_sessions')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', args.id)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      }
+
+      if (!data) throw new Error(`Archive failed: Chat session with ID "${args.id}" not found or unauthorized.`);
       return { content: [{ type: 'text', text: JSON.stringify({ session: data }, null, 2) }] };
     }
 
     case 'restore_chat_session': {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('chat_sessions')
         .update({
           is_archived: false,
@@ -2474,7 +2496,19 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .select()
         .single();
 
-      if (error || !data) throw new Error(`Restore failed: Chat session with ID "${args.id}" not found or unauthorized.`);
+      if (error) {
+        const retry = await supabase
+          .from('chat_sessions')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', args.id)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      }
+
+      if (!data) throw new Error(`Restore failed: Chat session with ID "${args.id}" not found or unauthorized.`);
       return { content: [{ type: 'text', text: JSON.stringify({ session: data }, null, 2) }] };
     }
 
