@@ -902,16 +902,14 @@ export async function listPendingDevSessions(
   }
 
   // 2. Query all pending and connected sessions
-  // Pending work is ALWAYS returned regardless of 'since' filter so durable queue items are never missed!
   let query = supabase
     .from('dev_sessions')
     .select('id, issue_id, agent, status, started_at, token_expires_at')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`);
 
   if (since) {
-    query = query.or(`status.eq.pending,and(started_at.gte.${since},status.eq.connected,token_expires_at.gt.${now})`);
-  } else {
-    query = query.or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`);
+    query = query.gte('started_at', since);
   }
 
   const { data, error } = await query.order('started_at', { ascending: false });

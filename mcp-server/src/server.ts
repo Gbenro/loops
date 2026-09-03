@@ -710,7 +710,7 @@ app.get('/api/lunar/current', authenticateRestOptional, async (req, res) => {
 
 app.get('/api/search', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -719,7 +719,7 @@ app.get('/api/search', authenticateRest, async (req, res) => {
 
 app.get('/api/context', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_ai_context', {});
+    const result = await executeTool(req.body.supabaseClient, 'get_ai_context', {}, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -728,7 +728,7 @@ app.get('/api/context', authenticateRest, async (req, res) => {
 
 app.get('/api/loops', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'list_loops', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'list_loops', req.query, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -737,7 +737,7 @@ app.get('/api/loops', authenticateRest, async (req, res) => {
 
 app.get(['/api/lunar-cycle/records', '/api/cycle/synthesis-context'], authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_lunar_cycle_records', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'get_lunar_cycle_records', req.query, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });

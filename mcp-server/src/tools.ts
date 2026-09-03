@@ -1051,18 +1051,20 @@ function generateServerId(prefix = 'l') {
 
 // ─── Tools Dispatcher ────────────────────────────────────────────────────────
 
-export async function executeTool(supabase: SupabaseClient, name: string, args: any) {
+export async function executeTool(supabase: SupabaseClient, name: string, args: any, overrideUserId?: string) {
   const lunar = getLunarData();
 
   // Retrieve authenticated userId
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    if (name !== 'get_current_lunar_context' && name !== 'get_current_cycle') {
-      throw new Error(`Authentication required for database tool "${name}": ${authError?.message || 'Session invalid'}`);
+  let userId = overrideUserId || '';
+  if (!userId) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      if (name !== 'get_current_lunar_context' && name !== 'get_current_cycle') {
+        throw new Error(`Authentication required for database tool "${name}": ${authError?.message || 'Session invalid'}`);
+      }
     }
+    userId = user?.id || '';
   }
-  
-  const userId = user?.id || '';
 
   // Standardize aliases
   const activeToolName = name === 'create_entry' ? 'create_echo' :
@@ -1464,7 +1466,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
         // Cycle / Lunar month filter (deterministic membership)
         if (resolvedCycle) {
-          dbQuery = dbQuery.or(`lunar_month_opened.ilike.%${resolvedCycle}%,lunar_month_closed.ilike.%${resolvedCycle}%,lunar_month.ilike.%${resolvedCycle}%`);
+          dbQuery = dbQuery.or(`lunar_month_opened.ilike.%${resolvedCycle}%,lunar_month_closed.ilike.%${resolvedCycle}%`);
         }
 
         // Phase filter
@@ -1603,7 +1605,9 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         includeRhythms = true,
         status = 'all',
         limitPerType = 100,
-        fetchAll = true
+        fetchAll = true,
+        from,
+        to
       } = args;
 
       const currentLunar = getLunarData();
@@ -1612,12 +1616,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       // 1. Exhaustively retrieve Loops in this cycle
       let cycleLoops: any[] = [];
       let loopsCoverage = 'complete';
+      let loopsMembershipMethod: 'exact_cycle_match' | 'date_range_fallback' = 'exact_cycle_match';
+      let isExactLoopMembership = true;
+
       if (includeLoops) {
         let loopQuery = supabase
           .from('loops')
           .select('*')
           .eq('user_id', userId)
-          .or(`lunar_month_opened.ilike.%${targetCycle}%,lunar_month_closed.ilike.%${targetCycle}%,lunar_month.ilike.%${targetCycle}%`)
+          .or(`lunar_month_opened.ilike.%${targetCycle}%,lunar_month_closed.ilike.%${targetCycle}%`)
           .order('created_at', { ascending: true })
           .limit(limitPerType + 1);
 
@@ -1632,11 +1639,38 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         const { data: loopsData, error: lErr } = await loopQuery;
         if (lErr) throw lErr;
         const loopRows = loopsData || [];
-        if (loopRows.length > limitPerType) {
-          loopsCoverage = 'partial';
-          cycleLoops = loopRows.slice(0, limitPerType).map(r => mapLoop(r));
-        } else {
-          cycleLoops = loopRows.map(r => mapLoop(r));
+
+        if (loopRows.length > 0) {
+          loopsMembershipMethod = 'exact_cycle_match';
+          isExactLoopMembership = true;
+          if (loopRows.length > limitPerType) {
+            loopsCoverage = 'partial';
+            cycleLoops = loopRows.slice(0, limitPerType).map(r => mapLoop(r));
+          } else {
+            cycleLoops = loopRows.map(r => mapLoop(r));
+          }
+        } else if (from && to) {
+          // Fallback to explicit date range if exact cycle match returned 0 records and date bounds provided
+          const { data: fallbackLoops, error: fbErr } = await supabase
+            .from('loops')
+            .select('*')
+            .eq('user_id', userId)
+            .is('deleted_at', null)
+            .gte('created_at', from)
+            .lte('created_at', to)
+            .order('created_at', { ascending: true })
+            .limit(limitPerType + 1);
+
+          if (!fbErr && fallbackLoops) {
+            loopsMembershipMethod = 'date_range_fallback';
+            isExactLoopMembership = false;
+            if (fallbackLoops.length > limitPerType) {
+              loopsCoverage = 'partial';
+              cycleLoops = fallbackLoops.slice(0, limitPerType).map(r => mapLoop(r));
+            } else {
+              cycleLoops = fallbackLoops.map(r => mapLoop(r));
+            }
+          }
         }
       }
 
@@ -1701,6 +1735,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
             coverageTelemetry: {
               loopsCoverage,
               echoesCoverage,
+              loopsMembershipMethod,
+              isExactLoopMembership,
               hasMoreLoops: loopsCoverage === 'partial',
               hasMoreEchoes: echoesCoverage === 'partial'
             },

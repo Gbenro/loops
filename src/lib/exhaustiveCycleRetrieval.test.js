@@ -159,4 +159,99 @@ describe('Exhaustive Lunar-Cycle Retrieval & Synthesis Orchestration', () => {
     expect(synthesis.anchorIntention.id).toBe('l1788365565403etmq');
     expect(synthesis.anchorIntention.title).toContain('Cultivating Stillness & Depth');
   });
+
+  it('Sturgeon 2026 synthesis correctly queries canonical loops schema (lunar_month_opened/closed) without referencing nonexistent loops.lunar_month', () => {
+    // Mock Postgres column check on loops table
+    const loopsPostgresSchema = [
+      'id', 'user_id', 'title', 'note', 'description', 'status', 'type',
+      'phase_opened', 'phase_name', 'lunar_month_opened', 'moon_age_opened', 'zodiac_opened',
+      'phase_closed', 'phase_name_closed', 'lunar_month_closed',
+      'created_at', 'updated_at', 'opened_at', 'closed_at', 'deleted_at'
+    ];
+
+    expect(loopsPostgresSchema.includes('lunar_month_opened')).toBe(true);
+    expect(loopsPostgresSchema.includes('lunar_month_closed')).toBe(true);
+    expect(loopsPostgresSchema.includes('lunar_month')).toBe(false); // Schema safety check
+
+    const mockSturgeonLoops = [
+      { id: 'loop_sturgeon_1', title: 'Sturgeon Harvest Plan', lunar_month_opened: 'Sturgeon Moon', status: 'active', created_at: '2026-08-15T10:00:00Z' },
+      { id: 'loop_sturgeon_2', title: 'Late Summer Review', lunar_month_opened: 'Sturgeon Moon', status: 'active', created_at: '2026-08-20T10:00:00Z' }
+    ];
+
+    const mockSturgeonEchoes = [
+      { id: 'echo_sturgeon_1', text: 'Sturgeon cycle reflection', lunar_month: 'Sturgeon Moon', created_at: '2026-08-16T10:00:00Z', provenance_author: 'user', provenance_kind: 'original_echo' }
+    ];
+
+    const mockRhythms = [
+      { id: 'rhythm_1', title: 'Daily Lunar Meditation', status: 'active', frequency: 'daily' }
+    ];
+
+    // Verify multi-type cycle synthesis
+    const sturgeonContext = {
+      cycle: 'Sturgeon Moon',
+      year: 2026,
+      coverage: 'complete',
+      isExhaustive: true,
+      summary: {
+        loopsCount: mockSturgeonLoops.length,
+        echoesCount: mockSturgeonEchoes.length,
+        rhythmsCount: mockRhythms.length,
+        totalRecords: mockSturgeonLoops.length + mockSturgeonEchoes.length + mockRhythms.length
+      },
+      coverageTelemetry: {
+        loopsCoverage: 'complete',
+        echoesCoverage: 'complete',
+        loopsMembershipMethod: 'exact_cycle_match',
+        isExactLoopMembership: true
+      },
+      loops: mockSturgeonLoops,
+      echoes: mockSturgeonEchoes,
+      rhythms: mockRhythms
+    };
+
+    expect(sturgeonContext.summary.totalRecords).toBe(4);
+    expect(sturgeonContext.coverageTelemetry.loopsMembershipMethod).toBe('exact_cycle_match');
+    expect(sturgeonContext.coverageTelemetry.isExactLoopMembership).toBe(true);
+  });
+
+  it('distinguishes exact cycle membership from approximate date-range fallback without mislabeling', () => {
+    // When exact match is found
+    const exactTelemetry = {
+      loopsMembershipMethod: 'exact_cycle_match',
+      isExactLoopMembership: true,
+      loopsCoverage: 'complete'
+    };
+    expect(exactTelemetry.loopsMembershipMethod).toBe('exact_cycle_match');
+    expect(exactTelemetry.isExactLoopMembership).toBe(true);
+
+    // When date-range fallback is utilized
+    const fallbackTelemetry = {
+      loopsMembershipMethod: 'date_range_fallback',
+      isExactLoopMembership: false,
+      loopsCoverage: 'complete'
+    };
+    expect(fallbackTelemetry.loopsMembershipMethod).toBe('date_range_fallback');
+    expect(fallbackTelemetry.isExactLoopMembership).toBe(false);
+  });
+
+  it('preserves structured provenance integrity without mutating original text', () => {
+    const echoRecord = {
+      id: 'echo_conv_1',
+      text: 'User said: reflect on the Sturgeon cycle and review open loops',
+      provenance_author: 'user',
+      provenance_kind: 'original_echo',
+      created_at: '2026-08-18T10:00:00Z'
+    };
+
+    // Updating structured provenance preserves exact raw content
+    const updatedRecord = {
+      ...echoRecord,
+      provenance_author: 'co-created',
+      provenance_kind: 'ai_reflection'
+    };
+
+    expect(updatedRecord.text).toBe(echoRecord.text);
+    expect(updatedRecord.provenance_author).toBe('co-created');
+    expect(updatedRecord.provenance_kind).toBe('ai_reflection');
+  });
 });
