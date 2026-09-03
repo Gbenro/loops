@@ -1578,8 +1578,8 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       const { userId, isAgentSession, isDiscoverySession } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      if (isDiscoverySession || isAgentSession) {
-        return res.status(403).json({ error: 'Discovery and dev session tokens cannot create arbitrary issues' });
+      if (isAgentSession) {
+        return res.status(403).json({ error: 'Dev session tokens cannot create arbitrary issues' });
       }
 
       const { title, description, acceptanceCriteria, priority, assignedAgent, relatedReferences } = req.body;
