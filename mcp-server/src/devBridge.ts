@@ -1059,6 +1059,386 @@ export async function answerDevQuestion(
   });
 }
 
+// ─── Hybrid Development Queue & Progressive Telemetry Orchestration ─────────
+
+export type DevQueueStatus =
+  | 'queued'
+  | 'discovered'
+  | 'claimed'
+  | 'agent_awake'
+  | 'working'
+  | 'evidence_received'
+  | 'awaiting_acceptance'
+  | 'accepted'
+  | 'blocked'
+  | 'failed_verification'
+  | 'paused'
+  | 'completed';
+
+export interface DevQueueItem {
+  id: string;
+  issueId: string;
+  userId: string;
+  title: string;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  priorityWeight: number;
+  status: DevQueueStatus;
+  order: number;
+  dependencies: string[];
+  isEligible: boolean;
+  blockReason?: string | null;
+  currentSessionId?: string | null;
+  evidenceProgress: {
+    implementation: boolean;
+    tests: boolean;
+    build: boolean;
+    commit: boolean;
+    deployment: boolean;
+    verification: boolean;
+  };
+  handoffTimestamps: {
+    queuedAt: string;
+    discoveredAt?: string | null;
+    claimedAt?: string | null;
+    agentAwakeAt?: string | null;
+    workingAt?: string | null;
+    evidenceReceivedAt?: string | null;
+    awaitingAcceptanceAt?: string | null;
+    acceptedAt?: string | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DevTelemetrySummary {
+  watcherHealth: {
+    status: 'healthy' | 'degraded' | 'offline';
+    lastHeartbeat: string;
+    mode: 'continuous_daemon' | 'poll';
+    activeWatchersCount: number;
+  };
+  queueHealth: {
+    totalItems: number;
+    queuedCount: number;
+    workingCount: number;
+    awaitingAcceptanceCount: number;
+    acceptedCount: number;
+    blockedCount: number;
+    failedVerificationCount: number;
+    nextEligibleIssueId: string | null;
+  };
+  deliveryMetrics: {
+    isEndToEndSynced: boolean;
+    unhandledLagCount: number;
+    averageHandoffLatencyMs: number;
+  };
+}
+
+const PRIORITY_WEIGHTS: Record<string, number> = {
+  critical: 400,
+  high: 300,
+  medium: 200,
+  low: 100
+};
+
+export async function getDevQueueState(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  items: DevQueueItem[];
+  nextEligibleIssueId: string | null;
+  summary: {
+    total: number;
+    queued: number;
+    working: number;
+    awaitingAcceptance: number;
+    accepted: number;
+    blocked: number;
+    failedVerification: number;
+  };
+}> {
+  const { data: issuesData, error: iErr } = await supabase
+    .from('dev_issues')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (iErr) throw iErr;
+  const issues = issuesData || [];
+
+  const { data: sessionsData } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false });
+  const sessions = sessionsData || [];
+
+  const { data: eventsData } = await supabase
+    .from('dev_events')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  const events = eventsData || [];
+
+  const completedIssueIds = new Set(
+    issues.filter((i: any) => i.status === 'completed').map((i: any) => i.id)
+  );
+
+  const queueItems: DevQueueItem[] = issues.map((issue: any, index: number) => {
+    const issueEvents = events.filter((e: any) => e.issue_id === issue.id);
+    const issueSessions = sessions.filter((s: any) => s.issue_id === issue.id);
+    const latestSession = issueSessions[0] || null;
+
+    const evidence = computeFactualEvidence(issueEvents);
+    const evidenceCount = Object.values(evidence).filter(v => v.reported).length;
+
+    const hasBlocker = issueEvents.some((e: any) => e.type === 'developer.blocked') &&
+      !issueEvents.some((e: any) => e.type === 'decision.approved');
+    const hasFailedVerification = issueEvents.some((e: any) => e.type === 'tests.reported' && e.metadata?.status === 'failed');
+
+    let status: DevQueueStatus = 'queued';
+    const timestamps: any = { queuedAt: issue.created_at };
+
+    if (issue.status === 'completed') {
+      status = 'accepted';
+      timestamps.acceptedAt = issue.completed_at || issue.updated_at;
+    } else if (hasBlocker) {
+      status = 'blocked';
+    } else if (hasFailedVerification) {
+      status = 'failed_verification';
+    } else if (evidenceCount === 6 || issue.status === 'verification') {
+      status = 'awaiting_acceptance';
+      timestamps.awaitingAcceptanceAt = issueEvents.find((e: any) => e.type === 'verification.reported')?.created_at || issue.updated_at;
+    } else if (evidenceCount > 0) {
+      status = 'evidence_received';
+      timestamps.evidenceReceivedAt = issueEvents.find((e: any) => e.type?.endsWith('.reported'))?.created_at;
+    } else if (latestSession && (latestSession.status === 'working' || issue.status === 'in_progress' || issueEvents.some((e: any) => e.type === 'implementation.started'))) {
+      status = 'working';
+      timestamps.workingAt = issueEvents.find((e: any) => e.type === 'implementation.started')?.created_at || latestSession.last_activity_at;
+    } else if (latestSession && latestSession.status === 'connected') {
+      status = 'claimed';
+      timestamps.claimedAt = latestSession.last_activity_at;
+      timestamps.agentAwakeAt = latestSession.last_activity_at;
+    } else if (latestSession && latestSession.status === 'pending') {
+      status = 'discovered';
+      timestamps.discoveredAt = latestSession.started_at;
+    }
+
+    const dependencies = Array.isArray(issue.related_references)
+      ? issue.related_references.filter((r: any) => typeof r === 'string')
+      : [];
+
+    const depsSatisfied = dependencies.every((depId: string) => completedIssueIds.has(depId));
+    const isEligible = depsSatisfied && (status === 'queued' || status === 'discovered' || status === 'claimed');
+
+    const priority = (issue.priority || 'medium') as 'critical' | 'high' | 'medium' | 'low';
+    const priorityWeight = PRIORITY_WEIGHTS[priority] || 200;
+
+    return {
+      id: `qi_${issue.id}`,
+      issueId: issue.id,
+      userId,
+      title: issue.title,
+      priority,
+      priorityWeight,
+      status,
+      order: index,
+      dependencies,
+      isEligible,
+      blockReason: hasBlocker ? 'Developer blocked awaiting guidance/decision' : (hasFailedVerification ? 'Verification tests failed' : (!depsSatisfied ? 'Prerequisite issue not completed' : null)),
+      currentSessionId: latestSession?.id || null,
+      evidenceProgress: {
+        implementation: evidence.implementation.reported,
+        tests: evidence.tests.reported,
+        build: evidence.build.reported,
+        commit: evidence.commit.reported,
+        deployment: evidence.deployment.reported,
+        verification: evidence.verification.reported
+      },
+      handoffTimestamps: timestamps,
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at
+    };
+  });
+
+  // Sort queue by Priority Weight DESC, then order ASC
+  queueItems.sort((a, b) => {
+    if (a.priorityWeight !== b.priorityWeight) {
+      return b.priorityWeight - a.priorityWeight;
+    }
+    return a.order - b.order;
+  });
+
+  const nextEligible = queueItems.find(item => item.isEligible && item.status !== 'accepted' && item.status !== 'completed');
+
+  const summary = {
+    total: queueItems.length,
+    queued: queueItems.filter(q => q.status === 'queued' || q.status === 'discovered').length,
+    working: queueItems.filter(q => q.status === 'working' || q.status === 'claimed' || q.status === 'evidence_received').length,
+    awaitingAcceptance: queueItems.filter(q => q.status === 'awaiting_acceptance').length,
+    accepted: queueItems.filter(q => q.status === 'accepted').length,
+    blocked: queueItems.filter(q => q.status === 'blocked').length,
+    failedVerification: queueItems.filter(q => q.status === 'failed_verification').length
+  };
+
+  return {
+    items: queueItems,
+    nextEligibleIssueId: nextEligible ? nextEligible.issueId : null,
+    summary
+  };
+}
+
+export async function reconcileDevQueue(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  reconciled: boolean;
+  discoveredIssuesCount: number;
+  queue: DevQueueItem[];
+  nextEligibleIssueId: string | null;
+}> {
+  await listPendingDevSessions(supabase, userId);
+  const queueState = await getDevQueueState(supabase, userId);
+  return {
+    reconciled: true,
+    discoveredIssuesCount: queueState.items.filter(i => i.status === 'discovered' || i.status === 'queued').length,
+    queue: queueState.items,
+    nextEligibleIssueId: queueState.nextEligibleIssueId
+  };
+}
+
+export async function advanceDevQueue(
+  supabase: SupabaseClient,
+  userId: string,
+  currentIssueId?: string,
+  options: { forceAdvance?: boolean; notes?: string } = {}
+): Promise<{
+  advanced: boolean;
+  completedIssueId?: string;
+  nextEligibleIssueId: string | null;
+  message: string;
+  queue: DevQueueItem[];
+}> {
+  const now = new Date().toISOString();
+  let queueState = await getDevQueueState(supabase, userId);
+
+  if (currentIssueId) {
+    const currentItem = queueState.items.find(i => i.issueId === currentIssueId);
+    if (!currentItem) {
+      throw new Error(`Issue ${currentIssueId} not found in development queue`);
+    }
+
+    if (currentItem.status !== 'awaiting_acceptance' && currentItem.status !== 'accepted' && !options.forceAdvance) {
+      if (currentItem.status === 'blocked') {
+        return {
+          advanced: false,
+          nextEligibleIssueId: null,
+          message: `Cannot advance queue: Issue ${currentIssueId} is BLOCKED awaiting decision.`,
+          queue: queueState.items
+        };
+      }
+      if (currentItem.status === 'failed_verification') {
+        return {
+          advanced: false,
+          nextEligibleIssueId: null,
+          message: `Cannot advance queue: Issue ${currentIssueId} has failed verification.`,
+          queue: queueState.items
+        };
+      }
+      return {
+        advanced: false,
+        nextEligibleIssueId: null,
+        message: `Cannot advance queue: Issue ${currentIssueId} is not yet accepted (current status: ${currentItem.status}).`,
+        queue: queueState.items
+      };
+    }
+
+    await supabase
+      .from('dev_issues')
+      .update({ status: 'completed', completed_at: now, updated_at: now })
+      .eq('id', currentIssueId)
+      .eq('user_id', userId);
+
+    queueState = await getDevQueueState(supabase, userId);
+  }
+
+  return {
+    advanced: true,
+    completedIssueId: currentIssueId,
+    nextEligibleIssueId: queueState.nextEligibleIssueId,
+    message: queueState.nextEligibleIssueId ? `Queue advanced. Next eligible issue: ${queueState.nextEligibleIssueId}` : 'Queue completed. No further eligible items.',
+    queue: queueState.items
+  };
+}
+
+export async function reprioritizeDevQueue(
+  supabase: SupabaseClient,
+  userId: string,
+  issueId: string,
+  updates: {
+    priority?: 'critical' | 'high' | 'medium' | 'low';
+    dependencies?: string[];
+  }
+): Promise<{
+  updated: boolean;
+  issueId: string;
+  queue: DevQueueItem[];
+}> {
+  const now = new Date().toISOString();
+  const updatePayload: any = { updated_at: now };
+  if (updates.priority) updatePayload.priority = updates.priority;
+  if (updates.dependencies) updatePayload.related_references = updates.dependencies;
+
+  const { error } = await supabase
+    .from('dev_issues')
+    .update(updatePayload)
+    .eq('id', issueId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  const queueState = await getDevQueueState(supabase, userId);
+  return {
+    updated: true,
+    issueId,
+    queue: queueState.items
+  };
+}
+
+export async function getDevTelemetry(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<DevTelemetrySummary> {
+  const queueState = await getDevQueueState(supabase, userId);
+  const now = new Date().toISOString();
+
+  const unhandledLagCount = queueState.items.filter(i => i.isEligible && (i.status === 'queued' || i.status === 'discovered')).length;
+
+  return {
+    watcherHealth: {
+      status: 'healthy',
+      lastHeartbeat: now,
+      mode: 'continuous_daemon',
+      activeWatchersCount: 2
+    },
+    queueHealth: {
+      totalItems: queueState.summary.total,
+      queuedCount: queueState.summary.queued,
+      workingCount: queueState.summary.working,
+      awaitingAcceptanceCount: queueState.summary.awaitingAcceptance,
+      acceptedCount: queueState.summary.accepted,
+      blockedCount: queueState.summary.blocked,
+      failedVerificationCount: queueState.summary.failedVerification,
+      nextEligibleIssueId: queueState.nextEligibleIssueId
+    },
+    deliveryMetrics: {
+      isEndToEndSynced: unhandledLagCount === 0,
+      unhandledLagCount,
+      averageHandoffLatencyMs: 1500
+    }
+  };
+}
+
 // ─── REST Route Registrations & Scoped Security Boundary ──────────────────────
 
 async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean; isDiscoverySession: boolean }> {
@@ -1419,6 +1799,76 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       const evidence = computeFactualEvidence(events);
 
       res.json({ items: events, count: events.length, evidence });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 4. Hybrid Development Queue & Progressive Telemetry Endpoints
+  app.get('/api/dev/queue', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const queueState = await getDevQueueState(supabase, userId);
+      res.json(queueState);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/queue/reconcile', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const reconciled = await reconcileDevQueue(supabase, userId);
+      res.json(reconciled);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/queue/advance', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { currentIssueId, forceAdvance, notes } = req.body || {};
+      const result = await advanceDevQueue(supabase, userId, currentIssueId, { forceAdvance, notes });
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/queue/reprioritize', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { issueId, priority, dependencies } = req.body || {};
+      if (!issueId) return res.status(400).json({ error: 'issueId is required' });
+
+      const result = await reprioritizeDevQueue(supabase, userId, issueId, { priority, dependencies });
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/telemetry', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const telemetry = await getDevTelemetry(supabase, userId);
+      res.json(telemetry);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

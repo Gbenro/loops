@@ -505,6 +505,40 @@ async function runBridge() {
     return;
   }
 
+  if (command === 'queue') {
+    console.log('\n✦ Inspecting Durable Development Queue & Progressive Handoffs...');
+    try {
+      const res = await apiCall('/api/dev/queue', 'GET', null, activeToken);
+      console.log(JSON.stringify(res, null, 2));
+    } catch (err) {
+      console.error(`✗ Error fetching development queue: ${err.message}`);
+    }
+    return;
+  }
+
+  if (command === 'telemetry') {
+    console.log('\n✦ Inspecting Development Telemetry & Delivery Metrics...');
+    try {
+      const res = await apiCall('/api/dev/telemetry', 'GET', null, activeToken);
+      console.log(JSON.stringify(res, null, 2));
+    } catch (err) {
+      console.error(`✗ Error fetching development telemetry: ${err.message}`);
+    }
+    return;
+  }
+
+  if (command === 'advance') {
+    const issueId = paramArg;
+    console.log(`\n✦ Attempting acceptance-gated queue advancement${issueId ? ` for issue ${issueId}` : ''}...`);
+    try {
+      const res = await apiCall('/api/dev/queue/advance', 'POST', { currentIssueId: issueId }, activeToken);
+      console.log(JSON.stringify(res, null, 2));
+    } catch (err) {
+      console.error(`✗ Error advancing queue: ${err.message}`);
+    }
+    return;
+  }
+
   if (command === 'listen' || command === 'resume') {
     const issueId = paramArg;
     if (!issueId) {
