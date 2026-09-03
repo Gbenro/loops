@@ -746,7 +746,7 @@ app.get(['/api/lunar-cycle/records', '/api/cycle/synthesis-context'], authentica
 
 app.post('/api/loops', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'create_loop', req.body);
+    const result = await executeTool(req.body.supabaseClient, 'create_loop', req.body, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -755,7 +755,7 @@ app.post('/api/loops', authenticateRest, async (req, res) => {
 
 app.get('/api/loops/:id', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_loop', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'get_loop', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -765,7 +765,7 @@ app.get('/api/loops/:id', authenticateRest, async (req, res) => {
 app.patch('/api/loops/:id', authenticateRest, async (req, res) => {
   try {
     const args = { ...req.body, id: req.params.id };
-    const result = await executeTool(req.body.supabaseClient, 'update_loop', args);
+    const result = await executeTool(req.body.supabaseClient, 'update_loop', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -774,7 +774,7 @@ app.patch('/api/loops/:id', authenticateRest, async (req, res) => {
 
 app.post('/api/loops/:id/close', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'close_loop', { id: req.params.id, note: req.body.note });
+    const result = await executeTool(req.body.supabaseClient, 'close_loop', { id: req.params.id, note: req.body.note }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -783,7 +783,7 @@ app.post('/api/loops/:id/close', authenticateRest, async (req, res) => {
 
 app.post('/api/loops/:id/reopen', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'reopen_loop', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'reopen_loop', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -792,7 +792,7 @@ app.post('/api/loops/:id/reopen', authenticateRest, async (req, res) => {
 
 app.post('/api/loops/:id/archive', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'archive_loop', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'archive_loop', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -801,7 +801,7 @@ app.post('/api/loops/:id/archive', authenticateRest, async (req, res) => {
 
 app.post('/api/loops/:id/restore', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'restore_loop', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'restore_loop', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -810,7 +810,7 @@ app.post('/api/loops/:id/restore', authenticateRest, async (req, res) => {
 
 app.post('/api/loops/:id/carry-forward', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'carry_loop_forward', { id: req.params.id, new_note: req.body.new_note });
+    const result = await executeTool(req.body.supabaseClient, 'carry_loop_forward', { id: req.params.id, new_note: req.body.new_note }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -819,7 +819,7 @@ app.post('/api/loops/:id/carry-forward', authenticateRest, async (req, res) => {
 
 app.get('/api/echoes', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'search_echoes', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'search_echoes', req.query, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -828,7 +828,7 @@ app.get('/api/echoes', authenticateRest, async (req, res) => {
 
 app.post('/api/echoes', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'create_echo', req.body);
+    const result = await executeTool(req.body.supabaseClient, 'create_echo', req.body, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -837,7 +837,7 @@ app.post('/api/echoes', authenticateRest, async (req, res) => {
 
 app.get('/api/echoes/:id', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_echo', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'get_echo', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -847,7 +847,7 @@ app.get('/api/echoes/:id', authenticateRest, async (req, res) => {
 app.patch('/api/echoes/:id', authenticateRest, async (req, res) => {
   try {
     const args = { ...req.body, id: req.params.id };
-    const result = await executeTool(req.body.supabaseClient, 'update_echo', args);
+    const result = await executeTool(req.body.supabaseClient, 'update_echo', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -856,7 +856,7 @@ app.patch('/api/echoes/:id', authenticateRest, async (req, res) => {
 
 app.post('/api/echoes/:id/archive', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'archive_echo', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'archive_echo', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -865,16 +865,7 @@ app.post('/api/echoes/:id/archive', authenticateRest, async (req, res) => {
 
 app.post('/api/echoes/:id/restore', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'restore_echo', { id: req.params.id });
-    res.json(JSON.parse(result.content[0].text));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/search', authenticateRest, async (req, res) => {
-  try {
-    const result = await executeTool(req.body.supabaseClient, 'search_luna', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'restore_echo', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -884,7 +875,7 @@ app.get('/api/search', authenticateRest, async (req, res) => {
 // ─── Threads & Reflections REST API Endpoints ────────────────────────────────
 app.get('/api/threads', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'list_threads', req.query);
+    const result = await executeTool(req.body.supabaseClient, 'list_threads', req.query, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -893,7 +884,7 @@ app.get('/api/threads', authenticateRest, async (req, res) => {
 
 app.post('/api/threads', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'create_thread', req.body);
+    const result = await executeTool(req.body.supabaseClient, 'create_thread', req.body, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -902,7 +893,7 @@ app.post('/api/threads', authenticateRest, async (req, res) => {
 
 app.get('/api/threads/:id', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_thread', { id: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'get_thread', { id: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -912,7 +903,7 @@ app.get('/api/threads/:id', authenticateRest, async (req, res) => {
 app.patch('/api/threads/:id', authenticateRest, async (req, res) => {
   try {
     const args = { ...req.body, id: req.params.id };
-    const result = await executeTool(req.body.supabaseClient, 'update_thread', args);
+    const result = await executeTool(req.body.supabaseClient, 'update_thread', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -922,7 +913,7 @@ app.patch('/api/threads/:id', authenticateRest, async (req, res) => {
 app.post('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res) => {
   try {
     const args = { threadId: req.params.id, echoId: req.params.echoId, createdBy: req.body.createdBy, relationshipType: req.body.relationshipType, note: req.body.note };
-    const result = await executeTool(req.body.supabaseClient, 'connect_echo_to_thread', args);
+    const result = await executeTool(req.body.supabaseClient, 'connect_echo_to_thread', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -932,7 +923,7 @@ app.post('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res) =
 app.delete('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res) => {
   try {
     const args = { threadId: req.params.id, echoId: req.params.echoId };
-    const result = await executeTool(req.body.supabaseClient, 'disconnect_echo_from_thread', args);
+    const result = await executeTool(req.body.supabaseClient, 'disconnect_echo_from_thread', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -941,7 +932,7 @@ app.delete('/api/threads/:id/echoes/:echoId', authenticateRest, async (req, res)
 
 app.get('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'get_echo_reflections', { echoId: req.params.id });
+    const result = await executeTool(req.body.supabaseClient, 'get_echo_reflections', { echoId: req.params.id }, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -951,7 +942,7 @@ app.get('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
 app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
   try {
     const args = { ...req.body, echoId: req.params.id };
-    const result = await executeTool(req.body.supabaseClient, 'attach_reflection', args);
+    const result = await executeTool(req.body.supabaseClient, 'attach_reflection', args, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -960,7 +951,7 @@ app.post('/api/echoes/:id/reflections', authenticateRest, async (req, res) => {
 
 app.post('/api/reflections/conversation', authenticateRest, async (req, res) => {
   try {
-    const result = await executeTool(req.body.supabaseClient, 'create_conversation_reflection', req.body);
+    const result = await executeTool(req.body.supabaseClient, 'create_conversation_reflection', req.body, (req as any).devUserId);
     res.json(JSON.parse(result.content[0].text));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
