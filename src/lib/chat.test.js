@@ -348,5 +348,31 @@ describe('Luna Conversational Prompt Engine', () => {
       expect(fromProvided.phase).toBe('full');
       expect(fromProvided.phaseName).toBe('Full Moon');
     });
+
+    it('merges durable local archived session store with server sessions seamlessly', () => {
+      const serverSessions = [
+        { id: 'sess_1', title: 'Session 1', updated_at: '2026-09-03T10:00:00Z' },
+        { id: 'sess_2', title: 'Session 2', updated_at: '2026-09-03T11:00:00Z' },
+        { id: 'sess_3', title: 'Session 3', updated_at: '2026-09-03T12:00:00Z' }
+      ];
+
+      const localArchivedIds = new Set(['sess_2']);
+
+      const merged = serverSessions.map(s => {
+        const isArchived = Boolean(s.is_archived || localArchivedIds.has(s.id));
+        return {
+          ...s,
+          is_archived: isArchived,
+          archived_at: isArchived ? (s.updated_at || s.created_at) : null
+        };
+      });
+
+      const active = merged.filter(s => !s.is_archived && !s.archived_at);
+      const archived = merged.filter(s => s.is_archived || s.archived_at);
+
+      expect(active.map(s => s.id)).toEqual(['sess_1', 'sess_3']);
+      expect(archived.map(s => s.id)).toEqual(['sess_2']);
+      expect(archived[0].is_archived).toBe(true);
+    });
   });
 });

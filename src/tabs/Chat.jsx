@@ -26,6 +26,26 @@ export function Chat({ userId, lunarData }) {
   const [preserveBeforeDelete, setPreserveBeforeDelete] = useState(true);
   const [actionFeedback, setActionFeedback] = useState(null); // { text, type }
 
+  // Durable Archive Store Helpers (Ensures archive persistence across restarts regardless of remote schema state)
+  const getArchivedSessionIds = (uid) => {
+    if (!uid) return [];
+    try {
+      const raw = localStorage.getItem(`cosmic_archived_chat_sessions_${uid}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const setArchivedSessionIds = (uid, ids) => {
+    if (!uid) return;
+    try {
+      localStorage.setItem(`cosmic_archived_chat_sessions_${uid}`, JSON.stringify(ids));
+    } catch (e) {
+      console.warn('localStorage archive save failed:', e);
+    }
+  };
+
   // Exact 3-Turn Conversational Voice Cache
   const [recentVoiceTurns, setRecentVoiceTurns] = useState([]);
   const [savingEchoTurnId, setSavingEchoTurnId] = useState(null);
@@ -174,8 +194,17 @@ export function Chat({ userId, lunarData }) {
           userSessions = data || [];
         }
 
+        const archivedIds = new Set(getArchivedSessionIds(userId));
+        const allSessions = (userSessions || []).map((s) => {
+          const isArchived = Boolean(s.is_archived || archivedIds.has(s.id));
+          return {
+            ...s,
+            is_archived: isArchived,
+            archived_at: s.archived_at || (isArchived ? (s.updated_at || s.created_at) : null)
+          };
+        });
+
         let activeSession;
-        const allSessions = userSessions || [];
         const nonArchived = allSessions.filter((s) => !s.is_archived && !s.archived_at);
 
         if (nonArchived.length > 0) {
@@ -364,13 +393,24 @@ export function Chat({ userId, lunarData }) {
     if (e) e.stopPropagation();
     try {
       const now = new Date().toISOString();
+      const currentArchived = new Set(getArchivedSessionIds(userId));
+      currentArchived.add(session.id);
+      setArchivedSessionIds(userId, Array.from(currentArchived));
+
+      // Attempt remote update on Supabase with graceful fallback
       const { error } = await supabase
         .from('chat_sessions')
         .update({ is_archived: true, archived_at: now, updated_at: now })
         .eq('id', session.id)
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (error) {
+        await supabase
+          .from('chat_sessions')
+          .update({ updated_at: now })
+          .eq('id', session.id)
+          .eq('user_id', userId);
+      }
 
       setSessions((prev) =>
         prev.map((s) => (s.id === session.id ? { ...s, is_archived: true, archived_at: now, updated_at: now } : s))
@@ -379,7 +419,7 @@ export function Chat({ userId, lunarData }) {
       // If active session was archived, switch to next active session
       if (session.id === sessionId) {
         const remainingActive = sessions.filter(
-          (s) => s.id !== session.id && !s.is_archived && !s.archived_at
+          (s) => s.id !== session.id && !s.is_archived && !s.archived_at && !currentArchived.has(s.id)
         );
         if (remainingActive.length > 0) {
           selectSession(remainingActive[0].id);
@@ -388,7 +428,7 @@ export function Chat({ userId, lunarData }) {
         }
       }
 
-      showFeedback(`Archived "${session.title}". Transcripts preserved.`);
+      showFeedback(`Archived "${session.title || 'Conversation'}". Transcripts preserved.`);
     } catch (err) {
       console.error('Archive error:', err);
       showFeedback('Failed to archive session.', 'error');
@@ -400,19 +440,30 @@ export function Chat({ userId, lunarData }) {
     if (e) e.stopPropagation();
     try {
       const now = new Date().toISOString();
+      const currentArchived = new Set(getArchivedSessionIds(userId));
+      currentArchived.delete(session.id);
+      setArchivedSessionIds(userId, Array.from(currentArchived));
+
+      // Attempt remote update on Supabase with graceful fallback
       const { error } = await supabase
         .from('chat_sessions')
         .update({ is_archived: false, archived_at: null, updated_at: now })
         .eq('id', session.id)
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (error) {
+        await supabase
+          .from('chat_sessions')
+          .update({ updated_at: now })
+          .eq('id', session.id)
+          .eq('user_id', userId);
+      }
 
       setSessions((prev) =>
         prev.map((s) => (s.id === session.id ? { ...s, is_archived: false, archived_at: null, updated_at: now } : s))
       );
 
-      showFeedback(`Restored "${session.title}" to active chats.`);
+      showFeedback(`Restored "${session.title || 'Conversation'}" to active chats.`);
     } catch (err) {
       console.error('Restore error:', err);
       showFeedback('Failed to restore session.', 'error');
@@ -527,6 +578,10 @@ export function Chat({ userId, lunarData }) {
         .eq('user_id', userId);
 
       if (delErr) throw delErr;
+
+      const currentArchived = new Set(getArchivedSessionIds(userId));
+      currentArchived.delete(sessionToDelete.id);
+      setArchivedSessionIds(userId, Array.from(currentArchived));
 
       setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
 
