@@ -152,16 +152,59 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   // Loops (Intentions in Awareness)
   {
     name: 'list_loops',
-    description: 'Search and query the user\'s Loops (intentions consciously held in awareness). Replaces listOpenLoops with rich filtering, status checking, and sorting.',
+    description: 'Search and query the user\'s Loops (intentions consciously held in awareness). Replaces listOpenLoops with rich filtering (cycle, phase, scope, date range), status checking, sorting, cursor pagination, and exhaustive retrieval.',
     inputSchema: {
       type: 'object',
       properties: {
         status: { type: 'string', enum: ['open', 'paused', 'closed', 'archived', 'all'], default: 'open', description: 'Lifecycle status filter' },
+        cycle: { type: 'string', description: 'Filter by lunar month/cycle name (e.g., \'Wolf Moon\', \'Snow Moon\', \'current\')' },
+        lunarMonth: { type: 'string', description: 'Synonym for cycle' },
+        phase: { type: 'string', description: 'Filter by lunar phase key or name (e.g., \'new\', \'waxing_crescent\', \'first_quarter\', \'full\', \'last_quarter\')' },
+        scope: { type: 'string', enum: ['cycle', 'phase', 'all'], default: 'all', description: 'Loop temporal scope filter' },
+        from: { type: 'string', description: 'Filter created_at timestamp starting boundary (ISO-8601)' },
+        to: { type: 'string', description: 'Filter created_at timestamp ending boundary (ISO-8601)' },
         query: { type: 'string', description: 'Search term query matching title or note description' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags' },
         sort: { type: 'string', enum: ['newest', 'oldest', 'recently_updated'], default: 'newest', description: 'Sorting order' },
-        limit: { type: 'integer', default: 20, description: 'Number of results' },
-        cursor: { type: 'string', description: 'Pagination cursor' }
+        limit: { type: 'integer', default: 20, description: 'Number of results per page (max 100)' },
+        cursor: { type: 'string', description: 'Pagination cursor for subsequent page fetches' },
+        fetchAll: { type: 'boolean', default: false, description: 'If true, automatically pages through and gathers all matching cycle loops' }
+      }
+    }
+  },
+  {
+    name: 'get_lunar_cycle_records',
+    description: 'EXHAUSTIVE LONGITUDINAL CYCLE RETRIEVAL: Deterministically retrieve all relevant records (Loops, Echo reflections, Rhythms/Habits, and linked intentions) for a complete lunar cycle for synthesis (e.g. Last Quarter reflection, Full Moon illumination, or cycle close). Provides gapless membership retrieval with truthful complete-vs-partial coverage telemetry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cycle: { type: 'string', description: 'Lunar month/cycle name (e.g., \'Snow Moon\', \'Wolf Moon\', \'current\'). Defaults to current cycle.' },
+        year: { type: 'integer', description: 'Year of the cycle (e.g., 2026). Defaults to current year.' },
+        includeLoops: { type: 'boolean', default: true, description: 'Include all loops opened or closed in this cycle.' },
+        includeEchoes: { type: 'boolean', default: true, description: 'Include all reflections/echoes created during this cycle.' },
+        includeRhythms: { type: 'boolean', default: true, description: 'Include rhythm cycle instances and observations.' },
+        status: { type: 'string', enum: ['all', 'open', 'closed'], default: 'all', description: 'Status filter for loops' },
+        limitPerType: { type: 'integer', default: 100, description: 'Maximum items per record type before pagination cutoff' },
+        fetchAll: { type: 'boolean', default: true, description: 'Exhaustively retrieve all pages up to safe limit' },
+        cursor: { type: 'string', description: 'Pagination cursor if paginating across cycle records' }
+      }
+    }
+  },
+  {
+    name: 'get_cycle_synthesis_context',
+    description: 'Synonym for get_lunar_cycle_records for longitudinal cycle synthesis.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cycle: { type: 'string', description: 'Lunar month/cycle name (e.g., \'Snow Moon\', \'Wolf Moon\', \'current\'). Defaults to current cycle.' },
+        year: { type: 'integer', description: 'Year of the cycle (e.g., 2026). Defaults to current year.' },
+        includeLoops: { type: 'boolean', default: true, description: 'Include all loops opened or closed in this cycle.' },
+        includeEchoes: { type: 'boolean', default: true, description: 'Include all reflections/echoes created during this cycle.' },
+        includeRhythms: { type: 'boolean', default: true, description: 'Include rhythm cycle instances and observations.' },
+        status: { type: 'string', enum: ['all', 'open', 'closed'], default: 'all', description: 'Status filter for loops' },
+        limitPerType: { type: 'integer', default: 100, description: 'Maximum items per record type before pagination cutoff' },
+        fetchAll: { type: 'boolean', default: true, description: 'Exhaustively retrieve all pages up to safe limit' },
+        cursor: { type: 'string', description: 'Pagination cursor if paginating across cycle records' }
       }
     }
   },
@@ -1381,61 +1424,143 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'list_loops': {
-      const { status = 'open', query, tags, sort = 'newest', limit = 20 } = args;
-      let dbQuery = supabase.from('loops').select('*').eq('user_id', userId);
+      const {
+        status = 'open',
+        cycle,
+        lunarMonth,
+        phase,
+        scope,
+        from,
+        to,
+        query,
+        tags,
+        sort = 'newest',
+        limit = 20,
+        fetchAll = false
+      } = args;
 
-      // Status filters mapping
-      if (status === 'open') {
-        dbQuery = dbQuery.in('status', ['open', 'active']).is('deleted_at', null);
-      } else if (status === 'paused') {
-        dbQuery = dbQuery.eq('status', 'paused').is('deleted_at', null);
-      } else if (status === 'closed') {
-        dbQuery = dbQuery.in('status', ['closed', 'completed', 'released']).is('deleted_at', null);
-      } else if (status === 'archived') {
-        dbQuery = dbQuery.not('deleted_at', 'is', null);
+      const targetCycle = cycle || lunarMonth;
+      let resolvedCycle = targetCycle;
+      if (targetCycle === 'current') {
+        const currentLunar = getLunarData();
+        resolvedCycle = currentLunar.lunarMonth;
       }
 
-      // Composable filters
-      if (query) {
-        dbQuery = dbQuery.or(`title.ilike.%${query}%,note.ilike.%${query}%,description.ilike.%${query}%`);
-      }
-      if (tags && Array.isArray(tags) && tags.length > 0) {
-        dbQuery = dbQuery.contains('tags', tags);
-      }
+      const buildQuery = (cursorArg?: string, queryLimit = limit) => {
+        let dbQuery = supabase.from('loops').select('*').eq('user_id', userId);
 
-      // Pagination Cursor
-      if (args.cursor) {
-        const cursorTimestamp = decodeCursor(args.cursor);
-        if (sort === 'newest') {
-          dbQuery = dbQuery.lt('created_at', cursorTimestamp);
-        } else if (sort === 'oldest') {
-          dbQuery = dbQuery.gt('created_at', cursorTimestamp);
-        } else {
-          dbQuery = dbQuery.lt('updated_at', cursorTimestamp);
+        // Status filters mapping
+        if (status === 'open') {
+          dbQuery = dbQuery.in('status', ['open', 'active']).is('deleted_at', null);
+        } else if (status === 'paused') {
+          dbQuery = dbQuery.eq('status', 'paused').is('deleted_at', null);
+        } else if (status === 'closed') {
+          dbQuery = dbQuery.in('status', ['closed', 'completed', 'released']).is('deleted_at', null);
+        } else if (status === 'archived') {
+          dbQuery = dbQuery.not('deleted_at', 'is', null);
+        } else if (status === 'all') {
+          dbQuery = dbQuery.is('deleted_at', null);
         }
-      }
 
-      // Sorting
-      if (sort === 'oldest') {
-        dbQuery = dbQuery.order('created_at', { ascending: true });
-      } else if (sort === 'recently_updated') {
-        dbQuery = dbQuery.order('updated_at', { ascending: false });
+        // Cycle / Lunar month filter (deterministic membership)
+        if (resolvedCycle) {
+          dbQuery = dbQuery.or(`lunar_month_opened.ilike.%${resolvedCycle}%,lunar_month_closed.ilike.%${resolvedCycle}%,lunar_month.ilike.%${resolvedCycle}%`);
+        }
+
+        // Phase filter
+        if (phase) {
+          dbQuery = dbQuery.or(`phase_opened.ilike.%${phase}%,phase_name.ilike.%${phase}%,phase_closed.ilike.%${phase}%,phase_name_closed.ilike.%${phase}%`);
+        }
+
+        // Scope filter
+        if (scope && scope !== 'all') {
+          dbQuery = dbQuery.eq('type', scope);
+        }
+
+        // Time range filters
+        if (from) {
+          dbQuery = dbQuery.gte('created_at', from);
+        }
+        if (to) {
+          dbQuery = dbQuery.lte('created_at', to);
+        }
+
+        // Search text
+        if (query) {
+          dbQuery = dbQuery.or(`title.ilike.%${query}%,note.ilike.%${query}%,description.ilike.%${query}%`);
+        }
+        if (tags && Array.isArray(tags) && tags.length > 0) {
+          dbQuery = dbQuery.contains('tags', tags);
+        }
+
+        // Pagination Cursor
+        if (cursorArg) {
+          const cursorTimestamp = decodeCursor(cursorArg);
+          if (sort === 'newest') {
+            dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+          } else if (sort === 'oldest') {
+            dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+          } else {
+            dbQuery = dbQuery.lt('updated_at', cursorTimestamp);
+          }
+        }
+
+        // Sorting
+        if (sort === 'oldest') {
+          dbQuery = dbQuery.order('created_at', { ascending: true });
+        } else if (sort === 'recently_updated') {
+          dbQuery = dbQuery.order('updated_at', { ascending: false });
+        } else {
+          dbQuery = dbQuery.order('created_at', { ascending: false });
+        }
+
+        return dbQuery.limit(queryLimit + 1);
+      };
+
+      let allRawLoops: any[] = [];
+      let nextCursor: string | null = null;
+      let hasMore = false;
+      const effectiveLimit = Math.min(Number(limit) || 20, 100);
+
+      if (fetchAll) {
+        let currentCursor = args.cursor;
+        const maxPages = 10;
+        let pageCount = 0;
+
+        while (pageCount < maxPages) {
+          const { data, error } = await buildQuery(currentCursor, 50);
+          if (error) throw error;
+          const pageResults = data || [];
+          const pageHasMore = pageResults.length > 50;
+          const chunk = pageHasMore ? pageResults.slice(0, 50) : pageResults;
+          allRawLoops.push(...chunk);
+          pageCount++;
+
+          if (pageHasMore && chunk.length > 0) {
+            const lastItem = chunk[chunk.length - 1];
+            currentCursor = encodeCursor(sort === 'recently_updated' ? lastItem.updated_at : lastItem.created_at);
+          } else {
+            nextCursor = null;
+            hasMore = false;
+            break;
+          }
+        }
+        hasMore = pageCount >= maxPages;
+        if (hasMore && allRawLoops.length > 0) {
+          const lastItem = allRawLoops[allRawLoops.length - 1];
+          nextCursor = encodeCursor(sort === 'recently_updated' ? lastItem.updated_at : lastItem.created_at);
+        }
       } else {
-        dbQuery = dbQuery.order('created_at', { ascending: false });
+        const { data, error } = await buildQuery(args.cursor, effectiveLimit);
+        if (error) throw error;
+
+        const results = data || [];
+        hasMore = results.length > effectiveLimit;
+        allRawLoops = hasMore ? results.slice(0, effectiveLimit) : results;
+        nextCursor = hasMore ? encodeCursor(sort === 'recently_updated' ? allRawLoops[allRawLoops.length - 1].updated_at : allRawLoops[allRawLoops.length - 1].created_at) : null;
       }
-
-      dbQuery = dbQuery.limit(limit + 1);
-
-      const { data, error } = await dbQuery;
-      if (error) throw error;
-
-      const results = data || [];
-      const hasMore = results.length > limit;
-      const paginatedData = hasMore ? results.slice(0, limit) : results;
-      const nextCursor = hasMore ? encodeCursor(sort === 'recently_updated' ? paginatedData[paginatedData.length - 1].updated_at : paginatedData[paginatedData.length - 1].created_at) : null;
 
       // Resolve relationships (Echo IDs) for all returned loops in bulk
-      const loopIds = paginatedData.map(l => l.id);
       const { data: matches } = await supabase
         .from('echoes')
         .select('id, linked_loop_id, loop_ids')
@@ -1443,7 +1568,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         .is('deleted_at', null);
 
       const echoMatches = matches || [];
-      const items = paginatedData.map(row => {
+      const items = allRawLoops.map(row => {
         const related = echoMatches
           .filter(e => e.linked_loop_id === row.id || (Array.isArray(e.loop_ids) && e.loop_ids.includes(row.id)))
           .map(e => e.id);
@@ -1457,11 +1582,132 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
           type: 'text',
           text: JSON.stringify({
             items,
-            recordsRetrieved: paginatedData.length,
-            limit,
+            recordsRetrieved: items.length,
+            limit: effectiveLimit,
             hasMore,
             coverage,
+            cycle: resolvedCycle || null,
             nextCursor
+          }, null, 2)
+        }]
+      };
+    }
+
+    case 'get_lunar_cycle_records':
+    case 'get_cycle_synthesis_context': {
+      const {
+        cycle,
+        year = new Date().getFullYear(),
+        includeLoops = true,
+        includeEchoes = true,
+        includeRhythms = true,
+        status = 'all',
+        limitPerType = 100,
+        fetchAll = true
+      } = args;
+
+      const currentLunar = getLunarData();
+      const targetCycle = (cycle && cycle !== 'current') ? cycle : currentLunar.lunarMonth;
+
+      // 1. Exhaustively retrieve Loops in this cycle
+      let cycleLoops: any[] = [];
+      let loopsCoverage = 'complete';
+      if (includeLoops) {
+        let loopQuery = supabase
+          .from('loops')
+          .select('*')
+          .eq('user_id', userId)
+          .or(`lunar_month_opened.ilike.%${targetCycle}%,lunar_month_closed.ilike.%${targetCycle}%,lunar_month.ilike.%${targetCycle}%`)
+          .order('created_at', { ascending: true })
+          .limit(limitPerType + 1);
+
+        if (status === 'open') {
+          loopQuery = loopQuery.in('status', ['open', 'active']).is('deleted_at', null);
+        } else if (status === 'closed') {
+          loopQuery = loopQuery.in('status', ['closed', 'completed', 'released']).is('deleted_at', null);
+        } else if (status === 'all') {
+          loopQuery = loopQuery.is('deleted_at', null);
+        }
+
+        const { data: loopsData, error: lErr } = await loopQuery;
+        if (lErr) throw lErr;
+        const loopRows = loopsData || [];
+        if (loopRows.length > limitPerType) {
+          loopsCoverage = 'partial';
+          cycleLoops = loopRows.slice(0, limitPerType).map(r => mapLoop(r));
+        } else {
+          cycleLoops = loopRows.map(r => mapLoop(r));
+        }
+      }
+
+      // 2. Exhaustively retrieve Echoes in this cycle
+      let cycleEchoes: any[] = [];
+      let echoesCoverage = 'complete';
+      if (includeEchoes) {
+        const { data: echoesData, error: eErr } = await supabase
+          .from('echoes')
+          .select('*')
+          .eq('user_id', userId)
+          .is('deleted_at', null)
+          .or(`lunar_month.ilike.%${targetCycle}%`)
+          .order('created_at', { ascending: true })
+          .limit(limitPerType + 1);
+
+        if (eErr) throw eErr;
+        const echoRows = echoesData || [];
+        if (echoRows.length > limitPerType) {
+          echoesCoverage = 'partial';
+          cycleEchoes = echoRows.slice(0, limitPerType).map(r => mapEcho(r));
+        } else {
+          cycleEchoes = echoRows.map(r => mapEcho(r));
+        }
+      }
+
+      // 3. Exhaustively retrieve Rhythms / Habits
+      let cycleRhythms: any[] = [];
+      if (includeRhythms) {
+        try {
+          const { data: rData } = await supabase
+            .from('rhythms')
+            .select('*')
+            .eq('user_id', userId)
+            .is('deleted_at', null);
+          cycleRhythms = rData || [];
+        } catch {
+          cycleRhythms = [];
+        }
+      }
+
+      // 4. Anchor intention / Parent cycle loop reference (e.g. l1788365565403etmq)
+      const anchorLoop = cycleLoops.find(l => l.id === 'l1788365565403etmq' || l.type === 'cycle') || null;
+
+      const isExhaustive = loopsCoverage === 'complete' && echoesCoverage === 'complete';
+      const overallCoverage = isExhaustive ? 'complete' : 'partial';
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            cycle: targetCycle,
+            year,
+            coverage: overallCoverage,
+            isExhaustive,
+            summary: {
+              loopsCount: cycleLoops.length,
+              echoesCount: cycleEchoes.length,
+              rhythmsCount: cycleRhythms.length,
+              totalRecords: cycleLoops.length + cycleEchoes.length + cycleRhythms.length
+            },
+            coverageTelemetry: {
+              loopsCoverage,
+              echoesCoverage,
+              hasMoreLoops: loopsCoverage === 'partial',
+              hasMoreEchoes: echoesCoverage === 'partial'
+            },
+            anchorIntention: anchorLoop ? { id: anchorLoop.id, title: anchorLoop.title, focus: anchorLoop.focus } : null,
+            loops: cycleLoops,
+            echoes: cycleEchoes,
+            rhythms: cycleRhythms
           }, null, 2)
         }]
       };

@@ -735,6 +735,15 @@ app.get('/api/loops', authenticateRest, async (req, res) => {
   }
 });
 
+app.get(['/api/lunar-cycle/records', '/api/cycle/synthesis-context'], authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'get_lunar_cycle_records', req.query);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/loops', authenticateRest, async (req, res) => {
   try {
     const result = await executeTool(req.body.supabaseClient, 'create_loop', req.body);
