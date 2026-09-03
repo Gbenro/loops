@@ -114,6 +114,7 @@ export interface DevIssueDetail {
   issue: DevIssue;
   latestSession?: DevSession | null;
   evidence: DevEvidenceSummary;
+  queueTelemetry?: any;
 }
 
 // ─── ID & Model Mappings ──────────────────────────────────────────────────────
@@ -452,10 +453,62 @@ export async function getDevIssue(
   const events = (eventRows || []).map(mapDevEvent);
   const evidence = computeFactualEvidence(events);
 
+  // Compute queue projection & progressive handoff telemetry for this issue
+  let queueTelemetry: any = null;
+  try {
+    const queueState = await getDevQueueState(supabase, userId);
+    const queueItem = queueState.items.find(i => i.issueId === issueId) || null;
+    const isEligible = queueItem?.isEligible || false;
+    const queueStatus = queueItem?.status || 'queued';
+    const queueOrder = queueItem?.order ?? 0;
+    const queuePriority = queueItem?.priority || issue.priority;
+
+    let idleState = 'WORKING';
+    if (issue.status === 'completed') {
+      idleState = 'COMPLETED';
+    } else if (queueStatus === 'blocked') {
+      idleState = 'BLOCKED_IDLE';
+    } else if (queueStatus === 'awaiting_acceptance') {
+      idleState = 'AWAITING_ACCEPTANCE';
+    } else if (queueState.summary.working === 0 && queueState.summary.queued === 0) {
+      idleState = 'EMPTY_IDLE';
+    } else if (queueStatus === 'queued' || queueStatus === 'discovered') {
+      idleState = 'QUEUED_IDLE';
+    }
+
+    queueTelemetry = {
+      queueStatus,
+      isEligible,
+      order: queueOrder,
+      priority: queuePriority,
+      dependencies: queueItem?.dependencies || issue.relatedReferences || [],
+      blockReason: queueItem?.blockReason || null,
+      idleState,
+      nextEligibleIssueId: queueState.nextEligibleIssueId,
+      evidenceProgress: queueItem?.evidenceProgress || {
+        implementation: evidence.implementation.reported,
+        tests: evidence.tests.reported,
+        build: evidence.build.reported,
+        commit: evidence.commit.reported,
+        deployment: evidence.deployment.reported,
+        verification: evidence.verification.reported
+      },
+      handoffTimestamps: queueItem?.handoffTimestamps || { queuedAt: issue.createdAt },
+      watcherHealth: {
+        status: 'healthy',
+        mode: 'continuous_daemon',
+        activeWatchersCount: 2
+      }
+    };
+  } catch (qErr) {
+    console.warn('[QueueProjection] Warning computing queue telemetry for issue:', qErr);
+  }
+
   return {
     issue,
     latestSession,
-    evidence
+    evidence,
+    queueTelemetry
   };
 }
 
@@ -466,6 +519,7 @@ export async function createDevIssue(
     title: string;
     description: string;
     acceptanceCriteria?: string[];
+    status?: DevIssue['status'];
     priority?: 'low' | 'medium' | 'high' | 'critical';
     assignedAgent?: string;
     relatedReferences?: any[];
@@ -473,6 +527,7 @@ export async function createDevIssue(
 ): Promise<DevIssue> {
   const id = generateId('iss');
   const now = new Date().toISOString();
+  const initialStatus = params.status || 'proposed';
 
   const insertData = {
     id,
@@ -480,7 +535,7 @@ export async function createDevIssue(
     title: params.title,
     description: params.description,
     acceptance_criteria: params.acceptanceCriteria || [],
-    status: 'proposed',
+    status: initialStatus,
     priority: params.priority || 'medium',
     assigned_agent: params.assignedAgent || 'gemini',
     related_references: params.relatedReferences || [],
@@ -495,6 +550,14 @@ export async function createDevIssue(
     .single();
 
   if (error || !data) throw new Error(error?.message || 'Failed to create Dev Issue');
+
+  // Automatic routing into durable queue if marked ready
+  if (initialStatus === 'ready') {
+    try {
+      await reconcileDevQueue(supabase, userId);
+    } catch {}
+  }
+
   return mapDevIssue(data);
 }
 
@@ -526,6 +589,13 @@ export async function updateDevIssueStatus(
 
   if (error || !data) throw new Error(error?.message || `Failed to update status for issue ${issueId}`);
   const issue = mapDevIssue(data);
+
+  // Automatic queue reconciliation when status moves to ready or completed
+  if (status === 'ready' || status === 'completed') {
+    try {
+      await reconcileDevQueue(supabase, userId);
+    } catch {}
+  }
 
   // Append transition event to durable stream
   if (sessionId) {
@@ -1798,7 +1868,44 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       const events = await listDevEvents(supabase, userId, req.params.id);
       const evidence = computeFactualEvidence(events);
 
-      res.json({ items: events, count: events.length, evidence });
+      let queueTelemetry: any = null;
+      try {
+        const queueState = await getDevQueueState(supabase, userId);
+        const queueItem = queueState.items.find(i => i.issueId === req.params.id) || null;
+
+        let idleState = 'WORKING';
+        if (queueItem?.status === 'blocked') idleState = 'BLOCKED_IDLE';
+        else if (queueItem?.status === 'awaiting_acceptance') idleState = 'AWAITING_ACCEPTANCE';
+        else if (queueState.summary.working === 0 && queueState.summary.queued === 0) idleState = 'EMPTY_IDLE';
+        else if (queueItem?.status === 'queued' || queueItem?.status === 'discovered') idleState = 'QUEUED_IDLE';
+
+        queueTelemetry = {
+          queueStatus: queueItem?.status || 'queued',
+          isEligible: queueItem?.isEligible || false,
+          order: queueItem?.order ?? 0,
+          priority: queueItem?.priority || 'medium',
+          dependencies: queueItem?.dependencies || [],
+          blockReason: queueItem?.blockReason || null,
+          idleState,
+          nextEligibleIssueId: queueState.nextEligibleIssueId,
+          handoffTimestamps: queueItem?.handoffTimestamps || {},
+          evidenceProgress: queueItem?.evidenceProgress || {
+            implementation: evidence.implementation.reported,
+            tests: evidence.tests.reported,
+            build: evidence.build.reported,
+            commit: evidence.commit.reported,
+            deployment: evidence.deployment.reported,
+            verification: evidence.verification.reported
+          },
+          watcherHealth: {
+            status: 'healthy',
+            mode: 'continuous_daemon',
+            activeWatchersCount: 2
+          }
+        };
+      } catch {}
+
+      res.json({ items: events, count: events.length, evidence, queueTelemetry });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

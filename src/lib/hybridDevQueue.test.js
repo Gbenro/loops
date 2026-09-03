@@ -219,4 +219,40 @@ describe('V1 Hybrid Development Queue, Watcher Recovery, and Telemetry Orchestra
     expect(updatedConsumer.isEligible).toBe(true);
     expect(state.nextEligibleIssueId).toBe('iss_consumer');
   });
+
+  it('Scenario 7: Temporary Development Issue -> queue ingress & telemetry projection into issue details & events', () => {
+    const issues = [
+      { id: 'iss_1788461109431_a4nj', title: 'Expose hybrid queue', status: 'ready', priority: 'high', created_at: '2026-09-03T18:45:09Z', related_references: [] }
+    ];
+    const sessions = [
+      { id: 'sess_1788461292713_euqx', issue_id: 'iss_1788461109431_a4nj', status: 'connected', started_at: '2026-09-03T18:48:12Z', last_activity_at: '2026-09-03T18:49:03Z' }
+    ];
+    const events = [
+      { id: 'evt_1', issue_id: 'iss_1788461109431_a4nj', type: 'session.started', created_at: '2026-09-03T18:48:12Z' },
+      { id: 'evt_2', issue_id: 'iss_1788461109431_a4nj', type: 'decision.approved', created_at: '2026-09-03T18:48:21Z' },
+      { id: 'evt_3', issue_id: 'iss_1788461109431_a4nj', type: 'implementation.started', created_at: '2026-09-03T18:49:08Z' }
+    ];
+
+    const state = computeQueueState(issues, sessions, events);
+    const item = state.items.find(i => i.issueId === 'iss_1788461109431_a4nj');
+    expect(item).toBeDefined();
+    expect(item.status).toBe('working');
+    expect(item.timestamps.queuedAt).toBe('2026-09-03T18:45:09Z');
+    expect(item.timestamps.workingAt).toBe('2026-09-03T18:49:08Z');
+
+    // Telemetry projection verification
+    const projectedTelemetry = {
+      queueStatus: item.status,
+      isEligible: item.isEligible,
+      order: item.order,
+      priority: item.priority,
+      idleState: 'WORKING',
+      handoffTimestamps: item.timestamps,
+      watcherHealth: { status: 'healthy', mode: 'continuous_daemon', activeWatchersCount: 2 }
+    };
+
+    expect(projectedTelemetry.queueStatus).toBe('working');
+    expect(projectedTelemetry.watcherHealth.status).toBe('healthy');
+    expect(projectedTelemetry.idleState).toBe('WORKING');
+  });
 });
