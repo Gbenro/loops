@@ -738,12 +738,23 @@ async function runBridge() {
           try {
             const sessionData = await apiCall(`/api/dev/sessions/${activeClaimedSessionId}`, 'GET', null, activeToken);
             const sess = sessionData.session || sessionData;
-            if (sess.status === 'ended' || sess.endedAt) {
-              console.log(`\n✦ [Daemon Watcher] Active session ${activeClaimedSessionId} completed/ended. Re-arming idle pending discovery...`);
+            
+            let isSessionActive = sess.status === 'connected' && !sess.endedAt;
+            if (isSessionActive && sess.issueId) {
+              try {
+                const issueData = await apiCall(`/api/dev/issues/${sess.issueId}`, 'GET', null, activeToken);
+                const iss = issueData.issue || issueData;
+                if (iss.status === 'completed' || issueData.queueTelemetry?.queueStatus === 'awaiting_acceptance' || issueData.evidence?.verification?.reported) {
+                  isSessionActive = false;
+                }
+              } catch {}
+            }
+
+            if (!isSessionActive) {
+              console.log(`\n✦ [Daemon Watcher] Session ${activeClaimedSessionId} is awaiting acceptance or completed. Re-arming pending discovery...`);
               activeClaimedSessionId = null;
               pollIntervalMs = 4000;
             } else {
-              // Active session still in progress; wait before checking session status again without claiming new work
               setTimeout(poll, 5000);
               return;
             }
