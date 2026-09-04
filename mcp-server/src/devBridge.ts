@@ -1175,6 +1175,16 @@ export interface DevQueueItem {
     evidenceReceivedAt?: string | null;
     awaitingAcceptanceAt?: string | null;
     acceptedAt?: string | null;
+    wakePipeline?: {
+      wakeRequestedAt?: string | null;
+      watcherReceivedAt?: string | null;
+      sessionResolvedAt?: string | null;
+      activationDispatchedAt?: string | null;
+      runtimeReceivedAt?: string | null;
+      agentAcknowledgedAt?: string | null;
+      firstActivityAt?: string | null;
+      failureReason?: string | null;
+    };
   };
   createdAt: string;
   updatedAt: string;
@@ -1202,6 +1212,12 @@ export interface DevTelemetrySummary {
     isEndToEndSynced: boolean;
     unhandledLagCount: number;
     averageHandoffLatencyMs: number;
+  };
+  wakePipeline?: {
+    lastWakeRequestedAt?: string | null;
+    lastAgentAcknowledgedAt?: string | null;
+    activeRuntimeTarget: 'antigravity_interactive' | 'python_sdk_agent' | 'custom_daemon';
+    isExternalActivationSupported: boolean;
   };
 }
 
@@ -1520,6 +1536,12 @@ export async function getDevTelemetry(
       isEndToEndSynced: unhandledLagCount === 0,
       unhandledLagCount,
       averageHandoffLatencyMs: 1500
+    },
+    wakePipeline: {
+      lastWakeRequestedAt: queueState.items[0]?.handoffTimestamps?.queuedAt || null,
+      lastAgentAcknowledgedAt: queueState.items.find(i => i.handoffTimestamps?.workingAt)?.handoffTimestamps?.workingAt || null,
+      activeRuntimeTarget: 'antigravity_interactive',
+      isExternalActivationSupported: false
     }
   };
 }
