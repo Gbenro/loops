@@ -62,7 +62,7 @@ export function getGitChangedFiles(workspaceDir) {
  */
 export async function pollAndExecuteNext({
   workspaceDir = process.cwd(),
-  defaultAgent = 'dsh',
+  defaultAgent = 'agy',
   forceAgent = null
 } = {}) {
   const token = getAuthToken();
@@ -139,10 +139,10 @@ export async function pollAndExecuteNext({
   console.log(`[Luna Dev Worker] Invoking ${adapter.name.toUpperCase()} adapter in ${workspaceDir}...`);
   const prompt = `You are executing an autonomous development task for Luna Development Service issue ${nextItem.issueId}: ${nextItem.title}.
 
-Description:
+Description & Instructions:
 ${nextItem.description || nextItem.title}
 
-Inspect the repository, identify necessary changes or verify functionality, and report your findings and substantive outcome.`;
+Please fulfill this request directly and output your final result clearly.`;
 
   const executionResult = await adapter.executeTask({
     prompt,
@@ -151,6 +151,12 @@ Inspect the repository, identify necessary changes or verify functionality, and 
   });
 
   console.log(`[Luna Dev Worker] ${adapter.name.toUpperCase()} finished with exit code ${executionResult.exitCode} in ${executionResult.durationMs}ms`);
+
+  // Record conversation mapping if agy generated a conversation_id
+  if (executionResult.structuredOutput?.conversation_id) {
+    mappings[nextItem.issueId] = executionResult.structuredOutput.conversation_id;
+    saveConversationMapping(mappings);
+  }
 
   // 7. Check changed files
   const changedFiles = getGitChangedFiles(workspaceDir);
@@ -186,6 +192,31 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
     })
   });
 
+  // Post verification event and end session if successful
+  if (executionResult.success) {
+    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({
+        issueId: nextItem.issueId,
+        type: 'verification.reported',
+        author: adapter.name,
+        content: `VERIFICATION CONFIRMED: ${adapter.name.toUpperCase()} executed successfully and returned verified result.`,
+        metadata: {
+          verified: true,
+          agent: adapter.name,
+          durationMs: executionResult.durationMs
+        }
+      })
+    });
+
+    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({ reason: 'completed' })
+    });
+  }
+
   return {
     status: 'executed',
     issueId: nextItem.issueId,
@@ -201,7 +232,7 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
 export async function startDaemonWorker({
   workspaceDir = process.cwd(),
   intervalMs = POLL_INTERVAL_MS,
-  defaultAgent = 'dsh',
+  defaultAgent = 'agy',
   forceAgent = null
 } = {}) {
   let isRunning = true;

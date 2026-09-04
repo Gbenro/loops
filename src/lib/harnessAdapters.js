@@ -59,7 +59,7 @@ export class BaseHarnessAdapter {
  */
 export class AgyHarnessAdapter extends BaseHarnessAdapter {
   constructor() {
-    super('agy', 'antigravity-headless-cli');
+    super('agy', 'antigravity-headless-cli-v1.1.26');
   }
 
   get capabilities() {
@@ -76,9 +76,14 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
     prompt,
     workspaceDir = process.cwd(),
     conversationId = null,
-    timeoutMs = 120000
+    timeoutMs = 600000
   }) {
-    const args = ['-p', prompt, '--output-format', 'json'];
+    const args = [
+      '-p', prompt,
+      '--output-format', 'json',
+      '--mode', 'accept-edits',
+      '--print-timeout', '10m'
+    ];
     if (conversationId) {
       args.push('--conversation', conversationId);
     }
@@ -94,6 +99,9 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
         env: { ...process.env },
         stdio: ['pipe', 'pipe', 'pipe']
       });
+
+      // Explicitly close stdin so process does not block waiting for input
+      proc.stdin.end();
 
       const timer = setTimeout(() => {
         timedOut = true;
@@ -111,8 +119,8 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
 
         try {
           structuredOutput = JSON.parse(stdout.trim());
-          if (structuredOutput.result || structuredOutput.response || structuredOutput.summary) {
-            finalResponse = structuredOutput.result || structuredOutput.response || structuredOutput.summary;
+          if (structuredOutput.response || structuredOutput.result || structuredOutput.summary) {
+            finalResponse = (structuredOutput.response || structuredOutput.result || structuredOutput.summary).trim();
           }
         } catch {
           // Plain text stdout
