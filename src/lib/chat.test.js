@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { isSessionArchived, isSessionActive } from '../tabs/Chat.jsx';
 
 // Simple mock structure representing the lunar data we supply to the prompt
 const mockLunar = {
@@ -373,6 +374,149 @@ describe('Luna Conversational Prompt Engine', () => {
       expect(active.map(s => s.id)).toEqual(['sess_1', 'sess_3']);
       expect(archived.map(s => s.id)).toEqual(['sess_2']);
       expect(archived[0].is_archived).toBe(true);
+    });
+
+    describe('Regression iss_1788525176713_hw31: Hide archived chats from active dropdown & count', () => {
+      it('reproduces and resolves the reported 13-session bug: active count shows only non-archived chats', () => {
+        // User reports having 13 total sessions after archiving 11.
+        // The active dropdown / header count should show 2 chats, not 13.
+        const allSessions = [
+          { id: 'chat_01', title: 'Daily Intention', is_archived: false, archived_at: null, updated_at: '2026-09-04T12:00:00Z' },
+          { id: 'chat_02', title: 'Evening Winddown', is_archived: false, archived_at: null, updated_at: '2026-09-04T11:00:00Z' },
+          { id: 'chat_03', title: 'Old Moon Reflection 1', is_archived: true, archived_at: '2026-09-03T10:00:00Z', updated_at: '2026-09-03T10:00:00Z' },
+          { id: 'chat_04', title: 'Old Moon Reflection 2', is_archived: true, archived_at: '2026-09-03T09:00:00Z', updated_at: '2026-09-03T09:00:00Z' },
+          { id: 'chat_05', title: 'Old Moon Reflection 3', is_archived: true, archived_at: '2026-09-03T08:00:00Z', updated_at: '2026-09-03T08:00:00Z' },
+          { id: 'chat_06', title: 'Old Moon Reflection 4', is_archived: true, archived_at: '2026-09-02T10:00:00Z', updated_at: '2026-09-02T10:00:00Z' },
+          { id: 'chat_07', title: 'Old Moon Reflection 5', is_archived: true, archived_at: '2026-09-02T09:00:00Z', updated_at: '2026-09-02T09:00:00Z' },
+          { id: 'chat_08', title: 'Old Moon Reflection 6', is_archived: true, archived_at: '2026-09-02T08:00:00Z', updated_at: '2026-09-02T08:00:00Z' },
+          { id: 'chat_09', title: 'Old Moon Reflection 7', is_archived: true, archived_at: '2026-09-01T10:00:00Z', updated_at: '2026-09-01T10:00:00Z' },
+          { id: 'chat_10', title: 'Old Moon Reflection 8', is_archived: true, archived_at: '2026-09-01T09:00:00Z', updated_at: '2026-09-01T09:00:00Z' },
+          { id: 'chat_11', title: 'Old Moon Reflection 9', is_archived: true, archived_at: '2026-09-01T08:00:00Z', updated_at: '2026-09-01T08:00:00Z' },
+          { id: 'chat_12', title: 'Old Moon Reflection 10', is_archived: true, archived_at: '2026-08-31T10:00:00Z', updated_at: '2026-08-31T10:00:00Z' },
+          { id: 'chat_13', title: 'Old Moon Reflection 11', is_archived: true, archived_at: '2026-08-31T09:00:00Z', updated_at: '2026-08-31T09:00:00Z' }
+        ];
+
+        expect(allSessions.length).toBe(13);
+
+        const activeSessions = allSessions.filter(isSessionActive);
+        const archivedSessions = allSessions.filter(isSessionArchived);
+
+        // Visible active count MUST be 2, strictly excluding the 11 archived chats
+        expect(activeSessions.length).toBe(2);
+        expect(archivedSessions.length).toBe(11);
+
+        // Header dropdown button visible count string
+        const activeCount = activeSessions.length;
+        const visibleButtonLabel = activeCount > 0 ? `${activeCount} chats` : 'Chats';
+        expect(visibleButtonLabel).toBe('2 chats');
+        expect(visibleButtonLabel).not.toBe('13 chats');
+
+        // Active list contains strictly active non-archived chats
+        expect(activeSessions.map(s => s.id)).toEqual(['chat_01', 'chat_02']);
+        expect(activeSessions.every(s => !s.is_archived && !s.archived_at)).toBe(true);
+      });
+
+      it('excludes archived chats from normal active dropdown and includes them in archived tab', () => {
+        const sessions = [
+          { id: 'active_1', title: 'New Moon Insights', is_archived: false, archived_at: null },
+          { id: 'active_2', title: 'Solar Cycle Sync', is_archived: false, archived_at: null },
+          { id: 'arch_1', title: 'Archived Meditation', is_archived: true, archived_at: '2026-09-01T12:00:00Z' }
+        ];
+
+        const activeList = sessions.filter(isSessionActive);
+        const archivedList = sessions.filter(isSessionArchived);
+
+        expect(activeList.map(s => s.id)).toEqual(['active_1', 'active_2']);
+        expect(activeList.map(s => s.id)).not.toContain('arch_1');
+        expect(archivedList.map(s => s.id)).toEqual(['arch_1']);
+      });
+
+      it('restoring an archived chat makes it immediately eligible for the active list and increments active count', () => {
+        let sessions = [
+          { id: 'c1', title: 'Active Chat 1', is_archived: false, archived_at: null },
+          { id: 'c2', title: 'Active Chat 2', is_archived: false, archived_at: null },
+          { id: 'c3', title: 'Archived Wisdom', is_archived: true, archived_at: '2026-09-02T10:00:00Z' }
+        ];
+
+        // Before restore
+        expect(sessions.filter(isSessionActive).length).toBe(2);
+        expect(sessions.filter(isSessionActive).map(s => s.id)).toEqual(['c1', 'c2']);
+
+        // Restore c3
+        const now = new Date().toISOString();
+        sessions = sessions.map(s => s.id === 'c3' ? { ...s, is_archived: false, archived_at: null, updated_at: now } : s);
+
+        // After restore: c3 is now in active list, active count increments to 3
+        const activeAfterRestore = sessions.filter(isSessionActive);
+        expect(activeAfterRestore.length).toBe(3);
+        expect(activeAfterRestore.map(s => s.id)).toEqual(['c1', 'c2', 'c3']);
+
+        const countAfter = activeAfterRestore.length;
+        const visibleLabel = countAfter > 0 ? `${countAfter} chats` : 'Chats';
+        expect(visibleLabel).toBe('3 chats');
+      });
+
+      it('preserves durable storage and transcript data during archive and restore round-trip', () => {
+        const originalSession = {
+          id: 'sess_preserve_10',
+          title: 'Full Moon Reflections',
+          model_key: 'anthropic-fable-5',
+          user_id: 'u_123',
+          created_at: '2026-09-01T10:00:00Z',
+          updated_at: '2026-09-01T10:30:00Z',
+          is_archived: false,
+          archived_at: null
+        };
+
+        const messages = [
+          { id: 'm1', session_id: 'sess_preserve_10', role: 'user', content: 'Where is the moon tonight?' },
+          { id: 'm2', session_id: 'sess_preserve_10', role: 'assistant', content: 'Waxing gibbous in Scorpio.' }
+        ];
+
+        // 1. Archive
+        const archiveTimestamp = '2026-09-03T15:00:00Z';
+        const archivedSession = {
+          ...originalSession,
+          is_archived: true,
+          archived_at: archiveTimestamp,
+          updated_at: archiveTimestamp
+        };
+
+        expect(isSessionArchived(archivedSession)).toBe(true);
+        expect(isSessionActive(archivedSession)).toBe(false);
+        // Durably preserved fields
+        expect(archivedSession.id).toBe(originalSession.id);
+        expect(archivedSession.title).toBe(originalSession.title);
+        expect(archivedSession.model_key).toBe(originalSession.model_key);
+        expect(archivedSession.user_id).toBe(originalSession.user_id);
+        expect(messages.length).toBe(2);
+
+        // 2. Restore
+        const restoreTimestamp = '2026-09-04T08:00:00Z';
+        const restoredSession = {
+          ...archivedSession,
+          is_archived: false,
+          archived_at: null,
+          updated_at: restoreTimestamp
+        };
+
+        expect(isSessionActive(restoredSession)).toBe(true);
+        expect(isSessionArchived(restoredSession)).toBe(false);
+        expect(restoredSession.title).toBe('Full Moon Reflections');
+        expect(restoredSession.model_key).toBe('anthropic-fable-5');
+        expect(messages.every(m => m.session_id === restoredSession.id)).toBe(true);
+      });
+
+      it('handles various archive truthiness variations (string true, timestamp only)', () => {
+        expect(isSessionArchived({ is_archived: true, archived_at: null })).toBe(true);
+        expect(isSessionArchived({ is_archived: 'true', archived_at: null })).toBe(true);
+        expect(isSessionArchived({ is_archived: false, archived_at: '2026-09-01T00:00:00Z' })).toBe(true);
+        expect(isSessionArchived({ is_archived: null, archived_at: '2026-09-01T00:00:00Z' })).toBe(true);
+
+        expect(isSessionActive({ is_archived: false, archived_at: null })).toBe(true);
+        expect(isSessionActive({ is_archived: null, archived_at: null })).toBe(true);
+        expect(isSessionActive({ is_archived: undefined, archived_at: undefined })).toBe(true);
+      });
     });
   });
 });

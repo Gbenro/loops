@@ -922,7 +922,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         if (fallback.error) throw fallback.error;
         data = fallback.data;
       }
-      res.json({ sessions: data || [] });
+
+      let sessions = data || [];
+      if (status === 'archived' || archived === 'true') {
+        sessions = sessions.filter((s: any) => s.is_archived === true || s.is_archived === 'true' || s.archived_at);
+      } else if (status !== 'all') {
+        // Default: active sessions only - robustly exclude archived sessions
+        sessions = sessions.filter((s: any) => !s.is_archived && !s.archived_at);
+      }
+
+      res.json({ sessions });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

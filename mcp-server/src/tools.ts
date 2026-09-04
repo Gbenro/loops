@@ -2719,7 +2719,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         if (fallback.error) throw fallback.error;
         data = fallback.data;
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ sessions: data || [] }, null, 2) }] };
+
+      let sessions = data || [];
+      if (statusFilter === 'archived') {
+        sessions = sessions.filter((s: any) => s.is_archived === true || s.is_archived === 'true' || s.archived_at);
+      } else if (statusFilter === 'active') {
+        sessions = sessions.filter((s: any) => !s.is_archived && !s.archived_at);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify({ count: sessions.length, sessions }, null, 2) }] };
     }
 
     case 'rename_chat_session': {

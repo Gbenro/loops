@@ -6,20 +6,31 @@ import { saveEcho } from '../lib/storage.js';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js';
 import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
-export function Chat({ userId, lunarData }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [sessionId, setSessionId] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(
-    localStorage.getItem('luna_model_key') || 'anthropic-fable'
-  );
+  // Chat Lifecycle & Archive Helpers
+  export const isSessionArchived = (s) =>
+    Boolean(s && (s.is_archived === true || s.is_archived === 'true' || s.archived_at));
 
-  // Chat Lifecycle & Archive States
-  const [drawerTab, setDrawerTab] = useState('active'); // 'active' | 'archived'
+  export const isSessionActive = (s) => !isSessionArchived(s);
+
+  export function Chat({ userId, lunarData }) {
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [sessionId, setSessionId] = useState(null);
+    const [sessions, setSessions] = useState([]);
+    const [showDrawer, setShowDrawer] = useState(false);
+    const [selectedModel, setSelectedModel] = useState(
+      localStorage.getItem('luna_model_key') || 'anthropic-fable'
+    );
+
+    // Derived session views for active and archived conversations
+    const activeSessions = sessions.filter(isSessionActive);
+    const archivedSessions = sessions.filter(isSessionArchived);
+    const activeCount = activeSessions.length;
+
+    // Chat Lifecycle & Archive States
+    const [drawerTab, setDrawerTab] = useState('active'); // 'active' | 'archived'
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editingSessionTitle, setEditingSessionTitle] = useState('');
   const [deleteConfirmSession, setDeleteConfirmSession] = useState(null); // { id, title }
@@ -168,23 +179,26 @@ export function Chat({ userId, lunarData }) {
 
         // Fetch all conversations for user ordered by recency (with graceful schema fallback)
         let userSessions = [];
-        const { data, error: sessionErr } = await supabase
+        let query = supabase
           .from('chat_sessions')
-          .select('id, model_key, title, updated_at, created_at, is_archived, archived_at')
-          .order('updated_at', { ascending: false });
+          .select('id, model_key, title, updated_at, created_at, is_archived, archived_at');
+        if (userId) query = query.eq('user_id', userId);
+        const { data, error: sessionErr } = await query.order('updated_at', { ascending: false });
 
         if (sessionErr) {
           // Schema fallback: if is_archived or archived_at columns don't exist yet in database
-          const retry = await supabase
+          let retryQuery = supabase
             .from('chat_sessions')
-            .select('id, model_key, title, updated_at, created_at')
-            .order('updated_at', { ascending: false });
+            .select('id, model_key, title, updated_at, created_at');
+          if (userId) retryQuery = retryQuery.eq('user_id', userId);
+          const retry = await retryQuery.order('updated_at', { ascending: false });
 
           if (retry.error) {
-            const baseRetry = await supabase
+            let baseRetryQuery = supabase
               .from('chat_sessions')
-              .select('id, title, updated_at, created_at')
-              .order('updated_at', { ascending: false });
+              .select('id, title, updated_at, created_at');
+            if (userId) baseRetryQuery = baseRetryQuery.eq('user_id', userId);
+            const baseRetry = await baseRetryQuery.order('updated_at', { ascending: false });
             if (baseRetry.error) throw baseRetry.error;
             userSessions = baseRetry.data || [];
           } else {
@@ -196,16 +210,21 @@ export function Chat({ userId, lunarData }) {
 
         const archivedIds = new Set(getArchivedSessionIds(userId));
         const allSessions = (userSessions || []).map((s) => {
-          const isArchived = Boolean(s.is_archived || archivedIds.has(s.id));
+          const isArchived = Boolean(
+            s.is_archived === true ||
+            s.is_archived === 'true' ||
+            s.archived_at ||
+            archivedIds.has(s.id)
+          );
           return {
             ...s,
             is_archived: isArchived,
-            archived_at: s.archived_at || (isArchived ? (s.updated_at || s.created_at) : null)
+            archived_at: s.archived_at || (isArchived ? (s.updated_at || s.created_at || new Date().toISOString()) : null)
           };
         });
 
         let activeSession;
-        const nonArchived = allSessions.filter((s) => !s.is_archived && !s.archived_at);
+        const nonArchived = allSessions.filter(isSessionActive);
 
         if (nonArchived.length > 0) {
           activeSession = nonArchived[0];
@@ -289,7 +308,6 @@ export function Chat({ userId, lunarData }) {
       setLoading(true);
       const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
       const initialModel = selectedModel || 'anthropic-fable';
-      const activeCount = sessions.filter((s) => !s.is_archived && !s.archived_at).length;
       const title = `Conversation ${activeCount + 1}`;
 
       let newSession;
@@ -419,7 +437,7 @@ export function Chat({ userId, lunarData }) {
       // If active session was archived, switch to next active session
       if (session.id === sessionId) {
         const remainingActive = sessions.filter(
-          (s) => s.id !== session.id && !s.is_archived && !s.archived_at && !currentArchived.has(s.id)
+          (s) => s.id !== session.id && isSessionActive(s) && !currentArchived.has(s.id)
         );
         if (remainingActive.length > 0) {
           selectSession(remainingActive[0].id);
@@ -587,7 +605,7 @@ export function Chat({ userId, lunarData }) {
 
       if (sessionToDelete.id === sessionId) {
         const remainingActive = sessions.filter(
-          (s) => s.id !== sessionToDelete.id && !s.is_archived && !s.archived_at
+          (s) => s.id !== sessionToDelete.id && isSessionActive(s)
         );
         if (remainingActive.length > 0) {
           selectSession(remainingActive[0].id);
@@ -895,7 +913,13 @@ export function Chat({ userId, lunarData }) {
               Luna Direct
             </h1>
             <button
-              onClick={() => setShowDrawer((prev) => !prev)}
+              onClick={() => {
+                setShowDrawer((prev) => {
+                  const next = !prev;
+                  if (next) setDrawerTab('active');
+                  return next;
+                });
+              }}
               aria-label="Toggle chat conversations list"
               style={{
                 background: showDrawer ? 'rgba(245, 230, 200, 0.18)' : 'rgba(255, 255, 255, 0.05)',
@@ -912,7 +936,7 @@ export function Chat({ userId, lunarData }) {
               }}
             >
               <span>💬</span>
-              <span>{sessions.length > 0 ? `${sessions.length} chats` : 'Chats'}</span>
+              <span>{activeCount > 0 ? `${activeCount} chats` : 'Chats'}</span>
             </button>
           </div>
           <p
@@ -1211,7 +1235,7 @@ export function Chat({ userId, lunarData }) {
                   cursor: 'pointer'
                 }}
               >
-                Active ({sessions.filter((s) => !s.is_archived && !s.archived_at).length})
+                Active ({activeCount})
               </button>
               <button
                 type="button"
@@ -1227,7 +1251,7 @@ export function Chat({ userId, lunarData }) {
                   cursor: 'pointer'
                 }}
               >
-                📦 Archived ({sessions.filter((s) => s.is_archived || s.archived_at).length})
+                📦 Archived ({archivedSessions.length})
               </button>
             </div>
 
@@ -1268,8 +1292,7 @@ export function Chat({ userId, lunarData }) {
 
           {/* Session List */}
           <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {sessions
-              .filter((s) => (drawerTab === 'archived' ? s.is_archived || s.archived_at : !s.is_archived && !s.archived_at))
+            {(drawerTab === 'archived' ? archivedSessions : activeSessions)
               .map((s) => {
                 const isActive = s.id === sessionId;
                 const isEditing = editingSessionId === s.id;
@@ -1487,7 +1510,7 @@ export function Chat({ userId, lunarData }) {
                 );
               })}
 
-            {sessions.filter((s) => (drawerTab === 'archived' ? s.is_archived || s.archived_at : !s.is_archived && !s.archived_at)).length === 0 && (
+            {(drawerTab === 'archived' ? archivedSessions : activeSessions).length === 0 && (
               <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-faint)', fontSize: '11px' }}>
                 {drawerTab === 'archived' ? 'No archived conversations.' : 'No active conversations.'}
               </div>
