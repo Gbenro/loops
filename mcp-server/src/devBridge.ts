@@ -738,7 +738,77 @@ export async function updateDevIssueStatus(
   }
 
   // Append transition event to durable stream
-  const targetSessionId = sessionId || 'sess_lifecycle_reopen';
+  let targetSessionId: string = sessionId || '';
+  if (!targetSessionId) {
+    // 1. Check for an active session (pending, connected, or working) for this issue
+    const { data: activeSessions } = await supabase
+      .from('dev_sessions')
+      .select('id, status')
+      .eq('issue_id', issueId)
+      .eq('user_id', userId)
+      .in('status', ['pending', 'connected', 'working'])
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    if (activeSessions && activeSessions.length > 0) {
+      targetSessionId = activeSessions[0].id;
+    } else {
+      // 2. If reopening to ready or in_progress and no active session exists, create a fresh session
+      if (status === 'ready' || status === 'in_progress') {
+        const newSessId = generateId('sess');
+        const { data: createdSess } = await supabase
+          .from('dev_sessions')
+          .insert({
+            id: newSessId,
+            issue_id: issueId,
+            user_id: userId,
+            agent: issue.assignedAgent || 'gemini',
+            status: status === 'in_progress' ? 'connected' : 'pending',
+            started_at: now,
+            last_activity_at: now
+          })
+          .select('id')
+          .single();
+
+        if (createdSess?.id) {
+          targetSessionId = createdSess.id;
+        }
+      }
+
+      // 3. Fallback: check any historical session for this issue to satisfy foreign key
+      if (!targetSessionId) {
+        const { data: historicalSessions } = await supabase
+          .from('dev_sessions')
+          .select('id')
+          .eq('issue_id', issueId)
+          .eq('user_id', userId)
+          .order('started_at', { ascending: false })
+          .limit(1);
+
+        if (historicalSessions && historicalSessions.length > 0) {
+          targetSessionId = historicalSessions[0].id;
+        }
+      }
+
+      // 4. Ultimate fallback: if zero sessions have ever existed, create a session
+      if (!targetSessionId) {
+        const fallbackSessId = generateId('sess');
+        await supabase
+          .from('dev_sessions')
+          .insert({
+            id: fallbackSessId,
+            issue_id: issueId,
+            user_id: userId,
+            agent: issue.assignedAgent || 'gemini',
+            status: 'pending',
+            started_at: now,
+            last_activity_at: now
+          });
+        targetSessionId = fallbackSessId;
+      }
+    }
+  }
+
   if (status === 'ready' || status === 'in_progress') {
     await appendDevEvent(supabase, userId, {
       issueId,
@@ -748,10 +818,10 @@ export async function updateDevIssueStatus(
       content: notes || `Issue reopened and returned to ${status}. Prior evidence scoped to previous cycle.`,
       metadata: { previousStatus: issueRowStatus(issue), newStatus: status, invalidatesVerification: true }
     });
-  } else if (sessionId) {
+  } else if (targetSessionId) {
     await appendDevEvent(supabase, userId, {
       issueId,
-      sessionId,
+      sessionId: targetSessionId,
       type: status === 'completed' ? 'session.completed' : 'requirement.changed',
       author: 'gemini',
       content: notes || `Issue status changed to ${status}`,
@@ -1164,13 +1234,60 @@ export async function appendDevEvent(
     .select()
     .single();
 
-  if (error || !data) throw new Error(error?.message || 'Failed to append Dev Event');
+  let eventData = data;
+  let effectiveSessionId = params.sessionId;
+
+  if (error || !eventData) {
+    const isFkeyError = error?.code === '23503' || 
+      (error?.message && (error.message.includes('foreign key') || error.message.includes('dev_events_session_id_fkey')));
+
+    if (isFkeyError) {
+      console.warn(`[DevBridge] session_id '${params.sessionId}' violates foreign key dev_events_session_id_fkey. Self-healing by attaching/provisioning a valid session for issue '${params.issueId}'.`);
+      const { data: fallbackSession } = await supabase
+        .from('dev_sessions')
+        .select('id')
+        .eq('issue_id', params.issueId)
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackSession?.id) {
+        effectiveSessionId = fallbackSession.id;
+      } else {
+        effectiveSessionId = generateId('sess');
+        await supabase.from('dev_sessions').insert({
+          id: effectiveSessionId,
+          issue_id: params.issueId,
+          user_id: userId,
+          agent: params.author || 'gemini',
+          status: 'pending',
+          started_at: now,
+          last_activity_at: now
+        });
+      }
+
+      insertData.session_id = effectiveSessionId;
+      const retryResult = await supabase
+        .from('dev_events')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (retryResult.error || !retryResult.data) {
+        throw new Error(retryResult.error?.message || 'Failed to append Dev Event after foreign key recovery');
+      }
+      eventData = retryResult.data;
+    } else {
+      throw new Error(error?.message || 'Failed to append Dev Event');
+    }
+  }
 
   // Update session last_activity_at and extend token only for active sessions
   const { data: currentSession } = await supabase
     .from('dev_sessions')
     .select('status')
-    .eq('id', params.sessionId)
+    .eq('id', effectiveSessionId)
     .eq('user_id', userId)
     .single();
 
@@ -1183,7 +1300,7 @@ export async function appendDevEvent(
     await supabase
       .from('dev_sessions')
       .update(updateFields)
-      .eq('id', params.sessionId)
+      .eq('id', effectiveSessionId)
       .eq('user_id', userId);
   }
 
@@ -1222,7 +1339,7 @@ export async function appendDevEvent(
     console.warn('[Lifecycle] Auto status transition warning:', statusTransitionErr);
   }
 
-  return mapDevEvent(data);
+  return mapDevEvent(eventData);
 }
 
 export async function listDevEvents(

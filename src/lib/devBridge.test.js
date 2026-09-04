@@ -12,7 +12,9 @@ import {
   handleWatcherDiscoveryEvent,
   handleWatcherSessionEndedEvent,
   getDevQueueState,
-  advanceDevQueue
+  advanceDevQueue,
+  updateDevIssueStatus,
+  appendDevEvent
 } from '../../mcp-server/dist/devBridge.js';
 import { formatCompletionSummary } from './harnessAdapters.js';
 import { getSupabaseService } from '../../mcp-server/dist/db.js';
@@ -1097,7 +1099,181 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(advanceResult.advanced).toBe(false);
     expect(advanceResult.message).toContain('incomplete verification evidence');
   });
+
+  // ─── 10. Session Resolution and Foreign Key Protection ───────────────────
+
+  it('updateDevIssueStatus resolves or provisions a valid session and avoids foreign key errors when reopening without sessionId', async () => {
+    let insertedEvent = null;
+
+    const createSessionQueryMock = () => {
+      const q = {
+        eq: vi.fn().mockImplementation(() => q),
+        in: vi.fn().mockImplementation(() => q),
+        or: vi.fn().mockImplementation(() => q),
+        order: vi.fn().mockImplementation(() => q),
+        limit: vi.fn().mockImplementation(() => q),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: { status: 'pending' }, error: null })
+      };
+      return q;
+    };
+
+    const customHandlers = {
+      dev_issues: {
+        select: vi.fn().mockImplementation(() => {
+          const q = {
+            eq: vi.fn().mockImplementation(() => q),
+            order: vi.fn().mockResolvedValue({ data: [], error: null })
+          };
+          return q;
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'iss_reopen_test',
+                    user_id: 'usr_dev_test_999',
+                    title: 'Reopen Test Issue',
+                    status: 'ready',
+                    assigned_agent: 'gemini',
+                    acceptance_criteria: [],
+                    related_references: [],
+                    created_at: '2026-09-04T10:00:00Z',
+                    updated_at: '2026-09-04T12:00:00Z',
+                    completed_at: null
+                  },
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      },
+      dev_sessions: {
+        select: vi.fn().mockImplementation(() => createSessionQueryMock()),
+        insert: vi.fn().mockImplementation((data) => ({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: data.id }, error: null })
+          })
+        })),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis()
+        })
+      },
+      dev_events: {
+        insert: vi.fn().mockImplementation((data) => {
+          insertedEvent = data;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  ...data,
+                  id: 'evt_reopened_1',
+                  user_id: 'usr_dev_test_999',
+                  created_at: new Date().toISOString()
+                },
+                error: null
+              })
+            })
+          };
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const updated = await updateDevIssueStatus(
+      supabase,
+      'usr_dev_test_999',
+      'iss_reopen_test',
+      'ready',
+      'Reopening for additional testing'
+    );
+
+    expect(updated.status).toBe('ready');
+    expect(insertedEvent).toBeDefined();
+    expect(insertedEvent.type).toBe('issue.reopened');
+    expect(insertedEvent.session_id).not.toBe('sess_lifecycle_reopen');
+    expect(insertedEvent.session_id).toBeDefined();
+    expect(insertedEvent.session_id.startsWith('sess_')).toBe(true);
+  });
+
+  it('appendDevEvent self-heals when encountering dev_events_session_id_fkey by provisioning a valid session', async () => {
+    let attempt = 0;
+    let provisionedSession = null;
+    let successfulEvent = null;
+
+    const createSessionQueryMock = () => {
+      const q = {
+        eq: vi.fn().mockImplementation(() => q),
+        order: vi.fn().mockImplementation(() => q),
+        limit: vi.fn().mockImplementation(() => q),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: { status: 'pending' }, error: null })
+      };
+      return q;
+    };
+
+    const customHandlers = {
+      dev_sessions: {
+        select: vi.fn().mockImplementation(() => createSessionQueryMock()),
+        insert: vi.fn().mockImplementation((data) => {
+          provisionedSession = data;
+          return { error: null };
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis()
+        })
+      },
+      dev_events: {
+        insert: vi.fn().mockImplementation((data) => {
+          attempt++;
+          if (attempt === 1) {
+            return {
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { code: '23503', message: 'insert or update on table "dev_events" violates foreign key constraint "dev_events_session_id_fkey"' }
+                })
+              })
+            };
+          }
+          successfulEvent = data;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  ...data,
+                  id: 'evt_fkey_healed',
+                  user_id: 'usr_dev_test_999',
+                  created_at: new Date().toISOString()
+                },
+                error: null
+              })
+            })
+          };
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const event = await appendDevEvent(supabase, 'usr_dev_test_999', {
+      issueId: 'iss_test_fkey',
+      sessionId: 'sess_invalid_nonexistent',
+      type: 'issue.reopened',
+      author: 'gemini',
+      content: 'Reopening issue with invalid session'
+    });
+
+    expect(event).toBeDefined();
+    expect(attempt).toBe(2);
+    expect(provisionedSession).toBeDefined();
+    expect(provisionedSession.issue_id).toBe('iss_test_fkey');
+    expect(successfulEvent.session_id).toBe(provisionedSession.id);
+  });
 });
+
 
 
 
