@@ -24,6 +24,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       localStorage.getItem('luna_model_key') || 'anthropic-fable'
     );
     const [selectedVoice, setSelectedVoice] = useState('luna-default');
+    const [selectedVoiceModel, setSelectedVoiceModel] = useState('eleven_flash_v2_5');
 
     // Derived session views for active and archived conversations
     const activeSessions = sessions.filter(isSessionActive);
@@ -1088,10 +1089,37 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
             </optgroup>
           </select>
 
+          {selectedVoice.startsWith('eleven-') && (
+            <select
+              id="voice-tier-select"
+              value={selectedVoiceModel}
+              onChange={(e) => setSelectedVoiceModel(e.target.value)}
+              title="Select ElevenLabs model tier (Economy Flash vs. Flagship Multilingual)"
+              style={{
+                background: '#0d1527',
+                color: '#c4b5fd',
+                border: '1px solid rgba(167, 139, 250, 0.3)',
+                borderRadius: '6px',
+                padding: '2px 6px',
+                fontSize: '11px',
+                outline: 'none',
+                cursor: 'pointer',
+                fontFamily: 'sans-serif'
+              }}
+            >
+              <option value="eleven_flash_v2_5">⚡ Flash v2.5 (Cheap · Fast)</option>
+              <option value="eleven_turbo_v2_5">🚀 Turbo v2.5 (Standard)</option>
+              <option value="eleven_multilingual_v2">✨ Multilingual v2 (Premium)</option>
+            </select>
+          )}
+
           {selectedVoice !== 'luna-default' && (
             <button
               type="button"
-              onClick={() => setSelectedVoice('luna-default')}
+              onClick={() => {
+                setSelectedVoice('luna-default');
+                setSelectedVoiceModel('eleven_flash_v2_5');
+              }}
               title="Reset to Luna Default Voice"
               style={{
                 background: 'rgba(255, 255, 255, 0.08)',
@@ -1846,7 +1874,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                     </button>
                     <button
                       type="button"
-                      onClick={() => replayPlayback(msg.id, msg.content, { voiceId: selectedVoice })}
+                      onClick={() => replayPlayback(msg.id, msg.content, { voiceId: selectedVoice, model: selectedVoiceModel })}
                       title="Restart from beginning"
                       style={{
                         background: 'rgba(255, 255, 255, 0.08)',
@@ -1888,7 +1916,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 {playbackStates[msg.id] === 'error' && (
                   <button
                     type="button"
-                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice })}
+                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice, model: selectedVoiceModel })}
                     title="Retry voice playback"
                     style={{
                       background: 'rgba(244, 63, 94, 0.2)',
@@ -1911,7 +1939,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 {(!playbackStates[msg.id] || playbackStates[msg.id] === 'idle') && (
                   <button
                     type="button"
-                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice })}
+                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice, model: selectedVoiceModel })}
                     title="Listen to Luna aloud"
                     style={{
                       background: 'rgba(167, 139, 250, 0.12)',

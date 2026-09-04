@@ -247,7 +247,8 @@ export function useLunaVoicePlayback() {
     if (!text || !text.trim()) return;
 
     const requestedVoice = options.voiceId || 'luna-default';
-    const cacheKey = `${messageId}:${requestedVoice}`;
+    const requestedModel = options.model || 'default';
+    const cacheKey = `${messageId}:${requestedVoice}:${requestedModel}`;
 
     // If already playing this message, pause/stop toggle
     if (activeMessageId === messageId && playbackStates[messageId] === 'playing') {

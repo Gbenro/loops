@@ -1914,6 +1914,29 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           voiceId: 'default',
           description: 'Local browser speech synthesis benchmark'
         }
+      ],
+      models: [
+        {
+          id: 'eleven_flash_v2_5',
+          name: 'Flash v2.5',
+          tier: 'economy',
+          costPer1kCharsUsd: 0.015,
+          description: '50% cheaper, ultra-low latency, fast conversational synthesis'
+        },
+        {
+          id: 'eleven_turbo_v2_5',
+          name: 'Turbo v2.5',
+          tier: 'standard',
+          costPer1kCharsUsd: 0.03,
+          description: 'Balanced latency and quality'
+        },
+        {
+          id: 'eleven_multilingual_v2',
+          name: 'Multilingual v2',
+          tier: 'premium',
+          costPer1kCharsUsd: 0.03,
+          description: 'Flagship model with rich emotional prosody and expression'
+        }
       ]
     });
   });
