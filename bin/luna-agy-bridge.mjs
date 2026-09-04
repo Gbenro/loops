@@ -2,18 +2,25 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const API_BASE = process.env.LUNA_API_URL || 'https://loops-production-e1d5.up.railway.app';
 const AUTH_FILE = path.join(process.env.HOME || '/home/ben', '.luna/auth.json');
 const MAPPING_FILE = path.join(process.env.HOME || '/home/ben', '.luna/agy-sessions.json');
+const POLL_INTERVAL_MS = parseInt(process.env.LUNA_POLL_INTERVAL_MS || '5000', 10);
 
 export function getAuthToken() {
   if (process.env.LUNA_DEV_TOKEN) return process.env.LUNA_DEV_TOKEN;
   if (fs.existsSync(AUTH_FILE)) {
-    const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
-    return auth.discoveryToken || auth.token;
+    try {
+      const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+      const token = auth.discoveryToken || auth.token;
+      if (token) return token;
+    } catch {
+      // JSON parse error
+    }
   }
-  throw new Error('No Luna auth token found.');
+  throw new Error(`Authentication token not found in ${AUTH_FILE} or LUNA_DEV_TOKEN env.`);
 }
 
 export function getConversationMapping() {
@@ -81,6 +88,9 @@ export async function pollAndExecuteNext({ workspaceDir = process.cwd() } = {}) 
   const queueRes = await fetch(`${API_BASE}/api/dev/queue`, {
     headers: { Authorization: `Bearer ${token}` }
   });
+  if (!queueRes.ok) {
+    throw new Error(`Failed to fetch dev queue: HTTP ${queueRes.status} ${queueRes.statusText}`);
+  }
   const queueData = await queueRes.json();
   const nextItem = (queueData.items || []).find(i => i.isEligible && (i.status === 'queued' || i.status === 'discovered'));
 
@@ -92,6 +102,9 @@ export async function pollAndExecuteNext({ workspaceDir = process.cwd() } = {}) 
   const pendRes = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
     headers: { Authorization: `Bearer ${token}` }
   });
+  if (!pendRes.ok) {
+    throw new Error(`Failed to fetch pending sessions: HTTP ${pendRes.status}`);
+  }
   const pendData = await pendRes.json();
   const sessionItem = (pendData.items || []).find(s => s.issueId === nextItem.issueId);
 
@@ -104,8 +117,13 @@ export async function pollAndExecuteNext({ workspaceDir = process.cwd() } = {}) 
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ agent: 'agy' })
   });
+  if (!claimRes.ok) {
+    return { status: 'claim_failed', issueId: nextItem.issueId, error: await claimRes.text() };
+  }
   const claimData = await claimRes.json();
   const sessionToken = claimData.token;
+
+  console.log(`[Luna AGY Bridge] Claimed session ${sessionItem.id} for issue ${nextItem.issueId} (${nextItem.title})`);
 
   // 3. Resolve mapped AGY conversation ID
   const mappings = getConversationMapping();
@@ -125,12 +143,15 @@ export async function pollAndExecuteNext({ workspaceDir = process.cwd() } = {}) 
   });
 
   // 5. Execute AGY Headless
+  console.log(`[Luna AGY Bridge] Invoking headless AGY in ${workspaceDir}...`);
   const prompt = `You are executing an autonomous development task for Luna Development Service issue ${nextItem.issueId}: ${nextItem.title}. Inspect the workspace, run necessary tests, and produce required implementation changes.`;
   const agyResult = await runAgyHeadless({
     prompt,
     conversationId: existingAgyConvId,
     workspaceDir
   });
+
+  console.log(`[Luna AGY Bridge] AGY finished with exit code ${agyResult.exitCode} in ${agyResult.durationMs}ms`);
 
   // 6. Post execution evidence
   await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
@@ -155,4 +176,76 @@ export async function pollAndExecuteNext({ workspaceDir = process.cwd() } = {}) 
     sessionId: sessionItem.id,
     agyResult
   };
+}
+
+export async function startDaemonWorker({ workspaceDir = process.cwd(), intervalMs = POLL_INTERVAL_MS } = {}) {
+  let isRunning = true;
+  let activePoll = false;
+
+  console.log('===============================================================');
+  console.log('  LUNA DEVELOPMENT SERVICE → AGY HEADLESS BRIDGE WORKER');
+  console.log('===============================================================');
+  console.log(`[Luna AGY Bridge] Target API: ${API_BASE}`);
+  console.log(`[Luna AGY Bridge] Workspace:  ${workspaceDir}`);
+  console.log(`[Luna AGY Bridge] Interval:   ${intervalMs}ms`);
+
+  // Verify auth immediately on startup
+  try {
+    const token = getAuthToken();
+    console.log(`[Luna AGY Bridge] Auth:       Verified (${token.substring(0, 8)}...)`);
+  } catch (err) {
+    console.error(`[Luna AGY Bridge] FATAL ERROR: ${err.message}`);
+    process.exit(1);
+  }
+
+  console.log(`[Luna AGY Bridge] Status:     ACTIVE (Polling for eligible tasks)`);
+  console.log('---------------------------------------------------------------');
+
+  const shutdown = () => {
+    if (!isRunning) return;
+    isRunning = false;
+    console.log('\n[Luna AGY Bridge] Shutting down AGY bridge worker cleanly...');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  const tick = async () => {
+    if (!isRunning || activePoll) return;
+    activePoll = true;
+    try {
+      const result = await pollAndExecuteNext({ workspaceDir });
+      if (result.status === 'executed') {
+        console.log(`[Luna AGY Bridge] Task ${result.issueId} execution recorded successfully.`);
+      }
+    } catch (err) {
+      console.warn(`[Luna AGY Bridge] Poll warning: ${err.message}`);
+    } finally {
+      activePoll = false;
+    }
+  };
+
+  // Initial tick
+  await tick();
+
+  // Recurring loop
+  const timer = setInterval(tick, intervalMs);
+
+  return {
+    stop: () => {
+      clearInterval(timer);
+      isRunning = false;
+    }
+  };
+}
+
+// ─── Direct CLI Entrypoint ────────────────────────────────────────────────────
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  startDaemonWorker({ workspaceDir: process.cwd() }).catch(err => {
+    console.error(`[Luna AGY Bridge] Fatal error: ${err.message}`);
+    process.exit(1);
+  });
 }
