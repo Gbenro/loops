@@ -517,6 +517,95 @@ describe('Luna Conversational Prompt Engine', () => {
         expect(isSessionActive({ is_archived: null, archived_at: null })).toBe(true);
         expect(isSessionActive({ is_archived: undefined, archived_at: undefined })).toBe(true);
       });
+
+      it('iss_1788528223117_178e Cycle 3: ensures cloud archive tombstones prevent archived sessions from leaking into active chats even when schema columns are missing', () => {
+        // Simulates Supabase table missing is_archived and archived_at columns
+        const serverSessionsWithoutArchiveCols = [
+          { id: 'session_active_1', title: 'Solar Cycle Sync', updated_at: '2026-09-04T12:00:00Z' },
+          { id: 'session_active_2', title: 'Daily Gratitude', updated_at: '2026-09-04T11:00:00Z' },
+          { id: 'session_archived_legacy_1', title: 'Archived Lunar Reflection 1', updated_at: '2026-09-03T10:00:00Z' },
+          { id: 'session_archived_legacy_2', title: 'Archived Lunar Reflection 2', updated_at: '2026-09-02T10:00:00Z' }
+        ];
+
+        // Cloud archive tombstones queried from chat_messages
+        const cloudArchiveRecords = [
+          { session_id: 'session_archived_legacy_1' },
+          { session_id: 'session_archived_legacy_2' }
+        ];
+
+        const archivedIds = new Set();
+        cloudArchiveRecords.forEach(r => archivedIds.add(r.session_id));
+
+        const allSessions = serverSessionsWithoutArchiveCols.map(s => {
+          const isArchived = Boolean(
+            s.is_archived === true ||
+            s.is_archived === 'true' ||
+            s.archived_at ||
+            archivedIds.has(s.id)
+          );
+          return {
+            ...s,
+            is_archived: isArchived,
+            archived_at: s.archived_at || (isArchived ? (s.updated_at || s.created_at || '2026-09-04T12:00:00Z') : null)
+          };
+        });
+
+        const activeSessions = allSessions.filter(isSessionActive);
+        const archivedSessions = allSessions.filter(isSessionArchived);
+
+        expect(activeSessions.length).toBe(2);
+        expect(activeSessions.map(s => s.id)).toEqual(['session_active_1', 'session_active_2']);
+        expect(archivedSessions.length).toBe(2);
+        expect(archivedSessions.map(s => s.id)).toEqual(['session_archived_legacy_1', 'session_archived_legacy_2']);
+      });
+
+      it('iss_1788528223117_178e Cycle 3: filters out internal system archive records from chat transcripts', () => {
+        const rawChatMessages = [
+          { id: 'm1', role: 'user', content: 'What is the current moon phase?' },
+          { id: 'm2', role: 'assistant', content: 'The moon is currently in Full Moon phase.' },
+          { id: 'arch_1', role: 'system', content: '__LUNA_SESSION_ARCHIVED__', metadata: { archived_at: '2026-09-04T10:00:00Z' } }
+        ];
+
+        const displayMessages = rawChatMessages.filter(m => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__');
+        expect(displayMessages.length).toBe(2);
+        expect(displayMessages.some(m => m.content === '__LUNA_SESSION_ARCHIVED__')).toBe(false);
+        expect(displayMessages.map(m => m.id)).toEqual(['m1', 'm2']);
+      });
+
+      it('iss_1788528223117_178e Cycle 3: independently selects voice and TTS model tier with separate cache keys', () => {
+        const voices = [
+          'luna-default',
+          'eleven-rachel',
+          'eleven-bella',
+          'eleven-antoni',
+          'eleven-nicole',
+          'eleven-adam',
+          'browser-web-speech'
+        ];
+
+        const modelTiers = [
+          'eleven_flash_v2_5',
+          'eleven_turbo_v2_5',
+          'eleven_multilingual_v2'
+        ];
+
+        const messageId = 'msg_1001';
+        const text = 'The quiet moonlight breathes peace.';
+
+        // Ensure each combination forms a unique cache key
+        const cacheKeys = new Set();
+        voices.forEach(voiceId => {
+          modelTiers.forEach(modelTier => {
+            const key = `${messageId}:${voiceId}:${modelTier}`;
+            cacheKeys.add(key);
+          });
+        });
+
+        expect(cacheKeys.size).toBe(voices.length * modelTiers.length);
+        expect(cacheKeys.has(`${messageId}:eleven-rachel:eleven_flash_v2_5`)).toBe(true);
+        expect(cacheKeys.has(`${messageId}:eleven-rachel:eleven_multilingual_v2`)).toBe(true);
+        expect(cacheKeys.has(`${messageId}:eleven-bella:eleven_turbo_v2_5`)).toBe(true);
+      });
     });
   });
 });

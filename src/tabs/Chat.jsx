@@ -41,19 +41,44 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
   // Durable Archive Store Helpers (Ensures archive persistence across restarts regardless of remote schema state)
   const getArchivedSessionIds = (uid) => {
-    if (!uid) return [];
     try {
-      const raw = localStorage.getItem(`cosmic_archived_chat_sessions_${uid}`);
-      return raw ? JSON.parse(raw) : [];
+      const ids = new Set();
+      if (uid) {
+        const scopedRaw = localStorage.getItem(`cosmic_archived_chat_sessions_${uid}`);
+        if (scopedRaw) {
+          const parsed = JSON.parse(scopedRaw);
+          if (Array.isArray(parsed)) parsed.forEach((id) => ids.add(id));
+        }
+      }
+      const legacyRaw = localStorage.getItem('cosmic_archived_chat_sessions');
+      if (legacyRaw) {
+        const parsed = JSON.parse(legacyRaw);
+        if (Array.isArray(parsed)) parsed.forEach((id) => ids.add(id));
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('cosmic_archived_chat_sessions')) {
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) parsed.forEach((id) => ids.add(id));
+            }
+          } catch {}
+        }
+      }
+      return Array.from(ids);
     } catch {
       return [];
     }
   };
 
   const setArchivedSessionIds = (uid, ids) => {
-    if (!uid) return;
     try {
-      localStorage.setItem(`cosmic_archived_chat_sessions_${uid}`, JSON.stringify(ids));
+      if (uid) {
+        localStorage.setItem(`cosmic_archived_chat_sessions_${uid}`, JSON.stringify(ids));
+      }
+      localStorage.setItem('cosmic_archived_chat_sessions', JSON.stringify(ids));
     } catch (e) {
       console.warn('localStorage archive save failed:', e);
     }
@@ -211,6 +236,24 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
         }
 
         const archivedIds = new Set(getArchivedSessionIds(userId));
+
+        // Cloud-synced archive persistence: fetch archive tombstones from chat_messages
+        try {
+          const { data: cloudArchived } = await supabase
+            .from('chat_messages')
+            .select('session_id')
+            .eq('role', 'system')
+            .eq('content', '__LUNA_SESSION_ARCHIVED__');
+          if (cloudArchived && cloudArchived.length > 0) {
+            cloudArchived.forEach((row) => {
+              if (row.session_id) archivedIds.add(row.session_id);
+            });
+            setArchivedSessionIds(userId, Array.from(archivedIds));
+          }
+        } catch (cloudErr) {
+          console.warn('Cloud archive query skipped/failed:', cloudErr);
+        }
+
         const allSessions = (userSessions || []).map((s) => {
           const isArchived = Boolean(
             s.is_archived === true ||
@@ -260,7 +303,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           .order('created_at', { ascending: true });
 
         if (msgsErr) throw msgsErr;
-        setMessages(msgs || []);
+        setMessages((msgs || []).filter((m) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__'));
       } catch (err) {
         console.error('Error loading chat session:', err);
         setError('Failed to initialize connection with Luna.');
@@ -293,7 +336,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
         .order('created_at', { ascending: true });
 
       if (msgsErr) throw msgsErr;
-      setMessages(msgs || []);
+      setMessages((msgs || []).filter((m) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__'));
       setShowDrawer(false);
     } catch (err) {
       console.error('Error switching session:', err);
@@ -417,19 +460,37 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       currentArchived.add(session.id);
       setArchivedSessionIds(userId, Array.from(currentArchived));
 
-      // Attempt remote update on Supabase with graceful fallback
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ is_archived: true, archived_at: now, updated_at: now })
-        .eq('id', session.id)
-        .eq('user_id', userId);
-
-      if (error) {
+      // 1. Persist archive state into cloud via system record in chat_messages
+      try {
         await supabase
+          .from('chat_messages')
+          .insert({
+            id: `arch_${session.id}_${Date.now()}`,
+            session_id: session.id,
+            role: 'system',
+            content: '__LUNA_SESSION_ARCHIVED__',
+            metadata: { archived_at: now, session_title: session.title },
+            created_at: now
+          });
+      } catch (cloudArchiveErr) {
+        console.warn('Cloud archive record insert skipped:', cloudArchiveErr);
+      }
+
+      // 2. Attempt remote update on Supabase chat_sessions with graceful fallback
+      try {
+        let updateQuery = supabase
           .from('chat_sessions')
-          .update({ updated_at: now })
-          .eq('id', session.id)
-          .eq('user_id', userId);
+          .update({ is_archived: true, archived_at: now, updated_at: now })
+          .eq('id', session.id);
+        const { error } = await updateQuery;
+        if (error) {
+          await supabase
+            .from('chat_sessions')
+            .update({ updated_at: now })
+            .eq('id', session.id);
+        }
+      } catch (dbErr) {
+        console.warn('chat_sessions update skipped:', dbErr);
       }
 
       setSessions((prev) =>
@@ -464,19 +525,33 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       currentArchived.delete(session.id);
       setArchivedSessionIds(userId, Array.from(currentArchived));
 
-      // Attempt remote update on Supabase with graceful fallback
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ is_archived: false, archived_at: null, updated_at: now })
-        .eq('id', session.id)
-        .eq('user_id', userId);
-
-      if (error) {
+      // 1. Remove cloud archive tombstone from chat_messages
+      try {
         await supabase
+          .from('chat_messages')
+          .delete()
+          .eq('session_id', session.id)
+          .eq('role', 'system')
+          .eq('content', '__LUNA_SESSION_ARCHIVED__');
+      } catch (cloudDelErr) {
+        console.warn('Cloud archive record delete skipped:', cloudDelErr);
+      }
+
+      // 2. Attempt remote update on Supabase chat_sessions with graceful fallback
+      try {
+        let updateQuery = supabase
           .from('chat_sessions')
-          .update({ updated_at: now })
-          .eq('id', session.id)
-          .eq('user_id', userId);
+          .update({ is_archived: false, archived_at: null, updated_at: now })
+          .eq('id', session.id);
+        const { error } = await updateQuery;
+        if (error) {
+          await supabase
+            .from('chat_sessions')
+            .update({ updated_at: now })
+            .eq('id', session.id);
+        }
+      } catch (dbErr) {
+        console.warn('chat_sessions update skipped:', dbErr);
       }
 
       setSessions((prev) =>
@@ -591,11 +666,20 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
         await handlePreserveToField(sessionToDelete);
       }
 
+      // Clean up chat_messages including any cloud archive tombstones
+      try {
+        await supabase
+          .from('chat_messages')
+          .delete()
+          .eq('session_id', sessionToDelete.id);
+      } catch (cleanErr) {
+        console.warn('Chat messages cleanup skipped/failed:', cleanErr);
+      }
+
       const { error: delErr } = await supabase
         .from('chat_sessions')
         .delete()
-        .eq('id', sessionToDelete.id)
-        .eq('user_id', userId);
+        .eq('id', sessionToDelete.id);
 
       if (delErr) throw delErr;
 
@@ -841,7 +925,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           .order('created_at', { ascending: true });
 
         if (msgs && msgs.length > 0) {
-          setMessages(msgs);
+          setMessages(msgs.filter((m) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__'));
         }
       } catch (syncErr) {
         console.warn('Background sync error (ignored to preserve state):', syncErr);
@@ -1034,70 +1118,44 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           </select>
         </div>
 
-        {/* Row 3: Voice Playground (Experimental TTS Voice Selector) */}
+        {/* Row 3: Voice Playground (Separate Voice & Independent TTS Model Tier Controls) */}
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(167, 139, 250, 0.05)',
-            padding: '3px 8px',
+            flexDirection: 'column',
+            gap: '5px',
+            background: 'rgba(167, 139, 250, 0.06)',
+            padding: '5px 8px',
             borderRadius: '8px',
-            border: '1px solid rgba(167, 139, 250, 0.15)',
+            border: '1px solid rgba(167, 139, 250, 0.2)',
             marginTop: '4px'
           }}
         >
-          <label
-            htmlFor="voice-select"
-            style={{
-              fontSize: '9.5px',
-              fontFamily: 'monospace',
-              color: '#d8b4fe',
-              textTransform: 'uppercase',
-              flexShrink: 0
-            }}
-          >
-            🎙️ Voice:
-          </label>
-          <select
-            id="voice-select"
-            value={selectedVoice}
-            onChange={(e) => setSelectedVoice(e.target.value)}
-            style={{
-              flex: 1,
-              background: '#0d1527',
-              color: '#e9d5ff',
-              border: '1px solid rgba(167, 139, 250, 0.3)',
-              borderRadius: '6px',
-              padding: '2px 6px',
-              fontSize: '11px',
-              outline: 'none',
-              cursor: 'pointer',
-              fontFamily: 'sans-serif'
-            }}
-          >
-            <option value="luna-default">Luna Default (Kokoro · af_nova)</option>
-            <optgroup label="ElevenLabs Voices (Experimental)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
-              <option value="eleven-rachel">ElevenLabs — Rachel (Calm & Reflective)</option>
-              <option value="eleven-bella">ElevenLabs — Bella (Warm & Expressive)</option>
-              <option value="eleven-antoni">ElevenLabs — Antoni (Modulated & Thoughtful)</option>
-              <option value="eleven-nicole">ElevenLabs — Nicole (Soft Whisper · Poet)</option>
-              <option value="eleven-adam">ElevenLabs — Adam (Deep & Resonant)</option>
-            </optgroup>
-            <optgroup label="Fallback & Benchmarks" style={{ background: '#0d1527', color: '#a78bfa', fontWeight: 'bold' }}>
-              <option value="browser-web-speech">Browser Native Web Speech</option>
-            </optgroup>
-          </select>
-
-          {selectedVoice.startsWith('eleven-') && (
-            <select
-              id="voice-tier-select"
-              value={selectedVoiceModel}
-              onChange={(e) => setSelectedVoiceModel(e.target.value)}
-              title="Select ElevenLabs model tier (Economy Flash vs. Flagship Multilingual)"
+          {/* Row 3A: Voice Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label
+              htmlFor="voice-select"
               style={{
+                fontSize: '9.5px',
+                fontFamily: 'monospace',
+                color: '#d8b4fe',
+                textTransform: 'uppercase',
+                fontWeight: '600',
+                width: '62px',
+                flexShrink: 0
+              }}
+            >
+              🎙️ Voice:
+            </label>
+            <select
+              id="voice-select"
+              value={selectedVoice}
+              onChange={(e) => setSelectedVoice(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 0,
                 background: '#0d1527',
-                color: '#c4b5fd',
+                color: '#e9d5ff',
                 border: '1px solid rgba(167, 139, 250, 0.3)',
                 borderRadius: '6px',
                 padding: '2px 6px',
@@ -1107,34 +1165,85 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 fontFamily: 'sans-serif'
               }}
             >
-              <option value="eleven_flash_v2_5">⚡ Flash v2.5 (Cheap · Fast)</option>
-              <option value="eleven_turbo_v2_5">🚀 Turbo v2.5 (Standard)</option>
-              <option value="eleven_multilingual_v2">✨ Multilingual v2 (Premium)</option>
+              <option value="luna-default">Luna Default (Kokoro · af_nova)</option>
+              <optgroup label="ElevenLabs Voices (Experimental)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
+                <option value="eleven-rachel">ElevenLabs — Rachel (Calm & Reflective)</option>
+                <option value="eleven-bella">ElevenLabs — Bella (Warm & Expressive)</option>
+                <option value="eleven-antoni">ElevenLabs — Antoni (Modulated & Thoughtful)</option>
+                <option value="eleven-nicole">ElevenLabs — Nicole (Soft Whisper · Poet)</option>
+                <option value="eleven-adam">ElevenLabs — Adam (Deep & Resonant)</option>
+              </optgroup>
+              <optgroup label="Fallback & Benchmarks" style={{ background: '#0d1527', color: '#a78bfa', fontWeight: 'bold' }}>
+                <option value="browser-web-speech">Browser Native Web Speech</option>
+              </optgroup>
             </select>
-          )}
 
-          {selectedVoice !== 'luna-default' && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedVoice('luna-default');
-                setSelectedVoiceModel('eleven_flash_v2_5');
-              }}
-              title="Reset to Luna Default Voice"
+            {selectedVoice !== 'luna-default' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVoice('luna-default');
+                  setSelectedVoiceModel('eleven_flash_v2_5');
+                }}
+                title="Reset to Luna Default Voice"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '5px',
+                  padding: '2px 6px',
+                  color: 'var(--color-text-faint)',
+                  fontSize: '10px',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                ↺ Reset
+              </button>
+            )}
+          </div>
+
+          {/* Row 3B: Independent TTS Model Tier Selector (Always clearly visible & selectable) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label
+              htmlFor="voice-tier-select"
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '5px',
-                padding: '2px 6px',
-                color: 'var(--color-text-faint)',
-                fontSize: '10px',
-                cursor: 'pointer',
+                fontSize: '9.5px',
+                fontFamily: 'monospace',
+                color: selectedVoice.startsWith('eleven-') ? '#f5e6c8' : 'var(--color-text-faint)',
+                textTransform: 'uppercase',
+                fontWeight: '600',
+                width: '62px',
                 flexShrink: 0
               }}
             >
-              ↺ Reset
-            </button>
-          )}
+              ⚡ TTS Tier:
+            </label>
+            <select
+              id="voice-tier-select"
+              value={selectedVoiceModel}
+              onChange={(e) => setSelectedVoiceModel(e.target.value)}
+              title="Select TTS model tier: Flash v2.5 (Cheap/Economy ~385ms), Turbo v2.5 (Standard ~415ms), or Multilingual v2 (Premium Flagship ~1,100ms)"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: '#0d1527',
+                color: selectedVoice.startsWith('eleven-') ? '#fde68a' : '#c4b5fd',
+                border: selectedVoice.startsWith('eleven-')
+                  ? '1px solid rgba(251, 191, 36, 0.5)'
+                  : '1px solid rgba(167, 139, 250, 0.25)',
+                borderRadius: '6px',
+                padding: '2px 6px',
+                fontSize: '11px',
+                outline: 'none',
+                cursor: 'pointer',
+                fontFamily: 'sans-serif'
+              }}
+            >
+              <option value="eleven_flash_v2_5">⚡ Flash v2.5 (Cheap · 50% Credits · ~385ms)</option>
+              <option value="eleven_turbo_v2_5">🚀 Turbo v2.5 (Standard Low-Latency · ~415ms)</option>
+              <option value="eleven_multilingual_v2">✨ Multilingual v2 (Premium Flagship · ~1,100ms)</option>
+            </select>
+          </div>
         </div>
       </header>
 
