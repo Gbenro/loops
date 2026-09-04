@@ -1870,7 +1870,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: 'eleven-rachel',
           name: 'ElevenLabs — Rachel',
           provider: 'elevenlabs',
-          model: 'eleven_turbo_v2_5',
+          model: 'eleven_multilingual_v2',
           voiceId: '21m00Tcm4TlvDq8ikWAM',
           description: 'Calm, thoughtful, and natural'
         },
@@ -1878,7 +1878,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: 'eleven-bella',
           name: 'ElevenLabs — Bella',
           provider: 'elevenlabs',
-          model: 'eleven_turbo_v2_5',
+          model: 'eleven_multilingual_v2',
           voiceId: 'EXAVITQu4vr4xnSDxMaL',
           description: 'Warm, expressive, and gentle'
         },
@@ -1886,7 +1886,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: 'eleven-antoni',
           name: 'ElevenLabs — Antoni',
           provider: 'elevenlabs',
-          model: 'eleven_turbo_v2_5',
+          model: 'eleven_multilingual_v2',
           voiceId: 'ErXwobaYiN019PkySvjV',
           description: 'Well-rounded, modulated, and narrative'
         },
@@ -1894,7 +1894,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: 'eleven-nicole',
           name: 'ElevenLabs — Nicole',
           provider: 'elevenlabs',
-          model: 'eleven_turbo_v2_5',
+          model: 'eleven_multilingual_v2',
           voiceId: 'piTKgcLEGmPE4e6mEKli',
           description: 'Quiet, soft whisper, poetic cadence'
         },
@@ -1902,7 +1902,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: 'eleven-adam',
           name: 'ElevenLabs — Adam',
           provider: 'elevenlabs',
-          model: 'eleven_turbo_v2_5',
+          model: 'eleven_multilingual_v2',
           voiceId: 'pNInz6obpgDQGcFmaJgB',
           description: 'Deep, resonant, grounded'
         },
