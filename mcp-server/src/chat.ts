@@ -1850,10 +1850,78 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
+  // 5b. GET /api/chat/voices - List available TTS voices and playground options
+  app.get('/api/chat/voices', authOpt, async (req: Request, res: Response) => {
+    const hasElevenLabs = Boolean(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY || process.env.XI_API_KEY);
+    res.json({
+      defaultVoice: 'af_nova',
+      defaultProvider: 'openrouter',
+      hasElevenLabsConfigured: hasElevenLabs,
+      voices: [
+        {
+          id: 'luna-default',
+          name: 'Luna Default (Kokoro · af_nova)',
+          provider: 'openrouter',
+          model: 'hexgrad/kokoro-82m',
+          voiceId: 'af_nova',
+          description: 'Contemplative, grounded, and poetic baseline'
+        },
+        {
+          id: 'eleven-rachel',
+          name: 'ElevenLabs — Rachel',
+          provider: 'elevenlabs',
+          model: 'eleven_turbo_v2_5',
+          voiceId: '21m00Tcm4TlvDq8ikWAM',
+          description: 'Calm, thoughtful, and natural'
+        },
+        {
+          id: 'eleven-bella',
+          name: 'ElevenLabs — Bella',
+          provider: 'elevenlabs',
+          model: 'eleven_turbo_v2_5',
+          voiceId: 'EXAVITQu4vr4xnSDxMaL',
+          description: 'Warm, expressive, and gentle'
+        },
+        {
+          id: 'eleven-antoni',
+          name: 'ElevenLabs — Antoni',
+          provider: 'elevenlabs',
+          model: 'eleven_turbo_v2_5',
+          voiceId: 'ErXwobaYiN019PkySvjV',
+          description: 'Well-rounded, modulated, and narrative'
+        },
+        {
+          id: 'eleven-nicole',
+          name: 'ElevenLabs — Nicole',
+          provider: 'elevenlabs',
+          model: 'eleven_turbo_v2_5',
+          voiceId: 'piTKgcLEGmPE4e6mEKli',
+          description: 'Quiet, soft whisper, poetic cadence'
+        },
+        {
+          id: 'eleven-adam',
+          name: 'ElevenLabs — Adam',
+          provider: 'elevenlabs',
+          model: 'eleven_turbo_v2_5',
+          voiceId: 'pNInz6obpgDQGcFmaJgB',
+          description: 'Deep, resonant, grounded'
+        },
+        {
+          id: 'browser-web-speech',
+          name: 'Browser Native Web Speech',
+          provider: 'web_speech',
+          model: 'browser-native',
+          voiceId: 'default',
+          description: 'Local browser speech synthesis benchmark'
+        }
+      ]
+    });
+  });
+
   // 6. POST /api/chat/synthesize-speech - Synthesize Luna voice output for an assistant response
   app.post('/api/chat/synthesize-speech', authOpt, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient || getSupabaseAnon();
-    const { text, messageId, voiceId, model } = req.body;
+    const { text, messageId, voiceId, model, provider, speed, segmentationMode } = req.body;
 
     if (!text || !text.trim()) {
       res.status(400).json({ error: 'Text is required for voice synthesis' });
@@ -1864,7 +1932,10 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       const result = await synthesizeLunaVoice({
         text,
         voiceId,
-        model
+        model,
+        provider,
+        speed,
+        segmentationMode
       });
 
       // Update telemetry trace for this message if messageId provided

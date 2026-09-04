@@ -37,7 +37,9 @@ export interface VoiceOutputRequest {
   text: string;
   voiceId?: string;
   model?: string;
+  provider?: 'openai' | 'elevenlabs' | 'openrouter' | 'web_speech';
   speed?: number;
+  segmentationMode?: 'sentence' | 'paragraph' | 'none';
 }
 
 export interface VoiceOutputResult {
@@ -119,8 +121,84 @@ export function cleanTextForSpeech(rawText: string): string {
     .replace(/>\s+/g, '')
     .replace(/`{1,3}[^`]*`{1,3}/g, '')
     .replace(/\[(.*?)\]\(.*?\)/g, '$1')
-    .replace(/\s+/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n\n')
     .trim();
+}
+
+/**
+ * Maps friendly ElevenLabs voice names/aliases to official ElevenLabs voice IDs.
+ */
+export const ELEVENLABS_VOICE_MAP: Record<string, string> = {
+  'rachel': '21m00Tcm4TlvDq8ikWAM',
+  'eleven-rachel': '21m00Tcm4TlvDq8ikWAM',
+  'bella': 'EXAVITQu4vr4xnSDxMaL',
+  'eleven-bella': 'EXAVITQu4vr4xnSDxMaL',
+  'antoni': 'ErXwobaYiN019PkySvjV',
+  'eleven-antoni': 'ErXwobaYiN019PkySvjV',
+  'nicole': 'piTKgcLEGmPE4e6mEKli',
+  'eleven-nicole': 'piTKgcLEGmPE4e6mEKli',
+  'adam': 'pNInz6obpgDQGcFmaJgB',
+  'eleven-adam': 'pNInz6obpgDQGcFmaJgB'
+};
+
+/**
+ * Splits text into natural sentence and semantic clause segments.
+ * Prevents mid-sentence pauses that break meaning.
+ */
+export function segmentTextForSpeech(
+  rawText: string,
+  options?: { maxChunkLength?: number; mode?: 'sentence' | 'paragraph' | 'none' }
+): string[] {
+  const mode = options?.mode || 'sentence';
+  const maxLen = options?.maxChunkLength || 400;
+  const clean = cleanTextForSpeech(rawText);
+  if (!clean) return [];
+
+  if (mode === 'none') {
+    return [clean.replace(/\s+/g, ' ')];
+  }
+
+  if (mode === 'paragraph') {
+    return clean.split(/\n\s*\n+/).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  }
+
+  const singleLine = clean.replace(/\s+/g, ' ');
+  if (singleLine.length <= maxLen) {
+    return [singleLine];
+  }
+
+  // Protect abbreviations: replace periods in common abbreviations temporarily
+  const protectedText = singleLine
+    .replace(/\b(Dr|Mr|Mrs|Ms|Prof|vs|etc|i\.e|e\.g)\./gi, '$1__DOT__')
+    .replace(/(\d+)\.(\d+)/g, '$1__DOT__$2');
+
+  const sentenceBoundaryRegex = /(?<=[.!?…;:])\s+(?=[A-Z0-9"'“‘—])/g;
+  const rawSentences = protectedText.split(sentenceBoundaryRegex);
+  const sentences = rawSentences
+    .map(s => s.replace(/__DOT__/g, '.').trim())
+    .filter(Boolean);
+
+  if (sentences.length === 0) return [singleLine];
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const s of sentences) {
+    if (!currentChunk) {
+      currentChunk = s;
+    } else if ((currentChunk + ' ' + s).length <= maxLen) {
+      currentChunk += ' ' + s;
+    } else {
+      chunks.push(currentChunk);
+      currentChunk = s;
+    }
+  }
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
 }
 
 /**
@@ -240,7 +318,93 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
 
   let lastError: string | null = null;
 
-  // 1. Try OpenRouter Dedicated Speech API (Primary production TTS engine)
+  // 1. Try ElevenLabs TTS Provider if requested or configured
+  const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY || process.env.XI_API_KEY;
+  const isElevenRequested =
+    ttsModelConfig.provider === 'elevenlabs' ||
+    req.provider === 'elevenlabs' ||
+    (req.voiceId && (req.voiceId.startsWith('eleven-') || Boolean(ELEVENLABS_VOICE_MAP[req.voiceId])));
+
+  if (isElevenRequested) {
+    if (elevenLabsKey) {
+      try {
+        const elevenVoiceId =
+          (req.voiceId && ELEVENLABS_VOICE_MAP[req.voiceId]) ||
+          req.voiceId ||
+          ttsModelConfig.defaultVoice ||
+          '21m00Tcm4TlvDq8ikWAM';
+        const elevenModelId = (req.model && req.model.startsWith('eleven_')) ? req.model : 'eleven_turbo_v2_5';
+        console.log(`[Luna Voice Out] Requesting ElevenLabs TTS: voice=${elevenVoiceId}, model=${elevenModelId}, chars=${characterCount}`);
+
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${elevenVoiceId}?output_format=mp3_44100_128`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': elevenLabsKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text,
+            model_id: elevenModelId,
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0.0,
+              use_speaker_boost: true
+            }
+          })
+        });
+
+        const latencyMs = Date.now() - startTime;
+        const estimatedCostUsd = Number(((characterCount * 30.0) / 1000000).toFixed(6));
+
+        if (response.ok) {
+          const rawArrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(rawArrayBuffer);
+          const byteCount = buffer.length;
+          const audioBase64 = buffer.toString('base64');
+
+          if (byteCount > 0) {
+            console.log(`[Luna Voice Out] ElevenLabs TTS successful: ${byteCount} bytes (audio/mpeg) in ${latencyMs}ms`);
+            return {
+              audioBase64,
+              contentType: 'audio/mpeg',
+              characterCount,
+              rawByteCount: byteCount,
+              packagedByteCount: byteCount,
+              byteCount,
+              audioDurationSec: Number((characterCount / 15).toFixed(2)),
+              bytesPerSecond: 16000,
+              bytesPerCharacter: Number((byteCount / characterCount).toFixed(1)),
+              networkPayloadSizeBytes: byteCount,
+              costPerSpokenMinuteUsd: 0.03,
+              provider: 'elevenlabs',
+              model: elevenModelId,
+              voiceId: elevenVoiceId,
+              playbackMode: 'provider_audio',
+              latencyMs,
+              httpStatus: response.status,
+              estimatedCostUsd,
+              requestHandled: true,
+              synthesisSucceeded: true,
+              audioValidated: true,
+              success: true
+            };
+          }
+        } else {
+          const errText = await response.text();
+          lastError = `ElevenLabs TTS (${response.status}): ${errText}`;
+          console.warn(`[Luna Voice TTS] ElevenLabs error (${response.status}): ${errText}. Falling back to Luna default.`);
+        }
+      } catch (err: any) {
+        lastError = `ElevenLabs exception: ${err.message}`;
+        console.warn(`[Luna Voice TTS] ElevenLabs exception: ${err.message}. Falling back to Luna default.`);
+      }
+    } else {
+      console.log('[Luna Voice TTS] ElevenLabs requested but ELEVENLABS_API_KEY is not configured in environment. Gracefully falling back to Luna default (Kokoro).');
+    }
+  }
+
+  // 2. Try OpenRouter Dedicated Speech API (Primary production TTS engine)
   const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (openRouterKey && (ttsModelConfig.provider === 'openrouter' || !process.env.OPENAI_API_KEY)) {
     try {

@@ -23,6 +23,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     const [selectedModel, setSelectedModel] = useState(
       localStorage.getItem('luna_model_key') || 'anthropic-fable'
     );
+    const [selectedVoice, setSelectedVoice] = useState('luna-default');
 
     // Derived session views for active and archived conversations
     const activeSessions = sessions.filter(isSessionActive);
@@ -1031,6 +1032,82 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
             </optgroup>
           </select>
         </div>
+
+        {/* Row 3: Voice Playground (Experimental TTS Voice Selector) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(167, 139, 250, 0.05)',
+            padding: '3px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(167, 139, 250, 0.15)',
+            marginTop: '4px'
+          }}
+        >
+          <label
+            htmlFor="voice-select"
+            style={{
+              fontSize: '9.5px',
+              fontFamily: 'monospace',
+              color: '#d8b4fe',
+              textTransform: 'uppercase',
+              flexShrink: 0
+            }}
+          >
+            🎙️ Voice:
+          </label>
+          <select
+            id="voice-select"
+            value={selectedVoice}
+            onChange={(e) => setSelectedVoice(e.target.value)}
+            style={{
+              flex: 1,
+              background: '#0d1527',
+              color: '#e9d5ff',
+              border: '1px solid rgba(167, 139, 250, 0.3)',
+              borderRadius: '6px',
+              padding: '2px 6px',
+              fontSize: '11px',
+              outline: 'none',
+              cursor: 'pointer',
+              fontFamily: 'sans-serif'
+            }}
+          >
+            <option value="luna-default">Luna Default (Kokoro · af_nova)</option>
+            <optgroup label="ElevenLabs Voices (Experimental)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
+              <option value="eleven-rachel">ElevenLabs — Rachel (Calm & Reflective)</option>
+              <option value="eleven-bella">ElevenLabs — Bella (Warm & Expressive)</option>
+              <option value="eleven-antoni">ElevenLabs — Antoni (Modulated & Thoughtful)</option>
+              <option value="eleven-nicole">ElevenLabs — Nicole (Soft Whisper · Poet)</option>
+              <option value="eleven-adam">ElevenLabs — Adam (Deep & Resonant)</option>
+            </optgroup>
+            <optgroup label="Fallback & Benchmarks" style={{ background: '#0d1527', color: '#a78bfa', fontWeight: 'bold' }}>
+              <option value="browser-web-speech">Browser Native Web Speech</option>
+            </optgroup>
+          </select>
+
+          {selectedVoice !== 'luna-default' && (
+            <button
+              type="button"
+              onClick={() => setSelectedVoice('luna-default')}
+              title="Reset to Luna Default Voice"
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '5px',
+                padding: '2px 6px',
+                color: 'var(--color-text-faint)',
+                fontSize: '10px',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              ↺ Reset
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Action Feedback Toast */}
@@ -1769,7 +1846,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                     </button>
                     <button
                       type="button"
-                      onClick={() => replayPlayback(msg.id, msg.content)}
+                      onClick={() => replayPlayback(msg.id, msg.content, { voiceId: selectedVoice })}
                       title="Restart from beginning"
                       style={{
                         background: 'rgba(255, 255, 255, 0.08)',
@@ -1811,7 +1888,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 {playbackStates[msg.id] === 'error' && (
                   <button
                     type="button"
-                    onClick={() => playMessage(msg.id, msg.content)}
+                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice })}
                     title="Retry voice playback"
                     style={{
                       background: 'rgba(244, 63, 94, 0.2)',
@@ -1834,7 +1911,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 {(!playbackStates[msg.id] || playbackStates[msg.id] === 'idle') && (
                   <button
                     type="button"
-                    onClick={() => playMessage(msg.id, msg.content)}
+                    onClick={() => playMessage(msg.id, msg.content, { voiceId: selectedVoice })}
                     title="Listen to Luna aloud"
                     style={{
                       background: 'rgba(167, 139, 250, 0.12)',

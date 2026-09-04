@@ -705,6 +705,38 @@ export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
     enabled: true
   },
   {
+    key: 'elevenlabs-turbo',
+    provider: 'elevenlabs',
+    modelId: 'eleven_turbo_v2_5',
+    displayName: 'ElevenLabs — Turbo v2.5 (Expressive & Low Latency)',
+    defaultVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    costPer1MChars: 30.00,
+    supportedVoices: [
+      '21m00Tcm4TlvDq8ikWAM', // Rachel
+      'EXAVITQu4vr4xnSDxMaL', // Bella
+      'ErXwobaYiN019PkySvjV', // Antoni
+      'piTKgcLEGmPE4e6mEKli', // Nicole
+      'pNInz6obpgDQGcFmaJgB'  // Adam
+    ],
+    enabled: true
+  },
+  {
+    key: 'elevenlabs-multilingual',
+    provider: 'elevenlabs',
+    modelId: 'eleven_multilingual_v2',
+    displayName: 'ElevenLabs — Multilingual v2 (Rich Emotion)',
+    defaultVoice: '21m00Tcm4TlvDq8ikWAM',
+    costPer1MChars: 30.00,
+    supportedVoices: [
+      '21m00Tcm4TlvDq8ikWAM',
+      'EXAVITQu4vr4xnSDxMaL',
+      'ErXwobaYiN019PkySvjV',
+      'piTKgcLEGmPE4e6mEKli',
+      'pNInz6obpgDQGcFmaJgB'
+    ],
+    enabled: true
+  },
+  {
     key: 'browser-web-speech',
     provider: 'web_speech',
     modelId: 'browser-native',
@@ -720,6 +752,10 @@ export function resolveTtsModel(keyOrModelId?: string): TtsModelConfig {
   if (keyOrModelId) {
     const direct = TTS_MODEL_REGISTRY.find(m => m.key === keyOrModelId || m.modelId === keyOrModelId);
     if (direct) return direct;
+    if (keyOrModelId.startsWith('eleven')) {
+      const eleven = TTS_MODEL_REGISTRY.find(m => m.provider === 'elevenlabs');
+      if (eleven) return eleven;
+    }
   }
   return TTS_MODEL_REGISTRY[0]; // Default to openrouter-kokoro
 }

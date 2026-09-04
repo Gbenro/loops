@@ -243,8 +243,11 @@ export function useLunaVoicePlayback() {
     }
   }, [playAudioSource]);
 
-  const playMessage = useCallback(async (messageId, text) => {
+  const playMessage = useCallback(async (messageId, text, options = {}) => {
     if (!text || !text.trim()) return;
+
+    const requestedVoice = options.voiceId || 'luna-default';
+    const cacheKey = `${messageId}:${requestedVoice}`;
 
     // If already playing this message, pause/stop toggle
     if (activeMessageId === messageId && playbackStates[messageId] === 'playing') {
@@ -266,9 +269,9 @@ export function useLunaVoicePlayback() {
     setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
 
     try {
-      // 1. Check client audio cache
-      if (audioCacheRef.current.has(messageId)) {
-        const cached = audioCacheRef.current.get(messageId);
+      // 1. Check client audio cache (voice-aware)
+      if (audioCacheRef.current.has(cacheKey)) {
+        const cached = audioCacheRef.current.get(cacheKey);
         const cachedBase64 = typeof cached === 'string' ? cached : cached.audioBase64;
         const cachedType = (typeof cached === 'object' && cached?.contentType) ? cached.contentType : 'audio/wav';
         playBase64Audio(messageId, cachedBase64, cachedType, text);
@@ -290,7 +293,11 @@ export function useLunaVoicePlayback() {
         },
         body: JSON.stringify({
           text: text.trim(),
-          messageId
+          messageId,
+          voiceId: options.voiceId,
+          provider: options.provider,
+          model: options.model,
+          segmentationMode: options.segmentationMode || 'sentence'
         })
       });
 
@@ -301,8 +308,8 @@ export function useLunaVoicePlayback() {
       const result = await response.json();
 
       if (result.audioBase64) {
-        const contentType = result.contentType || 'audio/wav';
-        audioCacheRef.current.set(messageId, {
+        const contentType = result.contentType || (result.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
+        audioCacheRef.current.set(cacheKey, {
           audioBase64: result.audioBase64,
           contentType
         });
@@ -318,7 +325,7 @@ export function useLunaVoicePlayback() {
     }
   }, [activeMessageId, playbackStates, stopPlayback, playBase64Audio, playClientSpeech]);
 
-  const replayPlayback = useCallback((messageId, text) => {
+  const replayPlayback = useCallback((messageId, text, options = {}) => {
     if (audioRef.current && audioRef.current.src) {
       audioRef.current.currentTime = 0;
       const playPromise = audioRef.current.play();
@@ -327,11 +334,11 @@ export function useLunaVoicePlayback() {
           setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
           setActiveMessageId(messageId);
         }).catch(() => {
-          playMessage(messageId, text);
+          playMessage(messageId, text, options);
         });
       }
     } else {
-      playMessage(messageId, text);
+      playMessage(messageId, text, options);
     }
   }, [playMessage]);
 
