@@ -323,10 +323,11 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
 
   // 1. Try ElevenLabs TTS Provider if requested or configured
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY || process.env.XI_API_KEY;
-  const isElevenRequested =
+  const isElevenRequested = Boolean(
     ttsModelConfig.provider === 'elevenlabs' ||
     req.provider === 'elevenlabs' ||
-    (req.voiceId && (req.voiceId.startsWith('eleven-') || Boolean(ELEVENLABS_VOICE_MAP[req.voiceId])));
+    (req.voiceId && (req.voiceId.startsWith('eleven-') || Boolean(ELEVENLABS_VOICE_MAP[req.voiceId])))
+  );
 
   if (isElevenRequested) {
     if (elevenLabsKey) {
