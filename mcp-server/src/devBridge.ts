@@ -51,6 +51,9 @@ export type DevEventType =
   | 'commit.reported'
   | 'deployment.reported'
   | 'verification.reported'
+  | 'completion.summary'
+  | 'issue.reopened'
+  | 'scope.updated'
   | 'session.completed'
   | 'session.failed'
   | 'session.handoff'
@@ -62,13 +65,47 @@ export interface DevEvent {
   sessionId: string;
   userId: string;
   type: DevEventType;
-  author: 'gemini' | 'luna' | 'user';
+  author: 'gemini' | 'luna' | 'user' | string;
   content: string;
   metadata: Record<string, any>;
   createdAt: string;
 }
 
+export interface DevCompletionSummary {
+  reported: boolean;
+  author?: string;
+  agent?: string;
+  summary?: string;
+  changes?: string[];
+  testResults?: {
+    passed: boolean;
+    command?: string;
+    passedCount?: number;
+    failedCount?: number;
+  };
+  buildResults?: {
+    passed: boolean;
+    command?: string;
+  };
+  commit?: {
+    hash?: string;
+    branch?: string;
+    message?: string;
+  };
+  deployment?: {
+    environment?: string;
+    url?: string;
+  };
+  caveats?: string[];
+  acceptanceStatus?: string;
+  nextStep?: string;
+  timestamp?: string;
+}
+
 export interface DevEvidenceSummary {
+  lifecycleCycle: number;
+  isStale: boolean;
+  currentCycleCutoff?: string;
   implementation: {
     reported: boolean;
     summary?: string;
@@ -108,12 +145,20 @@ export interface DevEvidenceSummary {
     notes?: string;
     timestamp?: string;
   };
+  completionSummary: DevCompletionSummary;
+  priorCycles?: Array<{
+    cycle: number;
+    cutoffEvent: string;
+    endedAt: string;
+    evidence: Record<string, any>;
+  }>;
 }
 
 export interface DevIssueDetail {
   issue: DevIssue;
   latestSession?: DevSession | null;
   evidence: DevEvidenceSummary;
+  completionSummary?: DevCompletionSummary;
   queueTelemetry?: any;
 }
 
@@ -177,17 +222,50 @@ export function mapDevEvent(row: any): DevEvent {
  * Strictly factual evidence aggregation:
  * Never derives downstream steps (e.g. deployed or verified) from upstream successes.
  */
+/**
+ * Strictly factual evidence aggregation:
+ * Enforces lifecycle versioning and scopes evidence to the current cycle.
+ * Reopening an issue or updating scope with material requirements resets active evidence
+ * while archiving prior cycles for complete auditability.
+ */
 export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
+  // Sort events chronologically to guarantee correct order
+  const sortedEvents = [...events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Detect cycle-resetting events
+  const resetEvents = sortedEvents.filter(e =>
+    e.type === 'issue.reopened' ||
+    e.type === 'scope.updated' ||
+    (e.type === 'requirement.changed' && (e.metadata?.invalidatesVerification !== false))
+  );
+
+  const cycleCount = resetEvents.length + 1;
+  const lastReset = resetEvents.length > 0 ? resetEvents[resetEvents.length - 1] : null;
+  const currentCutoff = lastReset ? lastReset.createdAt : null;
+
+  // Split events: current cycle vs prior cycles
+  const currentCycleEvents = currentCutoff
+    ? sortedEvents.filter(e => new Date(e.createdAt).getTime() > new Date(currentCutoff).getTime())
+    : sortedEvents;
+
+  const priorEvents = currentCutoff
+    ? sortedEvents.filter(e => new Date(e.createdAt).getTime() <= new Date(currentCutoff).getTime())
+    : [];
+
   const summary: DevEvidenceSummary = {
+    lifecycleCycle: cycleCount,
+    isStale: resetEvents.length > 0,
+    currentCycleCutoff: currentCutoff || undefined,
     implementation: { reported: false },
     tests: { reported: false },
     build: { reported: false },
     commit: { reported: false },
     deployment: { reported: false },
-    verification: { reported: false }
+    verification: { reported: false },
+    completionSummary: { reported: false }
   };
 
-  for (const evt of events) {
+  for (const evt of currentCycleEvents) {
     if (evt.type === 'implementation.reported') {
       summary.implementation = {
         reported: true,
@@ -233,8 +311,67 @@ export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
         notes: evt.content,
         timestamp: evt.createdAt
       };
+    } else if (evt.type === 'completion.summary' || (evt.type === 'session.completed' && evt.metadata?.completionSummary)) {
+      let rawData: any = {};
+      if (typeof evt.content === 'string') {
+        try {
+          rawData = JSON.parse(evt.content);
+        } catch {
+          rawData = { summary: evt.content };
+        }
+      } else if (typeof evt.content === 'object' && evt.content !== null) {
+        rawData = evt.content;
+      }
+      const data = { ...rawData, ...(evt.metadata?.completionSummary || evt.metadata || {}) };
+
+      summary.completionSummary = {
+        reported: true,
+        author: evt.author,
+        agent: data.agent || evt.author,
+        summary: data.summary || (typeof evt.content === 'string' ? evt.content : ''),
+        changes: Array.isArray(data.changes) ? data.changes : (data.changedFiles || []),
+        testResults: data.testResults || (data.testsPassed !== undefined ? { passed: Boolean(data.testsPassed), passedCount: data.passed, failedCount: data.failed } : undefined),
+        buildResults: data.buildResults || (data.buildPassed !== undefined ? { passed: Boolean(data.buildPassed) } : undefined),
+        commit: data.commit || (data.commitHash ? { hash: data.commitHash, branch: data.branch, message: data.commitMessage } : undefined),
+        deployment: data.deployment || (data.environment ? { environment: data.environment, url: data.deploymentUrl } : undefined),
+        caveats: Array.isArray(data.caveats) ? data.caveats : [],
+        acceptanceStatus: data.acceptanceStatus || 'awaiting_user_acceptance',
+        nextStep: data.nextStep,
+        timestamp: evt.createdAt
+      };
     }
   }
+
+  // If there are prior events, assemble them into priorCycles for auditing
+  if (priorEvents.length > 0) {
+    summary.priorCycles = resetEvents.map((rEvt, idx) => {
+      const prevReset = idx > 0 ? resetEvents[idx - 1].createdAt : null;
+      const cycleEvents = sortedEvents.filter(e => {
+        const t = new Date(e.createdAt).getTime();
+        const start = prevReset ? new Date(prevReset).getTime() : 0;
+        const end = new Date(rEvt.createdAt).getTime();
+        return t > start && t <= end;
+      });
+
+      return {
+        cycle: idx + 1,
+        cutoffEvent: rEvt.type,
+        endedAt: rEvt.createdAt,
+        evidence: {
+          implementation: cycleEvents.some(e => e.type === 'implementation.reported'),
+          tests: cycleEvents.some(e => e.type === 'tests.reported'),
+          build: cycleEvents.some(e => e.type === 'build.reported'),
+          commit: cycleEvents.some(e => e.type === 'commit.reported'),
+          deployment: cycleEvents.some(e => e.type === 'deployment.reported'),
+          verification: cycleEvents.some(e => e.type === 'verification.reported'),
+          completionSummary: cycleEvents.some(e => e.type === 'completion.summary')
+        }
+      };
+    });
+  }
+
+  // Stale flag is false only if current cycle has reached verification and completion summary
+  summary.isStale = summary.isStale && (!summary.verification.reported || !summary.completionSummary.reported);
 
   return summary;
 }
@@ -508,6 +645,7 @@ export async function getDevIssue(
     issue,
     latestSession,
     evidence,
+    completionSummary: evidence.completionSummary,
     queueTelemetry
   };
 }
@@ -577,6 +715,8 @@ export async function updateDevIssueStatus(
 
   if (status === 'completed') {
     updateData.completed_at = now;
+  } else if (status === 'ready' || status === 'in_progress') {
+    updateData.completed_at = null;
   }
 
   const { data, error } = await supabase
@@ -598,7 +738,17 @@ export async function updateDevIssueStatus(
   }
 
   // Append transition event to durable stream
-  if (sessionId) {
+  const targetSessionId = sessionId || 'sess_lifecycle_reopen';
+  if (status === 'ready' || status === 'in_progress') {
+    await appendDevEvent(supabase, userId, {
+      issueId,
+      sessionId: targetSessionId,
+      type: 'issue.reopened',
+      author: 'gemini',
+      content: notes || `Issue reopened and returned to ${status}. Prior evidence scoped to previous cycle.`,
+      metadata: { previousStatus: issueRowStatus(issue), newStatus: status, invalidatesVerification: true }
+    });
+  } else if (sessionId) {
     await appendDevEvent(supabase, userId, {
       issueId,
       sessionId,
@@ -1277,7 +1427,15 @@ export async function getDevQueueState(
     const latestSession = issueSessions[0] || null;
 
     const evidence = computeFactualEvidence(issueEvents);
-    const evidenceCount = Object.values(evidence).filter(v => v.reported).length;
+    const evidenceCount = [
+      evidence.implementation.reported,
+      evidence.tests.reported,
+      evidence.build.reported,
+      evidence.commit.reported,
+      evidence.deployment.reported,
+      evidence.verification.reported
+    ].filter(Boolean).length;
+    const hasCompletionSummary = evidence.completionSummary?.reported === true;
 
     const hasBlocker = issueEvents.some((e: any) => e.type === 'developer.blocked') &&
       !issueEvents.some((e: any) => e.type === 'decision.approved');
@@ -1293,13 +1451,21 @@ export async function getDevQueueState(
       status = 'blocked';
     } else if (hasFailedVerification) {
       status = 'failed_verification';
-    } else if (evidenceCount === 6 || issue.status === 'verification') {
+    } else if (issue.status === 'in_progress') {
+      // An active/reopened in_progress issue is working; cannot jump to awaiting_acceptance on stale evidence
+      status = 'working';
+      timestamps.workingAt = latestSession?.last_activity_at || issue.updated_at;
+    } else if (issue.status === 'ready') {
+      status = latestSession?.status === 'connected' ? 'claimed' : (latestSession?.status === 'pending' ? 'discovered' : 'queued');
+      if (status === 'claimed') timestamps.claimedAt = latestSession?.last_activity_at;
+      if (status === 'discovered') timestamps.discoveredAt = latestSession?.started_at;
+    } else if ((evidenceCount === 6 && hasCompletionSummary) || issue.status === 'verification') {
       status = 'awaiting_acceptance';
-      timestamps.awaitingAcceptanceAt = issueEvents.find((e: any) => e.type === 'verification.reported')?.created_at || issue.updated_at;
-    } else if (evidenceCount > 0) {
+      timestamps.awaitingAcceptanceAt = issueEvents.find((e: any) => e.type === 'completion.summary' || e.type === 'verification.reported')?.created_at || issue.updated_at;
+    } else if (evidenceCount > 0 || hasCompletionSummary) {
       status = 'evidence_received';
-      timestamps.evidenceReceivedAt = issueEvents.find((e: any) => e.type?.endsWith('.reported'))?.created_at;
-    } else if (latestSession && (latestSession.status === 'working' || issue.status === 'in_progress' || issueEvents.some((e: any) => e.type === 'implementation.started'))) {
+      timestamps.evidenceReceivedAt = issueEvents.find((e: any) => e.type?.endsWith('.reported') || e.type === 'completion.summary')?.created_at;
+    } else if (latestSession && (latestSession.status === 'working' || issueEvents.some((e: any) => e.type === 'implementation.started'))) {
       status = 'working';
       timestamps.workingAt = issueEvents.find((e: any) => e.type === 'implementation.started')?.created_at || latestSession.last_activity_at;
     } else if (latestSession && latestSession.status === 'connected') {
@@ -1436,6 +1602,18 @@ export async function advanceDevQueue(
         advanced: false,
         nextEligibleIssueId: null,
         message: `Cannot advance queue: Issue ${currentIssueId} is not yet accepted (current status: ${currentItem.status}).`,
+        queue: queueState.items
+      };
+    }
+
+    // Enforce factual current-cycle verification & completion summary
+    const currentItemEvidence = currentItem.evidenceProgress;
+    const isComplete = currentItemEvidence && Object.values(currentItemEvidence).every(Boolean);
+    if (!isComplete && !options.forceAdvance) {
+      return {
+        advanced: false,
+        nextEligibleIssueId: null,
+        message: `Cannot advance queue: Issue ${currentIssueId} has incomplete verification evidence for current cycle.`,
         queue: queueState.items
       };
     }
@@ -1764,6 +1942,9 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
           'commit.reported',
           'deployment.reported',
           'verification.reported',
+          'completion.summary',
+          'issue.reopened',
+          'scope.updated',
           'session.completed',
           'session.failed',
           'session.handoff'

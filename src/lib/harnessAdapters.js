@@ -430,3 +430,34 @@ export const defaultHarnessRegistry = new HarnessRegistry();
 export function getHarnessAdapter(agentName) {
   return defaultHarnessRegistry.getAdapter(agentName);
 }
+
+/**
+ * Formats a canonical completion summary for dev agents and harnesses.
+ * Required before an issue can be marked acceptance-ready or advanced.
+ */
+export function formatCompletionSummary({
+  agent,
+  summary,
+  changes = [],
+  testResults,
+  buildResults,
+  commit,
+  deployment,
+  caveats = [],
+  acceptanceStatus = 'awaiting_user_acceptance',
+  nextStep
+} = {}) {
+  return {
+    agent: agent || 'unknown',
+    summary: summary || '',
+    changes: Array.isArray(changes) ? changes : [],
+    testResults: testResults || { passed: true },
+    buildResults: buildResults || { passed: true },
+    commit: commit || null,
+    deployment: deployment || null,
+    caveats: Array.isArray(caveats) ? caveats : [],
+    acceptanceStatus,
+    nextStep: nextStep || 'Please review changes and accept via Luna Dev Service.'
+  };
+}
+

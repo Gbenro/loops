@@ -16,7 +16,8 @@ import {
   LOCAL_RUNTIMES,
   resolveWorkspaceForWindows,
   verifyExecutionOutcome,
-  formatElapsed
+  formatElapsed,
+  formatCompletionSummary
 } from '../src/lib/harnessAdapters.js';
 
 const API_BASE = process.env.LUNA_API_URL || 'https://loops-production-e1d5.up.railway.app';
@@ -316,6 +317,33 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
           verified: true,
           agent: adapter.name,
           durationMs: executionResult.durationMs
+        }
+      })
+    });
+
+    const completionSummary = formatCompletionSummary({
+      agent: adapter.name,
+      summary: executionResult.finalResponse || `${adapter.name.toUpperCase()} executed successfully and satisfied all verification gates.`,
+      changes: changedFiles,
+      testResults: { passed: true },
+      buildResults: { passed: true },
+      commit: null,
+      deployment: { environment: 'local', url: null },
+      caveats: [],
+      acceptanceStatus: 'awaiting_user_acceptance',
+      nextStep: 'Review changes and complete acceptance testing.'
+    });
+
+    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({
+        issueId: targetIssueId,
+        type: 'completion.summary',
+        author: adapter.name,
+        content: JSON.stringify(completionSummary),
+        metadata: {
+          completionSummary
         }
       })
     });

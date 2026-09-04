@@ -10,8 +10,11 @@ import {
   claimPendingDevSession,
   validateDevDiscoveryToken,
   handleWatcherDiscoveryEvent,
-  handleWatcherSessionEndedEvent
+  handleWatcherSessionEndedEvent,
+  getDevQueueState,
+  advanceDevQueue
 } from '../../mcp-server/dist/devBridge.js';
+import { formatCompletionSummary } from './harnessAdapters.js';
 import { getSupabaseService } from '../../mcp-server/dist/db.js';
 import { executeTool } from '../../mcp-server/dist/tools.js';
 
@@ -886,6 +889,215 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].issueId).toBe('iss_ready_new_1');
   });
+
+  // ─── 9. Lifecycle Versioning, Stale Evidence & Completion Summaries ─────
+
+  it('resets active cycle evidence on issue.reopened and archives prior cycle into priorCycles', () => {
+    const events = [
+      // Cycle 1: Completed previously
+      { id: 'e1', type: 'implementation.reported', createdAt: '2026-09-04T12:00:00Z', metadata: {} },
+      { id: 'e2', type: 'tests.reported', createdAt: '2026-09-04T12:05:00Z', metadata: { passed: true } },
+      { id: 'e3', type: 'build.reported', createdAt: '2026-09-04T12:10:00Z', metadata: { passed: true } },
+      { id: 'e4', type: 'commit.reported', createdAt: '2026-09-04T12:15:00Z', metadata: { hash: 'abc' } },
+      { id: 'e5', type: 'deployment.reported', createdAt: '2026-09-04T12:20:00Z', metadata: { url: 'https://test' } },
+      { id: 'e6', type: 'verification.reported', createdAt: '2026-09-04T12:25:00Z', metadata: { verified: true } },
+      // Lifecycle cutoff: issue reopened
+      { id: 'e7', type: 'issue.reopened', createdAt: '2026-09-04T13:00:00Z', metadata: { invalidatesVerification: true } }
+    ];
+
+    const evidence = computeFactualEvidence(events);
+    expect(evidence.lifecycleCycle).toBe(2);
+    expect(evidence.isStale).toBe(true);
+    expect(evidence.priorCycles).toHaveLength(1);
+    expect(evidence.priorCycles[0].cycle).toBe(1);
+    expect(evidence.priorCycles[0].evidence.implementation).toBe(true);
+    expect(evidence.priorCycles[0].evidence.verification).toBe(true);
+
+    // Current cycle must be completely reset
+    expect(evidence.implementation.reported).toBe(false);
+    expect(evidence.tests.reported).toBe(false);
+    expect(evidence.build.reported).toBe(false);
+    expect(evidence.commit.reported).toBe(false);
+    expect(evidence.deployment.reported).toBe(false);
+    expect(evidence.verification.reported).toBe(false);
+    expect(evidence.completionSummary.reported).toBe(false);
+  });
+
+  it('correctly parses structured completion.summary event and clears isStale when cycle finishes', () => {
+    const events = [
+      { id: 'e1', type: 'issue.reopened', createdAt: '2026-09-04T13:00:00Z', metadata: {} },
+      { id: 'e2', type: 'implementation.reported', createdAt: '2026-09-04T13:05:00Z', metadata: {} },
+      { id: 'e3', type: 'tests.reported', createdAt: '2026-09-04T13:10:00Z', metadata: { passed: true } },
+      { id: 'e4', type: 'build.reported', createdAt: '2026-09-04T13:15:00Z', metadata: { passed: true } },
+      { id: 'e5', type: 'commit.reported', createdAt: '2026-09-04T13:20:00Z', metadata: { hash: 'def123' } },
+      { id: 'e6', type: 'deployment.reported', createdAt: '2026-09-04T13:25:00Z', metadata: { url: 'https://test' } },
+      { id: 'e7', type: 'verification.reported', createdAt: '2026-09-04T13:30:00Z', metadata: { verified: true } },
+      {
+        id: 'e8',
+        type: 'completion.summary',
+        author: 'gemini',
+        createdAt: '2026-09-04T13:35:00Z',
+        content: JSON.stringify({
+          agent: 'gemini',
+          summary: 'Lifecycle versioning implemented and tested',
+          changes: ['mcp-server/src/devBridge.ts'],
+          testResults: { passed: true, passedCount: 15 },
+          buildResults: { passed: true },
+          commit: { hash: 'def123', branch: 'main' },
+          acceptanceStatus: 'awaiting_user_acceptance',
+          nextStep: 'Test reopening an issue'
+        })
+      }
+    ];
+
+    const evidence = computeFactualEvidence(events);
+    expect(evidence.isStale).toBe(false);
+    expect(evidence.completionSummary.reported).toBe(true);
+    expect(evidence.completionSummary.agent).toBe('gemini');
+    expect(evidence.completionSummary.summary).toBe('Lifecycle versioning implemented and tested');
+    expect(evidence.completionSummary.changes).toEqual(['mcp-server/src/devBridge.ts']);
+    expect(evidence.completionSummary.testResults.passed).toBe(true);
+  });
+
+  it('formatCompletionSummary produces standard canonical schema', () => {
+    const summary = formatCompletionSummary({
+      agent: 'gemini',
+      summary: 'Verified fix',
+      changes: ['file1.js'],
+      commit: { hash: '123' }
+    });
+    expect(summary.agent).toBe('gemini');
+    expect(summary.summary).toBe('Verified fix');
+    expect(summary.changes).toEqual(['file1.js']);
+    expect(summary.acceptanceStatus).toBe('awaiting_user_acceptance');
+    expect(summary.testResults.passed).toBe(true);
+    expect(summary.buildResults.passed).toBe(true);
+  });
+
+  it('getDevQueueState prevents an in_progress reopened issue from prematurely flipping to awaiting_acceptance', async () => {
+    const customHandlers = {
+      dev_issues: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'iss_reopened_1',
+                  user_id: 'usr_dev_test_999',
+                  title: 'Reopened Issue',
+                  priority: 'high',
+                  status: 'in_progress',
+                  order_index: 1,
+                  created_at: '2026-09-04T10:00:00Z',
+                  updated_at: '2026-09-04T13:00:00Z'
+                }
+              ],
+              error: null
+            })
+          })
+        })
+      },
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'sess_reopened_1',
+                  issue_id: 'iss_reopened_1',
+                  user_id: 'usr_dev_test_999',
+                  agent: 'gemini',
+                  status: 'working',
+                  started_at: '2026-09-04T13:01:00Z',
+                  last_activity_at: '2026-09-04T13:05:00Z'
+                }
+              ],
+              error: null
+            })
+          })
+        })
+      },
+      dev_events: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                { id: 'e1', type: 'implementation.reported', created_at: '2026-09-04T11:00:00Z' },
+                { id: 'e2', type: 'tests.reported', created_at: '2026-09-04T11:05:00Z' },
+                { id: 'e3', type: 'build.reported', created_at: '2026-09-04T11:10:00Z' },
+                { id: 'e4', type: 'commit.reported', created_at: '2026-09-04T11:15:00Z' },
+                { id: 'e5', type: 'deployment.reported', created_at: '2026-09-04T11:20:00Z' },
+                { id: 'e6', type: 'verification.reported', created_at: '2026-09-04T11:25:00Z' },
+                { id: 'e7', type: 'issue.reopened', created_at: '2026-09-04T13:00:00Z' }
+              ],
+              error: null
+            })
+          })
+        })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const queueState = await getDevQueueState(supabase, 'usr_dev_test_999');
+    expect(queueState.items).toHaveLength(1);
+    expect(queueState.items[0].status).toBe('working');
+    expect(queueState.items[0].evidenceProgress.verification).toBe(false);
+  });
+
+  it('advanceDevQueue rejects advancing an issue when current cycle evidence is incomplete', async () => {
+    const customHandlers = {
+      dev_issues: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'iss_incomplete_1',
+                  user_id: 'usr_dev_test_999',
+                  title: 'Incomplete Issue',
+                  priority: 'high',
+                  status: 'verification',
+                  order_index: 1,
+                  created_at: '2026-09-04T10:00:00Z',
+                  updated_at: '2026-09-04T13:00:00Z'
+                }
+              ],
+              error: null
+            })
+          })
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null })
+        })
+      },
+      dev_sessions: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null })
+          })
+        })
+      },
+      dev_events: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                { id: 'e1', type: 'implementation.reported', created_at: '2026-09-04T11:00:00Z' }
+              ],
+              error: null
+            })
+          })
+        }),
+        insert: vi.fn().mockResolvedValue({ error: null })
+      }
+    };
+    const supabase = createMockSupabase(customHandlers);
+
+    const advanceResult = await advanceDevQueue(supabase, 'usr_dev_test_999', 'iss_incomplete_1');
+    expect(advanceResult.advanced).toBe(false);
+    expect(advanceResult.message).toContain('incomplete verification evidence');
+  });
 });
+
 
 
