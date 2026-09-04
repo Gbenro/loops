@@ -705,6 +705,22 @@ export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
     enabled: true
   },
   {
+    key: 'elevenlabs-flash',
+    provider: 'elevenlabs',
+    modelId: 'eleven_flash_v2_5',
+    displayName: 'ElevenLabs — Flash v2.5 (Fast & Low Latency)',
+    defaultVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    costPer1MChars: 15.00,
+    supportedVoices: [
+      '21m00Tcm4TlvDq8ikWAM', // Rachel
+      'EXAVITQu4vr4xnSDxMaL', // Bella
+      'ErXwobaYiN019PkySvjV', // Antoni
+      'piTKgcLEGmPE4e6mEKli', // Nicole
+      'pNInz6obpgDQGcFmaJgB'  // Adam
+    ],
+    enabled: true
+  },
+  {
     key: 'elevenlabs-turbo',
     provider: 'elevenlabs',
     modelId: 'eleven_turbo_v2_5',
