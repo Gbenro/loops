@@ -1,14 +1,16 @@
 /**
  * Luna Harness Adapters
- * Harness-neutral runtime adapter boundary supporting multiple local coding-agent runtimes:
+ * Harness-neutral runtime adapter boundary supporting multiple coding-agent runtimes:
  * - AGY (Antigravity Headless)
  * - DSH (DeepSeek Harness)
+ * - Gemini (Interactive Cloud Agent / Pair Programmer)
  */
 
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 
 export const SUPPORTED_RUNTIMES = ['agy', 'dsh', 'gemini'];
+export const LOCAL_RUNTIMES = ['agy', 'dsh'];
 
 /**
  * Normalizes a workspace directory for Windows host execution when running inside WSL.
@@ -28,6 +30,17 @@ export function resolveWorkspaceForWindows(wslPath) {
     return `${drive}:\\${rest}`;
   }
   return wslPath;
+}
+
+/**
+ * Formats milliseconds into human-readable elapsed time (e.g. "1m 30s").
+ */
+export function formatElapsed(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min > 0) return `${min}m ${sec}s`;
+  return `${sec}s`;
 }
 
 /**
@@ -76,7 +89,8 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
     prompt,
     workspaceDir = process.cwd(),
     conversationId = null,
-    timeoutMs = 600000
+    timeoutMs = 600000,
+    onHeartbeat = null
   }) {
     const args = [
       '-p', prompt,
@@ -103,16 +117,41 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
       // Explicitly close stdin so process does not block waiting for input
       proc.stdin.end();
 
+      // Compact harness-neutral observable activity heartbeat
+      const heartbeatInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const msg = `[Luna Dev Worker] [AGY] Still working — ${formatElapsed(elapsed)} (PID: ${proc.pid})`;
+        console.log(msg);
+        if (typeof onHeartbeat === 'function') {
+          onHeartbeat({ elapsedMs: elapsed, formatted: formatElapsed(elapsed), pid: proc.pid });
+        }
+      }, 15000);
+
       const timer = setTimeout(() => {
         timedOut = true;
+        clearInterval(heartbeatInterval);
         proc.kill('SIGKILL');
       }, timeoutMs);
 
       proc.stdout.on('data', (d) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+      proc.stderr.on('data', (d) => {
+        const text = d.toString();
+        stderr += text;
+        // Stream safe non-sensitive milestones without exposing chain-of-thought
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('ERROR:') || trimmed.includes('error') || trimmed.includes('fatal')) {
+            // keep error logs clean
+          } else if (trimmed.includes('running') || trimmed.includes('testing') || trimmed.includes('building')) {
+            console.log(`[Luna Dev Worker] [AGY Milestone] ${trimmed.slice(0, 120)}`);
+          }
+        }
+      });
 
       proc.on('close', (code) => {
         clearTimeout(timer);
+        clearInterval(heartbeatInterval);
         const durationMs = Date.now() - startTime;
         let structuredOutput = null;
         let finalResponse = stdout.trim();
@@ -126,22 +165,30 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
           // Plain text stdout
         }
 
+        const denied = extractDeniedActions(stderr + '\n' + stdout);
+        if (structuredOutput?.denied_actions && Array.isArray(structuredOutput.denied_actions)) {
+          for (const da of structuredOutput.denied_actions) {
+            denied.push(da.display_name || da.action || JSON.stringify(da));
+          }
+        }
+
         resolve({
           agent: 'agy',
-          success: code === 0 && !timedOut,
+          success: code === 0 && !timedOut && (!finalResponse || !finalResponse.includes('FATAL')),
           exitCode: code ?? (timedOut ? 124 : 1),
           durationMs,
-          finalResponse: finalResponse || (code === 0 ? 'AGY task completed successfully.' : 'AGY task exited with code ' + code),
+          finalResponse: finalResponse || (code === 0 ? 'AGY task completed without text output.' : 'AGY task exited with code ' + code),
           rawStdout: stdout,
           rawStderr: stderr,
           structuredOutput,
           terminationReason: timedOut ? 'timeout' : (code === 0 ? 'completed' : 'error'),
-          deniedActions: extractDeniedActions(stderr + '\n' + stdout)
+          deniedActions: denied
         });
       });
 
       proc.on('error', (err) => {
         clearTimeout(timer);
+        clearInterval(heartbeatInterval);
         resolve({
           agent: 'agy',
           success: false,
@@ -181,7 +228,8 @@ export class DshHarnessAdapter extends BaseHarnessAdapter {
     prompt,
     workspaceDir = process.cwd(),
     model = 'deepseek/deepseek-v4-pro',
-    timeoutMs = 180000
+    timeoutMs = 180000,
+    onHeartbeat = null
   }) {
     const startTime = Date.now();
     const isWindows = os.platform() === 'win32';
@@ -214,8 +262,19 @@ export class DshHarnessAdapter extends BaseHarnessAdapter {
         stdio: ['ignore', 'pipe', 'pipe']
       });
 
+      // Compact harness-neutral observable activity heartbeat
+      const heartbeatInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const msg = `[Luna Dev Worker] [DSH] Still working — ${formatElapsed(elapsed)} (PID: ${proc.pid})`;
+        console.log(msg);
+        if (typeof onHeartbeat === 'function') {
+          onHeartbeat({ elapsedMs: elapsed, formatted: formatElapsed(elapsed), pid: proc.pid });
+        }
+      }, 15000);
+
       const timer = setTimeout(() => {
         timedOut = true;
+        clearInterval(heartbeatInterval);
         proc.kill('SIGKILL');
       }, timeoutMs);
 
@@ -224,6 +283,7 @@ export class DshHarnessAdapter extends BaseHarnessAdapter {
 
       proc.on('close', (code) => {
         clearTimeout(timer);
+        clearInterval(heartbeatInterval);
         const durationMs = Date.now() - startTime;
         const cleanStdout = stdout.trim();
         const denied = extractDeniedActions(stderr + '\n' + stdout);
@@ -249,6 +309,7 @@ export class DshHarnessAdapter extends BaseHarnessAdapter {
 
       proc.on('error', (err) => {
         clearTimeout(timer);
+        clearInterval(heartbeatInterval);
         resolve({
           agent: 'dsh',
           model,
@@ -274,11 +335,59 @@ export function extractDeniedActions(logText) {
   const denied = [];
   const lines = logText.split('\n');
   for (const line of lines) {
-    if (line.match(/permission denied|denied action|approval rejected|unauthorized/i)) {
+    if (line.match(/permission denied|denied action|approval rejected|unauthorized|denied_action/i)) {
       denied.push(line.trim());
     }
   }
   return denied;
+}
+
+/**
+ * Strict verification gating: evaluates required acceptance criteria and evidence
+ * rather than equating a process exit code of 0 with engineering success.
+ */
+export function verifyExecutionOutcome({ executionResult, issue = {}, changedFiles = [] }) {
+  const failures = [];
+
+  if (!executionResult) {
+    return { verified: false, reasons: ['Missing execution result.'] };
+  }
+
+  // 1. Process exit code
+  if (executionResult.exitCode !== 0) {
+    failures.push(`Process exited with non-zero code ${executionResult.exitCode}.`);
+  }
+
+  // 2. Timeout check
+  if (executionResult.terminationReason === 'timeout') {
+    failures.push('Execution timed out before completion.');
+  }
+
+  // 3. Substantive response check (prevent empty replies)
+  const responseText = (executionResult.finalResponse || '').trim();
+  if (responseText.length < 20 || responseText === 'AGY task completed without text output.') {
+    failures.push('Agent returned an empty or insubstantial response.');
+  }
+
+  // 4. Denied action check
+  if (executionResult.deniedActions && executionResult.deniedActions.length > 0) {
+    failures.push(`Execution encountered blocked/denied actions: ${executionResult.deniedActions.join(', ')}.`);
+  }
+
+  // 5. Deliverable check for code implementation tasks
+  const isCodeTask = issue.title && (issue.title.includes('BUG') || issue.title.includes('FIX') || issue.title.includes('IMPLEMENTATION'));
+  if (isCodeTask && (!changedFiles || changedFiles.length === 0)) {
+    // Check if task explicitly forbade changes (e.g. ping test)
+    const isPingOnly = issue.title.includes('ping') || (issue.description && issue.description.includes('Do not modify repository files'));
+    if (!isPingOnly) {
+      failures.push('Task required implementation changes but zero repository files were modified.');
+    }
+  }
+
+  return {
+    verified: failures.length === 0,
+    reasons: failures
+  };
 }
 
 /**
@@ -295,16 +404,20 @@ export class HarnessRegistry {
     this.adapters.set(adapter.name.toLowerCase(), adapter);
   }
 
-  getAdapter(agentName = 'dsh') {
-    const normalized = (agentName || 'dsh').toLowerCase().trim();
+  getAdapter(agentName) {
+    if (!agentName) return null;
+    const normalized = agentName.toLowerCase().trim();
+
+    // 'gemini' is an interactive cloud agent / pair programmer, NOT a local headless adapter!
+    if (normalized === 'gemini') {
+      return null;
+    }
+
     if (this.adapters.has(normalized)) {
       return this.adapters.get(normalized);
     }
-    // Fallback if 'gemini' or unspecified
-    if (normalized === 'gemini' || normalized === 'agy') {
-      return this.adapters.get('agy');
-    }
-    return this.adapters.get('dsh');
+
+    return null;
   }
 
   listAdapters() {

@@ -2,6 +2,7 @@
 /**
  * Luna Development Service → Multi-Harness Local Dev Worker
  * Supports AGY (Antigravity Headless) and DSH (DeepSeek Harness) behind a stable activation contract.
+ * Strictly respects assignedAgent routing, recovers stale/orphaned sessions, and enforces verification gating.
  */
 
 import fs from 'fs';
@@ -12,13 +13,17 @@ import {
   getHarnessAdapter,
   HarnessRegistry,
   SUPPORTED_RUNTIMES,
-  resolveWorkspaceForWindows
+  LOCAL_RUNTIMES,
+  resolveWorkspaceForWindows,
+  verifyExecutionOutcome,
+  formatElapsed
 } from '../src/lib/harnessAdapters.js';
 
 const API_BASE = process.env.LUNA_API_URL || 'https://loops-production-e1d5.up.railway.app';
 const AUTH_FILE = path.join(process.env.HOME || '/home/ben', '.luna/auth.json');
 const MAPPING_FILE = path.join(process.env.HOME || '/home/ben', '.luna/agy-sessions.json');
 const POLL_INTERVAL_MS = parseInt(process.env.LUNA_POLL_INTERVAL_MS || '5000', 10);
+const STALE_SESSION_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 export function getAuthToken() {
   if (process.env.LUNA_DEV_TOKEN) return process.env.LUNA_DEV_TOKEN;
@@ -57,6 +62,37 @@ export function getGitChangedFiles(workspaceDir) {
 }
 
 /**
+ * Checks for orphaned or dead sessions that remain 'connected' without an active process,
+ * and recovers them safely to prevent permanent WORKING stalls.
+ */
+export async function recoverStaleSessions(token) {
+  try {
+    const pendRes = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!pendRes.ok) return;
+    const pendData = await pendRes.json();
+    const now = Date.now();
+
+    for (const session of pendData.items || []) {
+      if (session.status === 'connected' && session.startedAt) {
+        const elapsed = now - new Date(session.startedAt).getTime();
+        if (elapsed > STALE_SESSION_THRESHOLD_MS) {
+          console.log(`[Luna Dev Worker] Recovering orphaned stale session ${session.id} (idle for ${formatElapsed(elapsed)})...`);
+          await fetch(`${API_BASE}/api/dev/sessions/${session.id}/end`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ reason: 'stale_worker_recovery' })
+          });
+        }
+      }
+    }
+  } catch {
+    // Graceful recovery attempt
+  }
+}
+
+/**
  * Polls for the next eligible queue item or pending session, resolves target harness runtime, claims session,
  * executes task through the appropriate adapter, and posts comprehensive evidence.
  */
@@ -67,6 +103,9 @@ export async function pollAndExecuteNext({
   targetIssue = null
 } = {}) {
   const token = getAuthToken();
+
+  // Recover any dead/orphaned sessions before claiming new work
+  await recoverStaleSessions(token);
 
   // 1. Check pending-sessions first (covers sessions started by Development Service)
   const pendRes = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
@@ -82,11 +121,14 @@ export async function pollAndExecuteNext({
     if (targetIssue) {
       sessionItem = items.find(s => s.issueId === targetIssue && s.status === 'pending');
     } else {
-      // Prioritize sessions matching target agent
+      // Find sessions explicitly matching local runtimes (agy, dsh). Do NOT claim 'gemini' tasks!
       sessionItem = items.find(s => {
-        const matchAgent = forceAgent ? s.agent === forceAgent : (s.agent === defaultAgent || !s.agent);
-        return s.status === 'pending' && matchAgent;
-      }) || items.find(s => s.status === 'pending');
+        if (s.status !== 'pending') return false;
+        // Never claim gemini tasks with the local headless worker!
+        if (s.agent === 'gemini') return false;
+        if (forceAgent) return s.agent === forceAgent;
+        return LOCAL_RUNTIMES.includes(s.agent) || s.agent === defaultAgent;
+      });
     }
     
     if (sessionItem) {
@@ -102,7 +144,13 @@ export async function pollAndExecuteNext({
     });
     if (queueRes.ok) {
       const queueData = await queueRes.json();
-      nextItem = (queueData.items || []).find(i => i.isEligible && (i.status === 'queued' || i.status === 'discovered'));
+      nextItem = (queueData.items || []).find(i => {
+        if (!i.isEligible || (i.status !== 'queued' && i.status !== 'discovered')) return false;
+        // Never claim gemini tasks with the local headless worker!
+        if (i.assignedAgent === 'gemini') return false;
+        if (forceAgent) return i.assignedAgent === forceAgent;
+        return true;
+      });
       if (nextItem) {
         targetIssueId = nextItem.issueId;
       }
@@ -123,6 +171,22 @@ export async function pollAndExecuteNext({
     issueData = raw.issue || raw;
   }
 
+  // STRICT AGENT ROUTING: If issue is assigned to 'gemini', local worker must NOT claim it!
+  const authoritativeAgent = issueData.assignedAgent || (sessionItem ? sessionItem.agent : null) || defaultAgent;
+  if (authoritativeAgent === 'gemini') {
+    console.log(`[Luna Dev Worker] Skipping issue ${targetIssueId} assigned to [GEMINI] (interactive cloud agent).`);
+    return { status: 'skipped_gemini_task', issueId: targetIssueId };
+  }
+
+  // Determine target runtime adapter
+  const targetAgent = forceAgent || authoritativeAgent;
+  const adapter = getHarnessAdapter(targetAgent);
+
+  if (!adapter) {
+    console.warn(`[Luna Dev Worker] No local harness adapter found for target agent: '${targetAgent}'. Skipping.`);
+    return { status: 'unsupported_agent', agent: targetAgent, issueId: targetIssueId };
+  }
+
   // If sessionItem wasn't found from pending-sessions directly, find it now
   if (!sessionItem) {
     const pendRes2 = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
@@ -138,11 +202,7 @@ export async function pollAndExecuteNext({
     return { status: 'waiting_for_session', issueId: targetIssueId };
   }
 
-  // Determine target runtime adapter
-  const targetAgent = forceAgent || sessionItem.agent || issueData.assignedAgent || defaultAgent;
-  const adapter = getHarnessAdapter(targetAgent);
-
-  // 4. Claim session
+  // 4. Claim session with explicit adapter name
   const claimRes = await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/claim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -178,7 +238,7 @@ export async function pollAndExecuteNext({
     })
   });
 
-  // 7. Execute task via adapter
+  // 7. Execute task via adapter with heartbeat logging
   console.log(`[Luna Dev Worker] Invoking ${adapter.name.toUpperCase()} adapter in ${workspaceDir}...`);
   const prompt = `You are executing an autonomous development task for Luna Development Service issue ${targetIssueId}: ${issueData.title || targetIssueId}.
 
@@ -235,8 +295,15 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
     })
   });
 
-  // Post verification event and end session if successful
-  if (executionResult.success) {
+  // 10. Strict verification gating
+  const verification = verifyExecutionOutcome({
+    executionResult,
+    issue: issueData,
+    changedFiles
+  });
+
+  if (verification.verified) {
+    console.log(`[Luna Dev Worker] Verification PASSED for ${targetIssueId}.`);
     await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
@@ -244,7 +311,7 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
         issueId: targetIssueId,
         type: 'verification.reported',
         author: adapter.name,
-        content: `VERIFICATION CONFIRMED: ${adapter.name.toUpperCase()} executed successfully and returned verified result.`,
+        content: `VERIFICATION CONFIRMED: ${adapter.name.toUpperCase()} executed successfully and satisfied all verification gates.`,
         metadata: {
           verified: true,
           agent: adapter.name,
@@ -258,6 +325,23 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
       body: JSON.stringify({ reason: 'completed' })
     });
+  } else {
+    console.warn(`[Luna Dev Worker] Verification REJECTED for ${targetIssueId}: ${verification.reasons.join(' ')}`);
+    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({
+        issueId: targetIssueId,
+        type: 'verification.reported',
+        author: adapter.name,
+        content: `VERIFICATION FAILED / INCOMPLETE: ${verification.reasons.join(' ')}`,
+        metadata: {
+          verified: false,
+          reasons: verification.reasons,
+          agent: adapter.name
+        }
+      })
+    });
   }
 
   return {
@@ -265,7 +349,8 @@ Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
     issueId: targetIssueId,
     sessionId: sessionItem.id,
     agent: adapter.name,
-    executionResult
+    executionResult,
+    verified: verification.verified
   };
 }
 
@@ -287,7 +372,7 @@ export async function startDaemonWorker({
   console.log(`[Luna Dev Worker] Target API:      ${API_BASE}`);
   console.log(`[Luna Dev Worker] Workspace:       ${workspaceDir}`);
   console.log(`[Luna Dev Worker] Default Agent:   ${forceAgent || defaultAgent}`);
-  console.log(`[Luna Dev Worker] Supported:       ${SUPPORTED_RUNTIMES.join(', ')}`);
+  console.log(`[Luna Dev Worker] Local Runtimes:  ${LOCAL_RUNTIMES.join(', ')}`);
   console.log(`[Luna Dev Worker] Poll Interval:   ${intervalMs}ms`);
 
   // Verify auth immediately on startup
@@ -322,7 +407,7 @@ export async function startDaemonWorker({
         forceAgent
       });
       if (result.status === 'executed') {
-        console.log(`[Luna Dev Worker] Task ${result.issueId} executed successfully by ${result.agent}.`);
+        console.log(`[Luna Dev Worker] Task ${result.issueId} executed by ${result.agent} (verified: ${result.verified}).`);
       }
     } catch (err) {
       console.warn(`[Luna Dev Worker] Poll warning: ${err.message}`);

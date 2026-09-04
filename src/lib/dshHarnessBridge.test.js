@@ -40,7 +40,7 @@ describe('Luna Development Service → DSH & Multi-Harness Adapter Layer', () =>
     expect(agyAdapter.name).toBe('agy');
 
     const geminiFallback = registry.getAdapter('gemini');
-    expect(geminiFallback).toBeInstanceOf(AgyHarnessAdapter);
+    expect(geminiFallback).toBeNull();
 
     const helperDispatched = getHarnessAdapter('dsh');
     expect(helperDispatched.name).toBe('dsh');
