@@ -1209,6 +1209,233 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       }
+    },
+    "/api/dev/lab/status": {
+      "get": {
+        "operationId": "get_lab_status",
+        "summary": "Get Model Routing Lab Status",
+        "description": "Returns operational status and telemetry summary of the isolated sidecar model routing lab.",
+        "responses": {
+          "200": {
+            "description": "Lab status information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "sidecarMode": { "type": "string" },
+                    "totalExperimentsRecorded": { "type": "integer" },
+                    "candidateCount": { "type": "integer" },
+                    "personalFieldMutationsAllowed": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/taxonomy": {
+      "get": {
+        "operationId": "get_lab_taxonomy",
+        "summary": "Get Task Taxonomy and Candidate Pool",
+        "description": "Returns standardized task taxonomy definitions, role allocation policies, and candidate model pool.",
+        "responses": {
+          "200": {
+            "description": "Taxonomy definitions and candidate pool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taxonomy": { "type": "object" },
+                    "candidatePool": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/route": {
+      "post": {
+        "operationId": "resolve_lab_route",
+        "summary": "Resolve Multi-Role Route Recommendation",
+        "description": "Dry-run analysis resolving planner, executor, and optional reviewer model assignments and harness without executing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": { "type": "string" },
+                  "taskClass": { "type": "string" },
+                  "harness": { "type": "string" },
+                  "plannerModel": { "type": "string" },
+                  "executorModel": { "type": "string" },
+                  "reviewerModel": { "type": "string" },
+                  "includeReviewer": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved multi-role route plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskClass": { "type": "string" },
+                    "harness": { "type": "string" },
+                    "roles": { "type": "object" },
+                    "rationale": { "type": "string" },
+                    "estimatedCostBaseline": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/execute": {
+      "post": {
+        "operationId": "execute_lab_task",
+        "summary": "Execute Sidecar Lab Multi-Role Task",
+        "description": "Executes a bounded task through the isolated sidecar pipeline with zero mutations to personal Field.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["prompt"],
+                "properties": {
+                  "prompt": { "type": "string" },
+                  "taskClass": { "type": "string" },
+                  "harness": { "type": "string" },
+                  "plannerModel": { "type": "string" },
+                  "executorModel": { "type": "string" },
+                  "reviewerModel": { "type": "string" },
+                  "includeReviewer": { "type": "boolean" },
+                  "simulated": { "type": "boolean" },
+                  "jobId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete lab experiment telemetry record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experimentId": { "type": "string" },
+                    "taskClass": { "type": "string" },
+                    "harness": { "type": "string" },
+                    "aggregate": { "type": "object" },
+                    "verification": { "type": "object" },
+                    "isSidecarLabOnly": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/benchmark": {
+      "post": {
+        "operationId": "run_lab_benchmark",
+        "summary": "Run Comparative Multi-Model Benchmark Matrix",
+        "description": "Evaluates candidate models across standardized taxonomy tasks and generates a comparative benchmark matrix.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskClasses": { "type": "array", "items": { "type": "string" } },
+                  "candidateKeys": { "type": "array", "items": { "type": "string" } },
+                  "harness": { "type": "string" },
+                  "iterationsPerCandidate": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Benchmark comparative matrix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "benchmarkId": { "type": "string" },
+                    "timestamp": { "type": "string" },
+                    "results": { "type": "array", "items": { "type": "object" } },
+                    "summary": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/experiments": {
+      "get": {
+        "operationId": "list_lab_experiments",
+        "summary": "List Recorded Lab Experiments",
+        "description": "Retrieves recent lab experiment runs and telemetry without personal chat or Field coupling.",
+        "parameters": [
+          { "name": "taskClass", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of lab experiment telemetry records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/experiments/{id}": {
+      "get": {
+        "operationId": "get_lab_experiment",
+        "summary": "Get Single Lab Experiment Telemetry",
+        "description": "Retrieves detailed telemetry for a single experiment run by ID.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Experiment telemetry record",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2619,7 +2846,14 @@ const DEV_PATH_KEYS = [
   '/api/dev/sessions/{id}/claim',
   '/api/dev/sessions/{id}/events',
   '/api/dev/sessions/{id}/end',
-  '/api/dev/agent/pending-sessions'
+  '/api/dev/agent/pending-sessions',
+  '/api/dev/lab/status',
+  '/api/dev/lab/taxonomy',
+  '/api/dev/lab/route',
+  '/api/dev/lab/execute',
+  '/api/dev/lab/benchmark',
+  '/api/dev/lab/experiments',
+  '/api/dev/lab/experiments/{id}'
 ];
 
 export const LUNA_CORE_OPENAPI_SPEC = {
