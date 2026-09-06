@@ -19,6 +19,7 @@ import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 import { registerChatRoutes } from './chat.js';
 import { registerDevBridgeRoutes } from './devBridge.js';
 import { registerModelRoutingLabRoutes } from './modelRoutingLab.js';
+import { transcribeLunaAudio, detectAudioContainer } from './voice.js';
 import { getLunarData } from './lunar.js';
 
 dotenv.config();
@@ -27,6 +28,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/api/voice/transcribe', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }));
 
 const PORT = process.env.PORT || 3001;
 
@@ -962,6 +964,72 @@ app.post('/api/reflections/conversation', authenticateRest, async (req, res) => 
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 registerDevBridgeRoutes(app, authenticateRest);
 registerModelRoutingLabRoutes(app, authenticateRest);
+
+// ─── Voice Speech-to-Text Transcription Endpoint ────────────────────────────
+
+app.post('/api/voice/transcribe', async (req: any, res: any) => {
+  try {
+    let audioBuffer: Buffer | null = null;
+    let mimeType = (req.headers['content-type'] as string) || '';
+    let fileName = (req.headers['x-audio-filename'] as string) || '';
+
+    if (Buffer.isBuffer(req.body)) {
+      audioBuffer = req.body;
+    } else if (req.body && req.body.audioBase64) {
+      audioBuffer = Buffer.from(req.body.audioBase64, 'base64');
+      mimeType = req.body.mimeType || mimeType;
+      fileName = req.body.fileName || fileName;
+    } else if (req.body && typeof req.body === 'object' && Buffer.isBuffer((req.body as any).audio)) {
+      audioBuffer = (req.body as any).audio;
+    }
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      console.warn('[Voice STT Diagnostics] 400 Bad Request: Missing or empty audio buffer');
+      return res.status(400).json({
+        error: 'No audio data provided. Please provide an audio recording and try again.',
+        code: 'AUDIO_EMPTY'
+      });
+    }
+
+    if (audioBuffer.length < 500) {
+      console.warn(`[Voice STT Diagnostics] 400 Bad Request: Audio payload too small (${audioBuffer.length} bytes, minimum 500 bytes required).`);
+      return res.status(400).json({
+        error: 'Audio recording was too short or silent (less than 1 second). Please speak clearly and try again.',
+        code: 'AUDIO_TOO_SHORT',
+        sizeBytes: audioBuffer.length
+      });
+    }
+
+    const result = await transcribeLunaAudio({
+      audioBuffer,
+      mimeType,
+      fileName,
+      userId: (req as any).devUserId
+    });
+
+    if (!result.success) {
+      const is400 = result.diagnostics?.code === 'AUDIO_EMPTY' || result.diagnostics?.code === 'AUDIO_TOO_SHORT';
+      return res.status(is400 ? 400 : 502).json({
+        error: result.diagnostics?.reason || 'Transcription failed. Please try again.',
+        code: result.diagnostics?.code || 'TRANSCRIPTION_FAILED',
+        detectedFormat: result.detectedFormat,
+        byteCount: result.byteCount
+      });
+    }
+
+    res.json({
+      text: result.text,
+      provider: result.provider,
+      latencyMs: result.latencyMs,
+      detectedFormat: result.detectedFormat,
+      byteCount: result.byteCount
+    });
+  } catch (err: any) {
+    console.error('[Voice STT Error]', err);
+    res.status(500).json({ error: err.message, code: 'INTERNAL_ERROR' });
+  }
+});
+
 
 import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC } from './openapi.js';
 

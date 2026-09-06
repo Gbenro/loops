@@ -610,3 +610,243 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
     useClientFallback: true
   };
 }
+
+
+// ─── Speech-to-Text (STT) Transcription Layer ───────────────────────────────
+
+export interface TranscriptionRequest {
+  audioBuffer: Buffer;
+  mimeType?: string;
+  fileName?: string;
+  userId?: string;
+  language?: string;
+}
+
+export interface TranscriptionResult {
+  text: string;
+  provider: string;
+  latencyMs: number;
+  detectedFormat: string;
+  byteCount: number;
+  success: boolean;
+  diagnostics?: {
+    code?: string;
+    reason?: string;
+    attempts?: { provider: string; error: string; status?: number }[];
+  };
+}
+
+/**
+ * Robustly inspects audio container magic bytes to prevent decoder mismatch.
+ */
+export function detectAudioContainer(buffer: Buffer): { format: string; ext: string; mimeType: string } {
+  if (!buffer || buffer.length < 4) {
+    return { format: 'unknown', ext: 'bin', mimeType: 'application/octet-stream' };
+  }
+  // 1. WAV RIFF header ('RIFF....WAVE')
+  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE') {
+    return { format: 'wav', ext: 'wav', mimeType: 'audio/wav' };
+  }
+  // 2. WebM (EBML header: 0x1A, 0x45, 0xDF, 0xA3)
+  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return { format: 'webm', ext: 'webm', mimeType: 'audio/webm' };
+  }
+  // 3. Ogg container ('OggS')
+  if (buffer.toString('ascii', 0, 4) === 'OggS') {
+    return { format: 'ogg', ext: 'ogg', mimeType: 'audio/ogg' };
+  }
+  // 4. MP3 container (ID3 or sync word 0xFF 0xFB/0xF3/0xF2)
+  if (buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0)) {
+    return { format: 'mp3', ext: 'mp3', mimeType: 'audio/mpeg' };
+  }
+  // 5. MP4 / M4A / AAC ('ftyp' at offset 4)
+  if (buffer.length >= 8 && buffer.toString('ascii', 4, 8) === 'ftyp') {
+    return { format: 'mp4', ext: 'mp4', mimeType: 'audio/mp4' };
+  }
+  // 6. FLAC ('fLaC')
+  if (buffer.toString('ascii', 0, 4) === 'fLaC') {
+    return { format: 'flac', ext: 'flac', mimeType: 'audio/flac' };
+  }
+
+  return { format: 'webm', ext: 'webm', mimeType: 'audio/webm' };
+}
+
+/**
+ * Transcribes audio via multi-provider resilient pipeline with server-side diagnostics.
+ */
+export async function transcribeLunaAudio(req: TranscriptionRequest): Promise<TranscriptionResult> {
+  const startTime = Date.now();
+  const buffer = req.audioBuffer;
+
+  if (!buffer || buffer.length === 0) {
+    console.warn('[Voice STT Diagnostics] 400 Bad Request: Empty audio payload (0 bytes)');
+    return {
+      text: '',
+      provider: 'none',
+      latencyMs: 0,
+      detectedFormat: 'empty',
+      byteCount: 0,
+      success: false,
+      diagnostics: {
+        code: 'AUDIO_EMPTY',
+        reason: 'Audio buffer is empty (0 bytes).'
+      }
+    };
+  }
+
+  if (buffer.length < 500) {
+    console.warn(`[Voice STT Diagnostics] 400 Bad Request: Audio payload too small (${buffer.length} bytes, minimum 500 bytes required).`);
+    return {
+      text: '',
+      provider: 'none',
+      latencyMs: Date.now() - startTime,
+      detectedFormat: 'truncated',
+      byteCount: buffer.length,
+      success: false,
+      diagnostics: {
+        code: 'AUDIO_TOO_SHORT',
+        reason: `Audio recording is too short or empty (${buffer.length} bytes). Minimum 500 bytes required for valid speech audio.`
+      }
+    };
+  }
+
+  const detected = detectAudioContainer(buffer);
+  const ext = detected.ext;
+  const fileName = req.fileName || `recording.${ext}`;
+  const attempts: { provider: string; error: string; status?: number }[] = [];
+
+  // Provider 1: Groq Whisper API (if configured in environment)
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    try {
+      const groqFormData = new FormData();
+      const blob = new Blob([buffer], { type: detected.mimeType });
+      groqFormData.append('file', blob, fileName);
+      groqFormData.append('model', 'whisper-large-v3');
+      groqFormData.append('language', req.language || 'en');
+      groqFormData.append('response_format', 'json');
+
+      const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${groqKey}` },
+        body: groqFormData
+      });
+
+      if (groqRes.ok) {
+        const data = await groqRes.json() as any;
+        const text = (data.text || '').trim();
+        const latencyMs = Date.now() - startTime;
+        console.log(`[Voice STT] Groq transcription succeeded: ${buffer.length} bytes (${detected.format}) in ${latencyMs}ms`);
+        return {
+          text,
+          provider: 'groq_whisper',
+          latencyMs,
+          detectedFormat: detected.format,
+          byteCount: buffer.length,
+          success: true
+        };
+      } else {
+        const errText = await groqRes.text();
+        console.warn(`[Voice STT Diagnostics] Groq API returned ${groqRes.status}: ${errText.slice(0, 160)}`);
+        attempts.push({ provider: 'groq', status: groqRes.status, error: errText.slice(0, 160) });
+      }
+    } catch (err: any) {
+      console.warn(`[Voice STT Diagnostics] Groq exception: ${err.message}`);
+      attempts.push({ provider: 'groq', error: err.message });
+    }
+  }
+
+  // Provider 2: Supabase Edge Function
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+  try {
+    const sbFormData = new FormData();
+    const blob = new Blob([buffer], { type: detected.mimeType });
+    sbFormData.append('audio', blob, fileName);
+
+    const sbRes = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
+      method: 'POST',
+      headers: { 'apikey': supabaseAnonKey },
+      body: sbFormData
+    });
+
+    if (sbRes.ok) {
+      const data = await sbRes.json() as any;
+      const text = (data.text || '').trim();
+      const latencyMs = Date.now() - startTime;
+      console.log(`[Voice STT] Supabase Edge Function transcription succeeded: ${buffer.length} bytes in ${latencyMs}ms`);
+      return {
+        text,
+        provider: 'supabase_edge_function',
+        latencyMs,
+        detectedFormat: detected.format,
+        byteCount: buffer.length,
+        success: true
+      };
+    } else {
+      const errText = await sbRes.text();
+      console.warn(`[Voice STT Diagnostics] Supabase function returned ${sbRes.status}: ${errText.slice(0, 160)}`);
+      attempts.push({ provider: 'supabase_edge', status: sbRes.status, error: errText.slice(0, 160) });
+    }
+  } catch (err: any) {
+    console.warn(`[Voice STT Diagnostics] Supabase function exception: ${err.message}`);
+    attempts.push({ provider: 'supabase_edge', error: err.message });
+  }
+
+  // Provider 3: OpenAI Direct Whisper API (if configured)
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    try {
+      const oaiFormData = new FormData();
+      const blob = new Blob([buffer], { type: detected.mimeType });
+      oaiFormData.append('file', blob, fileName);
+      oaiFormData.append('model', 'whisper-1');
+      oaiFormData.append('language', req.language || 'en');
+
+      const oaiRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openAiKey}` },
+        body: oaiFormData
+      });
+
+      if (oaiRes.ok) {
+        const data = await oaiRes.json() as any;
+        const text = (data.text || '').trim();
+        const latencyMs = Date.now() - startTime;
+        console.log(`[Voice STT] OpenAI Whisper transcription succeeded: ${buffer.length} bytes in ${latencyMs}ms`);
+        return {
+          text,
+          provider: 'openai_whisper',
+          latencyMs,
+          detectedFormat: detected.format,
+          byteCount: buffer.length,
+          success: true
+        };
+      } else {
+        const errText = await oaiRes.text();
+        console.warn(`[Voice STT Diagnostics] OpenAI Whisper returned ${oaiRes.status}: ${errText.slice(0, 160)}`);
+        attempts.push({ provider: 'openai', status: oaiRes.status, error: errText.slice(0, 160) });
+      }
+    } catch (err: any) {
+      console.warn(`[Voice STT Diagnostics] OpenAI exception: ${err.message}`);
+      attempts.push({ provider: 'openai', error: err.message });
+    }
+  }
+
+  // All providers failed
+  const latencyMs = Date.now() - startTime;
+  console.error(`[Voice STT Diagnostics] All transcription providers failed after ${latencyMs}ms. Attempts:`, attempts);
+  return {
+    text: '',
+    provider: 'failed',
+    latencyMs,
+    detectedFormat: detected.format,
+    byteCount: buffer.length,
+    success: false,
+    diagnostics: {
+      code: 'PROVIDER_ERROR',
+      reason: 'Transcription providers could not process audio.',
+      attempts
+    }
+  };
+}

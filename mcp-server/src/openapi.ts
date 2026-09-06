@@ -1436,6 +1436,76 @@ export const LUNA_OPENAPI_SPEC = {
           }
         }
       }
+    },
+    "/api/voice/transcribe": {
+      "post": {
+        "operationId": "transcribe_audio",
+        "summary": "Transcribe Voice Audio",
+        "description": "Transcribes an audio recording (WebM, WAV, OGG, MP4, FLAC) using Luna's resilient multi-provider speech-to-text pipeline with server-side operational diagnostics.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "audio/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audioBase64": { "type": "string", "description": "Base64 encoded audio bytes" },
+                  "mimeType": { "type": "string", "description": "MIME type (e.g. audio/webm)" },
+                  "fileName": { "type": "string", "description": "Original file name" }
+                },
+                "required": ["audioBase64"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transcription result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": { "type": "string" },
+                    "provider": { "type": "string" },
+                    "latencyMs": { "type": "integer" },
+                    "detectedFormat": { "type": "string" },
+                    "byteCount": { "type": "integer" }
+                  },
+                  "required": ["text", "provider", "latencyMs"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing audio payload (too short, empty, or corrupt)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string" },
+                    "code": { "type": "string" }
+                  },
+                  "required": ["error", "code"]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

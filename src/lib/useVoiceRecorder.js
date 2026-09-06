@@ -89,9 +89,13 @@ export function useVoiceRecorder({ onTranscriptReady, userId }) {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
         const durationMs = startTimeRef.current ? Date.now() - startTimeRef.current : 0;
 
-        if (!audioBlob || audioBlob.size === 0) {
+        if (!audioBlob || audioBlob.size < 500) {
           setState('error');
-          setErrorMessage('No audio recorded. Please speak after tapping the microphone.');
+          setErrorMessage(
+            !audioBlob || audioBlob.size === 0
+              ? 'No audio recorded. Please speak after tapping the microphone.'
+              : 'Audio recording was too short or silent. Please speak clearly and try again.'
+          );
           return;
         }
 

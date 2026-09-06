@@ -503,7 +503,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         // Create audio blob
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
 
-        if (audioBlob.size > 0) {
+        if (audioBlob.size >= 500) {
           const draftId = `draft_aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
           draftAudioIdRef.current = draftId;
           pendingAudioBlobRef.current = audioBlob;
@@ -541,7 +541,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             isOneTapEchoPendingRef.current = false;
           }
         } else {
-          alert('No audio was recorded. Please try again.');
+          alert('Recording was too short or silent (less than 1 second). Please speak after tapping the microphone.');
           setIsSaving(false);
           isOneTapEchoPendingRef.current = false;
         }
@@ -1458,7 +1458,14 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                       type="button"
                       onClick={async () => {
                         const blob = pendingAudioBlobRef.current || draftAudioBlob;
-                        if (!blob) return;
+                        if (!blob) {
+                          alert('No audio recording found to re-transcribe.');
+                          return;
+                        }
+                        if (blob.size < 500) {
+                          alert('This audio recording is too short or silent to re-transcribe. Please record a new voice echo.');
+                          return;
+                        }
                         setIsTranscribing(true);
                         try {
                           const text = await transcribeAudio(blob, setModelProgress);
@@ -1468,7 +1475,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                             alert('No speech detected in this recording.');
                           }
                         } catch (err) {
-                          alert('Retry transcription failed: ' + err.message);
+                          alert('Retry transcription failed: ' + err.message + '. Your audio recording has been preserved.');
                         } finally {
                           setIsTranscribing(false);
                         }
