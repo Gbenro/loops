@@ -2,7 +2,7 @@
 // Mode 1: App Guide (spotlight walkthrough)
 // Mode 2: Phases (phase cards)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MoonFace } from './MoonFace.jsx';
 
 const IS_V2 = true;
@@ -970,8 +970,15 @@ function GuideMode({
 
 function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
   const [started, setStarted] = useState(false);
+  const cardScrollRef = useRef(null);
   const phase = PHASE_DATA[phaseIdx];
   const moonAge = phase.age / 29.53;
+
+  useEffect(() => {
+    if (cardScrollRef.current) {
+      cardScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [phaseIdx]);
 
   if (!started) {
     return (
@@ -1139,10 +1146,12 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
 
       {/* Phase card */}
       <div
+        ref={cardScrollRef}
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '0 20px 100px',
+          padding: '0 20px calc(120px + env(safe-area-inset-bottom, 0px))',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {phase.isNew ? (
@@ -1164,7 +1173,9 @@ function PhasesMode({ phaseIdx, setPhaseIdx, onClose, onDone }) {
           justifyContent: 'space-between',
           padding: '16px 20px',
           paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          background: 'linear-gradient(to top, #040810 60%, transparent)',
+          background: 'linear-gradient(to top, rgba(4,8,16,0.98) 70%, transparent 100%)',
+          backdropFilter: 'blur(8px)',
+          borderTop: '1px solid rgba(245,230,200,0.06)',
           zIndex: 10,
         }}
       >
@@ -1389,6 +1400,10 @@ function NewMoonCard({ phase }) {
               borderRadius: 10,
               background: 'rgba(245,230,200,0.03)',
               border: '1px solid rgba(245,230,200,0.06)',
+              minHeight: 64,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
             }}
           >
             <div
@@ -1979,6 +1994,10 @@ function PhaseCard({ phase, moonAge }) {
               borderRadius: 10,
               background: 'rgba(245,230,200,0.03)',
               border: '1px solid rgba(245,230,200,0.06)',
+              minHeight: 64,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
             }}
           >
             <div

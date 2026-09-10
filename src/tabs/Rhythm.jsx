@@ -64,7 +64,7 @@ function CreateSheet({ onSave, onClose }) {
           background: 'var(--color-surface)',
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
-          padding: '24px 20px 40px',
+          padding: '24px 20px calc(40px + env(safe-area-inset-bottom, 0px))',
           animation: 'slideUp 0.25s ease-out',
         }}
       >
@@ -307,7 +307,22 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
     );
 
   return (
-    <div data-tour="rhythm-what" style={{ padding: '20px 20px 100px' }}>
+    <div
+      data-tour="rhythm-what"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '20px 20px 24px',
+        }}
+      >
       {/* New Moon prompts */}
       {newMoonPrompts.map((r) => (
         <div
@@ -454,33 +469,39 @@ export function Rhythm({ userId, lunarData, loops = [] }) {
         </div>
       )}
 
-      {/* Add button */}
-      <button
-        data-tour="rhythm-add-btn"
-        onClick={() => {
-          if (!userId) return; // auth guard handled by parent
-          setShowCreate(true);
-        }}
+      </div>
+
+      {/* Add button footer */}
+      <div
         style={{
-          position: 'fixed',
-          bottom: 88,
-          right: '50%',
-          transform: 'translateX(50%)',
-          maxWidth: 'calc(520px - 40px)',
-          width: 'calc(100% - 40px)',
-          padding: '13px',
-          borderRadius: 12,
-          background: 'var(--color-border-light)',
-          border: '1px solid var(--color-border-mid)',
-          color: 'var(--color-text-muted)',
-          fontSize: 13,
-          cursor: 'pointer',
-          fontFamily: "'DM Sans', sans-serif",
-          letterSpacing: '0.04em',
+          flexShrink: 0,
+          padding: '16px 20px 20px',
+          borderTop: '1px solid var(--color-border-light)',
+          background: 'var(--color-bg)',
         }}
       >
-        + New rhythm
-      </button>
+        <button
+          data-tour="rhythm-add-btn"
+          onClick={() => {
+            if (!userId) return; // auth guard handled by parent
+            setShowCreate(true);
+          }}
+          style={{
+            width: '100%',
+            padding: '14px 20px',
+            borderRadius: 12,
+            background: 'var(--color-border-light)',
+            border: '1px solid var(--color-border-mid)',
+            color: 'var(--color-text-muted)',
+            fontSize: 13,
+            cursor: 'pointer',
+            fontFamily: "'DM Sans', sans-serif",
+            letterSpacing: '0.04em',
+          }}
+        >
+          + New rhythm
+        </button>
+      </div>
 
       {showCreate && <CreateSheet onSave={handleCreate} onClose={() => setShowCreate(false)} />}
     </div>
