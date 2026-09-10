@@ -261,16 +261,17 @@ describe('lunar.js', () => {
       expect(data).toHaveProperty('isNewCycleApproaching');
     });
 
-    it('cycleStart is a valid ISO date string in the past', () => {
+    it('cycleStart is a valid ISO date string anchoring the current or arriving cycle', () => {
       const now = new Date();
       const data = getLunarData(now);
       const cycleStartDate = new Date(data.cycleStart);
 
       expect(typeof data.cycleStart).toBe('string');
-      expect(cycleStartDate.getTime()).toBeLessThanOrEqual(now.getTime());
-      // Cycle start should be within 30 days
-      const daysDiff = (now.getTime() - cycleStartDate.getTime()) / (24 * 60 * 60 * 1000);
-      expect(daysDiff).toBeLessThan(30);
+      // During pre-conjunction New Moon, cycleStart anchors to the arriving conjunction (< 24h ahead);
+      // otherwise it anchors to the past new moon within 30 days.
+      const diffHours = (cycleStartDate.getTime() - now.getTime()) / (60 * 60 * 1000);
+      expect(diffHours).toBeLessThanOrEqual(24);
+      expect(diffHours).toBeGreaterThanOrEqual(-30 * 24);
     });
 
     it('dayOfCycle is between 1 and 30', () => {

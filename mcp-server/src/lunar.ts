@@ -225,8 +225,13 @@ export function getLunarData(date: Date = new Date()) {
   const daysToFull = getDaysUntilPhase(0.5, date);
   const daysToNew = getDaysUntilPhase(0, date);
 
-  const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
-  const isNewMoonWindow = age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD;
+  const isPreConjunctionNewMoon = age >= SYNODIC - HALF_THRESHOLD;
+  const cycleStart = isPreConjunctionNewMoon
+    ? new Date(date.getTime() + (SYNODIC - age) * 24 * 60 * 60 * 1000).toISOString()
+    : new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
+  const dayOfCycle = isPreConjunctionNewMoon ? 1 : Math.floor(age) + 1;
+
+  const isNewMoonWindow = isPreConjunctionNewMoon || age < HALF_THRESHOLD;
   const currentPhase = isNewMoonWindow ? PHASES[0] : (PHASES.find(p => age >= p.start && age < p.end) || PHASES[0]);
   const phaseDuration = isNewMoonWindow ? PHASE_DURATION.threshold : (currentPhase.end - currentPhase.start);
   const dayInPhase = isNewMoonWindow
@@ -237,7 +242,7 @@ export function getLunarData(date: Date = new Date()) {
 
   return {
     age,
-    dayOfCycle: Math.floor(age) + 1,
+    dayOfCycle,
     cycleStart,
     phase: {
       name: phase.name,

@@ -66,11 +66,65 @@ describe('Lunar Month Alignment & Threshold Semantics Suite', () => {
     });
   });
 
-  describe('Cycle Day Bounds', () => {
-    it('handles day 30 correctly without exceeding 30', () => {
+  describe('Option A: Unified Cycle Gate Semantics', () => {
+    it('initializes Day 1 of arriving Harvest Moon during pre-conjunction New Moon threshold', () => {
+      // 2026-09-10 ~17:20 UTC is ~6 hours before exact conjunction
       const preConjunctionDate = new Date('2026-09-10T17:20:00Z');
-      const data = getLunarData(preConjunctionDate);
-      expect(data.dayOfCycle).toBe(30);
+      const clientData = getLunarData(preConjunctionDate);
+      const serverData = getServerLunarData(preConjunctionDate);
+
+      expect(clientData.phase.name).toBe('New Moon');
+      expect(clientData.lunarMonth).toBe('Harvest');
+      expect(clientData.dayOfCycle).toBe(1);
+
+      expect(serverData.phase.name).toBe('New Moon');
+      expect(serverData.lunarMonth).toBe('Harvest');
+      expect(serverData.dayOfCycle).toBe(1);
+    });
+
+    it('maintains Day 1 of Harvest Moon immediately after exact conjunction', () => {
+      // 2026-09-11 ~04:00 UTC is ~5 hours after exact conjunction
+      const postConjunctionDate = new Date('2026-09-11T04:00:00Z');
+      const clientData = getLunarData(postConjunctionDate);
+      const serverData = getServerLunarData(postConjunctionDate);
+
+      expect(clientData.phase.name).toBe('New Moon');
+      expect(clientData.lunarMonth).toBe('Harvest');
+      expect(clientData.dayOfCycle).toBe(1);
+
+      expect(serverData.phase.name).toBe('New Moon');
+      expect(serverData.lunarMonth).toBe('Harvest');
+      expect(serverData.dayOfCycle).toBe(1);
+    });
+
+    it('anchors pre-conjunction and post-conjunction cycleStart to the exact conjunction timestamp (continuity)', () => {
+      const preDate = new Date('2026-09-10T17:20:00Z');
+      const postDate = new Date('2026-09-11T04:00:00Z');
+
+      const preStart = new Date(getLunarData(preDate).cycleStart).getTime();
+      const postStart = new Date(getLunarData(postDate).cycleStart).getTime();
+
+      // Both anchor to the exact conjunction moment (~2026-09-10T23:17:00Z)
+      // Difference between the two computed cycleStart moments is within orbital velocity variation (< 1 hour),
+      // in contrast to a 29.5-day jump without Option A.
+      expect(Math.abs(preStart - postStart)).toBeLessThan(60 * 60 * 1000);
+    });
+
+    it('retains Day 29/30 of prior cycle (Sturgeon) during Late Waning Crescent before threshold', () => {
+      // 2026-09-09 ~12:00 UTC is >24 hours before conjunction, during Waning Crescent flow
+      const waningCrescentDate = new Date('2026-09-09T12:00:00Z');
+      const clientData = getLunarData(waningCrescentDate);
+      const serverData = getServerLunarData(waningCrescentDate);
+
+      expect(clientData.phase.name).toBe('Waning Crescent');
+      expect(clientData.lunarMonth).toBe('Sturgeon');
+      expect(clientData.dayOfCycle).toBeGreaterThanOrEqual(28);
+      expect(clientData.dayOfCycle).toBeLessThanOrEqual(30);
+
+      expect(serverData.phase.name).toBe('Waning Crescent');
+      expect(serverData.lunarMonth).toBe('Sturgeon');
+      expect(serverData.dayOfCycle).toBeGreaterThanOrEqual(28);
+      expect(serverData.dayOfCycle).toBeLessThanOrEqual(30);
     });
   });
 });

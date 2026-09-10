@@ -312,11 +312,19 @@ export function getLunarData(date = new Date()) {
   const daysToFull = getDaysUntilFull(date);
   const daysToNew = getDaysUntilNew(date);
 
-  // Calculate cycle start (new moon that began this cycle)
-  const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
+  // When in the pre-conjunction New Moon window (age >= SYNODIC - HALF_THRESHOLD),
+  // the app has already transitioned to the New Moon phase and the new lunar month.
+  // We align dayOfCycle to Day 1 and cycleStart to the arriving conjunction so that
+  // cycle tracking, intentions, and rhythms belong to the new cycle rather than
+  // orphaning at exact conjunction.
+  const isPreConjunctionNewMoon = age >= SYNODIC - HALF_THRESHOLD;
+  const cycleStart = isPreConjunctionNewMoon
+    ? new Date(date.getTime() + (SYNODIC - age) * 24 * 60 * 60 * 1000).toISOString()
+    : new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
+  const dayOfCycle = isPreConjunctionNewMoon ? 1 : Math.floor(age) + 1;
 
   // Find current phase bounds for timing calculations
-  const isNewMoonWindow = age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD;
+  const isNewMoonWindow = isPreConjunctionNewMoon || age < HALF_THRESHOLD;
   const currentPhase = isNewMoonWindow ? PHASES[0] : (PHASES.find((p) => age >= p.start && age < p.end) || PHASES[0]);
   const phaseDuration = isNewMoonWindow ? PHASE_DURATION.threshold : (currentPhase.end - currentPhase.start);
   const dayInPhase = isNewMoonWindow
@@ -345,7 +353,7 @@ export function getLunarData(date = new Date()) {
 
   return {
     age, // Days into cycle (0-29.53)
-    dayOfCycle: Math.floor(age) + 1, // Day 1-30
+    dayOfCycle, // Day 1-30 (Day 1 during New Moon threshold)
     cycleStart, // ISO string of new moon that started this cycle
     phase, // { name, key, energy, isWaning, isNew, isFull }
     illumination, // 0-100%
