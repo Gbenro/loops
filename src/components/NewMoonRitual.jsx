@@ -1,7 +1,7 @@
 // Luna Loops - New Moon Ritual
 // Ceremonial screen for setting cycle intention at New Moon
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { MoonFace } from './MoonFace.jsx';
 
@@ -29,14 +29,48 @@ export function NewMoonRitual({
 
   const handleDismiss = () => {
     setIsClosing(true);
-    // Calculate when New Moon ends
+    // Calculate when New Moon phase ends (never negative / never in the past)
     const newMoonEnds = new Date();
-    newMoonEnds.setDate(newMoonEnds.getDate() + Math.ceil(1.85 - lunarData.age));
+    let hoursRemaining = 24;
+    if (lunarData) {
+      if (typeof lunarData.remainingHours === 'number' && lunarData.remainingHours > 0) {
+        hoursRemaining = Math.max(1, lunarData.remainingHours);
+      } else if (typeof lunarData.age === 'number') {
+        const SYNODIC = 29.530588853;
+        const HALF_THRESHOLD = 0.925;
+        let daysLeft = 1;
+        if (lunarData.age >= SYNODIC - HALF_THRESHOLD) {
+          daysLeft = (SYNODIC - lunarData.age) + HALF_THRESHOLD;
+        } else if (lunarData.age < HALF_THRESHOLD) {
+          daysLeft = HALF_THRESHOLD - lunarData.age;
+        }
+        hoursRemaining = Math.max(1, Math.round(daysLeft * 24));
+      }
+    }
+    newMoonEnds.setTime(Date.now() + hoursRemaining * 60 * 60 * 1000);
     onDismiss(newMoonEnds);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleDismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lunarData]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="New Moon Ritual"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleDismiss();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -61,6 +95,39 @@ export function NewMoonRitual({
           position: 'relative',
         }}
       >
+        {/* Close Button [✕] */}
+        <button
+          onClick={handleDismiss}
+          aria-label="Close new moon ritual"
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            width: 36,
+            height: 36,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-text-muted)',
+            fontSize: 20,
+            cursor: 'pointer',
+            borderRadius: '50%',
+            transition: 'color 0.2s, background 0.2s',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text)';
+            e.currentTarget.style.background = 'var(--color-input-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-muted)';
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          ✕
+        </button>
         {/* Ambient glow behind moon */}
         <div
           style={{
@@ -212,7 +279,7 @@ export function NewMoonRitual({
               lineHeight: 1.6,
             }}
           >
-            The New Moon lasts until day {Math.ceil(1.85 - lunarData.age + 1)}. You can return.
+            The New Moon is open. You can return anytime.
           </div>
         )}
       </div>

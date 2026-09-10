@@ -52,16 +52,30 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const [showLoopSheet, setShowLoopSheet] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [ritualDismissedUntil, setRitualDismissedUntil] = useState(null);
+
+  const lunarData = useMemo(() => getLunarData(), []);
+  const phaseContent = getPhaseContent(lunarData.phase.key);
+  const { encryptField, decryptField, sessionKey } = useEncryption();
+
+  const getRitualDismissKey = useCallback(() => {
+    const cycleAnchor = lunarData?.cycleStart || lunarData?.lunarMonth || 'current';
+    return `luna_ritual_dismissed_${cycleAnchor}`;
+  }, [lunarData]);
+
+  const [ritualDismissedUntil, setRitualDismissedUntil] = useState(() => {
+    try {
+      const cycleAnchor = lunarData?.cycleStart || lunarData?.lunarMonth || 'current';
+      const saved = localStorage.getItem(`luna_ritual_dismissed_${cycleAnchor}`);
+      return saved ? new Date(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent
   const [closedNavIndex, setClosedNavIndex] = useState(0); // 0 = current phase
   const [cycleExpanded, setCycleExpanded] = useState(false);
   const [closedNavExpanded, setClosedNavExpanded] = useState(false);
   const justCreatedCycleRef = useRef(false); // prevent ritual re-showing after creation
-
-  const lunarData = useMemo(() => getLunarData(), []);
-  const phaseContent = getPhaseContent(lunarData.phase.key);
-  const { encryptField, decryptField, sessionKey } = useEncryption();
 
   // Check if we're in New Moon phase
   const isNewMoon = lunarData.phase.key === 'new';
@@ -551,20 +565,40 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
     () =>
       loops.find(
         (l) =>
-          l.type === 'cycle' && l.status === 'active' && l.lunarMonthOpened === selectedCycleName
+          l.type === 'cycle' &&
+          l.status === 'active' &&
+          (l.lunarMonthOpened === selectedCycleName ||
+            (selectedCycleName === lunarData.lunarMonth &&
+              (l.cycleStart === lunarData.cycleStart ||
+                (lunarData.lunarMonth === 'Harvest' &&
+                  l.lunarMonthOpened === 'Sturgeon' &&
+                  (!l.openedAt ||
+                    Math.abs(
+                      new Date(l.openedAt).getTime() - new Date(lunarData.cycleStart).getTime()
+                    ) <
+                      5 * 24 * 3600 * 1000)))))
       ),
-    [loops, selectedCycleName]
+    [loops, selectedCycleName, lunarData]
   );
 
   useEffect(() => {
     if (isNewMoon && !cycleLoop && !loading) {
       if (justCreatedCycleRef.current) return; // just set intention this session
-      if (ritualDismissedUntil && new Date() < new Date(ritualDismissedUntil)) {
+      const key = getRitualDismissKey();
+      let dismissedDeadline = ritualDismissedUntil;
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = new Date(saved);
+          if (!isNaN(parsed.getTime())) dismissedDeadline = parsed;
+        }
+      } catch {}
+      if (dismissedDeadline && new Date() < new Date(dismissedDeadline)) {
         return;
       }
       setShowRitual(true);
     }
-  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil]);
+  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil, getRitualDismissKey]);
 
   const isCurrentCycle = selectedCycleName === lunarData.lunarMonth;
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
@@ -671,6 +705,11 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           lunarData={lunarData}
           onSetIntention={createCycleLoop}
           onDismiss={(until) => {
+            try {
+              localStorage.setItem(getRitualDismissKey(), until.toISOString());
+            } catch (e) {
+              console.warn('Failed to persist ritual dismissal:', e);
+            }
             setRitualDismissedUntil(until);
             setShowRitual(false);
           }}

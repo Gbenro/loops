@@ -84,6 +84,16 @@ const CEREMONY_CONTENT = {
 export function CeremonyPrompt({ type, onAction, onDismiss }) {
   const content = CEREMONY_CONTENT[type];
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onDismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onDismiss]);
+
   if (!content) return null;
 
   return (
@@ -91,6 +101,11 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="ceremony-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onDismiss();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -116,6 +131,7 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
 
       <div
         style={{
+          position: 'relative',
           width: '100%',
           maxWidth: 340,
           background: 'var(--color-surface)',
@@ -126,6 +142,26 @@ export function CeremonyPrompt({ type, onAction, onDismiss }) {
           animation: 'ceremonySlideUp 0.6s ease-out 0.1s both',
         }}
       >
+        {/* Close Button [✕] */}
+        <button
+          onClick={onDismiss}
+          aria-label="Close ceremony prompt"
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-text-muted)',
+            fontSize: 18,
+            cursor: 'pointer',
+            padding: 8,
+            lineHeight: 1,
+            borderRadius: '50%',
+          }}
+        >
+          ✕
+        </button>
         {/* Phase icon */}
         <div
           style={{

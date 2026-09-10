@@ -31,9 +31,47 @@ function setLocal(key, data) {
 
 // ============ LOOPS ============
 
+export function reconcileCycleLoops(loops, userId = null) {
+  if (!Array.isArray(loops) || loops.length === 0) return loops;
+  let modified = false;
+  const reconciled = loops.map((loop) => {
+    // Check if this is an active cycle loop opened as 'Sturgeon' during the Harvest threshold transition
+    if (
+      loop &&
+      loop.type === 'cycle' &&
+      loop.status === 'active' &&
+      loop.lunarMonthOpened === 'Sturgeon'
+    ) {
+      const openedTime = new Date(loop.openedAt || loop.createdAt || 0).getTime();
+      const harvestThresholdStart = new Date('2026-09-08T00:00:00Z').getTime();
+      const isThresholdTransition =
+        openedTime >= harvestThresholdStart ||
+        (typeof loop.moonAgeOpened === 'number' && loop.moonAgeOpened >= 27);
+
+      if (isThresholdTransition) {
+        modified = true;
+        const updated = { ...loop, lunarMonthOpened: 'Harvest' };
+        if (userId) {
+          saveLoop(updated, userId).catch((err) =>
+            console.warn('Failed to sync reconciled cycle loop to server:', err)
+          );
+        }
+        return updated;
+      }
+    }
+    return loop;
+  });
+
+  if (modified) {
+    setLocal(LOOPS_KEY, reconciled);
+  }
+
+  return reconciled;
+}
+
 export async function getLoops(userId) {
   const localLoops = getLocal(LOOPS_KEY);
-  if (!userId) return localLoops;
+  if (!userId) return reconcileCycleLoops(localLoops);
 
   try {
     const { data, error } = await supabase
@@ -82,17 +120,18 @@ export async function getLoops(userId) {
     const unsyncedLocal = localLoops.filter((l) => !serverIds.has(l.id));
     const merged = [...serverLoops, ...unsyncedLocal];
 
-    setLocal(LOOPS_KEY, merged);
+    const reconciled = reconcileCycleLoops(merged, userId);
+    setLocal(LOOPS_KEY, reconciled);
 
     // Try to sync unsynced local loops to server
     for (const loop of unsyncedLocal) {
       saveLoop(loop, userId);
     }
 
-    return merged;
+    return reconciled;
   } catch (e) {
     console.warn('Failed to fetch loops from server:', e);
-    return localLoops;
+    return reconcileCycleLoops(localLoops, userId);
   }
 }
 

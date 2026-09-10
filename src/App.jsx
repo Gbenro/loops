@@ -404,9 +404,17 @@ function App() {
     if (!loops.length || !lunarData?.cycleStart) return false;
     return loops.some(
       (loop) =>
-        loop.scope === 'cycle' &&
-        loop.status !== 'released' &&
-        (loop.cycleStart === lunarData.cycleStart || loop.lunarMonthOpened === lunarData.lunarMonth)
+        (loop.type === 'cycle' || loop.scope === 'cycle') &&
+        loop.status === 'active' &&
+        (loop.cycleStart === lunarData.cycleStart ||
+          loop.lunarMonthOpened === lunarData.lunarMonth ||
+          (lunarData.lunarMonth === 'Harvest' &&
+            loop.lunarMonthOpened === 'Sturgeon' &&
+            (!loop.openedAt ||
+              Math.abs(
+                new Date(loop.openedAt).getTime() - new Date(lunarData.cycleStart).getTime()
+              ) <
+                5 * 24 * 3600 * 1000)))
     );
   }, [loops, lunarData?.cycleStart, lunarData?.lunarMonth]);
 

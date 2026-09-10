@@ -511,6 +511,29 @@ describe('Onboarding', () => {
       render(<CeremonyPrompt type="waning-crescent" onAction={() => {}} onDismiss={() => {}} />);
       expect(screen.getByText('🌘')).toBeInTheDocument();
     });
+
+    it('calls onDismiss when close button [✕] is clicked', () => {
+      const onDismiss = vi.fn();
+      render(<CeremonyPrompt type="new-moon" onAction={() => {}} onDismiss={onDismiss} />);
+      const closeBtn = screen.getByRole('button', { name: /close ceremony prompt/i });
+      fireEvent.click(closeBtn);
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls onDismiss when backdrop is clicked', () => {
+      const onDismiss = vi.fn();
+      render(<CeremonyPrompt type="new-moon" onAction={() => {}} onDismiss={onDismiss} />);
+      const dialog = screen.getByRole('dialog');
+      fireEvent.click(dialog);
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls onDismiss when Escape key is pressed', () => {
+      const onDismiss = vi.fn();
+      render(<CeremonyPrompt type="new-moon" onAction={() => {}} onDismiss={onDismiss} />);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('useCeremonyPrompt', () => {
