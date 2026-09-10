@@ -18,22 +18,33 @@ function storagePath(userId, echoId, mimeType) {
 }
 
 // Upload audio blob — returns the storage path, 'TOO_LARGE' if over limit, or null on failure
-export async function saveAudio(echoId, audioBlob, userId) {
+export async function saveAudio(echoId, audioBlob, userId, options = {}) {
   if (!userId) {
     return null;
   }
   if (audioBlob.size > MAX_AUDIO_SIZE) {
     return 'TOO_LARGE';
   }
+  const timeoutMs = options.timeoutMs || 30000;
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Audio upload timed out after 30s')), timeoutMs);
+  });
+
   try {
     const path = storagePath(userId, echoId, audioBlob.type);
-    const { error } = await supabase.storage.from(BUCKET).upload(path, audioBlob, {
+    const uploadPromise = supabase.storage.from(BUCKET).upload(path, audioBlob, {
       contentType: audioBlob.type || 'audio/webm',
       upsert: true,
     });
-    if (error) throw error;
+
+    const result = await Promise.race([uploadPromise, timeoutPromise]);
+    if (timeoutId) clearTimeout(timeoutId);
+    if (result.error) throw result.error;
     return path;
-  } catch (_e) {
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    console.warn('[AudioStorage] saveAudio failed or timed out:', err?.message || err);
     return null;
   }
 }
@@ -164,15 +175,58 @@ export async function saveDraftAudio(draftId, audioBlob, metadata = {}) {
       const store = tx.objectStore(DRAFT_STORE);
       const record = {
         id: draftId,
+        echoId: metadata.echoId || draftId,
+        userId: metadata.userId || null,
+        text: metadata.text || '',
         blob: audioBlob,
-        size: audioBlob.size,
-        type: audioBlob.type,
-        createdAt: new Date().toISOString(),
+        size: audioBlob ? audioBlob.size : 0,
+        type: audioBlob ? audioBlob.type : '',
+        createdAt: metadata.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: metadata.status || 'draft', // 'draft' | 'transcribing' | 'saving' | 'synced' | 'failed'
+        lunarContext: metadata.lunarContext || null,
+        audioPath: metadata.audioPath || null,
+        lastError: metadata.lastError || null,
+        retryCount: metadata.retryCount || 0,
         metadata
       };
       store.put(record);
       tx.oncomplete = () => resolve(record);
       tx.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function updateDraftAudio(draftId, updates = {}) {
+  try {
+    const db = await openDraftDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(DRAFT_STORE, 'readwrite');
+      const store = tx.objectStore(DRAFT_STORE);
+      const getReq = store.get(draftId);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (!existing) {
+          resolve(null);
+          return;
+        }
+        const updated = {
+          ...existing,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+          metadata: {
+            ...(existing.metadata || {}),
+            ...(updates.metadata || {})
+          }
+        };
+        store.put(updated);
+        tx.oncomplete = () => resolve(updated);
+        tx.onerror = () => resolve(null);
+      };
+      getReq.onerror = () => resolve(null);
     });
   } catch {
     return null;

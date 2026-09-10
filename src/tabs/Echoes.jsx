@@ -17,7 +17,7 @@ import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
-import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, deleteDraftAudio, getAllDraftAudio } from '../lib/audioStorage.js';
+import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, updateDraftAudio, deleteDraftAudio, getAllDraftAudio } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -176,6 +176,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatusMessage, setSaveStatusMessage] = useState(null);
   const isOneTapEchoPendingRef = useRef(false);
   const [modelProgress, setModelProgress] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -184,9 +185,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const timerRef = useRef(null);
   const pendingAudioBlobRef = useRef(null); // Store audio blob until echo is saved
   const draftAudioIdRef = useRef(null);
+  const activeDraftEchoIdRef = useRef(null);
   const [draftAudioBlob, setDraftAudioBlob] = useState(null);
   const [isPlayingDraft, setIsPlayingDraft] = useState(false);
   const draftAudioPlayerRef = useRef(null);
+  const [recoveredDrafts, setRecoveredDrafts] = useState([]);
+  const [playingRecoveredDraftId, setPlayingRecoveredDraftId] = useState(null);
+  const recoveredAudioPlayerRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
   const audioPlayerRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -396,32 +401,79 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     ? 'What is alive in you right now? What arrived today? What are you noticing...'
     : phrases.echoesWritePrompt || 'What is alive in you right now?';
 
-  const saveEchoDirect = async (textToSave, audioBlob) => {
-    if (!textToSave.trim()) return;
+  const performSafeSave = async (options = {}) => {
+    const draftId = options.draftId || draftAudioIdRef.current;
+    const blob = options.audioBlob || pendingAudioBlobRef.current || draftAudioBlob;
+    const textToSave = (options.textToSave !== undefined ? options.textToSave : currentText).trim();
+    const targetEchoId = options.targetEchoId || activeDraftEchoIdRef.current || generateId('e');
+    activeDraftEchoIdRef.current = targetEchoId;
 
-    const echoId = generateId('e');
-    const isEncrypted = !!sessionKey;
-    const plainText = textToSave.trim();
-    const storedText = isEncrypted ? await encryptField(plainText) : plainText;
+    if (!textToSave && !blob) return false;
 
-    let audioPath = null;
+    setIsSaving(true);
+    setSaveStatusMessage('SAVING...');
+
+    // 1. Ensure draft is recorded in IndexedDB with status 'saving'
+    if (draftId) {
+      await updateDraftAudio(draftId, {
+        echoId: targetEchoId,
+        text: textToSave,
+        status: 'saving',
+        userId,
+        lunarContext: {
+          phase: lunarData.phase.key,
+          phaseName: lunarData.phase.name,
+          phaseType: lunarData.phase.phaseType,
+          lunarMonth: lunarData.lunarMonth,
+          dayOfCycle: lunarData.dayOfCycle,
+          zodiac: lunarData.zodiac.sign,
+          illumination: lunarData.illumination
+        }
+      });
+    }
+
+    // 2. Upload audio if present
+    let audioPath = options.audioPath || null;
     let audioTooLarge = false;
-    if (audioBlob && userId) {
-      const path = await saveAudio(echoId, audioBlob, userId);
-      if (path === 'TOO_LARGE') {
+    if (blob && userId && !audioPath) {
+      setSaveStatusMessage('SAVING AUDIO (1/2)...');
+      const uploadRes = await saveAudio(targetEchoId, blob, userId, { timeoutMs: 30000 });
+      if (uploadRes === 'TOO_LARGE') {
         audioTooLarge = true;
-      } else if (path) {
-        audioPath = path;
+      } else if (uploadRes) {
+        audioPath = uploadRes;
+        if (draftId) {
+          await updateDraftAudio(draftId, { audioPath });
+        }
+      } else {
+        // Upload failed or timed out — preserve local draft safely
+        if (draftId) {
+          await updateDraftAudio(draftId, {
+            status: 'failed',
+            lastError: 'Audio upload timed out or failed to connect'
+          });
+        }
+        setIsSaving(false);
+        setSaveStatusMessage(null);
+        alert('Could not upload audio to cloud storage (network timeout or connection error). Your voice recording and text draft remain saved safely on this device. You can retry save at any time.');
+        await refreshRecoveredDrafts();
+        return false;
       }
     }
 
+    // 3. Save Echo to database
+    setSaveStatusMessage('SAVING ECHO (2/2)...');
+    const isEncrypted = !!sessionKey;
+    const plainText = textToSave || 'Voice reflection';
+    const storedText = isEncrypted ? await encryptField(plainText) : plainText;
+
     const newEcho = {
-      id: echoId,
+      id: targetEchoId,
       text: plainText,
-      source: 'voice',
+      source: blob ? 'voice' : 'text',
       audio_path: audioPath,
       isEncrypted,
-      createdAt: new Date().toISOString(),
+      createdAt: options.createdAt || new Date().toISOString(),
       phase: lunarData.phase.key,
       phaseName: lunarData.phase.name,
       phaseType: lunarData.phase.phaseType,
@@ -434,26 +486,54 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       parentId: null
     };
 
-    setEchoes((prev) => [newEcho, ...prev]);
-    setCurrentText('');
-    setIsWriting(false);
-    setSource('text');
-    setRecordingTime(0);
-
     try {
       await saveEchoToDb({ ...newEcho, text: storedText }, userId);
       if (audioTooLarge) {
-        alert(`Recording is too large to save (${(audioBlob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
+        alert(`Recording is too large to save (${(blob.size / 1024 / 1024).toFixed(0)}MB — max 200MB). Your transcript was saved.`);
       }
+
+      // 4. Server confirmed save: update echoes feed
+      setEchoes((prev) => {
+        const filtered = prev.filter(e => e.id !== targetEchoId);
+        return [newEcho, ...filtered];
+      });
+
+      // Mark synced and then safely purge the local draft copy
+      if (draftId) {
+        await updateDraftAudio(draftId, { status: 'synced' });
+        await deleteDraftAudio(draftId);
+      }
+
+      // Clean up composer state
+      pendingAudioBlobRef.current = null;
+      draftAudioIdRef.current = null;
+      activeDraftEchoIdRef.current = null;
+      setDraftAudioBlob(null);
+      setCurrentText('');
+      setIsWriting(false);
+      setSource('text');
+      setRecordingTime(0);
+      setIsSaving(false);
+      setSaveStatusMessage(null);
+      await refreshRecoveredDrafts();
+      return true;
     } catch (err) {
-      alert('Failed to save Echo: ' + err.message + '. Your draft has been preserved.');
-      setEchoes((prev) => prev.filter(e => e.id !== echoId));
-      setCurrentText(plainText);
-      pendingAudioBlobRef.current = audioBlob;
-      setIsWriting(true);
-      setSource('voice');
+      console.error('[Echoes] saveEchoToDb failed:', err);
+      if (draftId) {
+        await updateDraftAudio(draftId, {
+          status: 'failed',
+          lastError: err.message
+        });
+      }
+      setIsSaving(false);
+      setSaveStatusMessage(null);
+      alert('Failed to save Echo to server: ' + err.message + '. Your voice recording and draft are preserved safely on your phone.');
+      await refreshRecoveredDrafts();
+      return false;
     }
   };
+
+  const saveEchoDirect = performSafeSave;
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -505,13 +585,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
 
         if (audioBlob.size >= 500) {
           const draftId = `draft_aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          const echoId = generateId('e');
           draftAudioIdRef.current = draftId;
+          activeDraftEchoIdRef.current = echoId;
           pendingAudioBlobRef.current = audioBlob;
           setDraftAudioBlob(audioBlob);
 
           // Save to durable IndexedDB immediately before starting transcription
           await saveDraftAudio(draftId, audioBlob, {
-            phase: lunarData.phase.key,
+            echoId,
+            userId,
+            text: '',
+            status: 'transcribing',
+            lunarContext: {
+              phase: lunarData.phase.key,
+              phaseName: lunarData.phase.name,
+              phaseType: lunarData.phase.phaseType,
+              lunarMonth: lunarData.lunarMonth,
+              dayOfCycle: lunarData.dayOfCycle,
+              zodiac: lunarData.zodiac.sign,
+              illumination: lunarData.illumination
+            },
             source: 'voice',
             mimeType: audioBlob.type
           });
@@ -519,14 +613,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           setIsTranscribing(true);
           try {
             const text = await transcribeAudio(audioBlob, setModelProgress);
-            if (text) {
+            const resolvedText = text || '';
+            await updateDraftAudio(draftId, { text: resolvedText, status: 'draft' });
+            if (resolvedText) {
               if (isOneTapEchoPendingRef.current) {
-                await saveEchoDirect(text, audioBlob);
-                await deleteDraftAudio(draftId);
-                draftAudioIdRef.current = null;
-                setDraftAudioBlob(null);
+                await performSafeSave({ draftId, audioBlob, textToSave: resolvedText, targetEchoId: echoId });
               } else {
-                setCurrentText((prev) => prev + (prev ? ' ' : '') + text);
+                setCurrentText((prev) => prev + (prev ? ' ' : '') + resolvedText);
               }
             } else {
               if (isOneTapEchoPendingRef.current) {
@@ -534,15 +627,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               }
             }
           } catch (error) {
+            await updateDraftAudio(draftId, { lastError: error.message, status: 'draft' });
             alert('Transcription failed: ' + error.message + '. Your recording has been preserved in the draft editor.');
           } finally {
             setIsTranscribing(false);
             setIsSaving(false);
+            setSaveStatusMessage(null);
             isOneTapEchoPendingRef.current = false;
+            await refreshRecoveredDrafts();
           }
         } else {
           alert('Recording was too short or silent (less than 1 second). Please speak after tapping the microphone.');
           setIsSaving(false);
+          setSaveStatusMessage(null);
           isOneTapEchoPendingRef.current = false;
         }
       };
@@ -626,7 +723,39 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch echoes on mount; decrypt encrypted texts if key is available
+  const refreshRecoveredDrafts = useCallback(async (currentServerEchoes = null) => {
+    try {
+      const allDrafts = await getAllDraftAudio();
+      if (!Array.isArray(allDrafts) || allDrafts.length === 0) {
+        setRecoveredDrafts([]);
+        return;
+      }
+
+      const listToCheck = currentServerEchoes || echoes;
+      const serverEchoIds = new Set(listToCheck.map((e) => e.id));
+
+      const pending = [];
+      for (const draft of allDrafts) {
+        // If server already has this echo, cleanly remove the local draft copy
+        if (draft.echoId && serverEchoIds.has(draft.echoId)) {
+          await deleteDraftAudio(draft.id);
+          continue;
+        }
+        // Don't show in recovery banner if currently being edited in open composer
+        if (draft.id === draftAudioIdRef.current && isWriting) {
+          continue;
+        }
+        if (draft.blob || (draft.text && draft.text.trim())) {
+          pending.push(draft);
+        }
+      }
+      setRecoveredDrafts(pending);
+    } catch (err) {
+      console.warn('[Echoes] Error reconciling drafts:', err);
+    }
+  }, [echoes, isWriting]);
+
+  // Fetch echoes on mount; decrypt encrypted texts if key is available, then reconcile local drafts
   useEffect(() => {
     setLoading(true);
     getEchoes(userId).then(async (data) => {
@@ -638,8 +767,68 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       );
       setEchoes(updated);
       setLoading(false);
+      await refreshRecoveredDrafts(updated);
     });
-  }, [userId, sessionKey, decryptField]);
+  }, [userId, sessionKey, decryptField, refreshRecoveredDrafts]);
+
+  const playDraftBlob = (draftId, blob) => {
+    if (!blob) return;
+    if (recoveredAudioPlayerRef.current) {
+      if (playingRecoveredDraftId === draftId) {
+        recoveredAudioPlayerRef.current.pause();
+        setPlayingRecoveredDraftId(null);
+        return;
+      } else {
+        recoveredAudioPlayerRef.current.pause();
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    recoveredAudioPlayerRef.current = audio;
+    audio.onended = () => setPlayingRecoveredDraftId(null);
+    audio.play();
+    setPlayingRecoveredDraftId(draftId);
+  };
+
+  const resumeDraftInComposer = (draft) => {
+    if (draft.blob) {
+      pendingAudioBlobRef.current = draft.blob;
+      setDraftAudioBlob(draft.blob);
+      setSource('voice');
+    } else {
+      setSource('text');
+    }
+    draftAudioIdRef.current = draft.id;
+    activeDraftEchoIdRef.current = draft.echoId || draft.id;
+    setCurrentText(draft.text || '');
+    setIsWriting(true);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const retrySyncRecoveredDraft = async (draft) => {
+    await performSafeSave({
+      draftId: draft.id,
+      targetEchoId: draft.echoId || draft.id,
+      audioBlob: draft.blob,
+      textToSave: draft.text || 'Voice reflection',
+      audioPath: draft.audioPath || null,
+      createdAt: draft.createdAt
+    });
+  };
+
+  const discardRecoveredDraft = async (draftId) => {
+    if (typeof window !== 'undefined' && !window.confirm('Discard this recovered draft? The recording will be permanently deleted.')) {
+      return;
+    }
+    await deleteDraftAudio(draftId);
+    if (playingRecoveredDraftId === draftId && recoveredAudioPlayerRef.current) {
+      recoveredAudioPlayerRef.current.pause();
+      setPlayingRecoveredDraftId(null);
+    }
+    await refreshRecoveredDrafts();
+  };
 
   const saveEcho = async () => {
     if (!currentText.trim() && !pendingAudioBlobRef.current && !draftAudioBlob) return;
@@ -648,15 +837,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
       stopRecording();
     }
 
-    const blob = pendingAudioBlobRef.current || draftAudioBlob;
-    const currentDraftId = draftAudioIdRef.current;
-    pendingAudioBlobRef.current = null;
-    setDraftAudioBlob(null);
-    draftAudioIdRef.current = null;
-    await saveEchoDirect(currentText.trim() || 'Voice reflection', blob);
-    if (currentDraftId) {
-      await deleteDraftAudio(currentDraftId);
-    }
+    await performSafeSave();
   };
 
   const deleteEcho = async (id) => {
@@ -678,9 +859,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     await updateEchoTags(id, tags, userId);
   };
 
-  const cancelWriting = () => {
+  const cancelWriting = async () => {
     if (isRecording) {
       stopRecording();
+    }
+    const hasUnsavedContent = pendingAudioBlobRef.current || draftAudioBlob || currentText.trim();
+    if (hasUnsavedContent && typeof window !== 'undefined' && !window.confirm('Discard this unsaved draft recording?')) {
+      return;
     }
     const currentDraftId = draftAudioIdRef.current;
     setIsWriting(false);
@@ -690,9 +875,11 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     pendingAudioBlobRef.current = null;
     setDraftAudioBlob(null);
     draftAudioIdRef.current = null;
+    activeDraftEchoIdRef.current = null;
     if (currentDraftId) {
-      deleteDraftAudio(currentDraftId);
+      await deleteDraftAudio(currentDraftId);
     }
+    await refreshRecoveredDrafts();
   };
 
   const handleEchoClick = async () => {
@@ -1160,6 +1347,159 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         data-tour="echoes-write-area"
         style={{ padding: '0 20px 20px' }}
       >
+        {/* Recovered Unsynced Drafts Banner */}
+        {recoveredDrafts.length > 0 && (
+          <div
+            data-testid="recovered-drafts-banner"
+            style={{
+              marginBottom: 16,
+              padding: 14,
+              borderRadius: 12,
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: '#F59E0B',
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                }}
+              >
+                <span>◉ UN-SYNCED DRAFT RECOVERED</span>
+                <span style={{ fontSize: 9, opacity: 0.8, color: 'var(--text-secondary)' }}>
+                  ({recoveredDrafts.length} preserved on device)
+                </span>
+              </div>
+            </div>
+
+            {recoveredDrafts.map((draft) => (
+              <div
+                key={draft.id}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  border: '1px solid rgba(245, 158, 11, 0.2)',
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--color-text)',
+                    fontStyle: 'italic',
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  "{draft.text ? (draft.text.length > 120 ? draft.text.slice(0, 120) + '...' : draft.text) : 'Voice reflection (audio preserved on device)'}"
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {new Date(draft.createdAt || draft.updatedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {draft.size ? ` · ${(draft.size / 1024).toFixed(0)} KB` : ''}
+                    {draft.lastError ? ` · Note: ${draft.lastError}` : ''}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {draft.blob && (
+                      <button
+                        type="button"
+                        onClick={() => playDraftBlob(draft.id, draft.blob)}
+                        style={{
+                          padding: '5px 8px',
+                          borderRadius: 4,
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          color: '#F59E0B',
+                          cursor: 'pointer',
+                          fontSize: 9,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {playingRecoveredDraftId === draft.id ? '■ STOP' : '▶ LISTEN'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => resumeDraftInComposer(draft)}
+                      style={{
+                        padding: '5px 8px',
+                        borderRadius: 4,
+                        border: '1px solid rgba(167, 139, 250, 0.3)',
+                        background: 'rgba(167, 139, 250, 0.12)',
+                        color: '#A78BFA',
+                        cursor: 'pointer',
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      ✏ EDIT / RESUME
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => retrySyncRecoveredDraft(draft)}
+                      disabled={isSaving}
+                      style={{
+                        padding: '5px 8px',
+                        borderRadius: 4,
+                        border: '1px solid rgba(74, 222, 128, 0.3)',
+                        background: 'rgba(74, 222, 128, 0.12)',
+                        color: '#4ADE80',
+                        cursor: isSaving ? 'wait' : 'pointer',
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      ↻ SYNC NOW
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => discardRecoveredDraft(draft.id)}
+                      style={{
+                        padding: '5px 6px',
+                        borderRadius: 4,
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-disabled)',
+                        cursor: 'pointer',
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      ✕ DISCARD
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {isWriting ? (
           <div
             style={{
@@ -1266,9 +1606,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               autoFocus={!isRecording}
               value={currentText}
               onChange={(e) => {
-                setCurrentText(e.target.value);
+                const val = e.target.value;
+                setCurrentText(val);
+                if (draftAudioIdRef.current) {
+                  updateDraftAudio(draftAudioIdRef.current, { text: val }).catch(() => {});
+                }
                 // Only reset to text source if there's no pending voice audio
-                if (!pendingAudioBlobRef.current) setSource('text');
+                if (!pendingAudioBlobRef.current && !draftAudioBlob) setSource('text');
               }}
               readOnly={isRecording || isTranscribing}
               placeholder={isRecording ? '' : writePrompt}
@@ -1417,7 +1761,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                   }}
                 >
                   <span style={{ color: '#A78BFA', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    ◉ VOICE RECORDING PRESERVED
+                    ◉ VOICE RECORDING SAVED ON DEVICE
                   </span>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
@@ -1534,7 +1878,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
                     (currentText.trim() || isRecording) && !isTranscribing && !isSaving ? 'pointer' : 'default',
                 }}
               >
-                {isSaving ? 'SAVING...' : isTranscribing ? 'WAIT...' : isRecording ? 'ECHO DIRECT ↩' : 'ECHO ↩'}
+                {isSaving ? (saveStatusMessage || 'SAVING...') : isTranscribing ? 'WAIT...' : isRecording ? 'ECHO DIRECT ↩' : 'ECHO ↩'}
               </button>
             </div>
           </div>

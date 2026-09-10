@@ -227,10 +227,31 @@ export async function getEchoes(userId) {
 
 export async function saveEcho(echo, userId) {
   const echoes = getLocal(ECHOES_KEY) || [];
-  echoes.unshift(echo);
+  const existingIdx = echoes.findIndex((e) => e.id === echo.id);
+  if (existingIdx >= 0) {
+    echoes[existingIdx] = { ...echoes[existingIdx], ...echo };
+  } else {
+    echoes.unshift(echo);
+  }
   setLocal(ECHOES_KEY, echoes);
 
   if (!userId) return echo;
+
+  // Server idempotency check: check if this echo ID is already recorded
+  try {
+    const { data: existingServer } = await supabase
+      .from('echoes')
+      .select('id')
+      .eq('id', echo.id)
+      .maybeSingle();
+
+    if (existingServer) {
+      // Already successfully recorded on server — return without creating duplicate
+      return echo;
+    }
+  } catch (_checkErr) {
+    // If check fails due to offline/network, proceed to insert attempt
+  }
 
   const { error } = await supabase.from('echoes').insert({
     id: echo.id,
@@ -254,6 +275,10 @@ export async function saveEcho(echo, userId) {
   });
 
   if (error) {
+    // If unique violation (already inserted by concurrent or prior request), treat as success
+    if (error.code === '23505') {
+      return echo;
+    }
     throw new Error(`Failed to save echo to server: ${error.message}`);
   }
 
