@@ -162,10 +162,23 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   const { encryptField, decryptField, sessionKey } = useEncryption();
   const [echoes, setEchoes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const echoesRef = useRef(echoes);
+  useEffect(() => {
+    echoesRef.current = echoes;
+  }, [echoes]);
+
   const [isWriting, setIsWriting] = useState(false);
   const [currentText, setCurrentText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [source, setSource] = useState('text'); // 'text' | 'voice'
+
+  const isWritingRef = useRef(isWriting);
+  useEffect(() => {
+    isWritingRef.current = isWriting;
+  }, [isWriting]);
 
   // Filter state — cycle is always the base filter
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(0); // 0 = current/most recent cycle
@@ -731,18 +744,21 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         return;
       }
 
-      const listToCheck = currentServerEchoes || echoes;
-      const serverEchoIds = new Set(listToCheck.map((e) => e.id));
+      const listToCheck = currentServerEchoes || echoesRef.current;
+      const serverEchoIds = new Set(
+        (listToCheck || []).filter((e) => e && e.id).map((e) => e.id)
+      );
 
       const pending = [];
       for (const draft of allDrafts) {
+        if (!draft || typeof draft !== 'object') continue;
         // If server already has this echo, cleanly remove the local draft copy
         if (draft.echoId && serverEchoIds.has(draft.echoId)) {
           await deleteDraftAudio(draft.id);
           continue;
         }
         // Don't show in recovery banner if currently being edited in open composer
-        if (draft.id === draftAudioIdRef.current && isWriting) {
+        if (draft.id === draftAudioIdRef.current && isWritingRef.current) {
           continue;
         }
         if (draft.blob || (draft.text && draft.text.trim())) {
@@ -753,23 +769,67 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     } catch (err) {
       console.warn('[Echoes] Error reconciling drafts:', err);
     }
-  }, [echoes, isWriting]);
+  }, []);
 
   // Fetch echoes on mount; decrypt encrypted texts if key is available, then reconcile local drafts
   useEffect(() => {
+    let isMounted = true;
     setLoading(true);
-    getEchoes(userId).then(async (data) => {
-      const updated = await Promise.all(
-        data.map(async (echo) => {
-          const text = echo.isEncrypted && sessionKey ? await decryptField(echo.text) : echo.text;
-          return { ...echo, text };
-        })
-      );
-      setEchoes(updated);
-      setLoading(false);
-      await refreshRecoveredDrafts(updated);
-    });
-  }, [userId, sessionKey, decryptField, refreshRecoveredDrafts]);
+    setLoadError(null);
+
+    // Bounded loading watchdog: guaranteed resolution within 5 seconds under any condition
+    const watchdogTimer = setTimeout(() => {
+      if (isMounted) {
+        console.warn('[Echoes] Bounded loading watchdog triggered after 5000ms. Forcing loading=false.');
+        setLoading(false);
+      }
+    }, 5000);
+
+    const loadEchoesData = async () => {
+      try {
+        const data = await getEchoes(userId);
+        const safeData = Array.isArray(data) ? data.filter((e) => e && typeof e === 'object') : [];
+        const updated = await Promise.all(
+          safeData.map(async (echo) => {
+            try {
+              const text =
+                echo.isEncrypted && sessionKey && typeof decryptField === 'function'
+                  ? await decryptField(echo.text)
+                  : echo.text;
+              return { ...echo, text };
+            } catch (decErr) {
+              console.warn(`[Echoes] Failed to decrypt echo ${echo?.id}:`, decErr);
+              return echo;
+            }
+          })
+        );
+        if (!isMounted) return;
+        setEchoes(updated);
+        try {
+          await refreshRecoveredDrafts(updated);
+        } catch (draftErr) {
+          console.warn('[Echoes] Error refreshing recovered drafts:', draftErr);
+        }
+      } catch (err) {
+        console.error('[Echoes] Failed to load echoes:', err);
+        if (isMounted) {
+          setLoadError('Failed to load echoes. Preserved local entries remain available.');
+        }
+      } finally {
+        if (isMounted) {
+          clearTimeout(watchdogTimer);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEchoesData();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(watchdogTimer);
+    };
+  }, [userId, sessionKey, decryptField, reloadKey, refreshRecoveredDrafts]);
 
   const playDraftBlob = (draftId, blob) => {
     if (!blob) return;
@@ -1063,6 +1123,7 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   if (loading) {
     return (
       <div
+        data-testid="echoes-loading-screen"
         style={{
           height: '100%',
           display: 'flex',
@@ -1347,6 +1408,42 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
         data-tour="echoes-write-area"
         style={{ padding: '0 20px 20px' }}
       >
+        {/* Load Error Recovery Banner */}
+        {loadError && (
+          <div
+            data-testid="echoes-load-error-banner"
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              borderRadius: 10,
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: 'var(--color-text)',
+            }}
+          >
+            <span>{loadError}</span>
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              style={{
+                background: 'none',
+                border: '1px solid var(--color-border)',
+                borderRadius: 4,
+                padding: '4px 8px',
+                color: 'var(--color-focus)',
+                cursor: 'pointer',
+                fontSize: 11,
+              }}
+            >
+              ↻ Retry
+            </button>
+          </div>
+        )}
+
         {/* Recovered Unsynced Drafts Banner */}
         {recoveredDrafts.length > 0 && (
           <div
@@ -2429,7 +2526,7 @@ function EchoCard({
 
   // Scroll card back into view when collapsing long text
   useEffect(() => {
-    if (!textExpanded && cardRef.current) {
+    if (!textExpanded && cardRef.current && typeof cardRef.current.scrollIntoView === 'function') {
       cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [textExpanded]);

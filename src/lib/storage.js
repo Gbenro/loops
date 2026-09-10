@@ -207,8 +207,15 @@ export async function deleteLoop(loopId, userId) {
 
 export async function getEchoes(userId) {
   if (!userId) {
-    const local = getLocal(ECHOES_KEY) || [];
-    return local.filter(e => (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
+    const rawLocal = getLocal(ECHOES_KEY);
+    const local = Array.isArray(rawLocal)
+      ? rawLocal.filter((e) => e && typeof e === 'object')
+      : [];
+    return local.filter(
+      (e) =>
+        (e.provenanceAuthor || 'user') === 'user' &&
+        (e.provenanceKind || 'original_echo') === 'original_echo'
+    );
   }
 
   try {
@@ -223,31 +230,43 @@ export async function getEchoes(userId) {
 
     if (error) throw error;
 
-    const echoes = data.map((row) => ({
-      id: row.id,
-      text: row.text,
-      source: row.source || 'text',
-      phase: row.phase,
-      phaseName: row.phase_name,
-      phaseType: row.phase_type || null,
-      lunarMonth: row.lunar_month,
-      dayOfCycle: row.day_of_cycle,
-      zodiac: row.zodiac,
-      illumination: row.illumination,
-      isEncrypted: row.is_encrypted || false,
-      audio_path: row.audio_path || null,
-      tags: row.tags || [],
-      linkedLoopId: row.linked_loop_id || null,
-      createdAt: row.created_at,
-      provenanceAuthor: row.provenance_author || 'user',
-      provenanceKind: row.provenance_kind || 'original_echo',
-      parentId: row.parent_id || null
-    }));
+    const echoes = (data || [])
+      .filter((row) => row && typeof row === 'object')
+      .map((row) => ({
+        id: row.id,
+        text: row.text || '',
+        source: row.source || 'text',
+        phase: row.phase,
+        phaseName: row.phase_name,
+        phaseType: row.phase_type || null,
+        lunarMonth: row.lunar_month,
+        dayOfCycle: row.day_of_cycle,
+        zodiac: row.zodiac,
+        illumination: row.illumination,
+        isEncrypted: row.is_encrypted || false,
+        audio_path: row.audio_path || null,
+        tags: row.tags || [],
+        linkedLoopId: row.linked_loop_id || null,
+        createdAt: row.created_at,
+        provenanceAuthor: row.provenance_author || 'user',
+        provenanceKind: row.provenance_kind || 'original_echo',
+        parentId: row.parent_id || null,
+      }));
 
     // Merge: keep local echoes not on server
-    const serverIds = new Set(echoes.map((e) => e.id));
-    const localEchoes = getLocal(ECHOES_KEY) || [];
-    const unsyncedLocal = localEchoes.filter((e) => !serverIds.has(e.id) && (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
+    const serverIds = new Set(echoes.filter((e) => e && e.id).map((e) => e.id));
+    const rawLocal = getLocal(ECHOES_KEY);
+    const localEchoes = Array.isArray(rawLocal)
+      ? rawLocal.filter((e) => e && typeof e === 'object')
+      : [];
+    const unsyncedLocal = localEchoes.filter(
+      (e) =>
+        e &&
+        e.id &&
+        !serverIds.has(e.id) &&
+        (e.provenanceAuthor || 'user') === 'user' &&
+        (e.provenanceKind || 'original_echo') === 'original_echo'
+    );
     const merged = [...echoes, ...unsyncedLocal];
     setLocal(ECHOES_KEY, merged);
 
@@ -259,8 +278,16 @@ export async function getEchoes(userId) {
     return merged;
   } catch (e) {
     console.warn('Failed to fetch echoes from server:', e);
-    const local = getLocal(ECHOES_KEY) || [];
-    return local.filter(e => (e.provenanceAuthor || 'user') === 'user' && (e.provenanceKind || 'original_echo') === 'original_echo');
+    const rawLocal = getLocal(ECHOES_KEY);
+    const local = Array.isArray(rawLocal)
+      ? rawLocal.filter((e) => e && typeof e === 'object')
+      : [];
+    return local.filter(
+      (e) =>
+        e &&
+        (e.provenanceAuthor || 'user') === 'user' &&
+        (e.provenanceKind || 'original_echo') === 'original_echo'
+    );
   }
 }
 

@@ -154,15 +154,31 @@ const DRAFT_STORE = 'draft_recordings';
 async function openDraftDB() {
   if (typeof indexedDB === 'undefined') return null;
   return new Promise((resolve) => {
-    const req = indexedDB.open(DRAFT_IDB_NAME, 1);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(DRAFT_STORE)) {
-        db.createObjectStore(DRAFT_STORE, { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(null);
+    const timer = setTimeout(() => resolve(null), 2000);
+    try {
+      const req = indexedDB.open(DRAFT_IDB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DRAFT_STORE)) {
+          db.createObjectStore(DRAFT_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => {
+        clearTimeout(timer);
+        resolve(req.result);
+      };
+      req.onerror = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+      req.onblocked = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+    } catch {
+      clearTimeout(timer);
+      resolve(null);
+    }
   });
 }
 
@@ -253,10 +269,23 @@ export async function getAllDraftAudio() {
     const db = await openDraftDB();
     if (!db) return [];
     return new Promise((resolve) => {
-      const tx = db.transaction(DRAFT_STORE, 'readonly');
-      const req = tx.objectStore(DRAFT_STORE).getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
+      const timer = setTimeout(() => resolve([]), 2000);
+      try {
+        const tx = db.transaction(DRAFT_STORE, 'readonly');
+        const req = tx.objectStore(DRAFT_STORE).getAll();
+        req.onsuccess = () => {
+          clearTimeout(timer);
+          const res = req.result;
+          resolve(Array.isArray(res) ? res.filter((d) => d && typeof d === 'object') : []);
+        };
+        req.onerror = () => {
+          clearTimeout(timer);
+          resolve([]);
+        };
+      } catch {
+        clearTimeout(timer);
+        resolve([]);
+      }
     });
   } catch {
     return [];
