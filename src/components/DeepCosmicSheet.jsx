@@ -362,7 +362,7 @@ function MoonSection({ lunarData, monthInfo, generatedText, phrasesLoading }) {
           marginBottom: 24,
         }}
       >
-        {monthInfo.timing.toUpperCase()} · DAY {lunarData.dayOfCycle} OF 29
+        {monthInfo.timing.toUpperCase()} · DAY {lunarData.dayOfCycle} OF {Math.max(29, lunarData.dayOfCycle)}
       </div>
 
       {phrasesLoading ? (

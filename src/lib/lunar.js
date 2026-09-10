@@ -220,9 +220,14 @@ const LUNAR_MONTH_BY_CALENDAR = [
 // Get lunar month name based on the month containing the full moon
 export function getLunarMonthName(date = new Date()) {
   const age = getMoonAge(date);
-  // Find the date of the full moon in this cycle
-  // Full moon is at age SYNODIC/2 days (half of synodic month)
-  const daysToFull = FULL_MOON_PEAK - age;
+  // If we have entered the New Moon threshold of the arriving cycle,
+  // the defining Full Moon is the upcoming one (~15 days ahead), not the prior cycle's full moon.
+  let daysToFull;
+  if (age >= SYNODIC - HALF_THRESHOLD) {
+    daysToFull = (SYNODIC - age) + FULL_MOON_PEAK;
+  } else {
+    daysToFull = FULL_MOON_PEAK - age;
+  }
   const fullMoonDate = new Date(date.getTime() + daysToFull * 24 * 60 * 60 * 1000);
   // Use the calendar month of the full moon
   const month = fullMoonDate.getMonth();
@@ -311,10 +316,14 @@ export function getLunarData(date = new Date()) {
   const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
 
   // Find current phase bounds for timing calculations
-  const currentPhase = PHASES.find((p) => age >= p.start && age < p.end) || PHASES[0];
-  const phaseDuration = currentPhase.end - currentPhase.start;
-  const phaseProgress = (age - currentPhase.start) / phaseDuration;
-  const phaseRemaining = currentPhase.end - age;
+  const isNewMoonWindow = age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD;
+  const currentPhase = isNewMoonWindow ? PHASES[0] : (PHASES.find((p) => age >= p.start && age < p.end) || PHASES[0]);
+  const phaseDuration = isNewMoonWindow ? PHASE_DURATION.threshold : (currentPhase.end - currentPhase.start);
+  const dayInPhase = isNewMoonWindow
+    ? (age >= SYNODIC - HALF_THRESHOLD ? age - (SYNODIC - HALF_THRESHOLD) : age + HALF_THRESHOLD)
+    : (age - currentPhase.start);
+  const phaseProgress = Math.max(0, Math.min(1, dayInPhase / phaseDuration));
+  const phaseRemaining = Math.max(0, phaseDuration - dayInPhase);
   const remainingHours = Math.round(phaseRemaining * 24 * 10) / 10;
 
   // Next phase info

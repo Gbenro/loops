@@ -369,12 +369,35 @@ function App() {
   // Location state — seeded from cache immediately, then updated from GPS
   const [location, setLocation] = useState(() => getCachedLocation());
 
-  // Calculate cosmic data once at app level
-  const lunarData = useMemo(() => getLunarData(), []);
+  // Cosmic date state — refreshed periodically and on app visibility
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  useEffect(() => {
+    const updateTime = () => setCurrentDate(new Date());
+    const interval = setInterval(updateTime, 60000); // refresh every minute
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        updateTime();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+    };
+  }, []);
+
+  // Calculate cosmic data at app level with reactive date
+  const lunarData = useMemo(() => getLunarData(currentDate), [currentDate]);
   // Hemisphere priority: manual profile setting > GPS > default north
   // Manual setting wins so users who explicitly choose south aren't overridden by GPS
   const hemisphere = userProfile?.hemisphere || location?.hemisphere || 'north';
-  const solarData = useMemo(() => getSolarData(new Date(), hemisphere), [hemisphere]);
+  const solarData = useMemo(() => getSolarData(currentDate, hemisphere), [currentDate, hemisphere]);
 
   // Check if user has an active cycle loop for the current cycle
   const hasActiveCycleLoop = useMemo(() => {
@@ -383,9 +406,9 @@ function App() {
       (loop) =>
         loop.scope === 'cycle' &&
         loop.status !== 'released' &&
-        loop.cycleStart === lunarData.cycleStart
+        (loop.cycleStart === lunarData.cycleStart || loop.lunarMonthOpened === lunarData.lunarMonth)
     );
-  }, [loops, lunarData?.cycleStart]);
+  }, [loops, lunarData?.cycleStart, lunarData?.lunarMonth]);
 
   // Phase-specific ceremony prompts (New Moon / Waning Crescent)
   const { showCeremony, dismissCeremony } = useCeremonyPrompt(lunarData, hasActiveCycleLoop);

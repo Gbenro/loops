@@ -164,7 +164,14 @@ const LUNAR_MONTH_BY_CALENDAR = [
 // Get lunar month name
 export function getLunarMonthName(date: Date = new Date()): string {
   const age = getMoonAge(date);
-  const daysToFull = FULL_MOON_PEAK - age;
+  // If we have entered the New Moon threshold of the arriving cycle,
+  // the defining Full Moon is the upcoming one (~15 days ahead), not the prior cycle's full moon.
+  let daysToFull: number;
+  if (age >= SYNODIC - HALF_THRESHOLD) {
+    daysToFull = (SYNODIC - age) + FULL_MOON_PEAK;
+  } else {
+    daysToFull = FULL_MOON_PEAK - age;
+  }
   const fullMoonDate = new Date(date.getTime() + daysToFull * 24 * 60 * 60 * 1000);
   const month = fullMoonDate.getMonth();
   return LUNAR_MONTH_BY_CALENDAR[month];
@@ -219,8 +226,13 @@ export function getLunarData(date: Date = new Date()) {
   const daysToNew = getDaysUntilPhase(0, date);
 
   const cycleStart = new Date(date.getTime() - age * 24 * 60 * 60 * 1000).toISOString();
-  const currentPhase = PHASES.find(p => age >= p.start && age < p.end) || PHASES[0];
-  const phaseRemaining = currentPhase.end - age;
+  const isNewMoonWindow = age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD;
+  const currentPhase = isNewMoonWindow ? PHASES[0] : (PHASES.find(p => age >= p.start && age < p.end) || PHASES[0]);
+  const phaseDuration = isNewMoonWindow ? PHASE_DURATION.threshold : (currentPhase.end - currentPhase.start);
+  const dayInPhase = isNewMoonWindow
+    ? (age >= SYNODIC - HALF_THRESHOLD ? age - (SYNODIC - HALF_THRESHOLD) : age + HALF_THRESHOLD)
+    : (age - currentPhase.start);
+  const phaseRemaining = Math.max(0, phaseDuration - dayInPhase);
   const remainingHours = Math.round(phaseRemaining * 24 * 10) / 10;
 
   return {

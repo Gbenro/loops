@@ -242,7 +242,7 @@ export function Sky({
               marginBottom: 24,
             }}
           >
-            DAY {lunarData.dayOfCycle} OF 29 ·{' '}
+            DAY {lunarData.dayOfCycle} OF {Math.max(29, lunarData.dayOfCycle)} ·{' '}
             {lunarData.phase.isFull
               ? 'AT FULL'
               : lunarData.phase.isWaning
