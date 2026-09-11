@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { saveAudio } from '../lib/audioStorage.js';
 import { getLunarData } from '../lib/lunar.js';
@@ -11,6 +11,26 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     Boolean(s && (s.is_archived === true || s.is_archived === 'true' || s.archived_at));
 
   export const isSessionActive = (s) => !isSessionArchived(s);
+
+  export const CHAT_ACTIVITY_PHASES = [
+    { minMs: 0, text: '✦ Luna is listening...', subtext: null },
+    { minMs: 4000, text: '✦ Attuning to the cosmic context...', subtext: null },
+    { minMs: 9000, text: '✦ Luna is contemplating...', subtext: null },
+    { minMs: 20000, text: '✦ Gathering threads from the Field...', subtext: null },
+    { minMs: 38000, text: '✦ Holding space for a deeper reflection...', subtext: null },
+    { minMs: 65000, text: '✦ Weaving the reflection into words...', subtext: null },
+    { minMs: 90000, text: '✦ Deepening contemplation...', subtext: 'Still listening — Luna is taking time to respond with care.' },
+    { minMs: 130000, text: '✦ Bringing the reflection into focus...', subtext: 'Still with you — finalizing thoughtful response.' },
+  ];
+
+  export function getActivityPhase(elapsedMs) {
+    for (let i = CHAT_ACTIVITY_PHASES.length - 1; i >= 0; i--) {
+      if (elapsedMs >= CHAT_ACTIVITY_PHASES[i].minMs) {
+        return CHAT_ACTIVITY_PHASES[i];
+      }
+    }
+    return CHAT_ACTIVITY_PHASES[0];
+  }
 
   export function Chat({ userId, lunarData }) {
     const [messages, setMessages] = useState([]);
@@ -25,6 +45,9 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     );
     const [selectedVoice, setSelectedVoice] = useState('luna-default');
     const [selectedVoiceModel, setSelectedVoiceModel] = useState('eleven_flash_v2_5');
+    const [failedTurnState, setFailedTurnState] = useState(null);
+    const [requestElapsedMs, setRequestElapsedMs] = useState(0);
+    const requestStartTimeRef = useRef(null);
 
     // Derived session views for active and archived conversations
     const activeSessions = sessions.filter(isSessionActive);
@@ -143,6 +166,25 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     const s = sec % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  // Track request elapsed time for dynamic activity phases
+  useEffect(() => {
+    if (!loading) {
+      setRequestElapsedMs(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      if (requestStartTimeRef.current) {
+        setRequestElapsedMs(Date.now() - requestStartTimeRef.current);
+      }
+    }, 500);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  const currentActivityPhase = useMemo(
+    () => getActivityPhase(requestElapsedMs),
+    [requestElapsedMs]
+  );
 
   // Notification feedback helper
   const showFeedback = (text, type = 'info') => {
@@ -709,7 +751,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
   // 2. Scroll to bottom on new messages
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
   }, [messages, loading]);
 
   // Save a recent voice turn as an Original User Echo (Preserves authentic user audio & provenance)
@@ -801,18 +843,22 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
   };
 
   // 3. Send message handler (guarantees responses never disappear & updates voice cache)
-  const handleSend = async (e) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || loading || !sessionId) return;
+  const handleSend = async (e, overrideText = null, overrideInputType = null, overrideMeta = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const userText = (overrideText !== null ? overrideText : input).trim();
+    if (!userText || loading || !sessionId) return;
 
-    const userText = input.trim();
-    const voiceMeta = pendingVoiceMetaRef.current;
-    const inputType = voiceMeta ? 'voice' : 'text';
+    const voiceMeta = overrideMeta !== null ? overrideMeta : pendingVoiceMetaRef.current;
+    const inputType = overrideInputType !== null ? overrideInputType : (voiceMeta ? 'voice' : 'text');
 
-    setInput('');
+    if (overrideText === null) {
+      setInput('');
+    }
     pendingVoiceMetaRef.current = null;
     setError('');
+    setFailedTurnState(null);
     setLoading(true);
+    requestStartTimeRef.current = Date.now();
 
     let vturnId = null;
     // If voice input, record to rolling 3-turn voice cache with authentic audioBlob
@@ -830,17 +876,19 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       setRecentVoiceTurns((prev) => [newVoiceTurn, ...prev].slice(0, 3));
     }
 
-    const turnMeta = { ...(voiceMeta || {}), ...(vturnId ? { voiceTurnId: vturnId } : {}) };
+    const clientTurnId = overrideMeta?.clientTurnId || `turn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const turnMeta = { ...(voiceMeta || {}), ...(vturnId ? { voiceTurnId: vturnId } : {}), clientTurnId };
 
     // Optimistically add user message to list with metadata and correlated turn ID
     const tempUserMsg = {
-      id: `temp_${Date.now()}`,
+      id: clientTurnId,
       role: 'user',
       content: userText,
       input_type: inputType,
       metadata: turnMeta,
       audio_path: voiceMeta?.audioPath || null,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      deliveryStatus: 'sending'
     };
     setMessages((prev) => [...prev, tempUserMsg]);
 
@@ -852,9 +900,10 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       // Get base URL for backend API
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
 
-      // Call Express API chat endpoint with 90s client timeout
+      // Call Express API chat endpoint with 180s client timeout (allows deep reasoning & multi-step tools)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const CLIENT_TIMEOUT_MS = 180000;
+      const timeoutId = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
 
       const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: 'POST',
@@ -867,7 +916,8 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           sessionId: sessionId,
           modelKey: selectedModel,
           inputType,
-          metadata: turnMeta
+          metadata: turnMeta,
+          clientTurnId
         }),
         signal: controller.signal
       });
@@ -898,7 +948,8 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
         input_type: inputType,
         metadata: turnMeta,
         audio_path: voiceMeta?.audioPath || null,
-        created_at: tempUserMsg.created_at
+        created_at: tempUserMsg.created_at,
+        deliveryStatus: 'confirmed'
       };
 
       const resolvedContent = data.message?.content || data.reply || '';
@@ -911,6 +962,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
         created_at: data.message?.createdAt || new Date().toISOString()
       };
 
+      setFailedTurnState(null);
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== tempUserMsg.id);
         return [...withoutTemp, confirmedUserMsg, assistantMsg];
@@ -932,17 +984,50 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       }
     } catch (err) {
       console.error('Error sending message:', err);
-      if (err.name === 'AbortError') {
-        setError('Luna reflection timed out after 90s. Please retry.');
-      } else {
-        setError(err.message || 'Connection lost. Please try again.');
-      }
-      // Remove optimistic message on error
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('timed out');
+      const errorMsg = isTimeout
+        ? "Luna reflection took longer than usual (after 180s). Luna is still with you — would you like to retry or refine your thought?"
+        : (err.message || 'Connection lost. Please try again.');
+
+      setError(errorMsg);
+
+      // PRESERVE PROMPT: Mark turn as delivery failed instead of deleting it
+      const failedTurn = {
+        ...tempUserMsg,
+        deliveryStatus: 'failed',
+        errorReason: isTimeout ? 'timeout' : 'network_error',
+        errorMessage: errorMsg
+      };
+
+      setMessages((prev) => prev.map((m) => (m.id === tempUserMsg.id ? failedTurn : m)));
+      setFailedTurnState(failedTurn);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleRetry = useCallback((failedTurn) => {
+    if (!failedTurn || loading) return;
+    const text = failedTurn.content;
+    const inputType = failedTurn.input_type || 'text';
+    const turnMeta = failedTurn.metadata || {};
+    // Cleanly remove failed turn before re-sending
+    setMessages((prev) => prev.filter((m) => m.id !== failedTurn.id));
+    setFailedTurnState(null);
+    setError('');
+    handleSend(null, text, inputType, turnMeta);
+  }, [loading, sessionId]);
+
+  const handleRefine = useCallback((failedTurn) => {
+    if (!failedTurn) return;
+    setInput(failedTurn.content);
+    setMessages((prev) => prev.filter((m) => m.id !== failedTurn.id));
+    setFailedTurnState(null);
+    setError('');
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1812,6 +1897,24 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                   {msg.content}
                 </div>
 
+                {/* Delivery failed indicator on user bubble */}
+                {msg.deliveryStatus === 'failed' && (
+                  <div
+                    data-testid="delivery-failed-badge"
+                    style={{
+                      fontSize: '10.5px',
+                      color: '#f87171',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginTop: '2px',
+                      opacity: 0.9
+                    }}
+                  >
+                    <span>⚠</span> Delivery paused
+                  </div>
+                )}
+
                 {/* Save Voice to Echo action for recent voice turns */}
                 {isVoice && (
                   <div style={{ marginTop: '2px' }}>
@@ -2073,45 +2176,125 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           );
         })}
 
-        {/* Loading state indicator */}
+        {/* Loading state indicator with dynamic activity phases */}
         {loading && (
           <div
+            data-testid="chat-loading-indicator"
             style={{
               alignSelf: 'stretch',
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
               gap: '6px',
-              padding: '8px 0'
+              padding: '10px 0',
+              animation: 'fadeIn 0.3s ease-in'
             }}
           >
-            <span style={{ fontSize: '10.5px', color: '#c4b5fd', fontFamily: 'serif' }}>
-              ✦ Luna is contemplating...
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
-              <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out' }}></div>
-              <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.2s' }}></div>
-              <div className="pulse-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.4s' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                data-testid="activity-phase-text"
+                style={{
+                  fontSize: '11px',
+                  color: '#c4b5fd',
+                  fontFamily: 'serif',
+                  fontStyle: 'italic',
+                  letterSpacing: '0.02em',
+                  transition: 'opacity 0.4s ease'
+                }}
+              >
+                {currentActivityPhase.text}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div className="pulse-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out' }}></div>
+                <div className="pulse-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.2s' }}></div>
+                <div className="pulse-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#c4b5fd', animation: 'pulse 1.4s infinite ease-in-out 0.4s' }}></div>
+              </div>
             </div>
+            {currentActivityPhase.subtext && (
+              <span
+                data-testid="activity-phase-subtext"
+                style={{
+                  fontSize: '10px',
+                  color: 'rgba(196, 181, 253, 0.7)',
+                  fontFamily: 'sans-serif',
+                  paddingLeft: '12px'
+                }}
+              >
+                {currentActivityPhase.subtext}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Error state */}
+        {/* Error state & Recoverable Failure Actions */}
         {error && (
           <div
+            data-testid="chat-error-banner"
             style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              padding: '14px 18px',
+              borderRadius: '12px',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
               color: '#fca5a5',
-              fontSize: 'var(--font-xs)',
-              lineHeight: '1.5',
-              maxWidth: '90%',
-              margin: '10px auto 0'
+              fontSize: '12px',
+              lineHeight: '1.6',
+              maxWidth: '92%',
+              margin: '12px auto 0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
             }}
           >
-            {error}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <span style={{ fontSize: '14px', lineHeight: 1 }}>⏳</span>
+              <span data-testid="chat-error-text">{error}</span>
+            </div>
+            {failedTurnState && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  data-testid="chat-retry-btn"
+                  onClick={() => handleRetry(failedTurnState)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(167, 139, 250, 0.2)',
+                    border: '1px solid rgba(167, 139, 250, 0.4)',
+                    color: '#e9d5ff',
+                    fontSize: '11.5px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <span>↻</span> Retry Reflection
+                </button>
+                <button
+                  type="button"
+                  data-testid="chat-refine-btn"
+                  onClick={() => handleRefine(failedTurnState)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    fontSize: '11.5px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <span>✎</span> Refine Thought
+                </button>
+              </div>
+            )}
           </div>
         )}
 

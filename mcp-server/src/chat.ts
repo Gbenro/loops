@@ -644,7 +644,7 @@ export function extractDatabaseMutation(toolName: string, toolArgs: any, parsedR
 
 // Inference timeout: prevents indefinite hangs when upstream providers stall.
 // Reasoning models (DeepSeek, o-series) may take 30-60s; 90s provides headroom.
-const INFERENCE_TIMEOUT_MS = 90_000;
+const INFERENCE_TIMEOUT_MS = 150_000; // 150s: allows deep reasoning and multi-step tool calls
 
 // 1. Anthropic Claude Adapter
 async function callClaude(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
@@ -1259,7 +1259,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
   // 5. POST /api/chat - Orchestration endpoint
   app.post('/api/chat', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
-    const { message, sessionId: clientSessionId, modelKey, inputType = 'text', metadata = {} } = req.body;
+    const { message, sessionId: clientSessionId, modelKey, inputType = 'text', metadata = {}, clientTurnId } = req.body;
 
     if (!message || !message.trim()) {
       res.status(400).json({ error: 'Message content is required' });
@@ -1343,17 +1343,25 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           .eq('id', sessionId);
       }
 
-      // Save user message to database with input provenance
-      userMessageId = generateId('msg');
-      await supabase.from('chat_messages').insert({
-        id: userMessageId,
-        session_id: sessionId,
-        user_id: user.id,
-        role: 'user',
-        content: message.trim(),
-        input_type: inputType === 'voice' ? 'voice' : 'text',
-        metadata: metadata || {}
-      });
+      // Save user message to database with input provenance (idempotent if retrying)
+      userMessageId = clientTurnId || generateId('msg');
+      const { data: existingUserMsg } = await supabase
+        .from('chat_messages')
+        .select('id')
+        .eq('id', userMessageId)
+        .maybeSingle();
+
+      if (!existingUserMsg) {
+        await supabase.from('chat_messages').insert({
+          id: userMessageId,
+          session_id: sessionId,
+          user_id: user.id,
+          role: 'user',
+          content: message.trim(),
+          input_type: inputType === 'voice' ? 'voice' : 'text',
+          metadata: metadata || {}
+        });
+      }
 
       // Load and normalize conversation history (collapse consecutive identical-role orphan turns)
       const { data: history } = await supabase
