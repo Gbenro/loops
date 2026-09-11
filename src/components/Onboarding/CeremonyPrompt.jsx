@@ -10,18 +10,46 @@ const STORAGE_KEYS = {
 };
 
 // Check if a ceremony has been shown for the current cycle
-function hasShownCeremony(type, cycleStart) {
+function hasShownCeremony(type, cycleStart, lunarData) {
   const key =
     type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
   const lastCycle = localStorage.getItem(key);
-  return lastCycle === cycleStart;
+  if (!lastCycle) return false;
+
+  // 1. Direct exact string match (preserves unit test compatibility e.g. '2026-03-01')
+  if (lastCycle === cycleStart) return true;
+
+  // 2. Stable cycle key match (e.g. Harvest_2026)
+  if (lunarData?.lunarMonth) {
+    const cycleYear = cycleStart ? new Date(cycleStart).getUTCFullYear() : new Date().getUTCFullYear();
+    const currentStableKey = `${lunarData.lunarMonth}_${cycleYear}`;
+    if (lastCycle === currentStableKey) return true;
+    const savedStable = localStorage.getItem(`${key}_stable`);
+    if (savedStable === currentStableKey) return true;
+  }
+
+  // 3. Timestamp proximity match (< 5 days) to handle conjunction boundary drift
+  try {
+    const lastTime = new Date(lastCycle).getTime();
+    const curTime = new Date(cycleStart).getTime();
+    if (!isNaN(lastTime) && !isNaN(curTime) && Math.abs(lastTime - curTime) < 5 * 24 * 3600 * 1000) {
+      return true;
+    }
+  } catch {}
+
+  return false;
 }
 
 // Mark a ceremony as shown for the current cycle
-function markCeremonyShown(type, cycleStart) {
+function markCeremonyShown(type, cycleStart, lunarData) {
   const key =
     type === 'new-moon' ? STORAGE_KEYS.lastNewMoonCycle : STORAGE_KEYS.lastWaningCrescentCycle;
   localStorage.setItem(key, cycleStart);
+  if (lunarData?.lunarMonth) {
+    const cycleYear = cycleStart ? new Date(cycleStart).getUTCFullYear() : new Date().getUTCFullYear();
+    const stableKey = `${lunarData.lunarMonth}_${cycleYear}`;
+    localStorage.setItem(`${key}_stable`, stableKey);
+  }
 }
 
 // Hook to manage ceremony state
@@ -38,9 +66,30 @@ export function useCeremonyPrompt(lunarData, hasActiveCycleLoop = false) {
     const onboardingCompleted = localStorage.getItem('onboardingCompleted');
     if (!onboardingCompleted) return;
 
+    if (hasActiveCycleLoop) {
+      setShowCeremony((prev) => (prev === 'new-moon' ? null : prev));
+      if (phaseKey === 'new') return;
+    }
+
     // New Moon ceremony - show if in new moon phase and no cycle loop exists
     if (phaseKey === 'new' && !hasActiveCycleLoop) {
-      if (!hasShownCeremony('new-moon', cycleStart)) {
+      // Check 12h dismissal cooldown from either CeremonyPrompt or NewMoonRitual
+      try {
+        const cooldown = localStorage.getItem('ceremony_dismissed_until_new-moon');
+        if (cooldown && new Date() < new Date(cooldown)) return;
+
+        const cycleYear = cycleStart ? new Date(cycleStart).getUTCFullYear() : new Date().getUTCFullYear();
+        const stableKey = `${lunarData.lunarMonth || 'current'}_${cycleYear}`;
+        const ritualDismissed = localStorage.getItem(`luna_ritual_dismissed_${stableKey}`);
+        if (ritualDismissed && new Date() < new Date(ritualDismissed)) return;
+
+        if (cycleStart) {
+          const legacyDismissed = localStorage.getItem(`luna_ritual_dismissed_${cycleStart}`);
+          if (legacyDismissed && new Date() < new Date(legacyDismissed)) return;
+        }
+      } catch {}
+
+      if (!hasShownCeremony('new-moon', cycleStart, lunarData)) {
         setShowCeremony('new-moon');
         return;
       }
@@ -48,19 +97,33 @@ export function useCeremonyPrompt(lunarData, hasActiveCycleLoop = false) {
 
     // Waning Crescent ceremony - show at end of cycle
     if (phaseKey === 'waning-crescent') {
-      if (!hasShownCeremony('waning-crescent', cycleStart)) {
+      try {
+        const cooldown = localStorage.getItem('ceremony_dismissed_until_waning-crescent');
+        if (cooldown && new Date() < new Date(cooldown)) return;
+      } catch {}
+
+      if (!hasShownCeremony('waning-crescent', cycleStart, lunarData)) {
         setShowCeremony('waning-crescent');
         return;
       }
     }
   }, [lunarData, hasActiveCycleLoop]);
 
-  const dismissCeremony = useCallback(() => {
+  const dismissCeremony = useCallback((cooldownHours = 12) => {
     if (showCeremony && lunarData?.cycleStart) {
-      markCeremonyShown(showCeremony, lunarData.cycleStart);
+      markCeremonyShown(showCeremony, lunarData.cycleStart, lunarData);
+      try {
+        const until = new Date(Date.now() + cooldownHours * 3600 * 1000).toISOString();
+        localStorage.setItem(`ceremony_dismissed_until_${showCeremony}`, until);
+        if (showCeremony === 'new-moon') {
+          const cycleYear = new Date(lunarData.cycleStart).getUTCFullYear();
+          const stableKey = `${lunarData.lunarMonth || 'current'}_${cycleYear}`;
+          localStorage.setItem(`luna_ritual_dismissed_${stableKey}`, until);
+        }
+      } catch {}
     }
     setShowCeremony(null);
-  }, [showCeremony, lunarData?.cycleStart]);
+  }, [showCeremony, lunarData]);
 
   return { showCeremony, dismissCeremony };
 }

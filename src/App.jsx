@@ -5,7 +5,7 @@ const IS_V2 = true;
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
-import { migrateLocalToServer, getLoops, getEchoes, clearLocalCache } from './lib/storage.js';
+import { migrateLocalToServer, getLoops, getEchoes, clearLocalCache, reconcileCycleLoops } from './lib/storage.js';
 import { clearRhythmCache } from './lib/rhythm.js';
 import {
   getSessionPhrases,
@@ -355,8 +355,22 @@ function App() {
   const [tutorialMode, setTutorialMode] = useState('guide');
   const [phrases, setPhrases] = useState(FALLBACK_PHRASES);
   const [phrasesLoading, setPhrasesLoading] = useState(true);
-  const [loops, setLoops] = useState([]);
-  const [echoes, setEchoes] = useState([]);
+  const [loops, setLoops] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cosmic_loops_v1');
+      return cached ? reconcileCycleLoops(JSON.parse(cached)) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [echoes, setEchoes] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cosmic_echoes_v1');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const { initFromProfile, status: encryptionStatus } = useEncryption();
   const { registerTabSwitcher } = useOnboarding();
@@ -408,6 +422,14 @@ function App() {
         loop.status === 'active' &&
         (loop.cycleStart === lunarData.cycleStart ||
           loop.lunarMonthOpened === lunarData.lunarMonth ||
+          (loop.cycleStart &&
+            Math.abs(
+              new Date(loop.cycleStart).getTime() - new Date(lunarData.cycleStart).getTime()
+            ) < 5 * 24 * 3600 * 1000) ||
+          (loop.openedAt &&
+            Math.abs(
+              new Date(loop.openedAt).getTime() - new Date(lunarData.cycleStart).getTime()
+            ) < 5 * 24 * 3600 * 1000) ||
           (lunarData.lunarMonth === 'Harvest' &&
             loop.lunarMonthOpened === 'Sturgeon' &&
             (!loop.openedAt ||

@@ -13,6 +13,7 @@ import {
   generateId,
   saveEcho,
   getEchoes,
+  reconcileCycleLoops,
 } from '../lib/storage.js';
 import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
 import { getLunarData } from '../lib/lunar.js';
@@ -46,7 +47,14 @@ const PHASE_ORDER = [
 ];
 
 export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
-  const [loops, setLoops] = useState([]);
+  const [loops, setLoops] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cosmic_loops_v1');
+      return cached ? reconcileCycleLoops(JSON.parse(cached)) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [showRitual, setShowRitual] = useState(false);
   const [showLoopSheet, setShowLoopSheet] = useState(false);
@@ -58,14 +66,23 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
   const { encryptField, decryptField, sessionKey } = useEncryption();
 
   const getRitualDismissKey = useCallback(() => {
-    const cycleAnchor = lunarData?.cycleStart || lunarData?.lunarMonth || 'current';
+    const cycleYear = lunarData?.cycleStart
+      ? new Date(lunarData.cycleStart).getUTCFullYear()
+      : new Date().getUTCFullYear();
+    const cycleAnchor = lunarData?.lunarMonth ? `${lunarData.lunarMonth}_${cycleYear}` : (lunarData?.cycleStart || 'current');
     return `luna_ritual_dismissed_${cycleAnchor}`;
   }, [lunarData]);
 
   const [ritualDismissedUntil, setRitualDismissedUntil] = useState(() => {
     try {
-      const cycleAnchor = lunarData?.cycleStart || lunarData?.lunarMonth || 'current';
-      const saved = localStorage.getItem(`luna_ritual_dismissed_${cycleAnchor}`);
+      const cycleYear = lunarData?.cycleStart
+        ? new Date(lunarData.cycleStart).getUTCFullYear()
+        : new Date().getUTCFullYear();
+      const stableKey = `${lunarData?.lunarMonth || 'current'}_${cycleYear}`;
+      const saved =
+        localStorage.getItem(`luna_ritual_dismissed_${stableKey}`) ||
+        localStorage.getItem('ceremony_dismissed_until_new-moon') ||
+        (lunarData?.cycleStart ? localStorage.getItem(`luna_ritual_dismissed_${lunarData.cycleStart}`) : null);
       return saved ? new Date(saved) : null;
     } catch {
       return null;
@@ -570,6 +587,8 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           (l.lunarMonthOpened === selectedCycleName ||
             (selectedCycleName === lunarData.lunarMonth &&
               (l.cycleStart === lunarData.cycleStart ||
+                (l.cycleStart && lunarData.cycleStart && Math.abs(new Date(l.cycleStart).getTime() - new Date(lunarData.cycleStart).getTime()) < 5 * 24 * 3600 * 1000) ||
+                (l.openedAt && lunarData.cycleStart && Math.abs(new Date(l.openedAt).getTime() - new Date(lunarData.cycleStart).getTime()) < 5 * 24 * 3600 * 1000) ||
                 (lunarData.lunarMonth === 'Harvest' &&
                   l.lunarMonthOpened === 'Sturgeon' &&
                   (!l.openedAt ||
@@ -587,7 +606,15 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       const key = getRitualDismissKey();
       let dismissedDeadline = ritualDismissedUntil;
       try {
-        const saved = localStorage.getItem(key);
+        const cycleYear = lunarData?.cycleStart
+          ? new Date(lunarData.cycleStart).getUTCFullYear()
+          : new Date().getUTCFullYear();
+        const stableKey = `${lunarData?.lunarMonth || 'current'}_${cycleYear}`;
+        const saved =
+          localStorage.getItem(key) ||
+          localStorage.getItem(`luna_ritual_dismissed_${stableKey}`) ||
+          localStorage.getItem('ceremony_dismissed_until_new-moon') ||
+          (lunarData?.cycleStart ? localStorage.getItem(`luna_ritual_dismissed_${lunarData.cycleStart}`) : null);
         if (saved) {
           const parsed = new Date(saved);
           if (!isNaN(parsed.getTime())) dismissedDeadline = parsed;
@@ -598,7 +625,7 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
       }
       setShowRitual(true);
     }
-  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil, getRitualDismissKey]);
+  }, [isNewMoon, cycleLoop, loading, ritualDismissedUntil, getRitualDismissKey, lunarData]);
 
   const isCurrentCycle = selectedCycleName === lunarData.lunarMonth;
   const canCyclePrev = selectedCycleIndex < allUniqueCycles.length - 1;
@@ -706,7 +733,12 @@ export function Loops({ userId, phrases, phrasesLoading, hemisphere = 'north' })
           onSetIntention={createCycleLoop}
           onDismiss={(until) => {
             try {
-              localStorage.setItem(getRitualDismissKey(), until.toISOString());
+              const untilIso = until.toISOString();
+              localStorage.setItem(getRitualDismissKey(), untilIso);
+              localStorage.setItem('ceremony_dismissed_until_new-moon', untilIso);
+              if (lunarData?.cycleStart) {
+                localStorage.setItem(`luna_ritual_dismissed_${lunarData.cycleStart}`, untilIso);
+              }
             } catch (e) {
               console.warn('Failed to persist ritual dismissal:', e);
             }

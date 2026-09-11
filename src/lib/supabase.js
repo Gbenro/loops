@@ -16,7 +16,7 @@ function openIDB() {
     req.onupgradeneeded = (e) => {
       e.target.result.createObjectStore(IDB_STORE);
     };
-    req.onsuccess = (e) => resolve(e.target.result);
+    req.onsuccess = (e) => resolve(e?.target?.result ?? req.result);
     req.onerror = () => reject(req.error);
   });
 }
