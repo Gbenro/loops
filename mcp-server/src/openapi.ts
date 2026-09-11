@@ -1326,7 +1326,8 @@ export const LUNA_OPENAPI_SPEC = {
                   "reviewerModel": { "type": "string" },
                   "includeReviewer": { "type": "boolean" },
                   "simulated": { "type": "boolean" },
-                  "jobId": { "type": "string" }
+                  "jobId": { "type": "string" },
+                  "executorArtifactOverride": { "type": "string", "description": "Optional executor artifact to evaluate against derived criteria for regression/quality-gate testing" }
                 }
               }
             }
@@ -1346,6 +1347,8 @@ export const LUNA_OPENAPI_SPEC = {
                     "prompt": { "type": "string" },
                     "task": { "type": "string" },
                     "aggregate": { "type": "object" },
+                    "signals": { "type": "object", "description": "Disentangled pipelineHealth, isolationSafety, and semanticTaskSuccess signals" },
+                    "semanticEvaluation": { "type": "object", "description": "Detailed criteria evaluations and quality gate results" },
                     "verification": { "type": "object" },
                     "isSidecarLabOnly": { "type": "boolean" }
                   }

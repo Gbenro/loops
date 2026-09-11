@@ -8,6 +8,8 @@ export {
   LAB_CANDIDATE_POOL,
   classifyLabTask,
   resolveLabRoute,
+  deriveTaskCriteria,
+  evaluateArtifactAgainstCriteria,
   executeLabTask,
   runLabBenchmark,
   saveLabTelemetry,

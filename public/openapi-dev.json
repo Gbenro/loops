@@ -894,6 +894,10 @@
                   },
                   "jobId": {
                     "type": "string"
+                  },
+                  "executorArtifactOverride": {
+                    "type": "string",
+                    "description": "Optional executor artifact to evaluate against derived criteria for regression/quality-gate testing"
                   }
                 }
               }
@@ -925,6 +929,14 @@
                     },
                     "aggregate": {
                       "type": "object"
+                    },
+                    "signals": {
+                      "type": "object",
+                      "description": "Disentangled pipelineHealth, isolationSafety, and semanticTaskSuccess signals"
+                    },
+                    "semanticEvaluation": {
+                      "type": "object",
+                      "description": "Detailed criteria evaluations and quality gate results"
                     },
                     "verification": {
                       "type": "object"

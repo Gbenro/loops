@@ -10,7 +10,9 @@ import {
   getLabTelemetry,
   listLabExperiments,
   clearLabTelemetry,
-  registerModelRoutingLabRoutes
+  registerModelRoutingLabRoutes,
+  deriveTaskCriteria,
+  evaluateArtifactAgainstCriteria
 } from './modelRoutingLab.js';
 import {
   MODEL_REGISTRY,
@@ -369,5 +371,187 @@ describe('Luna Sidecar Intelligent Model-Routing Lab Test Suite', () => {
     expect(execResult.task).toBe('Design a system architecture');
     expect(execResult.prompt).toBe('Design a system architecture');
     expect(execResult.verification.outcome).toBe('passed');
+  });
+
+  // ─── 9. Quality Gate Semantic Task Verification & Regression Fixtures (iss_1789136068952_qumg) ─
+
+  const REGRESSION_PROMPT = `Design and implement a robust, durable, multi-tenant job-queue architecture for the Luna sidecar with: (1) state machine lifecycle (pending, running, completed, dead-letter), (2) leases, fencing tokens, and heartbeats to prevent split-brain execution, (3) idempotency and exactly-once execution semantics, (4) background reaper and dead-letter recovery with exponential backoff, (5) append-only crash-safe telemetry and persistent audit store, (6) provider-neutral model adapter with request_id, token, latency, and cost accounting, (7) explicit planner, executor, and reviewer multi-role orchestration with isolation safeguards, (8) circuit breaker escalation policies and operator failure alerts, (9) comprehensive failure-mode analysis, (10) pseudocode and PostgreSQL schema transaction boundaries.`;
+
+  const REGRESSION_TRIVIAL_STUB = `[EXECUTOR ARTIFACT — openrouter-qwen-3.6-35b-a3b]
+function executeBoundedTask(input) {
+  // Implementation generated under planner constraints
+  const result = { success: true, processedAt: new Date().toISOString() };
+  return result;
+}`;
+
+  const POSITIVE_CONTROL_ARTIFACT = `[EXECUTOR ARTIFACT — openrouter-qwen-3.6-35b-a3b]
+# Durable Multi-Tenant Job-Queue Architecture Specification
+
+## 1. State Machine & Lifecycle Transitions
+- Complete state transition graph: pending -> claimed -> running -> completed or failed -> retry -> dead_letter.
+- Monotonic state invariants enforced via relational check constraints.
+
+## 2. Distributed Leases, Fencing Tokens & Heartbeat Protocol
+- Workers acquire short-lived bounded leases (TTL: 30s) refreshed via periodic heartbeats.
+- Monotonic fencing_token incremented on every lease acquisition; any write with a stale fencing token is rejected.
+
+## 3. Idempotency & Exactly-Once Semantics
+- Deterministic deduplication hash derived from tenant_id + idempotency_key + payload_hash.
+- Strict unique constraint in the PostgreSQL deduplication table ensuring deduplicated delivery.
+
+## 4. Reaper Process & Dead-Letter Recovery
+- Background worker scans for leases with lease_expires_at < NOW().
+- Exponential backoff with jitter up to max retries before routing to dead_letter queue.
+
+## 5. Append-Only Crash-Safe Telemetry Store
+- Separate write-ahead audit event log capturing every transition, timestamp, and worker identity.
+- Guaranteed durability across process restarts and unhandled exceptions.
+
+## 6. Provider-Neutral Model Adapter & Cost Tracking
+- Unified abstraction layer for model invocation.
+- Records request_id, input/output tokens, wall-clock latency, and exact micro-cent USD pricing.
+
+## 7. Planner-Executor-Reviewer Orchestration & Safety Fencing
+- Multi-role pipeline with physical role separation.
+- Strict isolation sandbox preventing mutations to personal Luna Field tables.
+
+## 8. Circuit Breakers & Escalation Policy
+- Automatic circuit trip if consecutive failure threshold exceeded.
+- Direct paging and alerts dispatched to operators.
+
+## 9. Failure Mode & Disaster Recovery Runbook
+- Detailed analysis of network partitions, worker crashes, database failover, and poison pills.
+
+## 10. Database Schema & Transaction Boundaries
+\`\`\`sql
+BEGIN;
+CREATE TABLE queue_jobs (
+  job_id VARCHAR(64) PRIMARY KEY,
+  tenant_id VARCHAR(64) NOT NULL,
+  state VARCHAR(32) NOT NULL DEFAULT 'pending',
+  fencing_token BIGINT NOT NULL DEFAULT 0,
+  lease_owner VARCHAR(64),
+  lease_expires_at TIMESTAMPTZ,
+  retry_count INT NOT NULL DEFAULT 0,
+  payload JSONB NOT NULL
+);
+CREATE TABLE job_events (
+  event_id BIGSERIAL PRIMARY KEY,
+  job_id VARCHAR(64) REFERENCES queue_jobs(job_id),
+  event_type VARCHAR(64) NOT NULL,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMIT;
+\`\`\`
+\`\`\`typescript
+export async function claimJob(workerId: string): Promise<Job | null> {
+  // BEGIN TRANSACTION; SELECT FOR UPDATE SKIP LOCKED; UPDATE with fencing_token + 1; COMMIT;
+}
+\`\`\`
+`;
+
+  it('derives explicit, fine-grained mandatory criteria from prompt specifications', () => {
+    const criteria = deriveTaskCriteria(REGRESSION_PROMPT, '', 'architecture_planning');
+    expect(criteria.length).toBe(10);
+    expect(criteria.every(c => c.isMandatory)).toBe(true);
+
+    const titles = criteria.map(c => c.title);
+    expect(titles.some(t => t.includes('state machine'))).toBe(true);
+    expect(titles.some(t => t.includes('leases'))).toBe(true);
+    expect(titles.some(t => t.includes('idempotency'))).toBe(true);
+    expect(titles.some(t => t.includes('reaper'))).toBe(true);
+    expect(titles.some(t => t.includes('telemetry'))).toBe(true);
+    expect(titles.some(t => t.includes('provider-neutral'))).toBe(true);
+    expect(titles.some(t => t.includes('orchestration'))).toBe(true);
+    expect(titles.some(t => t.includes('escalation'))).toBe(true);
+    expect(titles.some(t => t.includes('failure-mode'))).toBe(true);
+    expect(titles.some(t => t.includes('pseudocode'))).toBe(true);
+  });
+
+  it('REGRESSION FIXTURE (exp_1789135667215_n8pfa): rejects trivial executeBoundedTask() stub and prevents false-positive PASS', async () => {
+    // Execute the regression prompt with the trivial stub returned by the executor
+    const telemetry = await executeLabTask({
+      prompt: REGRESSION_PROMPT,
+      taskClass: 'architecture_planning',
+      harness: 'simulated',
+      includeReviewer: true,
+      simulated: true,
+      executorArtifactOverride: REGRESSION_TRIVIAL_STUB
+    });
+
+    // 1. Decoupled signals verification
+    expect(telemetry.signals).toBeDefined();
+    // Pipeline health is healthy (API/models responded)
+    expect(telemetry.signals?.pipelineHealth.status).toBe('healthy');
+    expect(telemetry.signals?.pipelineHealth.stepsCompleted).toEqual(['planner', 'executor', 'reviewer']);
+    // Isolation safety passed (zero personal field writes)
+    expect(telemetry.signals?.isolationSafety.outcome).toBe('passed');
+    expect(telemetry.signals?.isolationSafety.personalFieldMutations).toBe(0);
+    // BUT semantic task success must be FAILED
+    expect(telemetry.signals?.semanticTaskSuccess.outcome).toBe('failed');
+    expect(telemetry.signals?.semanticTaskSuccess.mandatoryPassed).toBe(false);
+    expect(telemetry.signals?.semanticTaskSuccess.failedCount).toBe(10);
+
+    // 2. Aggregate verification outcome must be failed (NO FALSE POSITIVE PASS)
+    expect(telemetry.verification.outcome).toBe('failed');
+    expect(telemetry.verification.score).toBeLessThanOrEqual(45);
+
+    // 3. Reviewer critique must document failed criteria
+    expect(telemetry.roles.reviewer?.output).toContain('FAILED (Needs Revision)');
+    expect(telemetry.verification.critique).toContain('Semantic Quality Gate REJECTED');
+
+    // 4. Traceability & Telemetry preserved
+    expect(telemetry.experimentId).toMatch(/^exp_/);
+    expect(telemetry.aggregate.totalTokens).toBeGreaterThan(0);
+    expect(telemetry.aggregate.totalCostUsd).toBeGreaterThanOrEqual(0);
+    expect(telemetry.isSidecarLabOnly).toBe(true);
+  });
+
+  it('POSITIVE CONTROL: substantive architectural artifact passes semantic quality gate with high score', async () => {
+    // Execute with substantive architecture artifact fulfilling all 10 criteria
+    const telemetry = await executeLabTask({
+      prompt: REGRESSION_PROMPT,
+      taskClass: 'architecture_planning',
+      harness: 'simulated',
+      includeReviewer: true,
+      simulated: true,
+      executorArtifactOverride: POSITIVE_CONTROL_ARTIFACT
+    });
+
+    // 1. Decoupled signals
+    expect(telemetry.signals?.pipelineHealth.status).toBe('healthy');
+    expect(telemetry.signals?.isolationSafety.outcome).toBe('passed');
+    expect(telemetry.signals?.semanticTaskSuccess.outcome).toBe('passed');
+    expect(telemetry.signals?.semanticTaskSuccess.mandatoryPassed).toBe(true);
+    expect(telemetry.signals?.semanticTaskSuccess.passedCount).toBe(10);
+
+    // 2. Overall verification passes
+    expect(telemetry.verification.outcome).toBe('passed');
+    expect(telemetry.verification.score).toBeGreaterThanOrEqual(88);
+
+    // 3. Reviewer verdict reflects passed criteria
+    expect(telemetry.roles.reviewer?.output).toContain('PASSED');
+    expect(telemetry.verification.checks).toContain('Criterion [crit_1] state machine lifecycle (pending, running, completed, dead-letter): PASSED');
+  });
+
+  it('strictly prohibits overall task PASS when any mandatory criterion fails', () => {
+    const criteria = deriveTaskCriteria(REGRESSION_PROMPT, '', 'architecture_planning');
+
+    // Artifact missing idempotency and reaper criteria
+    const partialArtifact = `[EXECUTOR ARTIFACT]
+# Partial Architecture
+- State machine with pending, running, completed, dead-letter.
+- Leases with heartbeats and fencing tokens.
+- Telemetry persistent store with append-only logs.
+- Provider-neutral adapter with request_id and cost accounting.
+- Planner, executor, reviewer orchestration with isolation safeguards.
+- Escalation circuit breakers and alerts.
+- Failure-mode analysis for network partitions.
+- Pseudocode and SQL schema transactions with BEGIN and COMMIT.
+`;
+    const evaluation = evaluateArtifactAgainstCriteria(partialArtifact, criteria, 'architecture_planning');
+    expect(evaluation.mandatoryPassed).toBe(false);
+    expect(evaluation.outcome).toBe('failed');
+    expect(evaluation.score).toBeLessThanOrEqual(45);
   });
 });
