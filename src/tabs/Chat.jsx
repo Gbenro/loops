@@ -43,8 +43,12 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     const [selectedModel, setSelectedModel] = useState(
       localStorage.getItem('luna_model_key') || 'anthropic-fable'
     );
-    const [selectedVoice, setSelectedVoice] = useState('luna-default');
-    const [selectedVoiceModel, setSelectedVoiceModel] = useState('eleven_flash_v2_5');
+    const [selectedVoice, setSelectedVoice] = useState(
+      () => (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole'
+    );
+    const [selectedVoiceModel, setSelectedVoiceModel] = useState(
+      () => (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5'
+    );
     const [failedTurnState, setFailedTurnState] = useState(null);
     const [requestElapsedMs, setRequestElapsedMs] = useState(0);
     const requestStartTimeRef = useRef(null);
@@ -1235,7 +1239,11 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
             <select
               id="voice-select"
               value={selectedVoice}
-              onChange={(e) => setSelectedVoice(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedVoice(val);
+                try { localStorage.setItem('luna_voice_key', val); } catch (_) {}
+              }}
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -1250,27 +1258,29 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 fontFamily: 'sans-serif'
               }}
             >
-              <option value="luna-default">Luna Default (Kokoro · af_nova)</option>
-              <optgroup label="ElevenLabs Voices (Experimental)" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
+              <option value="eleven-nicole">Luna Default — Nicole (Soft Whisper · Poet)</option>
+              <optgroup label="ElevenLabs Voices" style={{ background: '#0d1527', color: '#c4b5fd', fontWeight: 'bold' }}>
                 <option value="eleven-rachel">ElevenLabs — Rachel (Calm & Reflective)</option>
                 <option value="eleven-bella">ElevenLabs — Bella (Warm & Expressive)</option>
                 <option value="eleven-antoni">ElevenLabs — Antoni (Modulated & Thoughtful)</option>
-                <option value="eleven-nicole">ElevenLabs — Nicole (Soft Whisper · Poet)</option>
                 <option value="eleven-adam">ElevenLabs — Adam (Deep & Resonant)</option>
               </optgroup>
-              <optgroup label="Fallback & Benchmarks" style={{ background: '#0d1527', color: '#a78bfa', fontWeight: 'bold' }}>
+              <optgroup label="Alternative Engines" style={{ background: '#0d1527', color: '#a78bfa', fontWeight: 'bold' }}>
+                <option value="luna-default">Kokoro · af_nova</option>
                 <option value="browser-web-speech">Browser Native Web Speech</option>
               </optgroup>
             </select>
 
-            {selectedVoice !== 'luna-default' && (
+            {selectedVoice !== 'eleven-nicole' && (
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedVoice('luna-default');
+                  setSelectedVoice('eleven-nicole');
+                  try { localStorage.setItem('luna_voice_key', 'eleven-nicole'); } catch (_) {}
                   setSelectedVoiceModel('eleven_flash_v2_5');
+                  try { localStorage.setItem('luna_voice_model_key', 'eleven_flash_v2_5'); } catch (_) {}
                 }}
-                title="Reset to Luna Default Voice"
+                title="Reset to Luna Default Voice (Nicole)"
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -1306,7 +1316,11 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
             <select
               id="voice-tier-select"
               value={selectedVoiceModel}
-              onChange={(e) => setSelectedVoiceModel(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedVoiceModel(val);
+                try { localStorage.setItem('luna_voice_model_key', val); } catch (_) {}
+              }}
               title="Select TTS model tier: Flash v2.5 (Cheap/Economy ~385ms), Turbo v2.5 (Standard ~415ms), or Multilingual v2 (Premium Flagship ~1,100ms)"
               style={{
                 flex: 1,

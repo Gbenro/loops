@@ -709,13 +709,13 @@ export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
     provider: 'elevenlabs',
     modelId: 'eleven_flash_v2_5',
     displayName: 'ElevenLabs — Flash v2.5 (Fast & Low Latency)',
-    defaultVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    defaultVoice: 'piTKgcLEGmPE4e6mEKli', // Nicole (Soft Whisper · Poet)
     costPer1MChars: 15.00,
     supportedVoices: [
+      'piTKgcLEGmPE4e6mEKli', // Nicole
       '21m00Tcm4TlvDq8ikWAM', // Rachel
       'EXAVITQu4vr4xnSDxMaL', // Bella
       'ErXwobaYiN019PkySvjV', // Antoni
-      'piTKgcLEGmPE4e6mEKli', // Nicole
       'pNInz6obpgDQGcFmaJgB'  // Adam
     ],
     enabled: true
@@ -725,7 +725,7 @@ export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
     provider: 'elevenlabs',
     modelId: 'eleven_turbo_v2_5',
     displayName: 'ElevenLabs — Turbo v2.5 (Expressive & Low Latency)',
-    defaultVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    defaultVoice: 'piTKgcLEGmPE4e6mEKli', // Nicole
     costPer1MChars: 30.00,
     supportedVoices: [
       '21m00Tcm4TlvDq8ikWAM', // Rachel
@@ -741,7 +741,7 @@ export const TTS_MODEL_REGISTRY: TtsModelConfig[] = [
     provider: 'elevenlabs',
     modelId: 'eleven_multilingual_v2',
     displayName: 'ElevenLabs — Multilingual v2 (Rich Emotion)',
-    defaultVoice: '21m00Tcm4TlvDq8ikWAM',
+    defaultVoice: 'piTKgcLEGmPE4e6mEKli',
     costPer1MChars: 30.00,
     supportedVoices: [
       '21m00Tcm4TlvDq8ikWAM',

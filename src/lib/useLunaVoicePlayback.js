@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 
 export const DEFAULT_API_BASE_URL = 'https://loops-production-e1d5.up.railway.app';
+export const DEFAULT_VOICE_ID = 'eleven-nicole';
+export const DEFAULT_VOICE_MODEL = 'eleven_flash_v2_5';
 const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || DEFAULT_API_BASE_URL;
 
 let sharedAudioCtx = null;
@@ -246,8 +248,10 @@ export function useLunaVoicePlayback() {
   const playMessage = useCallback(async (messageId, text, options = {}) => {
     if (!text || !text.trim()) return;
 
-    const requestedVoice = options.voiceId || 'luna-default';
-    const requestedModel = options.model || 'default';
+    const savedVoice = typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null;
+    const savedModel = typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null;
+    const requestedVoice = options.voiceId || savedVoice || DEFAULT_VOICE_ID;
+    const requestedModel = options.model || savedModel || DEFAULT_VOICE_MODEL;
     const cacheKey = `${messageId}:${requestedVoice}:${requestedModel}`;
 
     // If already playing this message, pause/stop toggle
@@ -295,9 +299,9 @@ export function useLunaVoicePlayback() {
         body: JSON.stringify({
           text: text.trim(),
           messageId,
-          voiceId: options.voiceId,
-          provider: options.provider,
-          model: options.model,
+          voiceId: requestedVoice,
+          provider: options.provider || (requestedVoice.startsWith('eleven-') ? 'elevenlabs' : undefined),
+          model: requestedModel,
           segmentationMode: options.segmentationMode || 'sentence'
         })
       });

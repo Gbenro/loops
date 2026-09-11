@@ -335,7 +335,7 @@ export async function synthesizeLunaVoice(req: VoiceOutputRequest): Promise<Voic
         (req.voiceId && ELEVENLABS_VOICE_MAP[req.voiceId]) ||
         req.voiceId ||
         ttsModelConfig.defaultVoice ||
-        '21m00Tcm4TlvDq8ikWAM';
+        'piTKgcLEGmPE4e6mEKli'; // Nicole (poetic/soft) default
 
       // Support multi-model resilience: try specified or flash/multilingual
       const candidateModels = (req.model && req.model.startsWith('eleven_'))

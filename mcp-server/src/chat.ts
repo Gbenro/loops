@@ -1862,8 +1862,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
   app.get('/api/chat/voices', authOpt, async (req: Request, res: Response) => {
     const hasElevenLabs = Boolean(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY || process.env.XI_API_KEY);
     res.json({
-      defaultVoice: 'af_nova',
-      defaultProvider: 'openrouter',
+      defaultVoice: 'eleven-nicole',
+      defaultProvider: hasElevenLabs ? 'elevenlabs' : 'openrouter',
       hasElevenLabsConfigured: hasElevenLabs,
       voices: [
         {
