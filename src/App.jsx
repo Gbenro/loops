@@ -634,8 +634,17 @@ function App() {
       setShowTutorial(true);
       // Clean up URL
       window.history.replaceState(null, '', window.location.pathname);
+    } else if (
+      isAdmin &&
+      (params.get('tab') === 'admin' ||
+        params.get('admin') === 'true' ||
+        hash === 'admin' ||
+        hash === 'admin-dashboard')
+    ) {
+      setShowAdmin(true);
+      window.history.replaceState(null, '', window.location.pathname);
     }
-  }, [loading]);
+  }, [loading, isAdmin]);
 
   // Detect precise location for accurate hemisphere + future moonrise/set
   useEffect(() => {
@@ -1055,6 +1064,8 @@ function App() {
               solarData={solarData}
               loops={loops}
               echoes={echoes}
+              isAdmin={isAdmin}
+              onOpenAdmin={() => setShowAdmin(true)}
               onOpenTutorial={(mode = 'guide') => {
                 setTutorialMode(mode);
                 setShowTutorial(true);
@@ -1144,29 +1155,6 @@ function App() {
               </button>
             );
           })}
-          {isAdmin && (
-            <button
-              onClick={() => setShowAdmin(true)}
-              aria-label="Admin dashboard"
-              style={{
-                padding: '16px 14px 12px',
-                background: 'none',
-                border: 'none',
-                color: 'rgba(167,139,250,0.4)',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <span style={{ fontSize: 20 }}>⚡</span>
-              <span style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                ADMIN
-              </span>
-            </button>
-          )}
         </nav>
 
         {/* Tutorial — shown once to all users, re-openable from settings */}

@@ -29,6 +29,8 @@ export function Sky({
   solarData,
   loops = [],
   echoes = [],
+  isAdmin,
+  onOpenAdmin,
   onOpenTutorial,
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -556,6 +558,8 @@ export function Sky({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         user={user}
+        isAdmin={isAdmin}
+        onOpenAdmin={onOpenAdmin}
         onSignOut={onSignOut}
         onProfileUpdate={onProfileUpdate}
         onOpenTutorial={onOpenTutorial}

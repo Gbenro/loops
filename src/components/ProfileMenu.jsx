@@ -17,7 +17,7 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 
 const IS_V2 = true;
 
-export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate, onOpenTutorial }) {
+export function ProfileMenu({ isOpen, onClose, user, isAdmin, onOpenAdmin, onSignOut, onProfileUpdate, onOpenTutorial }) {
   const [activeSection, setActiveSection] = useState('account');
   const [_profile, setProfile] = useState(null); // Profile state for future display
   const [loading, setLoading] = useState(true);
@@ -651,6 +651,73 @@ export function ProfileMenu({ isOpen, onClose, user, onSignOut, onProfileUpdate,
                       <span>Data synced to cloud</span>
                     </div>
                   </div>
+
+                  {/* System Administration (only for authorized admin users) */}
+                  {isAdmin && (
+                    <div
+                      data-testid="profile-menu-admin-section"
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: 'rgba(167, 139, 250, 0.08)',
+                        border: '1px solid rgba(167, 139, 250, 0.3)',
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          color: '#c4b5fd',
+                          marginBottom: 8,
+                          letterSpacing: '0.12em',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <span>⚡</span> SYSTEM ADMINISTRATION
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--color-text-muted)',
+                          marginBottom: 12,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Authorized admin access for user management and system settings.
+                      </div>
+                      <button
+                        type="button"
+                        data-testid="profile-menu-admin-btn"
+                        onClick={() => {
+                          onClose?.();
+                          onOpenAdmin?.();
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 14px',
+                          borderRadius: 8,
+                          border: '1px solid rgba(167, 139, 250, 0.5)',
+                          background: 'rgba(167, 139, 250, 0.2)',
+                          color: '#f5f3ff',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 16 }}>⚡</span> Open Admin Dashboard
+                        </span>
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#c4b5fd' }}>LAUNCH ↗</span>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Data Management */}
                   <div
