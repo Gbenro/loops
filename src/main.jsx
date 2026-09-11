@@ -21,6 +21,33 @@ if (Capacitor.isNativePlatform()) {
       }
     });
   }
+} else if ('serviceWorker' in navigator) {
+  // Web PWA Service Worker lifecycle: auto-reload when updated service worker activates
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (reg) {
+        reg.update().catch(() => {});
+      }
+    });
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      navigator.serviceWorker.getRegistration().then((reg) => {
+        if (reg) {
+          reg.update().catch(() => {});
+        }
+      });
+    }
+  });
 }
 
 // Auto-seed when ?seed=true is in the URL (dev convenience)

@@ -165,7 +165,7 @@ export function TourOverlay() {
     placement: step.placement || 'auto',
     isFixed: step.isFixed || false,
     disableBeacon: true,
-    spotlightClicks: false,
+    spotlightClicks: true,
     styles: {
       spotlight: {
         borderRadius: 12,
@@ -196,8 +196,19 @@ export function TourOverlay() {
       return;
     }
 
-    // Handle step navigation (both after step completes and if target not found)
-    if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+    // Handle target not found gracefully without trapping the screen
+    if (type === EVENTS.TARGET_NOT_FOUND) {
+      console.warn('[Tour] Target not found for step', index);
+      if (index + 1 < steps.length) {
+        setStepIndex(index + 1);
+      } else {
+        endTour(false);
+      }
+      return;
+    }
+
+    // Handle step navigation after step completes
+    if (type === EVENTS.STEP_AFTER) {
       // Calculate direction based on action
       const isPrev = action === ACTIONS.PREV;
       const nextStepIndex = index + (isPrev ? -1 : 1);
@@ -226,6 +237,8 @@ export function TourOverlay() {
       run={true}
       continuous={true}
       spotlightPadding={8}
+      disableOverlayClose={false}
+      disableCloseOnEsc={false}
       onEvent={handleJoyrideCallback}
       tooltipComponent={Tooltip}
       styles={{

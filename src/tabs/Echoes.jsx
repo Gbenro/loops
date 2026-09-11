@@ -160,7 +160,30 @@ const MAX_TAGS = 3;
 
 export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }) {
   const { encryptField, decryptField, sessionKey } = useEncryption();
-  const [echoes, setEchoes] = useState([]);
+  const [echoes, setEchoes] = useState(() => {
+    try {
+      const storageObj =
+        typeof window !== 'undefined' && window.localStorage
+          ? window.localStorage
+          : typeof localStorage !== 'undefined'
+            ? localStorage
+            : null;
+      const raw = storageObj ? storageObj.getItem('cosmic_echoes_v1') : null;
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (e) =>
+              e &&
+              typeof e === 'object' &&
+              (e.provenanceAuthor || 'user') === 'user' &&
+              (e.provenanceKind || 'original_echo') === 'original_echo'
+          )
+        : [];
+    } catch (err) {
+      console.warn('[Echoes] Local storage parse failed:', err);
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -1120,25 +1143,6 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (loading) {
-    return (
-      <div
-        data-testid="echoes-loading-screen"
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--color-bg)',
-          color: 'var(--color-text-muted)',
-          fontSize: 18,
-        }}
-      >
-        ◎
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
@@ -1180,6 +1184,19 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               phaseName={lunarData.phase.name}
             />{' '}
             {lunarData.phase.name.toUpperCase()} · DAY {lunarData.dayOfCycle}
+            {loading && (
+              <span
+                data-testid="echoes-sync-badge"
+                style={{
+                  marginLeft: 6,
+                  color: 'var(--color-focus)',
+                  opacity: 0.8,
+                  fontSize: 9,
+                }}
+              >
+                · SYNCING
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -2051,7 +2068,22 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
           padding: `0 20px ${audioQueue.length > 0 ? '100px' : '40px'}`,
         }}
       >
-        {echoes.length === 0 ? (
+        {loading && echoes.length === 0 ? (
+          <div
+            data-testid="echoes-loading-screen"
+            style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              color: 'var(--color-text-muted)',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              letterSpacing: '0.08em',
+            }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.8 }}>◎</div>
+            SYNCING ECHOES...
+          </div>
+        ) : echoes.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
