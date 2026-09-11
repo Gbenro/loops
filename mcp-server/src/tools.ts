@@ -2357,7 +2357,6 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'propose_candidate_memory': {
-      const id = generateServerId('rm');
       const provenance = args.provenance || 'observed';
       // Immediate activation is reserved for explicit statements that establish a durable interaction preference, boundary, or orientation
       const isDurableExplicit = provenance === 'explicit' && (args.type === 'interaction_preference' || args.type === 'orientation');
@@ -2365,15 +2364,40 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const confidence = typeof args.confidence === 'number' ? args.confidence : (provenance === 'explicit' ? 0.95 : 0.70);
       const evidence = Array.isArray(args.evidenceRecordIds) ? args.evidenceRecordIds : [];
 
-      const insertData = {
+      // 1. Idempotency & Deduplication: check if exact statement already exists for user
+      if (args.statement) {
+        const { data: existingRows } = await supabase
+          .from('relational_memories')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('statement', args.statement.trim())
+          .limit(1);
+
+        if (existingRows && existingRows.length > 0) {
+          const existing = existingRows[0];
+          // Merge evidence IDs safely without creating duplicate memory
+          const existingEv = Array.isArray(existing.evidence_record_ids) ? existing.evidence_record_ids : [];
+          const mergedEv = Array.from(new Set([...existingEv, ...evidence]));
+          if (mergedEv.length > existingEv.length) {
+            await supabase
+              .from('relational_memories')
+              .update({ evidence_record_ids: mergedEv, updated_at: new Date().toISOString() })
+              .eq('id', existing.id);
+            existing.evidence_record_ids = mergedEv;
+          }
+          return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(existing), null, 2) }] };
+        }
+      }
+
+      const id = generateServerId('rm');
+      const insertData: any = {
         id,
         user_id: userId,
-        statement: args.statement,
+        statement: args.statement ? args.statement.trim() : '',
         type: args.type,
         evidence_record_ids: evidence,
         confidence,
         strength: 1,
-        recurrence_count: 1,
         lifecycle_status,
         provenance,
         user_action_status: 'active',
@@ -2383,7 +2407,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         updated_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase.from('relational_memories').insert(insertData).select();
+      // 2. Schema resilience: Attempt insert with recurrence_count, fall back gracefully if missing from schema cache
+      let insertPayload: any = { ...insertData, recurrence_count: 1 };
+      let { data, error } = await supabase.from('relational_memories').insert(insertPayload).select();
+
+      if (error && (error.code === 'PGRST204' || error.message?.includes('recurrence_count') || error.details?.includes('recurrence_count'))) {
+        const fallbackRes = await supabase.from('relational_memories').insert(insertData).select();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
+
       if (error) throw error;
       const createdRow = data?.[0] || insertData;
       return { content: [{ type: 'text', text: JSON.stringify(mapRelationalMemory(createdRow), null, 2) }] };
@@ -2420,7 +2453,6 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       const updateData: any = {
         strength: newStrength,
-        recurrence_count: newRecurrence,
         lifecycle_status: newLifecycleStatus,
         evidence_record_ids: mergedEvidence,
         last_seen_at: new Date().toISOString(),
@@ -2431,12 +2463,25 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         updateData.statement = args.statementUpdate;
       }
 
-      const { data, error } = await supabase
+      // Schema resilience: attempt update with recurrence_count, fall back if missing from schema cache
+      let updatePayload: any = { ...updateData, recurrence_count: newRecurrence };
+      let { data, error } = await supabase
         .from('relational_memories')
-        .update(updateData)
+        .update(updatePayload)
         .eq('id', args.id)
         .eq('user_id', userId)
         .select();
+
+      if (error && (error.code === 'PGRST204' || error.message?.includes('recurrence_count') || error.details?.includes('recurrence_count'))) {
+        const fallbackRes = await supabase
+          .from('relational_memories')
+          .update(updateData)
+          .eq('id', args.id)
+          .eq('user_id', userId)
+          .select();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) throw error;
       if (!data || data.length === 0) {

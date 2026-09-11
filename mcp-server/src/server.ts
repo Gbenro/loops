@@ -961,6 +961,46 @@ app.post('/api/reflections/conversation', authenticateRest, async (req, res) => 
   }
 });
 
+// ─── Relational Memories REST Endpoints ─────────────────────────────────────
+
+app.get('/api/relational-memories', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'search_relational_memories', req.query, (req as any).devUserId);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/relational-memories', authenticateRest, async (req, res) => {
+  try {
+    const result = await executeTool(req.body.supabaseClient, 'propose_candidate_memory', req.body, (req as any).devUserId);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/relational-memories/:id/reinforce', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, id: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'reinforce_relational_memory', args, (req as any).devUserId);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/relational-memories/:id/status', authenticateRest, async (req, res) => {
+  try {
+    const args = { ...req.body, id: req.params.id };
+    const result = await executeTool(req.body.supabaseClient, 'update_relational_memory_status', args, (req as any).devUserId);
+    res.json(JSON.parse(result.content[0].text));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 registerDevBridgeRoutes(app, authenticateRest);
 registerModelRoutingLabRoutes(app, authenticateRest);
