@@ -388,6 +388,8 @@ export interface LabExperimentTelemetry {
   timestamp: string;
   taskClass: TaskClass;
   harness: HarnessSubstrate;
+  prompt?: string;
+  task?: string;
   roles: {
     planner?: RoleExecutionTelemetry;
     executor: RoleExecutionTelemetry;
@@ -532,7 +534,8 @@ async function executeRoleStep(
  * Strictly isolated: NEVER writes to personal Field (loops, echoes, reflections, chat).
  */
 export async function executeLabTask(params: {
-  prompt: string;
+  prompt?: string;
+  task?: string;
   taskClass?: TaskClass;
   harness?: HarnessSubstrate;
   plannerModel?: string;
@@ -542,8 +545,9 @@ export async function executeLabTask(params: {
   simulated?: boolean;
   jobId?: string;
 }): Promise<LabExperimentTelemetry> {
+  const effectivePrompt = (params.prompt || params.task || '').trim();
   const experimentId = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const plan = resolveLabRoute(params.taskClass || params.prompt, {
+  const plan = resolveLabRoute(params.taskClass || effectivePrompt, {
     harness: params.harness,
     plannerModel: params.plannerModel,
     executorModel: params.executorModel,
@@ -558,7 +562,7 @@ export async function executeLabTask(params: {
   let plannerTelemetry: RoleExecutionTelemetry | undefined = undefined;
   let plannerPlanText = '';
   if (plan.roles.planner) {
-    plannerTelemetry = await executeRoleStep('planner', plan.roles.planner, params.prompt, '', simulated);
+    plannerTelemetry = await executeRoleStep('planner', plan.roles.planner, effectivePrompt, '', simulated);
     plannerPlanText = plannerTelemetry.output;
   }
 
@@ -566,7 +570,7 @@ export async function executeLabTask(params: {
   const executorTelemetry = await executeRoleStep(
     'executor',
     plan.roles.executor,
-    params.prompt,
+    effectivePrompt,
     plannerPlanText,
     simulated
   );
@@ -581,7 +585,7 @@ export async function executeLabTask(params: {
     reviewerTelemetry = await executeRoleStep(
       'reviewer',
       plan.roles.reviewer,
-      params.prompt,
+      effectivePrompt,
       `Plan:\n${plannerPlanText}\n\nExecution:\n${executorTelemetry.output}`,
       simulated
     );
@@ -615,6 +619,8 @@ export async function executeLabTask(params: {
     timestamp: new Date().toISOString(),
     taskClass: plan.taskClass,
     harness: plan.harness,
+    prompt: effectivePrompt,
+    task: effectivePrompt,
     roles: {
       planner: plannerTelemetry,
       executor: executorTelemetry,
@@ -805,11 +811,12 @@ export function registerModelRoutingLabRoutes(app: any, authenticateRest: any): 
   // 3. Resolve Route (dry-run recommendation without execution)
   app.post('/api/dev/lab/route', authenticateRest, (req: Request, res: Response) => {
     try {
-      const { prompt, taskClass, harness, plannerModel, executorModel, reviewerModel, includeReviewer } = req.body || {};
-      if (!prompt && !taskClass) {
-        return res.status(400).json({ error: 'Either prompt or taskClass is required.' });
+      const { prompt, task, taskClass, harness, plannerModel, executorModel, reviewerModel, includeReviewer } = req.body || {};
+      const effectivePrompt = (prompt || task || '').trim();
+      if (!effectivePrompt && !taskClass) {
+        return res.status(400).json({ error: 'Either prompt (or task) or taskClass is required.' });
       }
-      const plan = resolveLabRoute(taskClass || prompt, {
+      const plan = resolveLabRoute(taskClass || effectivePrompt, {
         harness,
         plannerModel,
         executorModel,
@@ -825,12 +832,14 @@ export function registerModelRoutingLabRoutes(app: any, authenticateRest: any): 
   // 4. Execute Sidecar Lab Task
   app.post('/api/dev/lab/execute', authenticateRest, async (req: Request, res: Response) => {
     try {
-      const { prompt, taskClass, harness, plannerModel, executorModel, reviewerModel, includeReviewer, simulated, jobId } = req.body || {};
-      if (!prompt) {
-        return res.status(400).json({ error: 'prompt is required.' });
+      const { prompt, task, taskClass, harness, plannerModel, executorModel, reviewerModel, includeReviewer, simulated, jobId } = req.body || {};
+      const effectivePrompt = (prompt || task || '').trim();
+      if (!effectivePrompt && !taskClass) {
+        return res.status(400).json({ error: 'prompt or task is required.' });
       }
       const result = await executeLabTask({
-        prompt,
+        prompt: effectivePrompt,
+        task: effectivePrompt,
         taskClass,
         harness,
         plannerModel,

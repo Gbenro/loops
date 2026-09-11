@@ -1271,7 +1271,8 @@ export const LUNA_OPENAPI_SPEC = {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "prompt": { "type": "string" },
+                  "prompt": { "type": "string", "description": "The task prompt or specification to route" },
+                  "task": { "type": "string", "description": "The task prompt or specification to route (interchangeable with prompt)" },
                   "taskClass": { "type": "string" },
                   "harness": { "type": "string" },
                   "plannerModel": { "type": "string" },
@@ -1315,9 +1316,9 @@ export const LUNA_OPENAPI_SPEC = {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["prompt"],
                 "properties": {
-                  "prompt": { "type": "string" },
+                  "prompt": { "type": "string", "description": "The task prompt or specification to execute" },
+                  "task": { "type": "string", "description": "The task prompt or specification to execute (interchangeable with prompt)" },
                   "taskClass": { "type": "string" },
                   "harness": { "type": "string" },
                   "plannerModel": { "type": "string" },
@@ -1342,6 +1343,8 @@ export const LUNA_OPENAPI_SPEC = {
                     "experimentId": { "type": "string" },
                     "taskClass": { "type": "string" },
                     "harness": { "type": "string" },
+                    "prompt": { "type": "string" },
+                    "task": { "type": "string" },
                     "aggregate": { "type": "object" },
                     "verification": { "type": "object" },
                     "isSidecarLabOnly": { "type": "boolean" }

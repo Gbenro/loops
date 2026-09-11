@@ -326,4 +326,48 @@ describe('Luna Sidecar Intelligent Model-Routing Lab Test Suite', () => {
     const benchOp = LUNA_DEV_OPENAPI_SPEC.paths['/api/dev/lab/benchmark'].post;
     expect(benchOp.operationId).toBe('run_lab_benchmark');
   });
+
+  // ─── 8. Schema & Parameter Compatibility (task ↔ prompt bridge) ───────────
+
+  it('accepts task field interchangeably with prompt in executeLabTask and HTTP routes', async () => {
+    // 1. Function level with task only (no prompt field)
+    const result = await executeLabTask({
+      task: 'Design a resilient multi-tenant webhook dispatcher with retry policies and queue isolation.',
+      taskClass: 'architecture_planning',
+      harness: 'simulated',
+      simulated: true
+    });
+
+    expect(result.task).toBe('Design a resilient multi-tenant webhook dispatcher with retry policies and queue isolation.');
+    expect(result.prompt).toBe('Design a resilient multi-tenant webhook dispatcher with retry policies and queue isolation.');
+    expect(result.roles.planner).toBeDefined();
+    expect(result.roles.executor).toBeDefined();
+
+    // 2. HTTP route level verification with { task: '...' }
+    let routeHandler;
+    let executeHandler;
+    const mockApp = {
+      get: vi.fn(),
+      post: vi.fn((path, auth, handler) => {
+        if (path === '/api/dev/lab/route') routeHandler = handler;
+        if (path === '/api/dev/lab/execute') executeHandler = handler;
+      })
+    };
+    registerModelRoutingLabRoutes(mockApp, vi.fn());
+
+    // Test /api/dev/lab/route with { task: '...' }
+    let jsonResult;
+    const mockRes1 = { json: vi.fn((d) => { jsonResult = d; }), status: vi.fn().mockReturnThis() };
+    routeHandler({ body: { task: 'Design a system architecture', taskClass: 'architecture_planning' } }, mockRes1);
+    expect(jsonResult.taskClass).toBe('architecture_planning');
+    expect(jsonResult.roles.planner).toBeDefined();
+
+    // Test /api/dev/lab/execute with { task: '...' }
+    let execResult;
+    const mockRes2 = { json: vi.fn((d) => { execResult = d; }), status: vi.fn().mockReturnThis() };
+    await executeHandler({ body: { task: 'Design a system architecture', taskClass: 'architecture_planning', simulated: true } }, mockRes2);
+    expect(execResult.task).toBe('Design a system architecture');
+    expect(execResult.prompt).toBe('Design a system architecture');
+    expect(execResult.verification.outcome).toBe('passed');
+  });
 });

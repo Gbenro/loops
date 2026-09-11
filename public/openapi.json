@@ -1069,6 +1069,15 @@
                   },
                   "branch": {
                     "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "connected"
+                    ],
+                    "default": "pending",
+                    "description": "Initial session lifecycle state. Defaults to 'pending' for unclaimed assignments where active authority is minted on claim."
                   }
                 },
                 "required": [
@@ -1198,6 +1207,569 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DevEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/sessions/{id}/claim": {
+      "post": {
+        "operationId": "claim_dev_session",
+        "summary": "Atomically Claim Pending Dev Session",
+        "description": "Atomically claims an unclaimed pending Dev Session, mints a fresh ephemeral token (dtk_), and activates 30-minute rolling authority.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Session ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string",
+                    "default": "gemini"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Claimed session and fresh ephemeral token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "$ref": "#/components/schemas/DevSession"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/agent/pending-sessions": {
+      "get": {
+        "operationId": "list_pending_dev_sessions",
+        "summary": "List Pending Dev Sessions",
+        "description": "Lists pending and active development sessions for discovery with minimal metadata and zero Personal Field access.",
+        "responses": {
+          "200": {
+            "description": "List of pending sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "issueId": {
+                            "type": "string"
+                          },
+                          "agent": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/status": {
+      "get": {
+        "operationId": "get_lab_status",
+        "summary": "Get Model Routing Lab Status",
+        "description": "Returns operational status and telemetry summary of the isolated sidecar model routing lab.",
+        "responses": {
+          "200": {
+            "description": "Lab status information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "sidecarMode": {
+                      "type": "string"
+                    },
+                    "totalExperimentsRecorded": {
+                      "type": "integer"
+                    },
+                    "candidateCount": {
+                      "type": "integer"
+                    },
+                    "personalFieldMutationsAllowed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/taxonomy": {
+      "get": {
+        "operationId": "get_lab_taxonomy",
+        "summary": "Get Task Taxonomy and Candidate Pool",
+        "description": "Returns standardized task taxonomy definitions, role allocation policies, and candidate model pool.",
+        "responses": {
+          "200": {
+            "description": "Taxonomy definitions and candidate pool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taxonomy": {
+                      "type": "object"
+                    },
+                    "candidatePool": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/route": {
+      "post": {
+        "operationId": "resolve_lab_route",
+        "summary": "Resolve Multi-Role Route Recommendation",
+        "description": "Dry-run analysis resolving planner, executor, and optional reviewer model assignments and harness without executing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "The task prompt or specification to route"
+                  },
+                  "task": {
+                    "type": "string",
+                    "description": "The task prompt or specification to route (interchangeable with prompt)"
+                  },
+                  "taskClass": {
+                    "type": "string"
+                  },
+                  "harness": {
+                    "type": "string"
+                  },
+                  "plannerModel": {
+                    "type": "string"
+                  },
+                  "executorModel": {
+                    "type": "string"
+                  },
+                  "reviewerModel": {
+                    "type": "string"
+                  },
+                  "includeReviewer": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved multi-role route plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskClass": {
+                      "type": "string"
+                    },
+                    "harness": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "object"
+                    },
+                    "rationale": {
+                      "type": "string"
+                    },
+                    "estimatedCostBaseline": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/execute": {
+      "post": {
+        "operationId": "execute_lab_task",
+        "summary": "Execute Sidecar Lab Multi-Role Task",
+        "description": "Executes a bounded task through the isolated sidecar pipeline with zero mutations to personal Field.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "The task prompt or specification to execute"
+                  },
+                  "task": {
+                    "type": "string",
+                    "description": "The task prompt or specification to execute (interchangeable with prompt)"
+                  },
+                  "taskClass": {
+                    "type": "string"
+                  },
+                  "harness": {
+                    "type": "string"
+                  },
+                  "plannerModel": {
+                    "type": "string"
+                  },
+                  "executorModel": {
+                    "type": "string"
+                  },
+                  "reviewerModel": {
+                    "type": "string"
+                  },
+                  "includeReviewer": {
+                    "type": "boolean"
+                  },
+                  "simulated": {
+                    "type": "boolean"
+                  },
+                  "jobId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete lab experiment telemetry record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experimentId": {
+                      "type": "string"
+                    },
+                    "taskClass": {
+                      "type": "string"
+                    },
+                    "harness": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "task": {
+                      "type": "string"
+                    },
+                    "aggregate": {
+                      "type": "object"
+                    },
+                    "verification": {
+                      "type": "object"
+                    },
+                    "isSidecarLabOnly": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/benchmark": {
+      "post": {
+        "operationId": "run_lab_benchmark",
+        "summary": "Run Comparative Multi-Model Benchmark Matrix",
+        "description": "Evaluates candidate models across standardized taxonomy tasks and generates a comparative benchmark matrix.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskClasses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "candidateKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "harness": {
+                    "type": "string"
+                  },
+                  "iterationsPerCandidate": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Benchmark comparative matrix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "benchmarkId": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "summary": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/experiments": {
+      "get": {
+        "operationId": "list_lab_experiments",
+        "summary": "List Recorded Lab Experiments",
+        "description": "Retrieves recent lab experiment runs and telemetry without personal chat or Field coupling.",
+        "parameters": [
+          {
+            "name": "taskClass",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of lab experiment telemetry records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/experiments/{id}": {
+      "get": {
+        "operationId": "get_lab_experiment",
+        "summary": "Get Single Lab Experiment Telemetry",
+        "description": "Retrieves detailed telemetry for a single experiment run by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Experiment telemetry record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/voice/transcribe": {
+      "post": {
+        "operationId": "transcribe_audio",
+        "summary": "Transcribe Voice Audio",
+        "description": "Transcribes an audio recording (WebM, WAV, OGG, MP4, FLAC) using Luna's resilient multi-provider speech-to-text pipeline with server-side operational diagnostics.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "audio/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audioBase64": {
+                    "type": "string",
+                    "description": "Base64 encoded audio bytes"
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "description": "MIME type (e.g. audio/webm)"
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "description": "Original file name"
+                  }
+                },
+                "required": [
+                  "audioBase64"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transcription result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "latencyMs": {
+                      "type": "integer"
+                    },
+                    "detectedFormat": {
+                      "type": "string"
+                    },
+                    "byteCount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "provider",
+                    "latencyMs"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing audio payload (too short, empty, or corrupt)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
                 }
               }
             }
