@@ -2971,6 +2971,180 @@ export const LUNA_LAB_OPENAPI_SPEC = {
     }
   ],
   paths: {
+    "/api/dev/lab/attention/models": {
+      get: {
+        operationId: "get_attention_lab_models",
+        summary: "List Supported OpenRouter Models",
+        description: "Discovers all valid, supported frontier and open-weight models available in Attention Lab with aliases and context windows.",
+        responses: {
+          "200": {
+            description: "Supported model catalog",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    total: { type: "integer" },
+                    defaultModel: { type: "string" },
+                    models: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          key: { type: "string" },
+                          displayName: { type: "string" },
+                          provider: { type: "string" },
+                          modelId: { type: "string" },
+                          capabilityTier: { type: "string" },
+                          contextWindow: { type: "integer" },
+                          isPinned: { type: "boolean" },
+                          aliases: { type: "array", items: { type: "string" } }
+                        },
+                        required: ["key", "displayName", "provider", "modelId"]
+                      }
+                    }
+                  },
+                  required: ["total", "models"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/sessions/{id}/pause": {
+      post: {
+        operationId: "pause_lab_session",
+        summary: "Pause Experiment Session",
+        description: "Pauses the experiment session, preserving completed runs/artifacts without launching additional runs.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "Session ID"
+          }
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  reason: { type: "string", description: "Reason for pausing" }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Paused session record",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    status: { type: "string" },
+                    pausedAt: { type: "string" },
+                    pauseReason: { type: "string" }
+                  },
+                  required: ["id", "status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/sessions/{id}/resume": {
+      post: {
+        operationId: "resume_lab_session",
+        summary: "Resume Experiment Session",
+        description: "Resumes a paused experiment session to allow additional comparison runs.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "Session ID"
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Resumed session record",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    status: { type: "string" }
+                  },
+                  required: ["id", "status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/issues": {
+      post: {
+        operationId: "report_lab_issue",
+        summary: "Report Issue to Gemini Developer",
+        description: "Allows Luna Lab GPT to dispatch an issue, anomaly, or task directly to Gemini in the Development Service queue.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "Clear issue title" },
+                  description: { type: "string", description: "Detailed description of observation or request" },
+                  priority: { type: "string", enum: ["critical", "high", "medium", "low"], default: "high" },
+                  sessionId: { type: "string", description: "Optional associated Lab experiment session ID" },
+                  runId: { type: "string", description: "Optional associated comparison run ID" },
+                  acceptanceCriteria: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Specific verification criteria"
+                  },
+                  metadata: { type: "object", description: "Additional context key-value pairs" }
+                },
+                required: ["title"]
+              }
+            }
+          }
+        },
+        responses: {
+          "201": {
+            description: "Queued issue confirmation",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    created: { type: "boolean" },
+                    issueId: { type: "string" },
+                    assignedAgent: { type: "string" },
+                    status: { type: "string" },
+                    title: { type: "string" },
+                    message: { type: "string" }
+                  },
+                  required: ["created", "issueId", "assignedAgent", "status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dev/lab/attention/status": {
       get: {
         operationId: "get_attention_lab_status",

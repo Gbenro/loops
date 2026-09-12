@@ -400,7 +400,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
   }
 ];
 
-const MODEL_ALIASES: Record<string, string> = {
+export const MODEL_ALIASES: Record<string, string> = {
   // Anthropic Aliases
   'anthropic-fable': 'anthropic-fable-5',
   'claude-fable-5': 'anthropic-fable-5',
@@ -410,6 +410,9 @@ const MODEL_ALIASES: Record<string, string> = {
   'claude-sonnet-5': 'anthropic-sonnet-5',
   'sonnet-5': 'anthropic-sonnet-5',
   'anthropic-sonnet-5': 'anthropic-sonnet-5',
+  'openrouter-anthropic-sonnet-5': 'anthropic-sonnet-5',
+  'openrouter-anthropic-fable-5': 'anthropic-fable-5',
+  'openrouter-anthropic-opus-5': 'anthropic-opus-5',
   'claude-opus-5': 'anthropic-opus-5',
   'opus-5': 'anthropic-opus-5',
   'anthropic-opus': 'anthropic-opus-5',
