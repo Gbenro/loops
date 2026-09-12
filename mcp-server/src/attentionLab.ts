@@ -10,7 +10,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { appendDevEvent, DevEvent } from './devBridge.js';
+import { appendDevEvent, DevEvent, createDevIssue } from './devBridge.js';
 import { getSupabaseService } from './db.js';
 import { MODEL_REGISTRY, MODEL_ALIASES, ModelConfig } from './models.js';
 
@@ -2862,44 +2862,50 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       }
       const userId = (req as any).devUserId || 'a7def673-5786-4d52-833f-2e7e2dbc7b05';
 
-      const issueId = `iss_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const issueRow = {
-        id: issueId,
-        user_id: userId,
-        title: title.trim(),
-        description: description || `Issue reported from Luna Lab GPT for session ${sessionId || 'unspecified'}`,
-        priority: priority || 'high',
-        status: 'queued',
-        assigned_agent: 'gemini',
-        acceptance_criteria: Array.isArray(acceptanceCriteria) && acceptanceCriteria.length > 0
-          ? acceptanceCriteria
-          : ['Investigate reported Attention Lab anomaly and report resolution back to Lunar Lab GPT.'],
-        metadata: {
-          source: 'luna_lab_gpt',
-          sessionId,
-          runId,
-          reportedAt: new Date().toISOString(),
-          ...(metadata || {})
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      if (sb) {
-        try {
-          await sb.from('dev_issues').insert(issueRow);
-        } catch (dbErr) {
-          console.warn('[AttentionLab] Notice inserting dev_issue from Lab GPT:', dbErr);
+      let fullDescription = description || `Issue reported from Luna Lab GPT for session ${sessionId || 'unspecified'}`;
+      if (sessionId || runId || (metadata && Object.keys(metadata).length > 0)) {
+        fullDescription += `\n\n### Lab Dispatch Context\n- Session ID: ${sessionId || 'none'}\n- Run ID: ${runId || 'none'}`;
+        if (metadata && Object.keys(metadata).length > 0) {
+          fullDescription += `\n- Metadata:\n\`\`\`json\n${JSON.stringify(metadata, null, 2)}\n\`\`\``;
         }
       }
 
-      res.status(201).json({
+      const relatedRefs: any[] = [];
+      if (sessionId) relatedRefs.push(sessionId);
+      if (runId) relatedRefs.push(runId);
+
+      if (sb) {
+        const createdIssue = await createDevIssue(sb, userId, {
+          title: title.trim(),
+          description: fullDescription,
+          priority: (priority as any) || 'high',
+          status: 'ready',
+          assignedAgent: 'gemini',
+          acceptanceCriteria: Array.isArray(acceptanceCriteria) && acceptanceCriteria.length > 0
+            ? acceptanceCriteria
+            : ['Investigate reported Attention Lab anomaly and report resolution back to Lunar Lab GPT.'],
+          relatedReferences: relatedRefs
+        });
+
+        return res.status(201).json({
+          created: true,
+          issueId: createdIssue.id,
+          assignedAgent: createdIssue.assignedAgent,
+          status: createdIssue.status,
+          title: createdIssue.title,
+          message: `Issue ${createdIssue.id} queued for Gemini developer review.`
+        });
+      }
+
+      // Fallback if db client unavailable in offline mode
+      const fallbackId = `iss_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      return res.status(201).json({
         created: true,
-        issueId,
+        issueId: fallbackId,
         assignedAgent: 'gemini',
-        status: 'queued',
-        title: issueRow.title,
-        message: 'Issue dispatched to Gemini development queue successfully'
+        status: 'ready',
+        title: title.trim(),
+        message: 'Issue accepted in local lab queue'
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
