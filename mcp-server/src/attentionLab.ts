@@ -9,8 +9,112 @@
 
 import { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { appendDevEvent, DevEvent } from './devBridge.js';
+import { getSupabaseService } from './db.js';
 
 // ─── Domain Models & Core Types ─────────────────────────────────────────────
+
+
+// ─── Attention Lab → Development Service Results Bridge Types ─────────────
+
+export const ATTENTION_LAB_RESULTS_ISSUE_ID = 'iss_lab_results_attention_v1';
+export const ATTENTION_LAB_RESULTS_SESSION_ID = 'sess_lab_results_bridge';
+
+export interface PublishedLabResultPayload {
+  labSessionId: string;
+  runId: string;
+  benchmarkId?: string;
+  question: string;
+  category: string;
+  snapshotVersion: {
+    snapshotId: string;
+    capturedAt: string;
+    totalItems: number;
+  };
+  conditions: {
+    control: {
+      name: string;
+      tokens: number;
+      itemsCount: number;
+      temporalSpanDays: number;
+      groundingScore: number;
+      falseConnectionRisk: number;
+      summary: string;
+    };
+    broadBaseline: {
+      name: string;
+      tokens: number;
+      itemsCount: number;
+      temporalSpanDays: number;
+      groundingScore: number;
+      falseConnectionRisk: number;
+      summary: string;
+    };
+    attentionEngineV1: {
+      name: string;
+      tokens: number;
+      itemsCount: number;
+      temporalSpanDays: number;
+      cyclesCovered: number[];
+      groundingScore: number;
+      falseConnectionRisk: number;
+      summary: string;
+    };
+  };
+  modelUsed: string;
+  telemetry: {
+    latencyMs: number;
+    estimatedTokensTotal: number;
+    estimatedCostUsd?: number;
+  };
+  evaluationMetrics: {
+    groundingAdvantageOverControl: number;
+    falseConnectionRiskReductionVsBroad: number;
+    temporalSpanAdvantageDays: number;
+    insufficientEvidenceRecognized: boolean;
+  };
+  outcomeAssessment: {
+    favoredCondition: 'attention_engine_v1' | 'control_canonical' | 'broad_context_baseline' | 'inconclusive';
+    assessment: string;
+  };
+  attentionPlan: {
+    planId: string;
+    coverageStrategy: string;
+    channelsUsed: Array<{ channel: string; candidateCount: number; selectedCount: number }>;
+    candidatesConsideredCount: number;
+    selectedSourcesCount: number;
+    omissionsCount: number;
+  };
+  contextPacket: {
+    packetId: string;
+    totalTokensUsed: number;
+    evidenceItemCount: number;
+    evidenceReferences: Array<{
+      id: string;
+      sourceId: string;
+      sourceType: string;
+      timestamp: string;
+      cycleNumber?: number;
+      role: string;
+      rationale: string;
+    }>;
+    provenanceDigest: string;
+  };
+  omissionsAndCounterevidence: {
+    omissions: Array<{ sourceId: string; reason: string; duplicateOf?: string }>;
+    discontinuities: string[];
+    counterevidenceNotes: string[];
+  };
+  timestamp: string;
+  stableLabReferences: {
+    labSessionId: string;
+    runId: string;
+    planId?: string;
+    packetId?: string;
+    snapshotId: string;
+    labApiInspectionUrl: string;
+  };
+}
 
 export type FieldSourceType = 'loop' | 'echo' | 'chat_message' | 'relational_memory' | 'lunar_cycle';
 
@@ -174,6 +278,8 @@ export interface ComparisonRun {
   evaluatorNotes: string;
   attentionPlanId?: string;
   contextPacketId?: string;
+  attentionPlan?: AttentionPlan;
+  contextPacket?: ContextPacket;
 }
 
 export interface LabExperimentSession {
@@ -1348,7 +1454,9 @@ export class BenchmarkHarness {
       },
       evaluatorNotes: `Attention V1 Grounding: ${attentionV1Result.groundingScore}% (Control: ${controlResult.groundingScore}%, Broad: ${broadResult.groundingScore}%). V1 Temporal Span: ${attentionV1Result.temporalSpanDays}d vs Control ${controlResult.temporalSpanDays}d.`,
       attentionPlanId: plan.planId,
-      contextPacketId: contextPacket.packetId
+      contextPacketId: contextPacket.packetId,
+      attentionPlan: plan,
+      contextPacket: contextPacket
     };
   }
 
@@ -1501,6 +1609,7 @@ export class BenchmarkHarness {
 
 export class DurableLabStore {
   private sessions = new Map<string, LabExperimentSession>();
+  private publishedResults: PublishedLabResultPayload[] = [];
 
   constructor() {
     // Seed default baseline benchmarking session
@@ -1543,6 +1652,19 @@ export class DurableLabStore {
     sess.updatedAt = new Date().toISOString();
     return sess;
   }
+
+  recordPublishedResult(payload: PublishedLabResultPayload): void {
+    // Keep most recent first, avoid duplicate runIds
+    this.publishedResults = [payload, ...this.publishedResults.filter(p => p.runId !== payload.runId)];
+  }
+
+  getPublishedResults(limit = 50): PublishedLabResultPayload[] {
+    return this.publishedResults.slice(0, limit);
+  }
+
+  getPublishedResultByRunId(runId: string): PublishedLabResultPayload | undefined {
+    return this.publishedResults.find(p => p.runId === runId);
+  }
 }
 
 // ─── Singleton Instances ───────────────────────────────────────────────────
@@ -1563,6 +1685,299 @@ export const globalLabStore = new DurableLabStore();
 })();
 
 // ─── Express Route Handlers (/api/dev/lab/attention/*) ──────────────────────
+
+
+// ─── Attention Lab → Development Service Results Bridge Helpers ─────────────
+
+/**
+ * Generates an informative, human-readable markdown summary for Luna GPT to consume
+ * directly when inspecting Development Service events via get_dev_events.
+ */
+export function formatLabResultMarkdownSummary(p: PublishedLabResultPayload): string {
+  const citations = p.contextPacket.evidenceReferences.slice(0, 4)
+    .map(e => `  • [${e.sourceType.toUpperCase()} | Cycle ${e.cycleNumber || 'N/A'} | ${e.timestamp.split('T')[0]}] Role: ${e.role} (Ref: ${e.sourceId})`)
+    .join('\n');
+
+  const discontinuities = p.omissionsAndCounterevidence.discontinuities.length > 0
+    ? `\n- **Discontinuity & Counterevidence**: ${p.omissionsAndCounterevidence.discontinuities.join('; ')}`
+    : '';
+
+  return [
+    `### [Attention Lab Result] Run: ${p.runId} | Question: "${p.question}" (Category: ${p.category})`,
+    `- **Conditions Evaluated**: Control (A) vs Broad Baseline (B) vs Attention Engine V1 (C)`,
+    `- **Model Used**: ${p.modelUsed} | Latency: ${p.telemetry.latencyMs}ms | Total Context: ${p.contextPacket.totalTokensUsed} tokens`,
+    `- **Outcome Assessment**: ${p.outcomeAssessment.assessment}`,
+    `- **Grounding**: Engine V1 ${p.conditions.attentionEngineV1.groundingScore}% (Control: ${p.conditions.control.groundingScore}%, Broad: ${p.conditions.broadBaseline.groundingScore}%)`,
+    `- **Temporal Span**: Engine V1 ${p.conditions.attentionEngineV1.temporalSpanDays} days (Control: ${p.conditions.control.temporalSpanDays}d, Broad: ${p.conditions.broadBaseline.temporalSpanDays}d)`,
+    `- **False Connection Risk**: Engine V1 ${p.conditions.attentionEngineV1.falseConnectionRisk}% (Broad: ${p.conditions.broadBaseline.falseConnectionRisk}%, Control: ${p.conditions.control.falseConnectionRisk}%)`,
+    `- **Evidence Citations**:`,
+    citations || '  • (Negative control: no false positive citations injected)',
+    discontinuities,
+    `- **AttentionPlan**: ${p.attentionPlan.planId} (Strategy: ${p.attentionPlan.coverageStrategy}, Omissions: ${p.attentionPlan.omissionsCount})`,
+    `- **ContextPacket**: ${p.contextPacket.packetId} (${p.contextPacket.evidenceItemCount} evidence items)`,
+    `- **Stable Lab References**: Session: ${p.stableLabReferences.labSessionId} | Snapshot: ${p.stableLabReferences.snapshotId} | Inspection: ${p.stableLabReferences.labApiInspectionUrl}`
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Ensures the persistent umbrella issue and session exist in Development Service.
+ */
+export async function ensureLabResultsUmbrellaIssue(
+  supabase: SupabaseClient | null,
+  userId = 'a7def673-5786-4d52-833f-2e7e2dbc7b05'
+): Promise<{ issueId: string; sessionId: string }> {
+  let client = supabase;
+  if (!client) {
+    try {
+      client = getSupabaseService();
+    } catch (_) {
+      client = null;
+    }
+  }
+  if (!client) {
+    return { issueId: ATTENTION_LAB_RESULTS_ISSUE_ID, sessionId: ATTENTION_LAB_RESULTS_SESSION_ID };
+  }
+  supabase = client;
+
+  try {
+    const { data: existingIssue } = await supabase
+      .from('dev_issues')
+      .select('id, title, status')
+      .eq('id', ATTENTION_LAB_RESULTS_ISSUE_ID)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!existingIssue) {
+      await supabase.from('dev_issues').insert({
+        id: ATTENTION_LAB_RESULTS_ISSUE_ID,
+        user_id: userId,
+        title: 'LAB RESULTS — Attention Intelligence Experiments',
+        description: 'Durable operational bridge for publishing and retrieving inspectable Attention Lab V1 experiment results, 3-way benchmark comparisons (Control vs Broad vs Engine V1), AttentionPlans, ContextPackets, and telemetry without mutating personal Luna Field data.',
+        status: 'in_progress',
+        priority: 'medium',
+        assigned_agent: 'gemini',
+        acceptance_criteria: [
+          'Maintain append-only structured stream of Attention Lab comparison results and benchmarks.',
+          'Allow read-only retrieval of Lab results via standard get_dev_issue and get_dev_events.',
+          'Do not write to or mutate personal Luna Field records (loops, echoes, threads, relational memories).',
+          'Retain immutable references to underlying AttentionPlans, ContextPackets, and Field snapshots.'
+        ],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    const { data: existingSession } = await supabase
+      .from('dev_sessions')
+      .select('id, status')
+      .eq('id', ATTENTION_LAB_RESULTS_SESSION_ID)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!existingSession) {
+      await supabase.from('dev_sessions').insert({
+        id: ATTENTION_LAB_RESULTS_SESSION_ID,
+        issue_id: ATTENTION_LAB_RESULTS_ISSUE_ID,
+        user_id: userId,
+        agent: 'gemini',
+        status: 'connected',
+        started_at: new Date().toISOString(),
+        last_activity_at: new Date().toISOString()
+      });
+    }
+  } catch (err) {
+    console.warn('[AttentionLab] Umbrella issue setup note:', err);
+  }
+
+  return { issueId: ATTENTION_LAB_RESULTS_ISSUE_ID, sessionId: ATTENTION_LAB_RESULTS_SESSION_ID };
+}
+
+/**
+ * Publishes a structured comparison run into the Development Service results bridge.
+ */
+export async function publishLabResultToDevBridge(params: {
+  comparison: ComparisonRun;
+  plan?: AttentionPlan;
+  contextPacket?: ContextPacket;
+  snapshot?: FieldSnapshot;
+  supabase?: SupabaseClient | null;
+  userId?: string;
+}): Promise<{
+  published: boolean;
+  eventId: string;
+  issueId: string;
+  content: string;
+  payload: PublishedLabResultPayload;
+}> {
+  const { comparison, supabase, userId = 'a7def673-5786-4d52-833f-2e7e2dbc7b05' } = params;
+  let plan = params.plan || comparison.attentionPlan;
+  let contextPacket = params.contextPacket || comparison.contextPacket;
+  let snapshot = params.snapshot;
+
+  if (!snapshot) {
+    snapshot = await globalFieldAdapter.captureSnapshot();
+  }
+  if (!plan || !contextPacket) {
+    const assembled = await globalAttentionEngine.planAndAssemble(comparison.question, { tokenBudget: 3000 });
+    if (!plan) plan = assembled.plan;
+    if (!contextPacket) contextPacket = assembled.contextPacket;
+  }
+
+  const groundingAdvantage = comparison.baselines.attentionEngineV1.groundingScore - comparison.baselines.control.groundingScore;
+  const falseConnectionReduction = comparison.baselines.broadContext.falseConnectionRisk - comparison.baselines.attentionEngineV1.falseConnectionRisk;
+  const temporalSpanAdvantage = comparison.baselines.attentionEngineV1.temporalSpanDays - comparison.baselines.control.temporalSpanDays;
+
+  const favoredCondition =
+    groundingAdvantage > 0 && falseConnectionReduction >= 0
+      ? 'attention_engine_v1'
+      : 'inconclusive';
+
+  const assessment = favoredCondition === 'attention_engine_v1'
+    ? `Attention Engine V1 demonstrated higher grounding (${comparison.baselines.attentionEngineV1.groundingScore}% vs Control: ${comparison.baselines.control.groundingScore}%, Broad: ${comparison.baselines.broadContext.groundingScore}%) with a ${comparison.baselines.attentionEngineV1.temporalSpanDays}-day temporal span and reduced false connection risk (${comparison.baselines.attentionEngineV1.falseConnectionRisk}% vs Broad: ${comparison.baselines.broadContext.falseConnectionRisk}%).`
+    : `Comparison across baselines was inconclusive (Control: ${comparison.baselines.control.groundingScore}%, V1: ${comparison.baselines.attentionEngineV1.groundingScore}%).`;
+
+  const payload: PublishedLabResultPayload = {
+    labSessionId: comparison.sessionId,
+    runId: comparison.runId,
+    benchmarkId: comparison.questionId,
+    question: comparison.question,
+    category: comparison.category,
+    snapshotVersion: {
+      snapshotId: snapshot.snapshotId,
+      capturedAt: snapshot.capturedAt,
+      totalItems: snapshot.totalItems
+    },
+    conditions: {
+      control: {
+        name: comparison.baselines.control.displayName,
+        tokens: comparison.baselines.control.contextTokenCount,
+        itemsCount: comparison.baselines.control.itemsIncludedCount,
+        temporalSpanDays: comparison.baselines.control.temporalSpanDays,
+        groundingScore: comparison.baselines.control.groundingScore,
+        falseConnectionRisk: comparison.baselines.control.falseConnectionRisk,
+        summary: comparison.baselines.control.summary
+      },
+      broadBaseline: {
+        name: comparison.baselines.broadContext.displayName,
+        tokens: comparison.baselines.broadContext.contextTokenCount,
+        itemsCount: comparison.baselines.broadContext.itemsIncludedCount,
+        temporalSpanDays: comparison.baselines.broadContext.temporalSpanDays,
+        groundingScore: comparison.baselines.broadContext.groundingScore,
+        falseConnectionRisk: comparison.baselines.broadContext.falseConnectionRisk,
+        summary: comparison.baselines.broadContext.summary
+      },
+      attentionEngineV1: {
+        name: comparison.baselines.attentionEngineV1.displayName,
+        tokens: comparison.baselines.attentionEngineV1.contextTokenCount,
+        itemsCount: comparison.baselines.attentionEngineV1.itemsIncludedCount,
+        temporalSpanDays: comparison.baselines.attentionEngineV1.temporalSpanDays,
+        cyclesCovered: contextPacket.coverageMetrics.cyclesCovered,
+        groundingScore: comparison.baselines.attentionEngineV1.groundingScore,
+        falseConnectionRisk: comparison.baselines.attentionEngineV1.falseConnectionRisk,
+        summary: comparison.baselines.attentionEngineV1.summary
+      }
+    },
+    modelUsed: comparison.model,
+    telemetry: {
+      latencyMs: comparison.baselines.attentionEngineV1.latencyMs,
+      estimatedTokensTotal: contextPacket.totalTokensUsed,
+      estimatedCostUsd: Number(((contextPacket.totalTokensUsed / 1_000_000) * 3.0).toFixed(4))
+    },
+    evaluationMetrics: {
+      groundingAdvantageOverControl: groundingAdvantage,
+      falseConnectionRiskReductionVsBroad: falseConnectionReduction,
+      temporalSpanAdvantageDays: temporalSpanAdvantage,
+      insufficientEvidenceRecognized: comparison.baselines.attentionEngineV1.insufficientEvidenceRecognized
+    },
+    outcomeAssessment: {
+      favoredCondition,
+      assessment
+    },
+    attentionPlan: {
+      planId: plan.planId,
+      coverageStrategy: plan.coverageStrategy,
+      channelsUsed: plan.channelsUsed,
+      candidatesConsideredCount: plan.candidatesConsideredCount,
+      selectedSourcesCount: plan.selectedSources.length,
+      omissionsCount: plan.omissionsAndDeduplications.length
+    },
+    contextPacket: {
+      packetId: contextPacket.packetId,
+      totalTokensUsed: contextPacket.totalTokensUsed,
+      evidenceItemCount: contextPacket.evidenceItems.length,
+      evidenceReferences: contextPacket.evidenceItems.map(e => ({
+        id: e.id,
+        sourceId: e.sourceId,
+        sourceType: e.sourceType,
+        timestamp: e.timestamp,
+        cycleNumber: e.cycleNumber,
+        role: e.coverageRole,
+        rationale: e.selectionRationale
+      })),
+      provenanceDigest: contextPacket.provenanceDigest
+    },
+    omissionsAndCounterevidence: {
+      omissions: plan.omissionsAndDeduplications.map(o => ({
+        sourceId: o.sourceId,
+        reason: o.reason,
+        duplicateOf: o.duplicateOf
+      })),
+      discontinuities: plan.discontinuitiesDetected,
+      counterevidenceNotes: plan.counterevidenceNotes
+    },
+    timestamp: new Date().toISOString(),
+    stableLabReferences: {
+      labSessionId: comparison.sessionId,
+      runId: comparison.runId,
+      planId: plan.planId,
+      packetId: contextPacket.packetId,
+      snapshotId: snapshot.snapshotId,
+      labApiInspectionUrl: `/api/dev/lab/attention/results/${comparison.runId}`
+    }
+  };
+
+  const markdownSummary = formatLabResultMarkdownSummary(payload);
+
+  // Record into in-memory lab store
+  globalLabStore.recordPublishedResult(payload);
+
+    let eventId = `evt_lab_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  let client = supabase;
+  if (!client) {
+    try {
+      client = getSupabaseService();
+    } catch (_) {
+      client = null;
+    }
+  }
+
+  // If Supabase client is available, append event to persistent Development Service issue
+  if (client) {
+    try {
+      const { issueId, sessionId } = await ensureLabResultsUmbrellaIssue(client, userId);
+      const devEvent = await appendDevEvent(client, userId, {
+        issueId,
+        sessionId,
+        type: 'lab.result.published',
+        author: 'gemini',
+        content: markdownSummary,
+        metadata: payload
+      });
+      eventId = devEvent.id;
+    } catch (dbErr) {
+      console.warn('[AttentionLab] Notice appending dev_event:', dbErr);
+    }
+  }
+
+  return {
+    published: true,
+    eventId,
+    issueId: ATTENTION_LAB_RESULTS_ISSUE_ID,
+    content: markdownSummary,
+    payload
+  };
+}
 
 export function registerAttentionLabRoutes(app: any, authenticateRest: any): void {
   // 1. Attention Lab Status & Derived Index Telemetry
@@ -1688,6 +2103,25 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
 
       comparisonRun.sessionId = session.id;
       globalLabStore.recordRun(session.id, comparisonRun);
+
+      // Auto-publish structured result to Development Service results bridge
+      try {
+        let sb = (req as any).supabaseClient || (req as any).body?.supabaseClient;
+        if (!sb) {
+          try { sb = getSupabaseService(); } catch (_) {}
+        }
+        const devUid = (req as any).devUserId || 'a7def673-5786-4d52-833f-2e7e2dbc7b05';
+        await publishLabResultToDevBridge({
+          comparison: comparisonRun,
+          plan: comparisonRun.attentionPlan,
+          contextPacket: comparisonRun.contextPacket,
+          snapshot: snap,
+          supabase: sb,
+          userId: devUid
+        });
+      } catch (pubErr) {
+        console.warn('[AttentionLab] Auto-publish notice:', pubErr);
+      }
 
       res.json(comparisonRun);
     } catch (err: any) {
@@ -1819,5 +2253,23 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // 11. Read Published Lab Results from In-Memory Lab Store
+  app.get('/api/dev/lab/attention/results', authenticateRest, (req: Request, res: Response) => {
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    res.json({
+      total: globalLabStore.getPublishedResults(limit).length,
+      results: globalLabStore.getPublishedResults(limit)
+    });
+  });
+
+  // 12. Inspect Single Published Lab Result
+  app.get('/api/dev/lab/attention/results/:runId', authenticateRest, (req: Request, res: Response) => {
+    const result = globalLabStore.getPublishedResultByRunId(req.params.runId);
+    if (!result) {
+      return res.status(404).json({ error: `Published result for run '${req.params.runId}' not found.` });
+    }
+    res.json(result);
   });
 }

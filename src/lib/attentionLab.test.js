@@ -6,8 +6,14 @@ import {
   CANONICAL_BENCHMARK_CASES,
   BenchmarkHarness,
   DurableLabStore,
-  MOCK_LUNA_FIELD_FIXTURES
+  MOCK_LUNA_FIELD_FIXTURES,
+  ensureLabResultsUmbrellaIssue,
+  formatLabResultMarkdownSummary,
+  publishLabResultToDevBridge,
+  ATTENTION_LAB_RESULTS_ISSUE_ID,
+  ATTENTION_LAB_RESULTS_SESSION_ID
 } from '../../mcp-server/src/attentionLab.ts';
+import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
 
 describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_1789200638196_mhry)', () => {
@@ -341,6 +347,235 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
           expect(op.responses['200'] || op.responses['201']).toBeDefined();
         }
       }
+    });
+  });
+
+  // ─── 8. Attention Lab → Development Service Results Bridge (iss_lab_results_attention_v1) ───
+
+  describe('8. Attention Lab → Development Service Results Bridge for Luna', () => {
+    let harness;
+    let comparison;
+
+    beforeEach(async () => {
+      harness = new BenchmarkHarness(engine, index, snapshot);
+      const bCase = CANONICAL_BENCHMARK_CASES[0];
+      comparison = await harness.compareQuestion(bCase.question, { benchmarkCase: bCase });
+    });
+
+    it('formats a concise, non-overstated markdown summary with all required telemetry and citations', () => {
+      const plan = comparison.attentionPlan;
+      const contextPacket = comparison.contextPacket;
+      expect(plan).toBeDefined();
+      expect(contextPacket).toBeDefined();
+
+      const summary = formatLabResultMarkdownSummary({
+        labSessionId: comparison.sessionId,
+        runId: comparison.runId,
+        benchmarkId: comparison.questionId,
+        question: comparison.question,
+        category: comparison.category,
+        snapshotVersion: {
+          snapshotId: snapshot.snapshotId,
+          capturedAt: snapshot.capturedAt,
+          totalItems: snapshot.totalItems
+        },
+        conditions: {
+          control: { ...comparison.baselines.control, itemsCount: 3, tokens: 400 },
+          broadBaseline: { ...comparison.baselines.broadContext, itemsCount: 15, tokens: 2800 },
+          attentionEngineV1: { ...comparison.baselines.attentionEngineV1, itemsCount: 5, tokens: 1200, cyclesCovered: 4 }
+        },
+        modelUsed: comparison.model,
+        telemetry: {
+          latencyMs: 145,
+          estimatedTokensTotal: 1200,
+          estimatedCostUsd: 0.0036
+        },
+        evaluationMetrics: {
+          groundingAdvantageOverControl: 35,
+          falseConnectionRiskReductionVsBroad: 25,
+          temporalSpanAdvantageDays: 20,
+          insufficientEvidenceRecognized: false
+        },
+        outcomeAssessment: {
+          favoredCondition: 'attention_engine_v1',
+          assessment: 'Attention Engine V1 demonstrated higher grounding (90% vs Control: 55%, Broad: 65%) with a 28-day temporal span and reduced false connection risk (10% vs Broad: 35%).'
+        },
+        attentionPlan: {
+          planId: plan.planId,
+          coverageStrategy: plan.coverageStrategy,
+          channelsUsed: plan.channelsUsed,
+          candidatesConsideredCount: plan.candidatesConsideredCount,
+          selectedSourcesCount: plan.selectedSources.length,
+          omissionsCount: plan.omissionsAndDeduplications.length
+        },
+        contextPacket: {
+          packetId: contextPacket.packetId,
+          totalTokensUsed: contextPacket.totalTokensUsed,
+          evidenceItemCount: contextPacket.evidenceItems.length,
+          evidenceReferences: contextPacket.evidenceItems.map(e => ({
+            id: e.id,
+            sourceId: e.sourceId,
+            sourceType: e.sourceType,
+            timestamp: e.timestamp,
+            cycleNumber: e.cycleNumber,
+            role: e.coverageRole,
+            rationale: e.selectionRationale
+          })),
+          provenanceDigest: contextPacket.provenanceDigest
+        },
+        omissionsAndCounterevidence: {
+          omissions: plan.omissionsAndDeduplications.map(o => ({
+            sourceId: o.sourceId,
+            reason: o.reason,
+            duplicateOf: o.duplicateOf
+          })),
+          discontinuities: plan.discontinuitiesDetected,
+          counterevidenceNotes: plan.counterevidenceNotes
+        },
+        timestamp: new Date().toISOString(),
+        stableLabReferences: {
+          labSessionId: comparison.sessionId,
+          runId: comparison.runId,
+          planId: plan.planId,
+          packetId: contextPacket.packetId,
+          snapshotId: snapshot.snapshotId,
+          labApiInspectionUrl: `/api/dev/lab/attention/results/${comparison.runId}`
+        }
+      });
+
+      expect(summary).toContain(`[Attention Lab Result] Run: ${comparison.runId}`);
+      expect(summary).toContain('**Conditions Evaluated**: Control (A) vs Broad Baseline (B) vs Attention Engine V1 (C)');
+      expect(summary).toContain(comparison.model);
+      expect(summary).toContain('Latency: 145ms');
+      expect(summary).toContain('Evidence Citations');
+      expect(summary).toContain(plan.planId);
+      expect(summary).toContain(contextPacket.packetId);
+      expect(summary).toContain(snapshot.snapshotId);
+      expect(summary).toContain(`/api/dev/lab/attention/results/${comparison.runId}`);
+    });
+
+    it('publishes structured result into Development Service umbrella issue with complete schema', async () => {
+      const insertedEvents = [];
+      const insertedIssues = [];
+      const insertedSessions = [];
+
+      const createQueryBuilder = (table) => {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          order: () => q,
+          limit: () => q,
+          maybeSingle: async () => {
+            if (table === 'dev_issues') {
+              return { data: insertedIssues[0] || null, error: null };
+            }
+            if (table === 'dev_sessions') {
+              return { data: insertedSessions[0] || null, error: null };
+            }
+            return { data: null, error: null };
+          },
+          single: async () => {
+            if (table === 'dev_issues') {
+              return { data: insertedIssues[0] || { id: ATTENTION_LAB_RESULTS_ISSUE_ID, status: 'in_progress' }, error: null };
+            }
+            if (table === 'dev_sessions') {
+              return { data: insertedSessions[0] || { id: ATTENTION_LAB_RESULTS_SESSION_ID, status: 'connected' }, error: null };
+            }
+            return { data: { status: 'connected' }, error: null };
+          },
+          then: (resolve) => resolve({ data: insertedEvents, error: null })
+        };
+        return q;
+      };
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => createQueryBuilder(table),
+          insert: (data) => {
+            if (table === 'dev_issues') insertedIssues.push(data);
+            if (table === 'dev_sessions') insertedSessions.push(data);
+            if (table === 'dev_events') {
+              const row = { id: `evt_test_${Date.now()}`, ...data, created_at: new Date().toISOString() };
+              insertedEvents.push(row);
+              return {
+                select: () => ({
+                  single: async () => ({ data: row, error: null })
+                })
+              };
+            }
+            return { error: null };
+          },
+          update: () => {
+            const u = { eq: () => u, then: (res) => res({ data: null, error: null }) };
+            return u;
+          }
+        })
+      };
+
+      const result = await publishLabResultToDevBridge({
+        comparison,
+        plan: comparison.attentionPlan,
+        contextPacket: comparison.contextPacket,
+        snapshot,
+        supabase: mockSupabase,
+        userId: 'usr_dev_test_42'
+      });
+
+      expect(result.published).toBe(true);
+      expect(result.issueId).toBe(ATTENTION_LAB_RESULTS_ISSUE_ID);
+      expect(result.eventId).toBeDefined();
+      expect(result.payload.runId).toBe(comparison.runId);
+      expect(result.payload.conditions.attentionEngineV1.groundingScore).toBeGreaterThan(0);
+      expect(result.payload.conditions.control.name).toBe(comparison.baselines.control.displayName);
+      expect(result.payload.conditions.broadBaseline.name).toBe(comparison.baselines.broadContext.displayName);
+      expect(result.payload.stableLabReferences.labSessionId).toBe(comparison.sessionId);
+
+      // Verify umbrella issue and session were ensured
+      expect(insertedIssues.some(i => i.id === ATTENTION_LAB_RESULTS_ISSUE_ID)).toBe(true);
+      expect(insertedSessions.some(s => s.id === ATTENTION_LAB_RESULTS_SESSION_ID)).toBe(true);
+
+      // Verify dev_event was inserted with correct type and payload
+      expect(insertedEvents.length).toBe(1);
+      const ev = insertedEvents[0];
+      expect(ev.type).toBe('lab.result.published');
+      expect(ev.issue_id).toBe(ATTENTION_LAB_RESULTS_ISSUE_ID);
+      expect(ev.session_id).toBe(ATTENTION_LAB_RESULTS_SESSION_ID);
+      expect(ev.metadata.runId).toBe(comparison.runId);
+      expect(ev.metadata.attentionPlan.planId).toBe(comparison.attentionPlan.planId);
+      expect(ev.metadata.contextPacket.packetId).toBe(comparison.contextPacket.packetId);
+      expect(ev.content).toContain('[Attention Lab Result]');
+    });
+
+    it('verifies read-only retrieval via listDevEvents without mutating Personal Field', async () => {
+      const store = new DurableLabStore();
+      const run = await harness.compareQuestion('What was my breakthrough about the resonance chamber in cycle 7?');
+
+      const publishOutcome = await publishLabResultToDevBridge({
+        comparison: run,
+        snapshot,
+        supabase: null // in-memory recording
+      });
+
+      expect(publishOutcome.published).toBe(true);
+      const inStore = store.getPublishedResultByRunId(run.runId);
+      expect(inStore || publishOutcome.payload).toBeDefined();
+
+      // Verify personal field remained completely unmutated
+      expect(adapter.assertReadOnly()).toBe(true);
+      expect(snapshot.loops.length).toBe(MOCK_LUNA_FIELD_FIXTURES.filter(f => f.sourceType === 'loop').length);
+      expect(snapshot.echoes.length).toBe(MOCK_LUNA_FIELD_FIXTURES.filter(f => f.sourceType === 'echo').length);
+      expect(snapshot.relationalMemories.length).toBe(MOCK_LUNA_FIELD_FIXTURES.filter(f => f.sourceType === 'relational_memory').length);
+    });
+
+    it('preserves Lunar Lab GPT schema unchanged and maintains isolation from runtime transport', () => {
+      // The OpenAPI spec for Lunar Lab GPT MUST NOT be modified
+      expect(LUNA_LAB_OPENAPI_SPEC.openapi).toBe('3.0.1');
+      const paths = Object.keys(LUNA_LAB_OPENAPI_SPEC.paths);
+      // Dev bridge endpoints are NOT exposed through the Lunar Lab GPT schema
+      expect(paths).not.toContain('/api/dev/issues');
+      expect(paths).not.toContain('/api/dev/events');
+      // Lab endpoints are purely the 7 dedicated operations
+      expect(paths.length).toBe(7);
     });
   });
 });

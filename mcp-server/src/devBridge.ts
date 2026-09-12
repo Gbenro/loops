@@ -57,7 +57,8 @@ export type DevEventType =
   | 'session.completed'
   | 'session.failed'
   | 'session.handoff'
-  | 'session.ended';
+  | 'session.ended'
+  | 'lab.result.published';
 
 export interface DevEvent {
   id: string;
@@ -2064,7 +2065,8 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
           'scope.updated',
           'session.completed',
           'session.failed',
-          'session.handoff'
+          'session.handoff',
+          'lab.result.published'
         ];
         if (!allowedAgentTypes.includes(type)) {
           return res.status(403).json({ error: `Event type '${type}' is restricted to admin/creator authority` });
