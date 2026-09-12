@@ -220,10 +220,63 @@ export interface AttentionCandidate {
 export interface SuppressedCandidate {
   sourceId: string;
   sourceType: FieldSourceType;
-  reason: 'near_duplicate' | 'low_salience' | 'budget_exceeded' | 'temporal_redundancy';
+  reason: 'near_duplicate' | 'low_salience' | 'budget_exceeded' | 'temporal_redundancy' | 'cluster_concentration_cap_reached' | 'low_information_density' | 'relevance_below_threshold';
   duplicateOf?: string;
   snippet?: string;
 }
+
+export interface CoverageObligation {
+  role: 'origin_state' | 'intermediate_state' | 'counterevidence_discontinuity' | 'recent_current_state' | 'connecting_pattern';
+  description: string;
+  status: 'satisfied' | 'INSUFFICIENT_EVIDENCE';
+  assignedNodeId?: string;
+  temporalWindow?: string;
+  rationale?: string;
+}
+
+export interface LongitudinalCoverageMatrix {
+  strategy: string;
+  obligations: CoverageObligation[];
+  satisfiedCount: number;
+  insufficientCount: number;
+  temporalSpanDays: number;
+  earliestTimestamp?: string;
+  latestTimestamp?: string;
+}
+
+export const STOP_WORDS = new Set([
+  'a', 'about', 'above', 'across', 'after', 'again', 'against', 'all', 'almost', 'alone', 'along',
+  'already', 'also', 'although', 'always', 'am', 'among', 'amongst', 'an', 'and', 'another',
+  'any', 'anybody', 'anyhow', 'anyone', 'anything', 'anyway', 'anyways', 'anywhere', 'are',
+  'aren', 'arent', 'around', 'as', 'at', 'back', 'be', 'became', 'because', 'become', 'becomes',
+  'becoming', 'been', 'before', 'beforehand', 'behind', 'being', 'below', 'beside', 'besides',
+  'between', 'beyond', 'both', 'but', 'by', 'can', 'cannot', 'cant', 'could', 'couldn',
+  'couldnt', 'did', 'didn', 'didnt', 'do', 'does', 'doesn', 'doesnt', 'doing', 'don', 'dont',
+  'down', 'during', 'each', 'either', 'else', 'elsewhere', 'enough', 'etc', 'even', 'ever',
+  'every', 'everybody', 'everyone', 'everything', 'everywhere', 'except', 'few', 'for', 'from',
+  'further', 'had', 'hadn', 'hadnt', 'has', 'hasn', 'hasnt', 'have', 'haven', 'havent',
+  'having', 'he', 'hence', 'her', 'here', 'hereafter', 'hereby', 'herein', 'hereupon', 'hers',
+  'herself', 'him', 'himself', 'his', 'how', 'however', 'i', 'ie', 'if', 'in', 'inc', 'indeed',
+  'into', 'is', 'isn', 'isnt', 'it', 'its', 'itself', 'just', 'keep', 'keeps', 'kept', 'last',
+  'latter', 'latterly', 'least', 'less', 'ltd', 'made', 'many', 'may', 'me', 'meanwhile', 'might',
+  'mine', 'more', 'moreover', 'most', 'mostly', 'move', 'much', 'must', 'mustn', 'mustnt', 'my',
+  'myself', 'name', 'namely', 'neither', 'never', 'nevertheless', 'next', 'no', 'nobody',
+  'none', 'noone', 'nor', 'not', 'nothing', 'now', 'nowhere', 'of', 'off', 'often', 'on',
+  'once', 'one', 'ones', 'only', 'onto', 'or', 'other', 'others', 'otherwise', 'our', 'ours',
+  'ourselves', 'out', 'over', 'own', 'part', 'per', 'perhaps', 'please', 'put', 'rather', 're',
+  'same', 'see', 'seem', 'seemed', 'seeming', 'seems', 'several', 'she', 'should', 'shouldn',
+  'shouldnt', 'since', 'so', 'some', 'somebody', 'somehow', 'someone', 'something', 'sometime',
+  'sometimes', 'somewhere', 'still', 'such', 'than', 'that', 'the', 'their', 'theirs', 'them',
+  'themselves', 'then', 'thence', 'there', 'thereafter', 'thereby', 'therefore', 'therein',
+  'thereupon', 'these', 'they', 'thick', 'thin', 'third', 'this', 'those', 'though', 'through',
+  'throughout', 'thru', 'thus', 'time', 'to', 'together', 'too', 'top', 'toward', 'towards', 'un',
+  'under', 'until', 'up', 'upon', 'us', 'very', 'via', 'was', 'wasn', 'wasnt', 'way', 'we',
+  'well', 'were', 'weren', 'werent', 'what', 'whatever', 'when', 'whence', 'whenever', 'where',
+  'whereafter', 'whereas', 'whereby', 'wherein', 'whereupon', 'wherever', 'whether', 'which',
+  'while', 'whither', 'who', 'whoever', 'whole', 'whom', 'whose', 'why', 'will', 'with', 'within',
+  'without', 'won', 'wont', 'would', 'wouldn', 'wouldnt', 'yet', 'you', 'your', 'yours',
+  'yourself', 'yourselves'
+]);
 
 export interface AttentionPlan {
   planId: string;
@@ -242,6 +295,7 @@ export interface AttentionPlan {
   omissionsAndDeduplications: SuppressedCandidate[];
   discontinuitiesDetected: string[];
   counterevidenceNotes: string[];
+  coverageMatrix?: LongitudinalCoverageMatrix;
   createdAt: string;
 }
 
@@ -255,7 +309,7 @@ export interface ContextEvidenceItem {
   contentSnippet: string;
   provenance: NodeProvenance;
   selectionRationale: string;
-  coverageRole: 'anchor' | 'longitudinal_change' | 'counterevidence' | 'recurrence' | 'direct_answer';
+  coverageRole: 'anchor' | 'longitudinal_change' | 'counterevidence' | 'recurrence' | 'direct_answer' | 'origin_state' | 'intermediate_state' | 'recent_current_state' | 'connecting_pattern';
   tokensEstimated: number;
 }
 
@@ -273,6 +327,8 @@ export interface ContextPacket {
     recurrenceHighlighted: boolean;
     counterevidenceIncluded: boolean;
   };
+  coverageMatrix?: LongitudinalCoverageMatrix;
+  notableOmissions?: SuppressedCandidate[];
   provenanceDigest: string;
   generatedAt: string;
 }
@@ -917,6 +973,13 @@ export class AttentionIndex {
     this.lastBuiltAt = new Date().toISOString();
   }
 
+  computeTermIDF(term: string): number {
+    const totalDocs = Math.max(1, this.itemsMap.size);
+    const docFreq = this.invertedIndex.get(term.toLowerCase())?.size || 0;
+    if (docFreq === 0) return 0;
+    return Math.max(0.25, Math.log((totalDocs + 1) / (docFreq + 1)) + 1.0);
+  }
+
   get totalIndexedNodes(): number {
     return this.itemsMap.size;
   }
@@ -976,7 +1039,10 @@ export class AttentionEngineV1 {
     strategy: AttentionPlan['coverageStrategy']
   ): AttentionPlan {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const qTokens = question.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
+    const rawTokens = question.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
+    
+    // Stop-word suppression: generic filler words never materially influence ranking
+    const informativeTokens = rawTokens.filter(t => !STOP_WORDS.has(t));
 
     const candidatesMap = new Map<string, AttentionCandidate>();
     const channelStats: Record<RetrievalChannel, { candidateCount: number; selectedCount: number }> = {
@@ -988,28 +1054,32 @@ export class AttentionEngineV1 {
       entity: { candidateCount: 0, selectedCount: 0 }
     };
 
-    // 1. Lexical Channel: direct word matches
-    for (const token of qTokens) {
+    // 1. Lexical Channel: direct word matches with Information-Value / IDF Weighting
+    for (const token of informativeTokens) {
+      const idf = this.index.computeTermIDF(token);
       const matchIds = this.index.invertedIndex.get(token);
       if (matchIds) {
         for (const id of matchIds) {
           const item = this.index.itemsMap.get(id);
           if (!item) continue;
-          this.touchCandidate(candidatesMap, item, 'lexical', 3.0, `Exact match on keyword '${token}'`);
+          const score = 3.5 * idf;
+          this.touchCandidate(candidatesMap, item, 'lexical', score, `Exact match on keyword '${token}' (IDF: ${idf.toFixed(2)})`);
           channelStats.lexical.candidateCount++;
         }
       }
     }
 
-    // 2. Semantic Channel: query concepts & related tags
-    const semanticKeywords = this.expandConcepts(qTokens);
+    // 2. Semantic Channel: query concepts & related tags using informative terms
+    const semanticKeywords = this.expandConcepts(informativeTokens);
     for (const sk of semanticKeywords) {
       const matchIds = this.index.invertedIndex.get(sk);
       if (matchIds) {
         for (const id of matchIds) {
           const item = this.index.itemsMap.get(id);
           if (!item) continue;
-          this.touchCandidate(candidatesMap, item, 'semantic', 2.0, `Semantic association with concept '${sk}'`);
+          const idf = this.index.computeTermIDF(sk);
+          const score = 2.5 * idf;
+          this.touchCandidate(candidatesMap, item, 'semantic', score, `Semantic association with concept '${sk}' (IDF: ${idf.toFixed(2)})`);
           channelStats.semantic.candidateCount++;
         }
       }
@@ -1028,7 +1098,7 @@ export class AttentionEngineV1 {
     }
 
     // 4. Temporal / Cycle Channel: look for cycle names, seasonal moons, or phase cues
-    const cycleCues = ['cycle 1', 'cycle 2', 'cycle 3', 'cycle 4', 'sturgeon', 'harvest', 'corn', 'hunter', 'full moon', 'new moon'];
+    const cycleCues = ['cycle 1', 'cycle 2', 'cycle 3', 'cycle 4', 'sturgeon', 'harvest', 'corn', 'hunter', 'full moon', 'new moon', 'spring', 'autumn', 'summer', 'winter'];
     for (const cue of cycleCues) {
       if (question.toLowerCase().includes(cue)) {
         for (const item of this.index.itemsMap.values()) {
@@ -1044,9 +1114,9 @@ export class AttentionEngineV1 {
     // 5. Recurrence Channel: elevate items with high recurrence counts or repeating themes
     for (const item of this.index.itemsMap.values()) {
       if ((item.recurrenceCount && item.recurrenceCount >= 2) || (item.tags && item.tags.includes('recurrence'))) {
-        const overlaps = qTokens.some(t => `${item.title} ${item.content}`.toLowerCase().includes(t));
+        const overlaps = informativeTokens.some(t => `${item.title || ''} ${item.content}`.toLowerCase().includes(t));
         if (overlaps || strategy === 'recurrence_deepening') {
-          this.touchCandidate(candidatesMap, item, 'recurrence', 2.5 + (item.recurrenceCount || 1) * 0.5, `High recurrence count (${item.recurrenceCount || 1})`);
+          this.touchCandidate(candidatesMap, item, 'recurrence', 3.0 + (item.recurrenceCount || 1) * 0.6, `High recurrence count (${item.recurrenceCount || 1})`);
           channelStats.recurrence.candidateCount++;
         }
       }
@@ -1066,10 +1136,14 @@ export class AttentionEngineV1 {
       }
     }
 
-    // Check for Discontinuities & Counterevidence
+    // 7. Discontinuities & Counterevidence Preservation
     const discontinuities: string[] = [];
     const counterevidenceNotes: string[] = [];
-    const counterwords = ['abandoned', 'paused', 'slipped', 'temporarily', 'stopped', 'friction', 'burnout', 'overwhelmed'];
+    const counterwords = [
+      'abandoned', 'paused', 'slipped', 'temporarily', 'stopped', 'friction',
+      'burnout', 'overwhelmed', 'fatigue', 'exhaustion', 'struggle', 'relapse',
+      'reset', 'breakdown', 'crash', 'interrupted', 'tension'
+    ];
 
     for (const cand of candidatesMap.values()) {
       const item = this.index.itemsMap.get(cand.sourceId);
@@ -1077,23 +1151,175 @@ export class AttentionEngineV1 {
       const lower = item.content.toLowerCase();
       for (const cw of counterwords) {
         if (lower.includes(cw)) {
-          cand.score += 2.5; // Boost counterevidence so it is not smoothed away!
+          cand.score += 3.5; // Boost counterevidence so it is preserved
           discontinuities.push(`Detected discontinuity signal '${cw}' in [${item.id}]: "${item.content.substring(0, 60)}..."`);
           counterevidenceNotes.push(`Counterevidence preservation: Record ${item.id} contains explicit qualification (${cw}).`);
         }
       }
     }
 
-    // Format Candidate List & Score
     const allCandidates = Array.from(candidatesMap.values());
     allCandidates.sort((a, b) => b.score - a.score);
 
-    // Near-Duplicate Suppression & Budget Selection
+    // 8. Longitudinal Coverage Obligations & Matrix Analysis
+    const qClass = this.classifyQuestion(question);
+    const isLongitudinal = strategy === 'longitudinal_span' || qClass === 'longitudinal_change';
+    let coverageMatrix: LongitudinalCoverageMatrix | undefined = undefined;
+
+    const obligationAssignments = new Map<string, 'origin_state' | 'intermediate_state' | 'counterevidence_discontinuity' | 'recent_current_state' | 'connecting_pattern'>();
+
+    if (isLongitudinal) {
+      const allDated = Array.from(this.index.itemsMap.values())
+        .filter(it => it.createdAt && !isNaN(new Date(it.createdAt).getTime()))
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      const earliestTs = allDated[0]?.createdAt;
+      const latestTs = allDated[allDated.length - 1]?.createdAt;
+      const minMs = earliestTs ? new Date(earliestTs).getTime() : 0;
+      const maxMs = latestTs ? new Date(latestTs).getTime() : 0;
+      const totalSpanRange = Math.max(1, maxMs - minMs);
+
+      const originCutoff = minMs + totalSpanRange * 0.30;
+      const recentCutoff = minMs + totalSpanRange * 0.70;
+
+      const obligations: CoverageObligation[] = [
+        {
+          role: 'origin_state',
+          description: 'Earliest historical baseline reflections (origin band)',
+          status: 'INSUFFICIENT_EVIDENCE'
+        },
+        {
+          role: 'intermediate_state',
+          description: 'Transitional / developmental reflections (intermediate band)',
+          status: 'INSUFFICIENT_EVIDENCE'
+        },
+        {
+          role: 'counterevidence_discontinuity',
+          description: 'Explicit qualification, friction, setback, or pause signals',
+          status: 'INSUFFICIENT_EVIDENCE'
+        },
+        {
+          role: 'recent_current_state',
+          description: 'Contemporary orientation / active state (recent band)',
+          status: 'INSUFFICIENT_EVIDENCE'
+        },
+        {
+          role: 'connecting_pattern',
+          description: 'Recurrence or longitudinal pattern connecting past to present',
+          status: 'INSUFFICIENT_EVIDENCE'
+        }
+      ];
+
+      // Match best candidate for origin_state
+      const originCand = allCandidates.find(c => {
+        const it = this.index.itemsMap.get(c.sourceId);
+        if (!it?.createdAt) return false;
+        const ms = new Date(it.createdAt).getTime();
+        return ms <= originCutoff && c.score >= 2.0;
+      });
+      if (originCand) {
+        obligations[0].status = 'satisfied';
+        obligations[0].assignedNodeId = originCand.sourceId;
+        obligations[0].temporalWindow = 'Historical / Origin';
+        obligations[0].rationale = `Grounds early baseline: ${originCand.snippet}`;
+        obligationAssignments.set(originCand.sourceId, 'origin_state');
+      }
+
+      // Match best candidate for intermediate_state
+      const interCand = allCandidates.find(c => {
+        const it = this.index.itemsMap.get(c.sourceId);
+        if (!it?.createdAt) return false;
+        const ms = new Date(it.createdAt).getTime();
+        return ms > originCutoff && ms < recentCutoff && c.score >= 2.0;
+      });
+      if (interCand) {
+        obligations[1].status = 'satisfied';
+        obligations[1].assignedNodeId = interCand.sourceId;
+        obligations[1].temporalWindow = 'Intermediate / Transition';
+        obligations[1].rationale = `Grounds shift progression: ${interCand.snippet}`;
+        obligationAssignments.set(interCand.sourceId, 'intermediate_state');
+      }
+
+      // Match best candidate for counterevidence_discontinuity
+      const counterCand = allCandidates.find(c => {
+        const it = this.index.itemsMap.get(c.sourceId);
+        if (!it) return false;
+        const lower = it.content.toLowerCase();
+        return counterwords.some(cw => lower.includes(cw)) && c.score >= 2.0;
+      });
+      if (counterCand) {
+        obligations[2].status = 'satisfied';
+        obligations[2].assignedNodeId = counterCand.sourceId;
+        obligations[2].rationale = `Preserves friction / discontinuity: ${counterCand.snippet}`;
+        obligationAssignments.set(counterCand.sourceId, 'counterevidence_discontinuity');
+      }
+
+      // Match best candidate for recent_current_state
+      const recentCand = allCandidates.find(c => {
+        const it = this.index.itemsMap.get(c.sourceId);
+        if (!it?.createdAt) return false;
+        const ms = new Date(it.createdAt).getTime();
+        return ms >= recentCutoff && c.score >= 2.0;
+      });
+      if (recentCand) {
+        obligations[3].status = 'satisfied';
+        obligations[3].assignedNodeId = recentCand.sourceId;
+        obligations[3].temporalWindow = 'Recent / Present';
+        obligations[3].rationale = `Grounds contemporary posture: ${recentCand.snippet}`;
+        obligationAssignments.set(recentCand.sourceId, 'recent_current_state');
+      }
+
+      // Match best candidate for connecting_pattern
+      const patternCand = allCandidates.find(c => {
+        const it = this.index.itemsMap.get(c.sourceId);
+        if (!it) return false;
+        return ((it.recurrenceCount && it.recurrenceCount >= 2) || (it.tags && it.tags.includes('recurrence'))) && c.score >= 2.0;
+      });
+      if (patternCand) {
+        obligations[4].status = 'satisfied';
+        obligations[4].assignedNodeId = patternCand.sourceId;
+        obligations[4].rationale = `Highlights recurrence cadence: ${patternCand.snippet}`;
+        obligationAssignments.set(patternCand.sourceId, 'connecting_pattern');
+      }
+
+      coverageMatrix = {
+        strategy,
+        obligations,
+        satisfiedCount: obligations.filter(o => o.status === 'satisfied').length,
+        insufficientCount: obligations.filter(o => o.status === 'INSUFFICIENT_EVIDENCE').length,
+        temporalSpanDays: Math.round(totalSpanRange / (1000 * 3600 * 24)),
+        earliestTimestamp: earliestTs,
+        latestTimestamp: latestTs
+      };
+    }
+
+    // 9. Controlled Selection: Anti-Clustering, Window Caps, and Diversity
     const selected: AttentionCandidate[] = [];
     const suppressed: SuppressedCandidate[] = [];
     let currentTokens = 0;
 
+    // Track per-window concentration (48-hour windows)
+    const windowCounts = new Map<number, number>();
+    const windowTokens = new Map<number, number>();
+    let chatTokens = 0;
+    const maxWindowTokens = Math.round(tokenBudget * 0.30); // max 30% of budget in any 48-hour cluster
+    const maxChatTokens = Math.round(tokenBudget * 0.60); // max 60% of budget for chat messages
+
+    // First pass: Prioritize obligation-fulfilling candidates
+    const prioritizedCandidates: AttentionCandidate[] = [];
+    const regularCandidates: AttentionCandidate[] = [];
+
     for (const cand of allCandidates) {
+      if (obligationAssignments.has(cand.sourceId)) {
+        prioritizedCandidates.push(cand);
+      } else {
+        regularCandidates.push(cand);
+      }
+    }
+
+    const candidateSelectionPool = [...prioritizedCandidates, ...regularCandidates];
+
+    for (const cand of candidateSelectionPool) {
       const item = this.index.itemsMap.get(cand.sourceId)!;
 
       // Check near-duplicate against already selected
@@ -1103,7 +1329,7 @@ export class AttentionEngineV1 {
       for (const sel of selected) {
         const selItem = this.index.itemsMap.get(sel.sourceId)!;
         const sim = this.computeContentSimilarity(item.content, selItem.content);
-        if (sim > 0.82) {
+        if (sim > 0.72) {
           isDuplicate = true;
           duplicateOfId = sel.sourceId;
           break;
@@ -1121,7 +1347,40 @@ export class AttentionEngineV1 {
         continue;
       }
 
-      // Check budget
+      // Check temporal concentration caps (48-hour window)
+      if (item.createdAt && !obligationAssignments.has(cand.sourceId)) {
+        const ms = new Date(item.createdAt).getTime();
+        if (!isNaN(ms)) {
+          const bucket = Math.floor(ms / (48 * 3600 * 1000));
+          const currentCount = windowCounts.get(bucket) || 0;
+          const currentBucketTokens = windowTokens.get(bucket) || 0;
+
+          if (currentCount >= 2 || currentBucketTokens + cand.tokenEstimate > maxWindowTokens) {
+            suppressed.push({
+              sourceId: cand.sourceId,
+              sourceType: cand.sourceType,
+              reason: 'cluster_concentration_cap_reached',
+              snippet: cand.snippet
+            });
+            continue;
+          }
+        }
+      }
+
+      // Check chat message source cap
+      if (cand.sourceType === 'chat_message' && !obligationAssignments.has(cand.sourceId)) {
+        if (chatTokens + cand.tokenEstimate > maxChatTokens) {
+          suppressed.push({
+            sourceId: cand.sourceId,
+            sourceType: cand.sourceType,
+            reason: 'budget_exceeded',
+            snippet: cand.snippet
+          });
+          continue;
+        }
+      }
+
+      // Check overall budget
       if (currentTokens + cand.tokenEstimate > tokenBudget) {
         suppressed.push({
           sourceId: cand.sourceId,
@@ -1135,7 +1394,19 @@ export class AttentionEngineV1 {
       selected.push(cand);
       currentTokens += cand.tokenEstimate;
 
-      // Update channel selected stats
+      if (cand.sourceType === 'chat_message') {
+        chatTokens += cand.tokenEstimate;
+      }
+
+      if (item.createdAt) {
+        const ms = new Date(item.createdAt).getTime();
+        if (!isNaN(ms)) {
+          const bucket = Math.floor(ms / (48 * 3600 * 1000));
+          windowCounts.set(bucket, (windowCounts.get(bucket) || 0) + 1);
+          windowTokens.set(bucket, (windowTokens.get(bucket) || 0) + cand.tokenEstimate);
+        }
+      }
+
       for (const ch of cand.channels) {
         channelStats[ch].selectedCount++;
       }
@@ -1144,7 +1415,7 @@ export class AttentionEngineV1 {
     return {
       planId,
       question,
-      questionClass: this.classifyQuestion(question),
+      questionClass: qClass,
       tokenBudget,
       coverageStrategy: strategy,
       channelsUsed: (Object.keys(channelStats) as RetrievalChannel[]).map(ch => ({
@@ -1158,6 +1429,7 @@ export class AttentionEngineV1 {
       omissionsAndDeduplications: suppressed,
       discontinuitiesDetected: discontinuities,
       counterevidenceNotes,
+      coverageMatrix,
       createdAt: new Date().toISOString()
     };
   }
@@ -1176,17 +1448,31 @@ export class AttentionEngineV1 {
     let recurrenceHighlighted = false;
     let counterevidenceIncluded = plan.counterevidenceNotes.length > 0;
 
+    // Map obligation node IDs if coverage matrix exists
+    const roleByNodeId = new Map<string, ContextEvidenceItem['coverageRole']>();
+    if (plan.coverageMatrix) {
+      for (const ob of plan.coverageMatrix.obligations) {
+        if (ob.assignedNodeId) {
+          const r: ContextEvidenceItem['coverageRole'] =
+            ob.role === 'counterevidence_discontinuity' ? 'counterevidence' : (ob.role as any);
+          roleByNodeId.set(ob.assignedNodeId, r);
+        }
+      }
+    }
+
     for (let i = 0; i < plan.selectedSources.length; i++) {
       const src = plan.selectedSources[i];
       const item = this.index.itemsMap.get(src.sourceId)!;
 
       const role: ContextEvidenceItem['coverageRole'] =
-        src.score >= 8 ? 'direct_answer' :
+        roleByNodeId.get(src.sourceId) ||
+        (src.score >= 8 ? 'direct_answer' :
         src.channels.includes('recurrence') ? 'recurrence' :
         src.channels.includes('temporal') ? 'longitudinal_change' :
-        'anchor';
+        'anchor');
 
-      if (role === 'recurrence') recurrenceHighlighted = true;
+      if (role === 'recurrence' || role === 'connecting_pattern') recurrenceHighlighted = true;
+      if (role === 'counterevidence') counterevidenceIncluded = true;
 
       evidenceItems.push({
         id: `ev_${i + 1}`,
@@ -1232,6 +1518,20 @@ export class AttentionEngineV1 {
       ''
     ];
 
+    if (plan.coverageMatrix) {
+      promptLines.push('LONGITUDINAL COVERAGE OBLIGATIONS & STATUS:');
+      for (const ob of plan.coverageMatrix.obligations) {
+        const marker = ob.status === 'satisfied' ? '✓ [SATISFIED]' : '⚠️ [INSUFFICIENT_EVIDENCE]';
+        promptLines.push(`• ${marker} ${ob.role}: ${ob.description}`);
+        if (ob.status === 'INSUFFICIENT_EVIDENCE') {
+          promptLines.push(`  NOTICE: No authentic user Field evidence was recorded for ${ob.role}. Do not extrapolate or invent reflections for this period.`);
+        } else if (ob.rationale) {
+          promptLines.push(`  Evidence: ${ob.rationale}`);
+        }
+      }
+      promptLines.push('');
+    }
+
     if (evidenceItems.length === 0) {
       promptLines.push('NOTICE: No direct or longitudinal personal Field evidence was found matching this question.');
       promptLines.push('INSTRUCTION: Acknowledge the absence of prior reflections rather than inventing facts.');
@@ -1263,6 +1563,8 @@ export class AttentionEngineV1 {
         recurrenceHighlighted,
         counterevidenceIncluded
       },
+      coverageMatrix: plan.coverageMatrix,
+      notableOmissions: plan.omissionsAndDeduplications,
       provenanceDigest: `evidence_hash_${evidenceItems.map(e => e.sourceId).join('_')}`,
       generatedAt: new Date().toISOString()
     };
@@ -1302,11 +1604,12 @@ export class AttentionEngineV1 {
 
   private expandConcepts(tokens: string[]): string[] {
     const conceptMap: Record<string, string[]> = {
-      writing: ['manuscript', 'studio', 'essays', 'book', 'creative'],
-      creative: ['writing', 'studio', 'stillness', 'cadence'],
-      rest: ['wind_down', 'evening', 'sleep', 'stillness', 'tea', 'bed'],
+      writing: ['manuscript', 'studio', 'essays', 'book', 'creative', 'draft'],
+      creative: ['writing', 'studio', 'stillness', 'cadence', 'canvas'],
+      rest: ['wind_down', 'evening', 'sleep', 'stillness', 'tea', 'bed', 'pacing', 'pause', 'breathe', 'recover', 'slowing'],
+      burnout: ['overwhelmed', 'late_night', 'friction', 'fatigue', 'sprints', 'exhaustion', 'drained', 'collapse', 'pushing'],
+      pacing: ['cadence', 'rhythm', 'sustainable', 'slow', 'sprints', 'rest', 'stride', 'gentle', 'steady'],
       alex: ['collab', 'editorial', 'partnership', 'studio', 'boundaries'],
-      burnout: ['overwhelmed', 'late_night', 'friction', 'fatigue', 'sprints'],
       ritual: ['evening', 'tea', 'moon', 'grounding', 'cadence']
     };
 
