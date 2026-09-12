@@ -2956,3 +2956,311 @@ export const LUNA_DEV_OPENAPI_SPEC = {
   )
 };
 
+
+export const LUNA_LAB_OPENAPI_SPEC = {
+  openapi: "3.0.1",
+  info: {
+    title: "Lunar Lab GPT Attention & Retrieval Actions API",
+    description: "Authenticated experimental interface for Lunar Lab GPT to drive, inspect, and evaluate Attention Engine V1 benchmarks, plans, context packets, and longitudinal runs.",
+    version: "1.0.0"
+  },
+  servers: [
+    {
+      url: "https://loops-production-e1d5.up.railway.app",
+      description: "Railway Production"
+    }
+  ],
+  paths: {
+    "/api/dev/lab/attention/status": {
+      get: {
+        operationId: "get_attention_lab_status",
+        summary: "Get Attention Lab Status",
+        description: "Returns active subsystem health, index stats, and read-only field verification.",
+        responses: {
+          "200": {
+            description: "Lab status telemetry",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string" },
+                    subsystem: { type: "string" },
+                    totalIndexedNodes: { type: "integer" },
+                    lastIndexRebuiltAt: { type: "string" },
+                    durableSessionsCount: { type: "integer" },
+                    benchmarkCasesCount: { type: "integer" },
+                    personalFieldMutationsAllowed: { type: "boolean" },
+                    readOnlyGuardEnforced: { type: "boolean" }
+                  },
+                  required: ["status", "subsystem", "totalIndexedNodes", "personalFieldMutationsAllowed"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/plan": {
+      post: {
+        operationId: "generate_attention_plan",
+        summary: "Generate AttentionPlan and ContextPacket",
+        description: "Produces multi-channel candidate retrieval, coverage strategy, and inspectable ContextPacket for a question.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  question: { type: "string", description: "The reflection or inquiry question to plan attention for." },
+                  tokenBudget: { type: "integer", description: "Target context token budget (default 3000)." },
+                  coverageStrategy: { type: "string", description: "Optional coverage strategy override (temporal_distribution, longitudinal_span, entity_cluster, recurrence_deepening, balanced)." }
+                },
+                required: ["question"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Generated AttentionPlan and ContextPacket",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    plan: { type: "object" },
+                    contextPacket: { type: "object" }
+                  },
+                  required: ["plan", "contextPacket"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/sessions": {
+      post: {
+        operationId: "create_lab_session",
+        summary: "Create Durable Lab Experiment Session",
+        description: "Initializes a durable experiment session with stable ID, hypothesis, and metadata.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  description: { type: "string" },
+                  hypothesis: { type: "string" }
+                },
+                required: ["name"]
+              }
+            }
+          }
+        },
+        responses: {
+          "201": {
+            description: "Created session object",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    name: { type: "string" },
+                    hypothesis: { type: "string" },
+                    status: { type: "string" }
+                  },
+                  required: ["id", "name", "status"]
+                }
+              }
+            }
+          }
+        }
+      },
+      get: {
+        operationId: "list_lab_sessions",
+        summary: "List Durable Lab Experiment Sessions",
+        description: "Lists all active and completed experiment sessions.",
+        responses: {
+          "200": {
+            description: "List of sessions",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    sessions: {
+                      type: "array",
+                      items: { type: "object" }
+                    }
+                  },
+                  required: ["sessions"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/sessions/{id}": {
+      get: {
+        operationId: "inspect_lab_session",
+        summary: "Inspect Durable Lab Experiment Session",
+        description: "Retrieves complete details of an experiment session including all comparison runs.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" }
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Session details",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    name: { type: "string" },
+                    runs: { type: "array", items: { type: "object" } }
+                  },
+                  required: ["id", "name"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/sessions/{id}/run": {
+      post: {
+        operationId: "run_session_comparison",
+        summary: "Execute 3-Way Comparison Run (Control vs Broad vs V1)",
+        description: "Executes comparison on a question or benchmark case and records telemetry into the session.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  question: { type: "string" },
+                  benchmarkId: { type: "string" },
+                  model: { type: "string" }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Comparison run results across Control, Broad Context, and V1",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    runId: { type: "string" },
+                    sessionId: { type: "string" },
+                    baselines: { type: "object" }
+                  },
+                  required: ["runId", "sessionId", "baselines"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/benchmarks": {
+      get: {
+        operationId: "list_attention_benchmarks",
+        summary: "List Canonical Benchmark Questions",
+        description: "Returns the 25 canonical longitudinal benchmark cases spanning 7 question categories.",
+        parameters: [
+          {
+            name: "category",
+            in: "query",
+            required: false,
+            schema: { type: "string" }
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Benchmark cases",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    total: { type: "integer" },
+                    categories: { type: "array", items: { type: "string" } },
+                    cases: { type: "array", items: { type: "object" } }
+                  },
+                  required: ["total", "cases"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dev/lab/attention/benchmarks/evaluate": {
+      post: {
+        operationId: "evaluate_attention_benchmarks",
+        summary: "Batch Evaluate Benchmark Suite",
+        description: "Executes batch comparison across specified or all benchmark cases.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  category: { type: "string" },
+                  caseIds: { type: "array", items: { type: "string" } },
+                  limit: { type: "integer" },
+                  sessionId: { type: "string" }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Batch evaluation summary and runs",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    evaluatedCount: { type: "integer" },
+                    summary: { type: "object" },
+                    runs: { type: "array", items: { type: "object" } }
+                  },
+                  required: ["evaluatedCount", "summary", "runs"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};

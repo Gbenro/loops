@@ -1,4 +1,12 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import {
+  globalAttentionEngine,
+  globalAttentionIndex,
+  globalLabStore,
+  globalFieldAdapter,
+  CANONICAL_BENCHMARK_CASES,
+  BenchmarkHarness
+} from './attentionLab.js';
 import { getLunarData } from './lunar.js';
 import {
   listDevIssues,
@@ -885,6 +893,80 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         finalSummary: { type: 'string', description: 'Final summary of accomplishments and evidence' }
       },
       required: ['issueId', 'sessionId', 'finalSummary']
+    }
+  },
+  // ─── Attention Lab V1 (Lunar Lab GPT) Tools ─────────────────────────────
+  {
+    name: 'lunar_lab_attention_plan',
+    description: 'Attention Lab V1: Generate an inspectable AttentionPlan and ContextPacket for a question through multi-channel candidate retrieval, coverage weighting, and near-duplicate suppression.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'The inquiry or reflection question to evaluate.' },
+        tokenBudget: { type: 'number', description: 'Optional token budget (default: 3000).' },
+        coverageStrategy: { type: 'string', description: 'Optional strategy: temporal_distribution, longitudinal_span, entity_cluster, recurrence_deepening, balanced.' }
+      },
+      required: ['question']
+    }
+  },
+  {
+    name: 'lunar_lab_attention_run_comparison',
+    description: 'Attention Lab V1: Execute a 3-way comparative evaluation holding Field evidence and question constant: (A) Control, (B) Broad Baseline, (C) Attention Engine V1.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Durable experiment session ID.' },
+        question: { type: 'string', description: 'Question text to evaluate.' },
+        benchmarkId: { type: 'string', description: 'Optional canonical benchmark case ID (e.g. bm_curr_01, bm_long_01).' },
+        model: { type: 'string', description: 'Optional model identifier (default: openrouter-anthropic-sonnet-5).' }
+      },
+      required: ['sessionId']
+    }
+  },
+  {
+    name: 'lunar_lab_attention_create_session',
+    description: 'Attention Lab V1: Create a new durable experiment session with stable ID, hypothesis, and metadata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Session name.' },
+        description: { type: 'string', description: 'Session description.' },
+        hypothesis: { type: 'string', description: 'Experimental hypothesis being tested.' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'lunar_lab_attention_inspect_session',
+    description: 'Attention Lab V1: Inspect a durable experiment session, its comparison runs, and aggregate performance metrics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Session ID to inspect.' }
+      },
+      required: ['sessionId']
+    }
+  },
+  {
+    name: 'lunar_lab_attention_list_benchmarks',
+    description: 'Attention Lab V1: List the 25 canonical longitudinal benchmark question cases across 7 categories.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Optional category filter: current_state, recurrence, longitudinal_change, entity_relationship, open_loops, cycle_comparison, insufficient_evidence.' }
+      }
+    }
+  },
+  {
+    name: 'lunar_lab_attention_evaluate_benchmark',
+    description: 'Attention Lab V1: Run batch benchmark evaluation across specified cases or categories and compute comparative advantage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Optional category filter.' },
+        limit: { type: 'number', description: 'Max cases to evaluate.' },
+        sessionId: { type: 'string', description: 'Target session ID to record runs into.' }
+      }
     }
   }
 ];
@@ -2953,6 +3035,80 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
 
       return { content: [{ type: 'text', text: JSON.stringify({ preservedEcho: newEcho }, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_plan': {
+      const snap = await globalFieldAdapter.captureSnapshot();
+      if (globalAttentionIndex.totalIndexedNodes === 0) {
+        globalAttentionIndex.rebuild(snap);
+      }
+      const result = await globalAttentionEngine.planAndAssemble(args.question, {
+        tokenBudget: args.tokenBudget || 3000,
+        coverageStrategy: args.coverageStrategy
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_run_comparison': {
+      const sess = globalLabStore.getSession(args.sessionId);
+      if (!sess) throw new Error(`Attention Lab Session '${args.sessionId}' not found.`);
+      let q = args.question;
+      let bCase = undefined;
+      if (args.benchmarkId) {
+        bCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === args.benchmarkId);
+        if (bCase) q = bCase.question;
+      }
+      if (!q) throw new Error("Either 'question' or 'benchmarkId' is required.");
+
+      const snap = await globalFieldAdapter.captureSnapshot();
+      if (globalAttentionIndex.totalIndexedNodes === 0) {
+        globalAttentionIndex.rebuild(snap);
+      }
+      const harness = new BenchmarkHarness(globalAttentionEngine, globalAttentionIndex, snap);
+      const comparison = await harness.compareQuestion(q, { benchmarkCase: bCase, model: args.model });
+      comparison.sessionId = sess.id;
+      globalLabStore.recordRun(sess.id, comparison);
+      return { content: [{ type: 'text', text: JSON.stringify(comparison, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_create_session': {
+      const session = globalLabStore.createSession({
+        name: args.name,
+        description: args.description || 'Attention Lab Experiment Session',
+        hypothesis: args.hypothesis || 'Testing multi-channel attention retrieval'
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_inspect_session': {
+      const session = globalLabStore.getSession(args.sessionId);
+      if (!session) throw new Error(`Session '${args.sessionId}' not found.`);
+      return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_list_benchmarks': {
+      const cases = args.category
+        ? CANONICAL_BENCHMARK_CASES.filter(c => c.category === args.category)
+        : CANONICAL_BENCHMARK_CASES;
+      return { content: [{ type: 'text', text: JSON.stringify({ total: cases.length, cases }, null, 2) }] };
+    }
+
+    case 'lunar_lab_attention_evaluate_benchmark': {
+      let targetCases = CANONICAL_BENCHMARK_CASES;
+      if (args.category) targetCases = targetCases.filter(c => c.category === args.category);
+      if (args.limit) targetCases = targetCases.slice(0, args.limit);
+
+      const snap = await globalFieldAdapter.captureSnapshot();
+      if (globalAttentionIndex.totalIndexedNodes === 0) {
+        globalAttentionIndex.rebuild(snap);
+      }
+      const harness = new BenchmarkHarness(globalAttentionEngine, globalAttentionIndex, snap);
+      const results = [];
+      for (const bc of targetCases) {
+        const run = await harness.compareQuestion(bc.question, { benchmarkCase: bc });
+        results.push(run);
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ count: results.length, runs: results }, null, 2) }] };
     }
 
     case 'complete_dev_session': {

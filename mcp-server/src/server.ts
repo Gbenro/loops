@@ -19,6 +19,7 @@ import { executeTool, TOOL_DEFINITIONS_COMPAT } from './tools.js';
 import { registerChatRoutes } from './chat.js';
 import { registerDevBridgeRoutes } from './devBridge.js';
 import { registerModelRoutingLabRoutes } from './modelRoutingLab.js';
+import { registerAttentionLabRoutes } from './attentionLab.js';
 import { transcribeLunaAudio, detectAudioContainer } from './voice.js';
 import { getLunarData } from './lunar.js';
 
@@ -1004,6 +1005,7 @@ app.patch('/api/relational-memories/:id/status', authenticateRest, async (req, r
 registerChatRoutes(app, authenticateRest, authenticateRestOptional);
 registerDevBridgeRoutes(app, authenticateRest);
 registerModelRoutingLabRoutes(app, authenticateRest);
+registerAttentionLabRoutes(app, authenticateRest);
 
 // ─── Voice Speech-to-Text Transcription Endpoint ────────────────────────────
 
@@ -1071,7 +1073,7 @@ app.post('/api/voice/transcribe', async (req: any, res: any) => {
 });
 
 
-import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC } from './openapi.js';
+import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC, LUNA_LAB_OPENAPI_SPEC } from './openapi.js';
 
 app.get(['/openapi.json', '/api/openapi.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -1086,6 +1088,11 @@ app.get(['/openapi-core.json', '/api/openapi-core.json'], (req, res) => {
 app.get(['/openapi-dev.json', '/api/openapi-dev.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.json(LUNA_DEV_OPENAPI_SPEC);
+});
+
+app.get(['/openapi-lab.json', '/api/openapi-lab.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json(LUNA_LAB_OPENAPI_SPEC);
 });
 
 app.get('/status', (req, res) => {
