@@ -1596,7 +1596,7 @@ export async function getDevQueueState(
     }
 
     const dependencies = Array.isArray(issue.related_references)
-      ? issue.related_references.filter((r: any) => typeof r === 'string')
+      ? issue.related_references.filter((r: any) => typeof r === 'string' && r.startsWith('iss_'))
       : [];
 
     const depsSatisfied = dependencies.every((depId: string) => completedIssueIds.has(depId));
