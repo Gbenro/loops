@@ -53,7 +53,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   // Echoes (Reflections)
   {
     name: 'search_echoes',
-    description: 'Search the user\'s persistent Luna Loop Echo (reflection) history. Supports composable filters (query, phase, cycle, tags, loopId, date range, status, sorting, pagination). Use when the user asks about previous reflections, memories, observations, or topics.',
+    description: 'Search the user\'s persistent Luna Loop Echo (reflection) history. Supports composable filters (query, phase, cycle, tags, untaggedOnly, loopId, date range, status, sorting, pagination). Use when the user asks about previous reflections, memories, observations, topics, or untagged entries.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -61,6 +61,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         phase: { type: 'string', description: 'Filter by moon phase name (e.g., \'New Moon\', \'First Quarter\')' },
         cycle: { type: 'string', description: 'Filter by lunar month name (e.g., \'Wolf Moon\', \'Snow\')' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (matches all specified tags)' },
+        untaggedOnly: { type: 'boolean', description: 'Filter only echoes that have no user tags yet (e.g. tags is empty or contains only automated system tags like original-voice-echo). Highly recommended when user asks to tag untagged reflections.' },
         loopId: { type: 'string', description: 'Filter echoes associated with a specific loop ID' },
         from: { type: 'string', description: 'Filter created_at timestamp starting boundary (ISO-8601)' },
         to: { type: 'string', description: 'Filter created_at timestamp ending boundary (ISO-8601)' },
@@ -1191,7 +1192,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'search_echoes': {
-      const { query, phase, cycle, tags, loopId, from, to, status = 'active', sort = 'newest', limit = 20 } = args;
+      const { query, phase, cycle, tags, untaggedOnly, loopId, from, to, status = 'active', sort = 'newest', limit = 20 } = args;
       let dbQuery = supabase.from('echoes').select('*').eq('user_id', userId);
 
       // Status filters
@@ -1210,6 +1211,10 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
       if (tags && Array.isArray(tags) && tags.length > 0) {
         dbQuery = dbQuery.contains('tags', tags);
+      }
+      const isUntaggedOnly = untaggedOnly === true || untaggedOnly === 'true';
+      if (isUntaggedOnly) {
+        dbQuery = dbQuery.or('tags.is.null,tags.eq.[],tags.eq.["original-voice-echo"]');
       }
       if (loopId) {
         dbQuery = dbQuery.or(`linked_loop_id.eq."${loopId}",loop_ids.contains.["${loopId}"]`);
@@ -1241,7 +1246,14 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       const { data, error } = await dbQuery;
       if (error) throw error;
 
-      const results = data || [];
+      let results = data || [];
+      if (isUntaggedOnly) {
+        results = results.filter((r: any) => {
+          if (!r.tags || !Array.isArray(r.tags) || r.tags.length === 0) return true;
+          const nonSystem = r.tags.filter((t: string) => t !== 'original-voice-echo');
+          return nonSystem.length === 0;
+        });
+      }
       const hasMore = results.length > limit;
       const paginatedData = hasMore ? results.slice(0, limit) : results;
       const nextCursor = hasMore ? encodeCursor(paginatedData[paginatedData.length - 1].created_at) : null;

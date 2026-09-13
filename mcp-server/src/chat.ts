@@ -1,6 +1,7 @@
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
+import { parseDsmlToolCalls, sanitizeProse, formatFallbackActionReport } from './dsmlParser.js';
 import { getSupabaseAnon } from './db.js';
 import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
@@ -1574,12 +1575,22 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           const choice = responseMsg.choices?.[0];
           const messageObj = choice?.message;
           finalResponseText = messageObj?.content || '';
-          const toolCalls = messageObj?.tool_calls;
+          let toolCalls = messageObj?.tool_calls;
+
+          // Check for DSML tool calls if toolCalls is empty/undefined but finalResponseText has content
+          if ((!toolCalls || toolCalls.length === 0) && finalResponseText) {
+            const dsml = parseDsmlToolCalls(finalResponseText);
+            if (dsml.hasDsml && dsml.toolCalls.length > 0) {
+              console.log(`[Agent-OpenRouter] Extracted ${dsml.toolCalls.length} DSML tool call(s) from content`);
+              toolCalls = dsml.toolCalls;
+              finalResponseText = dsml.cleanContent;
+            }
+          }
 
           if (toolCalls && toolCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
-              content: finalResponseText,
+              content: finalResponseText || null,
               tool_calls: toolCalls
             });
 
@@ -1622,12 +1633,21 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           const choice = responseMsg.choices?.[0];
           const messageObj = choice?.message;
           finalResponseText = messageObj?.content || '';
-          const openAiToolCalls = messageObj?.tool_calls;
+          let openAiToolCalls = messageObj?.tool_calls;
+
+          if ((!openAiToolCalls || openAiToolCalls.length === 0) && finalResponseText) {
+            const dsml = parseDsmlToolCalls(finalResponseText);
+            if (dsml.hasDsml && dsml.toolCalls.length > 0) {
+              console.log(`[Agent-GPT] Extracted ${dsml.toolCalls.length} DSML tool call(s) from content`);
+              openAiToolCalls = dsml.toolCalls;
+              finalResponseText = dsml.cleanContent;
+            }
+          }
 
           if (openAiToolCalls && openAiToolCalls.length > 0) {
             agentMessages.push({
               role: 'assistant',
-              content: finalResponseText,
+              content: finalResponseText || null,
               tool_calls: openAiToolCalls
             });
 
@@ -1677,6 +1697,14 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         } catch (postErr) {
           console.warn('[Post-tool completion fallback]:', postErr);
         }
+      }
+
+      // Fail-closed sanitization: ensure no internal DSML markup, tool protocols, or raw XML escapes to user
+      finalResponseText = sanitizeProse(finalResponseText);
+
+      // If response text was consumed entirely by DSML markup and tools were executed, generate clean action summary
+      if (!finalResponseText.trim() && toolCallsTracked.length > 0) {
+        finalResponseText = formatFallbackActionReport(toolCallsTracked);
       }
 
       // STRICT VALIDATION: Never persist an empty assistant response and never mark empty inference as successful

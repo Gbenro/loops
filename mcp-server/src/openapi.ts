@@ -114,6 +114,15 @@ export const LUNA_OPENAPI_SPEC = {
             description: "Comma-separated list of tags"
           },
           {
+            name: "untaggedOnly",
+            in: "query",
+            required: false,
+            schema: {
+              type: "boolean"
+            },
+            description: "Filter only echoes that have no user tags yet"
+          },
+          {
             name: "limit",
             in: "query",
             required: false,
