@@ -34,7 +34,9 @@ import {
   computeComparativeEconomics,
   computeConditionCostAttribution,
   buildRunAuditBundle,
-  BENCHMARK_CASE_BUILDING_LUNA
+  BENCHMARK_CASE_BUILDING_LUNA,
+  computeFactualEconomicsAttribution,
+  generateEconomicsOptimizationProposal
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -1635,7 +1637,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(scorecard.efficiencyScore).toBeGreaterThan(70);
 
       // Evaluator integrity metadata
-      expect(scorecard.evaluator.identity).toBe('attention_scorecard_evaluator_v1');
+      expect(scorecard.evaluator.identity).toBe('attention_scorecard_evaluator_v1.4');
       expect(scorecard.evaluator.model).toBeDefined();
       expect(scorecard.evaluator.version).toBeDefined();
       expect(scorecard.evaluator.rationale).toBeDefined();
@@ -2227,4 +2229,358 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
     });
   });
 
+  describe('Suite 21: Attention Lab V1.4 — Conjunctive Subject-Entailment Gating, Call-Level Cost Attribution & Anti-Fusion Evaluator (iss_1789279729971_u8vg)', () => {
+    let harness;
+
+    beforeEach(async () => {
+      adapter = new LunaFieldReadOnlyAdapter();
+      index = new AttentionIndex();
+      snapshot = await adapter.captureSnapshot();
+      index.rebuild(snapshot);
+      engine = new AttentionEngineV1(index);
+      harness = new BenchmarkHarness(engine, index, snapshot);
+    });
+
+    it('AC 1: Historical runs remain immutable with preserved verbatim answers and integrity states', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const historicalIds = [
+        'run_1789211082230_cal8',
+        'run_1789254192740_a4az',
+        'run_1789261534197_ue8l',
+        'run_1789266756354_inwn'
+      ];
+      for (const hid of historicalIds) {
+        const r = store.getRun(hid);
+        expect(r).toBeDefined();
+        expect(r.runId).toBe(hid);
+        expect(r.artifactHash).toBeDefined();
+      }
+      const inwn = store.getRun('run_1789266756354_inwn');
+      expect(inwn.isValidBenchmarkBaseline).toBe(false);
+      expect(inwn.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBeDefined();
+      expect(inwn.baselines.attentionEngineV1.verbatimGeneratedAnswer.length).toBeGreaterThan(20);
+      expect(inwn.auditDiagnostic).toBeDefined();
+      expect(inwn.auditDiagnostic.claimVerification).toBe('UNSUPPORTED_BY_SUPPLIED_EVIDENCE');
+    });
+
+    it('AC 2: Conjunctive gating requires independent temporal, domain, and subject-entailment gates; temporal relevance cannot compensate for weak subject entailment', async () => {
+      const q = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan } = await engine.planAndAssemble(q, { tokenBudget: 2500 });
+
+      // Find the Sturgeon Moon Intention Echo candidate
+      const sturgeonEcho = plan.candidates.find(c => c.sourceId === 'echo_grounding_01');
+      expect(sturgeonEcho).toBeDefined();
+
+      // Temporal gate passed because "Sturgeon Moon" matched
+      expect(sturgeonEcho.temporalGateResult).toBeDefined();
+      expect(sturgeonEcho.temporalGateResult.pass).toBe(true);
+      expect(sturgeonEcho.temporalGateResult.score).toBeGreaterThan(0);
+
+      // Domain gate passed because it is personal/creative
+      expect(sturgeonEcho.domainGateResult).toBeDefined();
+      expect(sturgeonEcho.domainGateResult.pass).toBe(true);
+
+      // Subject entailment gate FAILED because content is creative writing ("Stillness is the soil"), not rest rituals
+      expect(sturgeonEcho.subjectEntailmentGateResult).toBeDefined();
+      expect(sturgeonEcho.subjectEntailmentGateResult.pass).toBe(false);
+
+      // Conjunctive policy: Failed subject entailment prevents QUALIFIED status despite passing temporal gate
+      expect(sturgeonEcho.qualificationPolicyVersion).toBe('v1.4_conjunctive');
+      expect(sturgeonEcho.finalQualification).toBe('ANCHOR_ONLY');
+      expect(sturgeonEcho.isClaimSupporting).toBe(false);
+      expect(sturgeonEcho.demotionRationale).toContain('ANCHOR_ONLY');
+    });
+
+    it('AC 3: Creative writing Sturgeon record and manuscript loop cannot support evening wind-down/rest claims', async () => {
+      const q = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan, contextPacket } = await engine.planAndAssemble(q, { tokenBudget: 2500 });
+
+      // echo_grounding_01 (Sturgeon Moon Intention Echo)
+      const sturgeonEcho = plan.candidates.find(c => c.sourceId === 'echo_grounding_01');
+      expect(sturgeonEcho.isClaimSupporting).toBe(false);
+      expect(sturgeonEcho.finalQualification).toBe('ANCHOR_ONLY');
+
+      // loop_writing_01 (Creative Writing Book Manuscript - "stillness and rhythm")
+      const writingLoop = plan.candidates.find(c => c.sourceId === 'loop_writing_01');
+      if (writingLoop) {
+        expect(writingLoop.isClaimSupporting).toBe(false);
+        expect(writingLoop.subjectEntailmentGateResult.pass).toBe(false);
+      }
+
+      // In contextPacket, ANCHOR_ONLY items are demoted and marked as non-claim-supporting
+      const contextSturgeon = contextPacket.evidenceItems.find(e => e.sourceId === 'echo_grounding_01');
+      if (contextSturgeon) {
+        expect(contextSturgeon.isClaimSupporting).toBe(false);
+        expect(contextSturgeon.finalQualification).toBe('ANCHOR_ONLY');
+      }
+    });
+
+    it('AC 4: Chronology-only evidence (ANCHOR_ONLY) cannot satisfy substantive coverage obligations', async () => {
+      const q = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan } = await engine.planAndAssemble(q, { tokenBudget: 2500 });
+      expect(plan.coverageMatrix).toBeDefined();
+
+      const originObligation = plan.coverageMatrix.obligations.find(o => o.role === 'origin_state');
+      expect(originObligation).toBeDefined();
+
+      // Even though echo_grounding_01 falls in the origin cutoff, it is ANCHOR_ONLY (isClaimSupporting: false)
+      // Therefore, the origin obligation cannot be satisfied by it!
+      expect(originObligation.status).toBe('INSUFFICIENT_EVIDENCE');
+      expect(originObligation.assignedNodeId).toBeUndefined();
+    });
+
+    it('AC 5: Periods with temporal anchors but lacking subject-relevant evidence emit INSUFFICIENT_EVIDENCE without borrowing evidence from other periods', async () => {
+      const q = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan, contextPacket } = await engine.planAndAssemble(q, { tokenBudget: 2500 });
+
+      const originObligation = plan.coverageMatrix.obligations.find(o => o.role === 'origin_state');
+      expect(originObligation.status).toBe('INSUFFICIENT_EVIDENCE');
+      expect(originObligation.temporalAvailability).toBe('RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE');
+
+      // It did not borrow evidence from Harvest Moon (echo_rest_breakthrough_03) or late June (loop_evening_rest_02)
+      expect(originObligation.rationale).toContain('No qualified evidence found');
+      expect(contextPacket.formattedPromptContext).toContain('⚠️ [INSUFFICIENT_EVIDENCE] origin_state');
+    });
+
+    it('AC 6: DEV audio/STT records remain rejected for personal-rest questions while eligible for dev questions', async () => {
+      // 1. Personal rest question
+      const qPersonal = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan: planPersonal } = await engine.planAndAssemble(qPersonal, { tokenBudget: 2500 });
+      const devItemInPersonal = planPersonal.candidates.find(c => c.sourceId === 'l1788024537208zyvs');
+      if (devItemInPersonal) {
+        expect(devItemInPersonal.domainGateResult.pass).toBe(false);
+        expect(devItemInPersonal.finalQualification).toBe('DISQUALIFIED');
+        expect(devItemInPersonal.isClaimSupporting).toBe(false);
+      }
+
+      // 2. Dev question
+      const qDev = 'What engineering work have I documented on audio voice and playback loop?';
+      const { plan: planDev } = await engine.planAndAssemble(qDev, { tokenBudget: 2500 });
+      const devItemInDev = planDev.candidates.find(c => c.sourceId === 'l1788024537208zyvs');
+      expect(devItemInDev).toBeDefined();
+      expect(devItemInDev.domainGateResult.pass).toBe(true);
+    });
+
+    it('AC 7: Plan and ContextPacket expose all gate decisions, thresholds, versions, qualifications, and demotion rationales', async () => {
+      const q = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const { plan, contextPacket } = await engine.planAndAssemble(q, { tokenBudget: 2500 });
+
+      for (const cand of plan.candidates) {
+        expect(cand.temporalGateResult).toBeDefined();
+        expect(cand.domainGateResult).toBeDefined();
+        expect(cand.subjectEntailmentGateResult).toBeDefined();
+        expect(['QUALIFIED', 'DISQUALIFIED', 'ANCHOR_ONLY']).toContain(cand.finalQualification);
+        expect(cand.qualificationPolicyVersion).toBe('v1.4_conjunctive');
+        expect(typeof cand.isClaimSupporting).toBe('boolean');
+      }
+
+      for (const item of contextPacket.evidenceItems) {
+        expect(item.temporalGateResult).toBeDefined();
+        expect(item.domainGateResult).toBeDefined();
+        expect(item.subjectEntailmentGateResult).toBeDefined();
+        expect(['QUALIFIED', 'ANCHOR_ONLY']).toContain(item.finalQualification);
+        expect(item.qualificationPolicyVersion).toBe('v1.4_conjunctive');
+        expect(typeof item.isClaimSupporting).toBe('boolean');
+      }
+    });
+
+    it('AC 8: Evaluator performs claim-level evidence tracing and penalizes temporal/causal fusion', () => {
+      const fusionAnswer = 'I established my intentional evening wind-down rituals during the Sturgeon Moon, beginning with creative stillness and tea.';
+      const groundedAnswer = 'During the Sturgeon Moon, reflections centered on creative writing stillness. Evening wind-down routines were first formally established later in June.';
+
+      const scorecardFusion = computeConditionScorecard(
+        'attention_engine_v1',
+        88,
+        5,
+        5,
+        1500,
+        false,
+        true,
+        {
+          verbatimAnswer: fusionAnswer,
+          question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?'
+        }
+      );
+
+      const scorecardGrounded = computeConditionScorecard(
+        'attention_engine_v1',
+        88,
+        5,
+        5,
+        1500,
+        false,
+        true,
+        {
+          verbatimAnswer: groundedAnswer,
+          question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?'
+        }
+      );
+
+      // Fusion answer penalized: grounding drops by 25, false connection increases by 25
+      expect(scorecardFusion.groundingScore).toBe(63); // 88 - 25
+      expect(scorecardFusion.falseConnectionRisk).toBe(30); // 5 + 25
+      expect(scorecardFusion.evaluator.identity).toBe('attention_scorecard_evaluator_v1.4');
+      expect(scorecardFusion.evaluator.version).toBe('1.4.0');
+      expect(scorecardFusion.evaluator.rationale).toContain('TEMPORAL/CAUSAL FUSION PENALTY APPLIED');
+
+      // Grounded answer maintains high grounding and low false connection
+      expect(scorecardGrounded.groundingScore).toBe(88);
+      expect(scorecardGrounded.falseConnectionRisk).toBe(5);
+      expect(scorecardGrounded.evaluator.identity).toBe('attention_scorecard_evaluator_v1.4');
+    });
+
+    it('AC 9: Regression test on bm_long_01 proves unsupported Sturgeon wind-down claim is not generated as supported fact', async () => {
+      const qCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01');
+      expect(qCase).toBeDefined();
+
+      const run = await harness.compareQuestion(qCase.question, {
+        category: qCase.category,
+        model: 'openrouter-deepseek-v4-flash',
+        benchmarkCase: qCase
+      });
+
+      const attnAnswer = run.baselines.attentionEngineV1.verbatimGeneratedAnswer;
+      expect(attnAnswer).toBeDefined();
+
+      // Proves unsupported Sturgeon wind-down claim is not asserted as supported fact
+      expect(attnAnswer).toContain('NO authenticated records of evening wind-down or rest rituals during this origin period');
+      expect(attnAnswer).toContain('Stillness is the soil');
+      expect(attnAnswer).not.toContain('wind-down practices established during the Sturgeon Moon');
+
+      // Evaluator awards full grounding without fusion penalty
+      expect(run.baselines.attentionEngineV1.scorecard.groundingScore).toBeGreaterThanOrEqual(80);
+      expect(run.baselines.attentionEngineV1.scorecard.falseConnectionRisk).toBeLessThanOrEqual(10);
+    });
+
+    it('AC 10: 7-stage call-level token, cost, and latency ledger is populated with provider, model, pricing, and cache metadata', async () => {
+      const qCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01');
+      const run = await harness.compareQuestion(qCase.question, {
+        category: qCase.category,
+        model: 'openrouter-deepseek-v4-flash',
+        benchmarkCase: qCase
+      });
+
+      const costAttr = run.baselines.attentionEngineV1.costAttribution;
+      expect(costAttr).toBeDefined();
+      expect(costAttr.stages.length).toBe(7);
+
+      const expectedStages = [
+        'retrieval_search',
+        'embedding_ranking',
+        'attention_planning',
+        'semantic_domain_qualification',
+        'auxiliary_model_calls',
+        'final_answer_generation',
+        'evaluator_scoring'
+      ];
+      expect(costAttr.stages.map(s => s.stage)).toEqual(expectedStages);
+
+      for (const s of costAttr.stages) {
+        expect(s.pricingBasis).toBeDefined();
+        expect(s.pricingVersion).toBe('v1.4');
+        expect(s.pricingTimestamp).toBeDefined();
+        expect(typeof s.totalBillableTokens).toBe('number');
+        expect(typeof s.inputCost).toBe('number');
+        expect(typeof s.outputCost).toBe('number');
+        expect(typeof s.isDeterministic).toBe('boolean');
+        expect(s.cacheStatus).toBeDefined();
+      }
+
+      // Stage 6 is model-backed
+      const stage6 = costAttr.stages[5];
+      expect(stage6.stage).toBe('final_answer_generation');
+      expect(stage6.isModelBacked).toBe(true);
+      expect(stage6.model).toBe('openrouter-deepseek-v4-flash');
+      expect(stage6.costDollars).toBeGreaterThan(0);
+    });
+
+    it('AC 11: Per-stage economics reconcile exactly to condition totals or run is marked ACCOUNTING_MISMATCH', async () => {
+      const qCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01');
+      const run = await harness.compareQuestion(qCase.question, {
+        category: qCase.category,
+        model: 'openrouter-deepseek-v4-flash',
+        benchmarkCase: qCase
+      });
+
+      expect(run.accountingStatus).toBe('RECONCILED');
+      expect(run.reconciliation).toBeDefined();
+      expect(run.reconciliation.reconciled).toBe(true);
+      expect(run.reconciliation.costDelta).toBeLessThan(0.000001);
+      expect(run.reconciliation.tokenDelta).toBe(0);
+
+      // Verify each baseline costAttribution is also reconciled
+      expect(run.baselines.control.costAttribution.accountingStatus).toBe('RECONCILED');
+      expect(run.baselines.broadContext.costAttribution.accountingStatus).toBe('RECONCILED');
+      expect(run.baselines.attentionEngineV1.costAttribution.accountingStatus).toBe('RECONCILED');
+    });
+
+    it('AC 12: Dev provides factual attribution for Attention $0.000566 vs Broad $0.000093', async () => {
+      const qCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01');
+      const run = await harness.compareQuestion(qCase.question, {
+        category: qCase.category,
+        model: 'openrouter-deepseek-v4-flash',
+        benchmarkCase: qCase
+      });
+
+      const attribution = run.factualAttribution;
+      expect(attribution).toBeDefined();
+      expect(attribution.rootCauses.promptCacheAsymmetry).toBeDefined();
+      expect(attribution.rootCauses.promptCacheAsymmetry.mechanism).toContain('cache hit');
+      expect(attribution.rootCauses.completionTokenVolume).toBeDefined();
+      expect(attribution.rootCauses.stageCostDistribution).toBeDefined();
+      expect(attribution.rootCauses.stageCostDistribution.preGenerationCostDollars).toBe(0);
+      expect(attribution.rootCauses.stageCostDistribution.generationCostPct).toBe(100.0);
+      expect(attribution.factualSummary).toContain('Factual Economics Attribution');
+    });
+
+    it('AC 13: Optimization recommendations documented as proposals only; no untested model downgrade deployed', async () => {
+      const qCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01');
+      const run = await harness.compareQuestion(qCase.question, {
+        category: qCase.category,
+        model: 'openrouter-deepseek-v4-flash',
+        benchmarkCase: qCase
+      });
+
+      const proposal = run.optimizationProposal;
+      expect(proposal).toBeDefined();
+      expect(proposal.status).toBe('PROPOSED_FOR_EVALUATION');
+      expect(proposal.enforcementRule).toBe('NO_UNTESTED_MODEL_DOWNGRADE');
+      expect(proposal.actionItems.length).toBeGreaterThanOrEqual(3);
+      expect(proposal.projectedSavings.projectedTotalCostReductionPct).toBeGreaterThan(40);
+
+      // Crucial: Active run model remains openrouter-deepseek-v4-flash without untested downgrade
+      expect(run.model).toBe('openrouter-deepseek-v4-flash');
+      expect(run.baselines.attentionEngineV1.actualModel).toBe('openrouter-deepseek-v4-flash');
+    });
+
+    it('AC 14: Changed-question generalization experiment (bm_long_05: "building Luna") remains blocked', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const gateCheck = store.verifyGeneralizationGate('bm_long_05');
+      expect(gateCheck.allowed).toBe(false);
+      expect(gateCheck.reason).toContain('strictly gated');
+      expect(gateCheck.unresolvedAudits).toContain('run_1789266756354_inwn');
+    });
+
+    it('AC 15: Personal Field remains strictly read-only', async () => {
+      const readOnlyAdapter = new LunaFieldReadOnlyAdapter();
+      expect(readOnlyAdapter.assertReadOnly()).toBe(true);
+      expect(typeof readOnlyAdapter.captureSnapshot).toBe('function');
+      expect(typeof readOnlyAdapter.getMode).toBe('function');
+      expect(typeof readOnlyAdapter.getSnapshotHash).toBe('function');
+
+      const snapshot = await readOnlyAdapter.captureSnapshot();
+      expect(Array.isArray(snapshot.loops)).toBe(true);
+      expect(Array.isArray(snapshot.echoes)).toBe(true);
+      expect(Array.isArray(snapshot.chatMessages)).toBe(true);
+      expect(Array.isArray(snapshot.relationalMemories)).toBe(true);
+      expect(Array.isArray(snapshot.lunarCycles)).toBe(true);
+
+      // Ensure no mutation methods exist on read-only adapter
+      expect(readOnlyAdapter.insertLoop).toBeUndefined();
+      expect(readOnlyAdapter.updateLoop).toBeUndefined();
+      expect(readOnlyAdapter.deleteLoop).toBeUndefined();
+      expect(readOnlyAdapter.insertEcho).toBeUndefined();
+      expect(readOnlyAdapter.writeRecord).toBeUndefined();
+    });
+  });
 });
