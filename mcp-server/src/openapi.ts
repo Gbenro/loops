@@ -3281,6 +3281,39 @@ export const LUNA_LAB_OPENAPI_SPEC = {
         }
       }
     },
+    "/api/dev/lab/attention/runs/{runId}/audit": {
+      get: {
+        operationId: "inspect_lab_run_audit",
+        summary: "Targeted Evidence & Cost Attribution Audit Bundle",
+        description: "Retrieves complete evidence audit bundle, ContextPacket, coverage matrix, selected/rejected candidates, domain classification, and stage-by-stage economics attribution for a specific run.",
+        parameters: [
+          {
+            name: "runId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "Unique run identifier (e.g. run_1789266756354_inwn)"
+          },
+          {
+            name: "condition",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["control", "broadContext", "attentionEngineV1", "all"] },
+            description: "Filter to specific condition audit bundle or all (default all)"
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Auditable evidence and economics bundle",
+            content: {
+              "application/json": {
+                schema: { type: "object" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dev/lab/attention/sessions/{id}": {
       get: {
         operationId: "inspect_lab_session",

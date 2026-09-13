@@ -31,7 +31,10 @@ import {
   computeAuditableConditionCost,
   computeConditionTokenUsage,
   computeConditionScorecard,
-  computeComparativeEconomics
+  computeComparativeEconomics,
+  computeConditionCostAttribution,
+  buildRunAuditBundle,
+  BENCHMARK_CASE_BUILDING_LUNA
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -595,7 +598,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(paths).not.toContain('/api/dev/issues');
       expect(paths).not.toContain('/api/dev/events');
       // Lab endpoints are purely the 7 dedicated operations
-      expect(paths.length).toBe(11);
+      expect(paths.length).toBe(12);
     });
   });
 
@@ -1881,7 +1884,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       const auditableRun = store.getRun('run_1789266756354_inwn');
       expect(auditableRun).toBeDefined();
       expect(auditableRun.integrityState).toBe('AUDITABLE');
-      expect(auditableRun.isValidBenchmarkBaseline).toBe(true);
+      expect(auditableRun.isValidBenchmarkBaseline).toBe(false); // Flagged invalid due to Sturgeon Moon hallucination audit
       expect(auditableRun.artifactHash).toMatch(/^[a-f0-9]{64}$/);
       expect(auditableRun.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBeDefined();
       expect(auditableRun.baselines.control.verbatimGeneratedAnswer).toBeDefined();
@@ -2009,7 +2012,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       const inwnRun = store.getRun('run_1789266756354_inwn');
       expect(inwnRun).toBeDefined();
       expect(inwnRun.integrityState).toBe('AUDITABLE');
-      expect(inwnRun.isValidBenchmarkBaseline).toBe(true);
+      expect(inwnRun.isValidBenchmarkBaseline).toBe(false);
       const originalHash = inwnRun.artifactHash;
 
       // Attempt to import a degraded stub with the same runId
@@ -2082,6 +2085,145 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
 
       expect(testStore.getSession(testSess.id)?.runs.length).toBe(1);
       expect(testStore.getRun(testRun.runId)).toBeDefined();
+    });
+  });
+
+
+  describe('Suite 23: Attention V1.3 Evidence Inspection, Auditing & Economics Attribution', () => {
+    it('Criteria 1: Targeted run audit bundle retrieves full evidence, context packet, and rejection decisions', async () => {
+      const store = new DurableLabStore({ testMode: true });
+      const audit = await store.getRunAuditBundle('run_1789266756354_inwn');
+      expect(audit).toBeDefined();
+      expect(audit.runId).toBe('run_1789266756354_inwn');
+      expect(audit.integrityState).toBe('AUDITABLE');
+
+      // Verify all 3 conditions are present
+      expect(audit.conditions.control).toBeDefined();
+      expect(audit.conditions.broadContext).toBeDefined();
+      expect(audit.conditions.attentionEngineV1).toBeDefined();
+
+      const att = audit.conditions.attentionEngineV1;
+      // Exact evidence supplied to Attention (11 verified items)
+      expect(att.suppliedEvidence.length).toBe(11);
+      const ev1 = att.suppliedEvidence[0];
+      expect(ev1.recordId).toBe('loop_1789112400000_wd01');
+      expect(ev1.sourceType).toBe('loop');
+      expect(ev1.timestamp).toBeDefined();
+      expect(ev1.excerpt).toContain('Commitment to screens off by 10pm');
+      expect(ev1.provenance).toBeDefined();
+      expect(ev1.provenance.sourceTable).toBe('loops');
+      expect(ev1.ordering).toBe(1);
+      expect(ev1.coverageRole).toBe('connecting_pattern');
+      expect(ev1.domain).toBe('personal_lived_experience');
+      expect(ev1.domainCompatibilityDecision).toBe('COMPATIBLE');
+
+      // Attention ContextPacket & coverage matrix
+      expect(att.contextPacket).toBeDefined();
+      expect(att.contextPacket.coverageMatrix).toBeDefined();
+      expect(att.contextPacket.coverageMatrix.obligations.length).toBeGreaterThanOrEqual(4);
+
+      // Selected and rejected candidates (DEV contamination handled)
+      expect(att.attentionPlan).toBeDefined();
+      expect(att.rejectedCandidates.length).toBeGreaterThanOrEqual(2);
+      const audioContam = att.rejectedCandidates.find(c => c.candidateId === 'dev_log_1789264000000_audio_pause');
+      expect(audioContam).toBeDefined();
+      expect(audioContam.rejectionReason).toContain('DEV_CONTAMINATION_REJECTED');
+      expect(audioContam.domain).toBe('development_engineering');
+      expect(audioContam.domainCompatibilityDecision).toBe('INCOMPATIBLE');
+      expect(audioContam.aboutnessDecision).toBe('FAIL');
+    });
+
+    it('Criteria 2: Verbatim historical answer is preserved while diagnostic corrects grounding and marks baseline invalid', async () => {
+      const store = new DurableLabStore({ testMode: true });
+      const audit = await store.getRunAuditBundle('run_1789266756354_inwn');
+      const att = audit.conditions.attentionEngineV1;
+
+      // Verbatim generated answer must NOT be altered
+      expect(att.verbatimGeneratedAnswer).toContain('intentional wind-down practices established during the Sturgeon Moon');
+
+      // Audit diagnostic details the exact discrepancy and 3-stage failure
+      expect(audit.auditDiagnostic).toBeDefined();
+      expect(audit.auditDiagnostic.targetClaim).toBe('intentional wind-down practices established during the Sturgeon Moon.');
+      expect(audit.auditDiagnostic.claimVerification).toBe('UNSUPPORTED_BY_SUPPLIED_EVIDENCE');
+      expect(audit.auditDiagnostic.diagnostic.retrievalFailure).toContain('Sturgeon Moon');
+      expect(audit.auditDiagnostic.diagnostic.retrievalFailure).toContain('creative writing');
+      expect(audit.auditDiagnostic.diagnostic.generationFailure).toContain('hallucinating');
+      expect(audit.auditDiagnostic.diagnostic.evaluatorFailure).toContain('failing to penalize');
+
+      // Evaluator scorecard must reflect corrected metrics and baseline validity
+      expect(audit.isValidBenchmarkBaseline).toBe(false);
+      expect(att.scorecard.groundingScore).toBe(58);
+      expect(att.scorecard.falseConnectionRisk).toBe(25);
+    });
+
+    it('Criteria 3: 7-stage cost attribution breakdown explains economics paradox and prompt caching', async () => {
+      const store = new DurableLabStore({ testMode: true });
+      const audit = await store.getRunAuditBundle('run_1789266756354_inwn');
+
+      const ctrlCost = audit.conditions.control.costAttribution;
+      const broadCost = audit.conditions.broadContext.costAttribution;
+      const attCost = audit.conditions.attentionEngineV1.costAttribution;
+
+      // All 7 stages must be reported
+      expect(attCost.stages.length).toBe(7);
+      const stageNames = attCost.stages.map(s => s.stage);
+      expect(stageNames).toEqual([
+        'retrieval_search',
+        'embedding_ranking',
+        'attention_planning',
+        'semantic_domain_qualification',
+        'auxiliary_model_calls',
+        'final_answer_generation',
+        'evaluator_scoring'
+      ]);
+
+      // Pre-generation stages (1-5) and post-generation evaluation (7) are 100% deterministic local code ($0 cost)
+      for (const st of attCost.stages) {
+        if (st.stage !== 'final_answer_generation') {
+          expect(st.isModelBacked).toBe(false);
+          expect(st.costDollars).toBe(0);
+          expect(st.inputTokens).toBe(0);
+          expect(st.outputTokens).toBe(0);
+        }
+      }
+
+      // Final generation stage accounts for 100% of dollars
+      const genStage = attCost.stages.find(s => s.stage === 'final_answer_generation');
+      expect(genStage.isModelBacked).toBe(true);
+      expect(genStage.costDollars).toBeGreaterThan(0);
+      expect(genStage.costDollars).toBe(attCost.totalCostDollars);
+
+      // Economics paradox verified: Attention used fewer billable tokens but cost more due to cache hit asymmetry
+      expect(attCost.totalBillableTokens).toBeLessThan(broadCost.totalBillableTokens);
+      expect(attCost.totalCostDollars).toBeGreaterThan(broadCost.totalCostDollars);
+      expect(broadCost.cachedTokenSavingsDollars).toBeGreaterThan(0);
+      expect(attCost.cachedTokenSavingsDollars).toBe(0);
+    });
+
+    it('Criteria 4: Single condition filter bounds audit payload size', async () => {
+      const store = new DurableLabStore({ testMode: true });
+      const singleCondition = await store.getRunAuditBundle('run_1789266756354_inwn', 'attentionEngineV1');
+      expect(singleCondition).toBeDefined();
+      expect(singleCondition.condition).toBe('attention_engine_v1');
+      expect(singleCondition.suppliedEvidence.length).toBe(11);
+      expect(singleCondition.contextPacket).toBeDefined();
+      expect(singleCondition.conditions).toBeUndefined(); // Only single condition bundle returned
+    });
+
+    it('Criteria 5: Next experiment question (Building Luna) is defined but strictly gated until audit verified', () => {
+      expect(BENCHMARK_CASE_BUILDING_LUNA).toBeDefined();
+      expect(BENCHMARK_CASE_BUILDING_LUNA.question).toBe('How has my relationship with building Luna changed over the last several months?');
+
+      const store = new DurableLabStore({ testMode: true });
+      const historicalRun = store.getRun('run_1789266756354_inwn');
+      expect(historicalRun).toBeDefined();
+      expect(historicalRun.isValidBenchmarkBaseline).toBe(false);
+
+      // Verify generalization gate blocks running bm_long_05 as long as historical baseline is invalid
+      const gateCheck = store.verifyGeneralizationGate(BENCHMARK_CASE_BUILDING_LUNA.id);
+      expect(gateCheck.allowed).toBe(false);
+      expect(gateCheck.reason).toContain('strictly gated');
+      expect(gateCheck.unresolvedAudits).toContain('run_1789266756354_inwn');
     });
   });
 

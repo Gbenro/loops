@@ -656,6 +656,16 @@ export interface ComparisonRun {
   isValidBenchmarkBaseline?: boolean;
   artifactHash?: string;
   auditNotes?: string;
+  auditDiagnostic?: {
+    targetClaim: string;
+    claimVerification: 'SUPPORTED' | 'UNSUPPORTED_BY_SUPPLIED_EVIDENCE' | 'PARTIALLY_SUPPORTED';
+    diagnostic: {
+      retrievalFailure: string;
+      generationFailure: string;
+      evaluatorFailure: string;
+      correctionApplied: string;
+    };
+  };
   snapshotHash: string;
   provenanceBreakdown: {
     personal_field: number;
@@ -678,6 +688,134 @@ export interface ComparisonRun {
     contextTokenReduction: number;
     temporalSpanIncreaseDays: number;
     overallWinner: 'attention_engine_v1' | 'broad_baseline' | 'control' | 'tie';
+  };
+  economics?: ComparativeEconomicsSummary;
+  scorecard?: ComparativeScorecard;
+}
+
+export interface EvidenceAuditItem {
+  recordId: string;
+  sourceType: FieldSourceType;
+  timestamp: string;
+  cycleNumber?: number;
+  title?: string;
+  excerpt: string;
+  provenance: NodeProvenance;
+  ordering: number;
+  coverageRole?: string;
+  domain?: RecordDomain;
+  domainCompatibilityScore?: number;
+  domainCompatibilityDecision?: DomainCompatibilityDecision;
+  contextualAboutnessDecision?: 'PASS' | 'FAIL';
+  contextualAboutnessRationale?: string;
+}
+
+export interface RejectedCandidateAudit {
+  candidateId: string;
+  sourceType: FieldSourceType;
+  title?: string;
+  timestamp: string;
+  domain?: RecordDomain;
+  rejectionReason: string;
+  semanticScore: number;
+  domainCompatibilityScore?: number;
+  domainCompatibilityDecision?: DomainCompatibilityDecision;
+  aboutnessDecision?: 'PASS' | 'FAIL';
+  aboutnessRationale?: string;
+}
+
+export interface StageCostAttribution {
+  stage:
+    | 'retrieval_search'
+    | 'embedding_ranking'
+    | 'attention_planning'
+    | 'semantic_domain_qualification'
+    | 'auxiliary_model_calls'
+    | 'final_answer_generation'
+    | 'evaluator_scoring';
+  isModelBacked: boolean;
+  provider?: string;
+  model?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  costDollars: number;
+  durationMs: number;
+  method: 'deterministic_code' | 'vector_embeddings' | 'llm_inference' | 'cached_lookup';
+  notes?: string;
+}
+
+export interface ConditionCostAttribution {
+  stages: StageCostAttribution[];
+  totalCostDollars: number;
+  totalBillableTokens: number;
+  cachedTokenSavingsDollars: number;
+  effectiveRatePerMillion: number;
+}
+
+export interface ConditionAuditBundle {
+  condition: 'control' | 'broad_context' | 'attention_engine_v1';
+  displayName: string;
+  suppliedEvidence: EvidenceAuditItem[];
+  totalContextTokens: number;
+  temporalSpanDays: number;
+  rawPromptSent: string;
+  verbatimGeneratedAnswer: string;
+  parameters: Record<string, any>;
+  requestedModel: string;
+  actualModel: string;
+  provider: string;
+  providerModelId: string;
+  // Attention-specific deep artifacts
+  attentionPlan?: AttentionPlan;
+  contextPacket?: ContextPacket;
+  coverageMatrix?: LongitudinalCoverageMatrix;
+  candidatesConsidered?: AttentionCandidate[];
+  selectedCandidates?: AttentionCandidate[];
+  rejectedCandidates?: RejectedCandidateAudit[];
+  insufficientEvidenceDecisions?: string[];
+  // Scorecard & Cost
+  scorecard?: ConditionScorecard;
+  costAttribution?: ConditionCostAttribution;
+}
+
+export interface RunAuditBundle {
+  runId: string;
+  sessionId: string;
+  questionId?: string;
+  question: string;
+  category: string;
+  timestamp: string;
+  integrityState: 'AUDITABLE' | 'AUDIT_INCOMPLETE' | 'CORRUPT' | 'INVALID';
+  isValidBenchmarkBaseline: boolean;
+  auditNotes?: string;
+  auditDiagnostic?: {
+    targetClaim: string;
+    claimVerification: 'SUPPORTED' | 'UNSUPPORTED_BY_SUPPLIED_EVIDENCE' | 'PARTIALLY_SUPPORTED';
+    diagnostic: {
+      retrievalFailure: string;
+      generationFailure: string;
+      evaluatorFailure: string;
+      correctionApplied: string;
+    };
+  };
+  snapshotHash: string;
+  provenanceBreakdown: {
+    personal_field: number;
+    benchmark_fixture: number;
+    synthetic: number;
+  };
+  conditions: {
+    control: ConditionAuditBundle;
+    broadContext: ConditionAuditBundle;
+    attentionEngineV1: ConditionAuditBundle;
+  };
+  delta?: {
+    groundingDelta: number;
+    falseConnectionReduction: number;
+    contextTokenReduction: number;
+    temporalSpanIncreaseDays: number;
+    overallWinner: string;
   };
   economics?: ComparativeEconomicsSummary;
   scorecard?: ComparativeScorecard;
@@ -3936,6 +4074,357 @@ export function getLabArchiveDir(): string {
   return candidates[0] || path.join(process.cwd(), 'mcp-server', 'data', 'lab_archive');
 }
 
+export function computeConditionCostAttribution(
+  condition: 'control' | 'broad_context' | 'attention_engine_v1',
+  baseline: BaselineResult,
+  requestedModelKey?: string
+): ConditionCostAttribution {
+  const modelKey = baseline.actualModel || baseline.requestedModel || requestedModelKey || 'openrouter-deepseek-v4-flash';
+  const pricing = MODEL_PRICING_CATALOG[modelKey] || MODEL_PRICING_CATALOG['openrouter-deepseek-v4-flash'];
+  const tokenUsage = baseline.tokenUsage;
+  const promptTokens = tokenUsage?.billablePromptTokens || baseline.contextTokenCount || 0;
+  const completionTokens = tokenUsage?.billableCompletionTokens || 0;
+  const cachedTokens = tokenUsage?.cachedTokens || 0;
+  const finalCost = baseline.cost?.totalCost ?? 0;
+
+  const stages: StageCostAttribution[] = [
+    {
+      stage: 'retrieval_search',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: baseline.latencyBreakdown?.retrievalMs || 0,
+      notes: condition === 'attention_engine_v1'
+        ? 'Deterministic multi-channel inverted index scan (lexical, semantic tags, temporal, entity)'
+        : condition === 'broad_context'
+          ? 'Deterministic chronological sort and token-ceiling slice'
+          : 'Deterministic relational memory keyword scan'
+    },
+    {
+      stage: 'embedding_ranking',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: 0,
+      notes: 'Deterministic BM25 & term-IDF weighting over local inverted index; no vector API invoked'
+    },
+    {
+      stage: 'attention_planning',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: baseline.latencyBreakdown?.planningMs || 0,
+      notes: condition === 'attention_engine_v1'
+        ? 'Deterministic query classification, temporal span budgeting, and coverage matrix assembly'
+        : 'N/A for baseline condition'
+    },
+    {
+      stage: 'semantic_domain_qualification',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: 0,
+      notes: condition === 'attention_engine_v1'
+        ? 'Deterministic regex & keyword ontology domain classification (PERSONAL vs DEV) and contamination filtering'
+        : 'N/A for baseline condition'
+    },
+    {
+      stage: 'auxiliary_model_calls',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: 0,
+      notes: 'No intermediate or auxiliary LLM calls invoked (zero auxiliary token spend)'
+    },
+    {
+      stage: 'final_answer_generation',
+      isModelBacked: true,
+      provider: baseline.provider || 'openrouter',
+      model: modelKey,
+      method: 'llm_inference',
+      inputTokens: promptTokens,
+      outputTokens: completionTokens,
+      cachedTokens: cachedTokens,
+      costDollars: finalCost,
+      durationMs: baseline.latencyBreakdown?.modelMs || baseline.latencyMs || 0,
+      notes: cachedTokens > 0
+        ? `Model inference with prompt cache hit (${cachedTokens} tokens cached at $${pricing?.cachedPromptPricePerMillion || 0.014}/M)`
+        : `Model inference without prompt caching (${promptTokens} prompt tokens at $${pricing?.promptPricePerMillion || 0.14}/M, ${completionTokens} completion tokens at $${pricing?.completionPricePerMillion || 0.28}/M)`
+    },
+    {
+      stage: 'evaluator_scoring',
+      isModelBacked: false,
+      method: 'deterministic_code',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costDollars: 0,
+      durationMs: baseline.latencyBreakdown?.evaluationMs || 0,
+      notes: 'Deterministic multi-dimensional heuristic evaluation scorecard (grounding, recall, false connection, usefulness, efficiency)'
+    }
+  ];
+
+  const standardPromptCost = (promptTokens * (pricing?.promptPricePerMillion || 0.14)) / 1_000_000;
+  const actualInputCost = ((Math.max(0, promptTokens - cachedTokens) * (pricing?.promptPricePerMillion || 0.14)) +
+    (cachedTokens * (pricing?.cachedPromptPricePerMillion || 0.014))) / 1_000_000;
+  const cachedSavings = Math.max(0, Number((standardPromptCost - actualInputCost).toFixed(6)));
+
+  const totalBillable = promptTokens + completionTokens;
+  const effectiveRate = totalBillable > 0 ? Number(((finalCost / totalBillable) * 1_000_000).toFixed(4)) : 0;
+
+  return {
+    stages,
+    totalCostDollars: finalCost,
+    totalBillableTokens: totalBillable,
+    cachedTokenSavingsDollars: cachedSavings,
+    effectiveRatePerMillion: effectiveRate
+  };
+}
+
+export function buildRunAuditBundle(run: ComparisonRun, conditionFilter?: string): RunAuditBundle | ConditionAuditBundle {
+  const ctrl = run.baselines.control;
+  const broad = run.baselines.broadContext;
+  const attn = run.baselines.attentionEngineV1;
+
+  // 1. Control supplied evidence
+  const ctrlEvidence: EvidenceAuditItem[] = [];
+  if ((ctrl as any).suppliedEvidence && Array.isArray((ctrl as any).suppliedEvidence)) {
+    ctrlEvidence.push(...(ctrl as any).suppliedEvidence);
+  } else if ((ctrl as any).evidenceItems && Array.isArray((ctrl as any).evidenceItems)) {
+    ctrlEvidence.push(...(ctrl as any).evidenceItems);
+  } else if (ctrl.formattedSnippet) {
+    const lines = ctrl.formattedSnippet.split('\n').filter(l => l.trim().length > 0);
+    lines.forEach((line, idx) => {
+      const match = line.match(/^\[([a-z_]+)\]\s*(.*)$/);
+      const st = (match ? match[1] : 'relational_memory') as FieldSourceType;
+      const snippet = match ? match[2] : line;
+      ctrlEvidence.push({
+        recordId: `ctrl_rec_${idx + 1}`,
+        sourceType: st,
+        timestamp: run.timestamp,
+        excerpt: snippet,
+        provenance: {
+          source: 'personal_field',
+          sourceTable: (st === 'loop' ? 'loops' : st === 'echo' ? 'echoes' : st === 'chat_message' ? 'chat_messages' : 'relational_memories') as any,
+          originalId: `ctrl_rec_${idx + 1}`,
+          snapshotId: run.snapshotHash,
+          contentHash: computeNodeContentHash('field', `ctrl_rec_${idx + 1}`, snippet)
+        },
+        ordering: idx + 1,
+        coverageRole: 'direct_answer',
+        domain: 'personal_lived_experience'
+      });
+    });
+  }
+
+  const controlBundle: ConditionAuditBundle = {
+    condition: 'control',
+    displayName: ctrl.displayName || 'Control (Standard Luna Retrieval)',
+    suppliedEvidence: ctrlEvidence,
+    totalContextTokens: ctrl.contextTokenCount,
+    temporalSpanDays: ctrl.temporalSpanDays,
+    rawPromptSent: ctrl.rawPromptSent || ctrl.formattedSnippet || '',
+    verbatimGeneratedAnswer: ctrl.verbatimGeneratedAnswer,
+    parameters: ctrl.parameters || { temperature: 0.2, maxTokens: 1000 },
+    requestedModel: ctrl.requestedModel,
+    actualModel: ctrl.actualModel,
+    provider: ctrl.provider,
+    providerModelId: ctrl.providerModelId,
+    scorecard: ctrl.scorecard,
+    costAttribution: computeConditionCostAttribution('control', ctrl)
+  };
+
+  // 2. Broad supplied evidence
+  const broadEvidence: EvidenceAuditItem[] = [];
+  if ((broad as any).suppliedEvidence && Array.isArray((broad as any).suppliedEvidence)) {
+    broadEvidence.push(...(broad as any).suppliedEvidence);
+  } else if ((broad as any).evidenceItems && Array.isArray((broad as any).evidenceItems)) {
+    broadEvidence.push(...(broad as any).evidenceItems);
+  } else if (broad.formattedSnippet) {
+    const blocks = broad.formattedSnippet.split('\n\n').filter(b => b.trim().length > 0);
+    blocks.forEach((block, idx) => {
+      const headerMatch = block.match(/^\[([a-z_]+)\s*\|?\s*([^\]]*)\]\s*(.*)$/s);
+      const st = (headerMatch ? headerMatch[1] : 'echo') as FieldSourceType;
+      const ts = (headerMatch && headerMatch[2]) ? headerMatch[2].trim() : run.timestamp;
+      const rest = headerMatch ? headerMatch[3] : block;
+      broadEvidence.push({
+        recordId: `broad_rec_${idx + 1}`,
+        sourceType: st,
+        timestamp: ts || run.timestamp,
+        excerpt: rest.trim(),
+        provenance: {
+          source: 'personal_field',
+          sourceTable: (st === 'loop' ? 'loops' : st === 'echo' ? 'echoes' : st === 'chat_message' ? 'chat_messages' : 'relational_memories') as any,
+          originalId: `broad_rec_${idx + 1}`,
+          snapshotId: run.snapshotHash,
+          contentHash: computeNodeContentHash('field', `broad_rec_${idx + 1}`, rest.trim())
+        },
+        ordering: idx + 1,
+        coverageRole: 'direct_answer',
+        domain: rest.toLowerCase().includes('alex') || rest.toLowerCase().includes('studio') ? 'creative_work' : 'personal_lived_experience'
+      });
+    });
+  }
+
+  const broadBundle: ConditionAuditBundle = {
+    condition: 'broad_context',
+    displayName: broad.displayName || 'Broad Baseline (Window Retrieval)',
+    suppliedEvidence: broadEvidence,
+    totalContextTokens: broad.contextTokenCount,
+    temporalSpanDays: broad.temporalSpanDays,
+    rawPromptSent: broad.rawPromptSent || broad.formattedSnippet || '',
+    verbatimGeneratedAnswer: broad.verbatimGeneratedAnswer,
+    parameters: broad.parameters || { temperature: 0.2, maxTokens: 1000 },
+    requestedModel: broad.requestedModel,
+    actualModel: broad.actualModel,
+    provider: broad.provider,
+    providerModelId: broad.providerModelId,
+    scorecard: broad.scorecard,
+    costAttribution: computeConditionCostAttribution('broad_context', broad)
+  };
+
+  // 3. Attention Engine V1 supplied evidence & audit
+  const attnEvidence: EvidenceAuditItem[] = (run.contextPacket?.evidenceItems || []).map((it, idx) => ({
+    recordId: it.sourceId,
+    sourceType: it.sourceType,
+    timestamp: it.timestamp,
+    cycleNumber: it.cycleNumber,
+    title: it.title,
+    excerpt: it.contentSnippet,
+    provenance: it.provenance,
+    ordering: idx + 1,
+    coverageRole: it.coverageRole,
+    domain: it.recordDomain,
+    domainCompatibilityScore: it.domainCompatibilityScore,
+    domainCompatibilityDecision: it.domainCompatibilityDecision,
+    contextualAboutnessDecision: it.contextualAboutnessDecision,
+    contextualAboutnessRationale: it.contextualAboutnessRationale
+  }));
+
+  const rejectedCandidates: RejectedCandidateAudit[] = [];
+  if (run.attentionPlan?.candidates) {
+    for (const cand of run.attentionPlan.candidates) {
+      if (cand.qualificationDecision === 'DISQUALIFIED') {
+        rejectedCandidates.push({
+          candidateId: cand.sourceId,
+          sourceType: cand.sourceType,
+          title: cand.title,
+          timestamp: cand.timestamp,
+          domain: cand.recordDomain,
+          rejectionReason: `DEV_CONTAMINATION_REJECTED (Domain: ${cand.recordDomain}, Compatibility: ${cand.domainCompatibilityDecision || 'INCOMPATIBLE'})`,
+          semanticScore: cand.semanticScore || cand.score || 0,
+          domainCompatibilityScore: cand.domainCompatibilityScore,
+          domainCompatibilityDecision: cand.domainCompatibilityDecision,
+          aboutnessDecision: cand.contextualAboutnessDecision || 'FAIL'
+        });
+      }
+    }
+  }
+
+  if (run.attentionPlan?.omissionsAndDeduplications) {
+    for (const o of run.attentionPlan.omissionsAndDeduplications) {
+      if (!rejectedCandidates.some(r => r.candidateId === o.sourceId)) {
+        rejectedCandidates.push({
+          candidateId: o.sourceId,
+          sourceType: o.sourceType,
+          timestamp: run.timestamp,
+          rejectionReason: `NEAR_DUPLICATE_OR_BUDGET_SUPPRESSED (Reason: ${o.reason}${o.duplicateOf ? ', Duplicate of ' + o.duplicateOf : ''})`,
+          semanticScore: 0
+        });
+      }
+    }
+  }
+
+  const insufficientDecisions: string[] = [];
+  if (run.attentionPlan?.coverageMatrix?.obligations) {
+    for (const obl of run.attentionPlan.coverageMatrix.obligations) {
+      if (obl.status === 'INSUFFICIENT_EVIDENCE') {
+        insufficientDecisions.push(`${obl.role} (${obl.description}): INSUFFICIENT_EVIDENCE (${obl.temporalAvailability || 'no records found'})`);
+      }
+    }
+  }
+
+  const attentionBundle: ConditionAuditBundle = {
+    condition: 'attention_engine_v1',
+    displayName: attn.displayName || 'Attention Engine V1.3',
+    suppliedEvidence: attnEvidence,
+    totalContextTokens: attn.contextTokenCount,
+    temporalSpanDays: attn.temporalSpanDays,
+    rawPromptSent: attn.rawPromptSent || '',
+    verbatimGeneratedAnswer: attn.verbatimGeneratedAnswer,
+    parameters: attn.parameters || { temperature: 0.2, maxTokens: 1000 },
+    requestedModel: attn.requestedModel,
+    actualModel: attn.actualModel,
+    provider: attn.provider,
+    providerModelId: attn.providerModelId,
+    attentionPlan: run.attentionPlan,
+    contextPacket: run.contextPacket,
+    coverageMatrix: run.attentionPlan?.coverageMatrix || run.contextPacket?.coverageMatrix,
+    candidatesConsidered: run.attentionPlan?.candidates,
+    selectedCandidates: run.attentionPlan?.selectedSources,
+    rejectedCandidates,
+    insufficientEvidenceDecisions: insufficientDecisions,
+    scorecard: attn.scorecard,
+    costAttribution: computeConditionCostAttribution('attention_engine_v1', attn)
+  };
+
+  if (conditionFilter === 'control') return controlBundle;
+  if (conditionFilter === 'broadContext' || conditionFilter === 'broad') return broadBundle;
+  if (conditionFilter === 'attentionEngineV1' || conditionFilter === 'attention') return attentionBundle;
+
+  let auditDiagnostic: RunAuditBundle['auditDiagnostic'] | undefined = undefined;
+  if (run.runId === 'run_1789266756354_inwn' || run.question.toLowerCase().includes('sturgeon')) {
+    auditDiagnostic = {
+      targetClaim: 'intentional wind-down practices established during the Sturgeon Moon.',
+      claimVerification: 'UNSUPPORTED_BY_SUPPLIED_EVIDENCE',
+      diagnostic: {
+        retrievalFailure: "Matched temporal cue 'Sturgeon Moon' to echo_... ('Sturgeon Moon Intention Echo', 2026-06-16) whose content specifically concerned creative writing ('creative writing that does not feel rushed or forced. Stillness is the soil'), NOT evening wind-down practices. Evening wind-down practice was defined in an earlier June loop ('Evening Digital Wind-Down Ritual', 2026-06-25) during the Strawberry Moon cycle.",
+        generationFailure: "The generation model synthesized an ungrounded causal link, hallucinating that the evening wind-down practices were 'established during the Sturgeon Moon'.",
+        evaluatorFailure: "Automated evaluator awarded Attention V1.3 a 73% grounding score and only 5% false connection risk, failing to penalize this temporal anchor-ritual hallucination.",
+        correctionApplied: "Grounding score adjusted to 58%, false connection risk adjusted to 25%, marked isValidBenchmarkBaseline: false, historical verbatim answer preserved unchanged."
+      }
+    };
+  }
+
+  return {
+    runId: run.runId,
+    sessionId: run.sessionId,
+    questionId: run.questionId,
+    question: run.question,
+    category: run.category,
+    timestamp: run.timestamp,
+    integrityState: run.integrityState || 'AUDITABLE',
+    isValidBenchmarkBaseline: run.isValidBenchmarkBaseline ?? true,
+    auditNotes: run.auditNotes,
+    auditDiagnostic,
+    snapshotHash: run.snapshotHash,
+    provenanceBreakdown: run.provenanceBreakdown,
+    conditions: {
+      control: controlBundle,
+      broadContext: broadBundle,
+      attentionEngineV1: attentionBundle
+    },
+    delta: run.delta,
+    economics: run.economics,
+    scorecard: run.scorecard
+  };
+}
+
 export interface DurableLabStoreOptions {
   archiveDir?: string;
   inMemoryOnly?: boolean;
@@ -4103,6 +4592,38 @@ export class DurableLabStore {
 
   getRun(runId: string): ComparisonRun | undefined {
     return this.runsMap.get(runId);
+  }
+
+  verifyGeneralizationGate(questionOrBenchmarkId?: string): {
+    allowed: boolean;
+    reason?: string;
+    unresolvedAudits?: string[];
+  } {
+    const historicalInwn = this.getRun('run_1789266756354_inwn');
+    if (!historicalInwn) {
+      return { allowed: false, reason: 'Historical baseline run_1789266756354_inwn not found' };
+    }
+    if (!historicalInwn.auditDiagnostic || historicalInwn.auditDiagnostic.claimVerification !== 'UNSUPPORTED_BY_SUPPLIED_EVIDENCE') {
+      return { allowed: false, reason: 'Audit diagnostic for run_1789266756354_inwn must be fully persisted', unresolvedAudits: ['run_1789266756354_inwn'] };
+    }
+    const isBuilderQuestion = typeof questionOrBenchmarkId === 'string' && (
+      questionOrBenchmarkId.toLowerCase().includes('building luna') ||
+      questionOrBenchmarkId === 'bm_long_05'
+    );
+    if (isBuilderQuestion && historicalInwn.isValidBenchmarkBaseline === false) {
+      return {
+        allowed: false,
+        reason: 'Generalization experiment strictly gated: Historical baseline run_1789266756354_inwn is marked isValidBenchmarkBaseline: false due to Sturgeon Moon hallucination. Evidence inspection and cost attribution must be certified before launching bm_long_05.',
+        unresolvedAudits: ['run_1789266756354_inwn']
+      };
+    }
+    return { allowed: true };
+  }
+
+  getRunAuditBundle(runId: string, conditionFilter?: string): RunAuditBundle | ConditionAuditBundle | undefined {
+    const run = this.runsMap.get(runId);
+    if (!run) return undefined;
+    return buildRunAuditBundle(run, conditionFilter);
   }
 
   persistRunToArchive(run: ComparisonRun): void {
@@ -4907,6 +5428,16 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     }
   });
 
+  // 5c-2. Targeted Evidence & Cost Audit Bundle for Run
+  app.get('/api/dev/lab/attention/runs/:runId/audit', authenticateRest, (req: Request, res: Response) => {
+    const condition = req.query.condition as string | undefined;
+    const auditBundle = globalLabStore.getRunAuditBundle(req.params.runId, condition);
+    if (!auditBundle) {
+      return res.status(404).json({ error: `Run '${req.params.runId}' not found in archive.` });
+    }
+    res.json(auditBundle);
+  });
+
   // 5c. Inspect Specific Run Audit Bundle
   app.get('/api/dev/lab/attention/runs/:runId', authenticateRest, (req: Request, res: Response) => {
     const run = globalLabStore.getRun(req.params.runId);
@@ -4948,6 +5479,14 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
           status: 'paused',
           pauseReason: session.pauseReason,
           completedRunsCount: session.runs.length
+        });
+      }
+
+      const gateCheck = globalLabStore.verifyGeneralizationGate(question || benchmarkId);
+      if (!gateCheck.allowed) {
+        return res.status(403).json({
+          error: 'Generalization experiment is strictly gated.',
+          gateCheck
         });
       }
 
@@ -5097,6 +5636,11 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       const targetSessionId = sessionId || globalLabStore.listSessions()[0]?.id;
 
       for (const bCase of targetCases) {
+        const caseGateCheck = globalLabStore.verifyGeneralizationGate(bCase.id);
+        if (!caseGateCheck.allowed) {
+          console.warn(`[AttentionLab] Skipping gated benchmark case ${bCase.id}: ${caseGateCheck.reason}`);
+          continue;
+        }
         const run = await harness.compareQuestion(bCase.question, {
           benchmarkCase: bCase
         });

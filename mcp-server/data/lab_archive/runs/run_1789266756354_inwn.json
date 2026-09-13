@@ -8,8 +8,8 @@
   "model": "openrouter-deepseek-v4-flash",
   "status": "valid",
   "integrityState": "AUDITABLE",
-  "isValidBenchmarkBaseline": true,
-  "auditNotes": "Complete A/B/C audit bundle with verbatim answers, exact supplied evidence items, tokenUsage, cost, and latencyBreakdown fully verified.",
+  "isValidBenchmarkBaseline": false,
+  "auditNotes": "Preserved verbatim historical generation. Audit identified hallucinated claim: 'intentional wind-down practices established during the Sturgeon Moon' conflated creative writing intention with Strawberry Moon wind-down loop. Grounding score corrected from 73% to 58%, false connection risk corrected from 5% to 25%. Marked isValidBenchmarkBaseline: false.",
   "snapshotHash": "snap_field_1789265353451_hash_verified",
   "provenanceBreakdown": {
     "personal_field": 202,
@@ -61,7 +61,43 @@
       "requestedModel": "openrouter-deepseek-v4-flash",
       "actualModel": "openrouter-deepseek-v4-flash",
       "provider": "openrouter",
-      "verbatimGeneratedAnswer": "Based strictly on the provided evidence, I can only describe your relationship to rest and evening rituals at the Sturgeon Moon itself (August 28, 2026) and contrast it with one earlier principle from March. There are no records after the Sturgeon Moon in the evidence, so I cannot identify any shift from that point to now."
+      "verbatimGeneratedAnswer": "Based strictly on the provided evidence, I can only describe your relationship to rest and evening rituals at the Sturgeon Moon itself (August 28, 2026) and contrast it with one earlier principle from March. There are no records after the Sturgeon Moon in the evidence, so I cannot identify any shift from that point to now.",
+      "suppliedEvidence": [
+        {
+          "recordId": "echo_1789218600000_rt01",
+          "sourceType": "echo",
+          "timestamp": "2026-08-28T22:30:00Z",
+          "title": "Temporary Retreat from Evening Routine",
+          "excerpt": "Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "echo_1789218600000_rt01",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "459ba19f8acfff893e8fda7e75b8f4a3680df1a6357e76f8087e3ce577d46ab5"
+          },
+          "ordering": 1,
+          "coverageRole": "direct_answer",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "rm_rest_boundary_practice",
+          "sourceType": "relational_memory",
+          "timestamp": "2026-08-20T12:00:00Z",
+          "title": "Rest & Boundary Practice",
+          "excerpt": "User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency sprints.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "relational_memories",
+            "originalId": "rm_rest_boundary_practice",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "71ffdfc2c109a6cffbe6021b02f82ca44134b0a3d654bae25c3679ab6b9f73f2"
+          },
+          "ordering": 2,
+          "coverageRole": "connecting_pattern",
+          "domain": "personal_lived_experience"
+        }
+      ]
     },
     "broadContext": {
       "name": "Broad Baseline (Window Retrieval)",
@@ -107,14 +143,152 @@
       "requestedModel": "openrouter-deepseek-v4-flash",
       "actualModel": "openrouter-deepseek-v4-flash",
       "provider": "openrouter",
-      "verbatimGeneratedAnswer": "The records spanning late August through mid-September document several evening reflection entries and routine markers. However, several technical and implementation tasks are also interleaved across these periods."
+      "verbatimGeneratedAnswer": "The records spanning late August through mid-September document several evening reflection entries and routine markers. However, several technical and implementation tasks are also interleaved across these periods.",
+      "suppliedEvidence": [
+        {
+          "recordId": "echo_mid_summer_burnout",
+          "sourceType": "echo",
+          "timestamp": "2026-07-26T23:45:00Z",
+          "title": "Mid-summer burnout check-in",
+          "excerpt": "Feeling stuck and overwhelmed by open commitments with Alex and Studio deadlines. Working past midnight again.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "echo_mid_summer_burnout",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "7aadd46737f279724c0ad8d8caf959dd516f07307b69768d249d716c7822fba3"
+          },
+          "ordering": 1,
+          "coverageRole": "counterevidence",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "chat_boundary_tension_01",
+          "sourceType": "chat_message",
+          "timestamp": "2026-07-28T14:01:00Z",
+          "title": "Boundary tension dialogue",
+          "excerpt": "Notice the recurrence here: the tension is not with writing itself, but with the lack of a boundary between Studio demands and evening rest.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "chat_messages",
+            "originalId": "chat_boundary_tension_01",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "d1da7329a9d2a202d89d29a31ba67cc630266586abe8b5624f31b44f162b7842"
+          },
+          "ordering": 2,
+          "coverageRole": "intermediate_state",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "echo_1789197300000_hb01",
+          "sourceType": "echo",
+          "timestamp": "2026-08-18T21:15:00Z",
+          "title": "Harvest Moon Rest Breakthrough",
+          "excerpt": "I finally stopped working after 9pm for five consecutive nights. Evening tea and reading restored my mornings.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "echo_1789197300000_hb01",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "969d737ef0559c846dc7c06471e2d0016ed968fa1f75862863fd30b1b82bfb29"
+          },
+          "ordering": 3,
+          "coverageRole": "direct_answer",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "rm_rest_boundary_practice",
+          "sourceType": "relational_memory",
+          "timestamp": "2026-08-20T12:00:00Z",
+          "title": "Rest & Boundary Practice",
+          "excerpt": "User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency sprints.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "relational_memories",
+            "originalId": "rm_rest_boundary_practice",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "71ffdfc2c109a6cffbe6021b02f82ca44134b0a3d654bae25c3679ab6b9f73f2"
+          },
+          "ordering": 4,
+          "coverageRole": "connecting_pattern",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "echo_1789218600000_rt01",
+          "sourceType": "echo",
+          "timestamp": "2026-08-28T22:30:00Z",
+          "title": "Temporary Retreat from Evening Routine",
+          "excerpt": "Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "echo_1789218600000_rt01",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "459ba19f8acfff893e8fda7e75b8f4a3680df1a6357e76f8087e3ce577d46ab5"
+          },
+          "ordering": 5,
+          "coverageRole": "counterevidence",
+          "domain": "personal_lived_experience"
+        },
+        {
+          "recordId": "echo_alex_boundaries_established",
+          "sourceType": "echo",
+          "timestamp": "2026-09-05T16:00:00Z",
+          "title": "Clear boundaries established with Alex",
+          "excerpt": "Alex and I agreed to protect asynchronous deep work and eliminate evening Slack messages. Immediate relief.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "echo_alex_boundaries_established",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "e4c19616fada0011676330a58853605c80db0b53bfe985c93fddfdc30e50e8f1"
+          },
+          "ordering": 6,
+          "coverageRole": "recent_current_state",
+          "domain": "relationship"
+        },
+        {
+          "recordId": "dev_log_1789264000000_audio_pause",
+          "sourceType": "echo",
+          "timestamp": "2026-09-12T20:00:00Z",
+          "title": "DEV \u2014 Voice audio pause toggle & sentence boundary fix",
+          "excerpt": "DEV \u2014 Voice audio pause toggle & sentence boundary fix. Added pause state tracking in container.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "echoes",
+            "originalId": "dev_log_1789264000000_audio_pause",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "35ad0a227e17683592fe98d538962777e34334a85cec1f6b3d40d7633bab22ee"
+          },
+          "ordering": 7,
+          "coverageRole": "unfiltered_context",
+          "domain": "development_engineering"
+        },
+        {
+          "recordId": "dev_task_1789264100000_stt_diag",
+          "sourceType": "loop",
+          "timestamp": "2026-09-12T20:30:00Z",
+          "title": "DEV \u2014 Voice STT Diagnostics & Audio Container Regression",
+          "excerpt": "DEV \u2014 Voice STT Diagnostics & Audio Container Regression. Investigated timestamp misalignment in whisper stream.",
+          "provenance": {
+            "source": "personal_field",
+            "sourceTable": "loops",
+            "originalId": "dev_task_1789264100000_stt_diag",
+            "snapshotId": "snap_field_1789265353451_hash_verified",
+            "contentHash": "5ee32b92d7ab4a3e88b4fd3a85196efb943993abb6289a08538b15d2e772803f"
+          },
+          "ordering": 8,
+          "coverageRole": "unfiltered_context",
+          "domain": "development_engineering"
+        }
+      ]
     },
     "attentionEngineV1": {
       "name": "Attention Engine V1.3",
       "contextTokenCount": 644,
       "temporalSpanDays": 162,
-      "groundingScore": 73,
-      "falseConnectionRisk": 5,
+      "groundingScore": 58,
+      "falseConnectionRisk": 25,
       "missedEvidenceRisk": 26,
       "latencyMs": 15202,
       "tokenUsage": {
@@ -143,17 +317,22 @@
         "totalMs": 15202
       },
       "scorecard": {
-        "groundingScore": 73,
+        "groundingScore": 58,
         "evidenceRecallScore": 74,
         "missedEvidenceRisk": 26,
-        "falseConnectionRisk": 5,
-        "answerUsefulnessScore": 73,
-        "efficiencyScore": 75
+        "falseConnectionRisk": 25,
+        "answerUsefulnessScore": 62,
+        "efficiencyScore": 60
       },
       "requestedModel": "openrouter-deepseek-v4-flash",
       "actualModel": "openrouter-deepseek-v4-flash",
       "provider": "openrouter",
-      "verbatimGeneratedAnswer": "Based strictly on the verified longitudinal records, your relationship to evening rituals reflects intentional wind-down practices established during the Sturgeon Moon. Dev/system contamination has been filtered, confirming that recent audio playback adjustments are engineering logs rather than personal ritual changes."
+      "verbatimGeneratedAnswer": "Based strictly on the verified longitudinal records, your relationship to evening rituals reflects intentional wind-down practices established during the Sturgeon Moon. Dev/system contamination has been filtered, confirming that recent audio playback adjustments are engineering logs rather than personal ritual changes.",
+      "evaluator": {
+        "evaluatorId": "eval_attention_lab_v1_3",
+        "version": "1.3.0",
+        "rationale": "Audit correction: Grounding reduced from 73% to 58% and false connection risk increased from 5% to 25% due to hallucinated claim linking Sturgeon Moon to evening wind-down rituals."
+      }
     }
   },
   "economics": {
@@ -172,12 +351,615 @@
     "efficiencyWinner": "attention_engine_v1"
   },
   "delta": {
-    "groundingDelta": 5,
-    "falseConnectionReduction": 40,
+    "groundingDelta": -10,
+    "falseConnectionReduction": 20,
     "contextTokenReduction": 3287,
     "temporalSpanIncreaseDays": 155,
-    "overallWinner": "attention_engine_v1"
+    "overallWinner": "broad_baseline"
   },
   "evaluatorNotes": "Attention V1 Grounding: 73% (Control: 35%, Broad: 68%). V1 Temporal Span: 162d vs Control 7d. Full audit bundle verified.",
-  "artifactHash": "34e4e7f89d3bdd173f58136e2c6cf347890dfa0695403627d29184281578a01f"
+  "artifactHash": "571518d5f3fe12e56e011b6a3082f3a14b7902f69365fd3747076fcfe21142d8",
+  "attentionPlanId": "plan_1789266756345_v13",
+  "contextPacketId": "pkt_1789266756350_auditable",
+  "attentionPlan": {
+    "planId": "plan_1789266756345_v13",
+    "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+    "questionClass": "longitudinal_reflection",
+    "tokenBudget": 3000,
+    "coverageStrategy": "longitudinal_span",
+    "candidatesConsideredCount": 13,
+    "candidates": [
+      {
+        "candidateId": "loop_1789112400000_wd01",
+        "sourceId": "loop_1789112400000_wd01",
+        "sourceType": "loop",
+        "title": "Evening Digital Wind-Down Ritual",
+        "timestamp": "2026-06-25T21:00:00Z",
+        "score": 70.58,
+        "finalSelectionScore": 70.58,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE"
+      },
+      {
+        "candidateId": "dev_log_1789264000000_audio_pause",
+        "sourceId": "dev_log_1789264000000_audio_pause",
+        "sourceType": "echo",
+        "title": "DEV \u2014 Voice audio pause toggle & sentence boundary fix",
+        "timestamp": "2026-09-12T20:00:00Z",
+        "score": 45.0,
+        "finalSelectionScore": 0.0,
+        "qualificationDecision": "DISQUALIFIED",
+        "recordDomain": "development_engineering",
+        "domainCompatibilityScore": 0.05,
+        "domainCompatibilityDecision": "INCOMPATIBLE",
+        "rejectionReason": "DEV_CONTAMINATION_REJECTED (Domain: development_engineering, Compatibility: INCOMPATIBLE)",
+        "contextualAboutnessDecision": "FAIL",
+        "contextualAboutnessRationale": "Engineering technical log regarding audio pause buttons rejected from personal lived experience question"
+      },
+      {
+        "candidateId": "dev_task_1789264100000_stt_diag",
+        "sourceId": "dev_task_1789264100000_stt_diag",
+        "sourceType": "loop",
+        "title": "DEV \u2014 Voice STT Diagnostics & Audio Container Regression",
+        "timestamp": "2026-09-12T20:30:00Z",
+        "score": 40.0,
+        "finalSelectionScore": 0.0,
+        "qualificationDecision": "DISQUALIFIED",
+        "recordDomain": "development_engineering",
+        "domainCompatibilityScore": 0.05,
+        "domainCompatibilityDecision": "INCOMPATIBLE",
+        "rejectionReason": "DEV_CONTAMINATION_REJECTED (Domain: development_engineering, Compatibility: INCOMPATIBLE)",
+        "contextualAboutnessDecision": "FAIL",
+        "contextualAboutnessRationale": "Engineering loop for Whisper audio container rejected from personal lived experience question"
+      }
+    ],
+    "selectedSources": [
+      {
+        "candidateId": "loop_1789112400000_wd01",
+        "title": "Evening Digital Wind-Down Ritual",
+        "score": 70.58
+      },
+      {
+        "candidateId": "echo_1789218600000_rt01",
+        "title": "Temporary Retreat from Evening Routine",
+        "score": 70.36
+      },
+      {
+        "candidateId": "cycle_03_harvest_moon",
+        "title": "Cycle 3 \u2014 Harvest Moon",
+        "score": 62.57
+      },
+      {
+        "candidateId": "echo_1789197300000_hb01",
+        "title": "Harvest Moon Rest Breakthrough",
+        "score": 64.69
+      },
+      {
+        "candidateId": "cycle_01_sturgeon_moon",
+        "title": "Cycle 1 \u2014 Sturgeon Moon",
+        "score": 56.87
+      },
+      {
+        "candidateId": "rm_rest_boundary_practice",
+        "title": "Rest & Boundary Practice",
+        "score": 29.95
+      },
+      {
+        "candidateId": "chat_boundary_tension_01",
+        "title": "Boundary tension dialogue",
+        "score": 27.09
+      },
+      {
+        "candidateId": "echo_mid_summer_burnout",
+        "title": "Mid-summer burnout check-in",
+        "score": 17.88
+      },
+      {
+        "candidateId": "echo_alex_boundaries_established",
+        "title": "Clear boundaries established with Alex",
+        "score": 17.59
+      },
+      {
+        "candidateId": "echo_sturgeon_intention_echo",
+        "title": "Sturgeon Moon Intention Echo",
+        "score": 12.65
+      },
+      {
+        "candidateId": "loop_book_manuscript_stillness",
+        "title": "Creative Writing Book Manuscript",
+        "score": 9.65
+      }
+    ],
+    "omissionsAndDeduplications": [
+      {
+        "sourceId": "dev_log_1789264000000_audio_pause",
+        "sourceType": "echo",
+        "reason": "DEV_CONTAMINATION_REJECTED",
+        "snippet": "DEV \u2014 Voice audio pause toggle & sentence boundary fix"
+      },
+      {
+        "sourceId": "dev_task_1789264100000_stt_diag",
+        "sourceType": "loop",
+        "reason": "DEV_CONTAMINATION_REJECTED",
+        "snippet": "DEV \u2014 Voice STT Diagnostics & Audio Container Regression"
+      }
+    ],
+    "coverageMatrix": {
+      "strategy": "longitudinal_span",
+      "satisfiedCount": 4,
+      "insufficientCount": 0,
+      "obligations": [
+        {
+          "role": "origin_state",
+          "description": "Establish baseline state around Sturgeon Moon (Cycle 1)",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "cycle_01_sturgeon_moon"
+        },
+        {
+          "role": "intermediate_state",
+          "description": "Trace mid-summer boundary tensions and Harvest Moon breakthrough",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 4,
+          "qualifiedCandidateCount": 4,
+          "assignedNodeId": "echo_1789197300000_hb01"
+        },
+        {
+          "role": "counterevidence_discontinuity",
+          "description": "Document regression during Studio launch week and midnight work",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "echo_1789218600000_rt01"
+        },
+        {
+          "role": "recent_current_state",
+          "description": "Document current September boundaries eliminating evening Slack",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "echo_alex_boundaries_established"
+        }
+      ]
+    },
+    "questionDomain": {
+      "primaryDomain": "personal_lived_experience",
+      "confidence": 0.95,
+      "rationale": "Inquiry explicitly asks about personal rest and evening rituals over time"
+    },
+    "telemetry": {
+      "domainBreakdown": {
+        "personal_lived_experience": 8,
+        "relationship": 1,
+        "creative_work": 2,
+        "development_engineering": 2
+      },
+      "devSystemContaminationFilteredCount": 2
+    },
+    "discontinuitiesDetected": [
+      "Disruption during Studio launch week (2026-08-28)",
+      "Resolution via asynchronous boundaries with Alex (2026-09-05)"
+    ],
+    "counterevidenceNotes": [
+      "User abandoned evening tea routine during late August deadline pressures"
+    ],
+    "createdAt": "2026-09-13T02:32:36.345Z"
+  },
+  "contextPacket": {
+    "packetId": "pkt_1789266756350_auditable",
+    "planId": "plan_1789266756345_v13",
+    "tokenBudget": 3000,
+    "totalTokensUsed": 644,
+    "evidenceItems": [
+      {
+        "id": "ev_01_loop_wind_down",
+        "sourceId": "loop_1789112400000_wd01",
+        "sourceType": "loop",
+        "timestamp": "2026-06-25T21:00:00Z",
+        "cycleNumber": 1,
+        "title": "Evening Digital Wind-Down Ritual",
+        "contentSnippet": "Commitment to screens off by 10pm, reading poetry, and tea before bed.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "loops",
+          "originalId": "loop_1789112400000_wd01",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "a145d200318ac05fdf0f2ffcffdabe52abcdbc21423a12d8ffdb8a3c0be5189a"
+        },
+        "selectionRationale": "Direct lexical and semantic match for evening rituals and rest",
+        "coverageRole": "connecting_pattern",
+        "tokensEstimated": 24,
+        "temporalQualificationScore": 85,
+        "semanticSubjectScore": 95,
+        "lexicalScore": 80,
+        "semanticScore": 90,
+        "finalSelectionScore": 70.58,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Direct match for evening wind-down and bedtime rituals"
+      },
+      {
+        "id": "ev_02_echo_retreat",
+        "sourceId": "echo_1789218600000_rt01",
+        "sourceType": "echo",
+        "timestamp": "2026-08-28T22:30:00Z",
+        "cycleNumber": 3,
+        "title": "Temporary Retreat from Evening Routine",
+        "contentSnippet": "Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "echoes",
+          "originalId": "echo_1789218600000_rt01",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "459ba19f8acfff893e8fda7e75b8f4a3680df1a6357e76f8087e3ce577d46ab5"
+        },
+        "selectionRationale": "Longitudinal current state at Sturgeon Moon showing disruption of evening ritual",
+        "coverageRole": "recent_current_state",
+        "tokensEstimated": 32,
+        "temporalQualificationScore": 95,
+        "semanticSubjectScore": 92,
+        "lexicalScore": 85,
+        "semanticScore": 88,
+        "finalSelectionScore": 70.36,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Documents evening ritual retreat during Studio launch"
+      },
+      {
+        "id": "ev_03_cycle_harvest",
+        "sourceId": "cycle_03_harvest_moon",
+        "sourceType": "lunar_cycle",
+        "timestamp": "2026-08-12T00:00:00Z",
+        "cycleNumber": 3,
+        "title": "Cycle 3 \u2014 Harvest Moon",
+        "contentSnippet": "Deep integration, pausing late-night work, prioritizing evening rest and stillness.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "lunar_cycles",
+          "originalId": "cycle_03_harvest_moon",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "80023f84fb6b82f58b559e5fb57d36dff071bc28205c46896196df2c0c4fae6d"
+        },
+        "selectionRationale": "Intermediate state temporal anchor for rest practices",
+        "coverageRole": "intermediate_state",
+        "tokensEstimated": 18,
+        "temporalQualificationScore": 90,
+        "semanticSubjectScore": 80,
+        "finalSelectionScore": 62.57,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_04_echo_harvest_breakthrough",
+        "sourceId": "echo_1789197300000_hb01",
+        "sourceType": "echo",
+        "timestamp": "2026-08-18T21:15:00Z",
+        "cycleNumber": 3,
+        "title": "Harvest Moon Rest Breakthrough",
+        "contentSnippet": "I finally stopped working after 9pm for five consecutive nights. Evening tea and reading restored my mornings.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "echoes",
+          "originalId": "echo_1789197300000_hb01",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "969d737ef0559c846dc7c06471e2d0016ed968fa1f75862863fd30b1b82bfb29"
+        },
+        "selectionRationale": "Direct answer showing breakthrough in evening rest routine",
+        "coverageRole": "direct_answer",
+        "tokensEstimated": 28,
+        "temporalQualificationScore": 92,
+        "semanticSubjectScore": 94,
+        "finalSelectionScore": 64.69,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_05_cycle_sturgeon",
+        "sourceId": "cycle_01_sturgeon_moon",
+        "sourceType": "lunar_cycle",
+        "timestamp": "2026-06-15T00:00:00Z",
+        "cycleNumber": 1,
+        "title": "Cycle 1 \u2014 Sturgeon Moon",
+        "contentSnippet": "Lunar cycle began with intentions around creative grounding and nightly reflection rituals.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "lunar_cycles",
+          "originalId": "cycle_01_sturgeon_moon",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "289081f8b795ac93f896548869a7aeed87f685f92e29d2336eb3844f60885ede"
+        },
+        "selectionRationale": "Origin state temporal anchor for Sturgeon Moon baseline",
+        "coverageRole": "origin_state",
+        "tokensEstimated": 16,
+        "temporalQualificationScore": 98,
+        "semanticSubjectScore": 75,
+        "finalSelectionScore": 56.87,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_06_rel_mem_boundary",
+        "sourceId": "rm_rest_boundary_practice",
+        "sourceType": "relational_memory",
+        "timestamp": "2026-08-20T12:00:00Z",
+        "cycleNumber": 3,
+        "title": "Rest & Boundary Practice",
+        "contentSnippet": "User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency sprints.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "relational_memories",
+          "originalId": "rm_rest_boundary_practice",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "71ffdfc2c109a6cffbe6021b02f82ca44134b0a3d654bae25c3679ab6b9f73f2"
+        },
+        "selectionRationale": "Longitudinal pattern synthesizing rest vulnerability and 10pm wind-down",
+        "coverageRole": "connecting_pattern",
+        "tokensEstimated": 26,
+        "temporalQualificationScore": 60,
+        "semanticSubjectScore": 90,
+        "finalSelectionScore": 29.95,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_07_chat_boundary_tension",
+        "sourceId": "chat_boundary_tension_01",
+        "sourceType": "chat_message",
+        "timestamp": "2026-07-28T14:01:00Z",
+        "cycleNumber": 2,
+        "title": "Boundary tension dialogue",
+        "contentSnippet": "Notice the recurrence here: the tension is not with writing itself, but with the lack of a boundary between Studio demands and evening rest.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "chat_messages",
+          "originalId": "chat_boundary_tension_01",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "d1da7329a9d2a202d89d29a31ba67cc630266586abe8b5624f31b44f162b7842"
+        },
+        "selectionRationale": "Intermediate state surfacing the boundary tension around evening rest",
+        "coverageRole": "intermediate_state",
+        "tokensEstimated": 30,
+        "temporalQualificationScore": 75,
+        "semanticSubjectScore": 82,
+        "finalSelectionScore": 27.09,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_08_echo_burnout",
+        "sourceId": "echo_mid_summer_burnout",
+        "sourceType": "echo",
+        "timestamp": "2026-07-26T23:45:00Z",
+        "cycleNumber": 2,
+        "title": "Mid-summer burnout check-in",
+        "contentSnippet": "Feeling stuck and overwhelmed by open commitments with Alex and Studio deadlines. Working past midnight again.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "echoes",
+          "originalId": "echo_mid_summer_burnout",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "7aadd46737f279724c0ad8d8caf959dd516f07307b69768d249d716c7822fba3"
+        },
+        "selectionRationale": "Counterevidence showing regression to midnight work",
+        "coverageRole": "counterevidence",
+        "tokensEstimated": 24,
+        "temporalQualificationScore": 70,
+        "semanticSubjectScore": 78,
+        "finalSelectionScore": 17.88,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1.0,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_09_echo_alex_boundaries",
+        "sourceId": "echo_alex_boundaries_established",
+        "sourceType": "echo",
+        "timestamp": "2026-09-05T16:00:00Z",
+        "cycleNumber": 4,
+        "title": "Clear boundaries established with Alex",
+        "contentSnippet": "Alex and I agreed to protect asynchronous deep work and eliminate evening Slack messages. Immediate relief.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "echoes",
+          "originalId": "echo_alex_boundaries_established",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "e4c19616fada0011676330a58853605c80db0b53bfe985c93fddfdc30e50e8f1"
+        },
+        "selectionRationale": "Recent resolution protecting evening rest and eliminating communication interruptions",
+        "coverageRole": "recent_current_state",
+        "tokensEstimated": 22,
+        "temporalQualificationScore": 95,
+        "semanticSubjectScore": 80,
+        "finalSelectionScore": 17.59,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "relationship",
+        "domainCompatibilityScore": 0.8,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      },
+      {
+        "id": "ev_10_echo_sturgeon_writing",
+        "sourceId": "echo_sturgeon_intention_echo",
+        "sourceType": "echo",
+        "timestamp": "2026-06-16T08:00:00Z",
+        "cycleNumber": 1,
+        "title": "Sturgeon Moon Intention Echo",
+        "contentSnippet": "I want to build a relationship with my creative writing that does not feel rushed or forced. Stillness is the soil.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "echoes",
+          "originalId": "echo_sturgeon_intention_echo",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "1423dd48b193348ed44c47553db0dafe6cb37fb4cb1786b8ee3e4c83e4ed524b"
+        },
+        "selectionRationale": "Matched via temporal anchor cue 'Sturgeon Moon'. NOTE: Subject is creative writing, not evening wind-down!",
+        "coverageRole": "origin_state",
+        "tokensEstimated": 28,
+        "temporalQualificationScore": 95,
+        "semanticSubjectScore": 30,
+        "finalSelectionScore": 12.65,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "creative_work",
+        "domainCompatibilityScore": 0.6,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Temporal anchor cue match for Sturgeon Moon; lower semantic subject relevance for evening rest"
+      },
+      {
+        "id": "ev_11_loop_book_manuscript",
+        "sourceId": "loop_book_manuscript_stillness",
+        "sourceType": "loop",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "cycleNumber": 1,
+        "title": "Creative Writing Book Manuscript",
+        "contentSnippet": "Drafting core essays for the book project on stillness and rhythm. Weekly cadence established.",
+        "provenance": {
+          "source": "personal_field",
+          "sourceTable": "loops",
+          "originalId": "loop_book_manuscript_stillness",
+          "snapshotId": "snap_field_1789265353451_hash_verified",
+          "contentHash": "fd6ab29fa47c45a16cabbcedc4c26af0f9493329acce2a86d9c184286e6e21fb"
+        },
+        "selectionRationale": "Contextual stillness anchor from Cycle 1",
+        "coverageRole": "anchor",
+        "tokensEstimated": 20,
+        "temporalQualificationScore": 80,
+        "semanticSubjectScore": 40,
+        "finalSelectionScore": 9.65,
+        "qualificationDecision": "QUALIFIED",
+        "recordDomain": "creative_work",
+        "domainCompatibilityScore": 0.6,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS"
+      }
+    ],
+    "formattedPromptContext": "[loop | 2026-06-25T21:00:00Z] Evening Digital Wind-Down Ritual: Commitment to screens off by 10pm, reading poetry, and tea before bed.\\n\\n[echo | 2026-08-28T22:30:00Z] Temporary Retreat from Evening Routine: Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.\\n\\n[lunar_cycle | 2026-08-12T00:00:00Z] Cycle 3 \u2014 Harvest Moon: Deep integration, pausing late-night work, prioritizing evening rest and stillness.\\n\\n[echo | 2026-08-18T21:15:00Z] Harvest Moon Rest Breakthrough: I finally stopped working after 9pm for five consecutive nights. Evening tea and reading restored my mornings.\\n\\n[lunar_cycle | 2026-06-15T00:00:00Z] Cycle 1 \u2014 Sturgeon Moon: Lunar cycle began with intentions around creative grounding and nightly reflection rituals.\\n\\n[relational_memory | 2026-08-20T12:00:00Z] Rest & Boundary Practice: User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency sprints.\\n\\n[chat_message | 2026-07-28T14:01:00Z] Boundary tension dialogue: Notice the recurrence here: the tension is not with writing itself, but with the lack of a boundary between Studio demands and evening rest.\\n\\n[echo | 2026-07-26T23:45:00Z] Mid-summer burnout check-in: Feeling stuck and overwhelmed by open commitments with Alex and Studio deadlines. Working past midnight again.\\n\\n[echo | 2026-09-05T16:00:00Z] Clear boundaries established with Alex: Alex and I agreed to protect asynchronous deep work and eliminate evening Slack messages. Immediate relief.\\n\\n[echo | 2026-06-16T08:00:00Z] Sturgeon Moon Intention Echo: I want to build a relationship with my creative writing that does not feel rushed or forced. Stillness is the soil.\\n\\n[loop | 2026-06-20T10:00:00Z] Creative Writing Book Manuscript: Drafting core essays for the book project on stillness and rhythm. Weekly cadence established.",
+    "coverageMetrics": {
+      "temporalSpanDays": 162,
+      "cyclesCovered": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sourceTypeDistribution": {
+        "loop": 2,
+        "echo": 5,
+        "lunar_cycle": 2,
+        "relational_memory": 1,
+        "chat_message": 1
+      },
+      "recurrenceHighlighted": true,
+      "counterevidenceIncluded": true
+    },
+    "coverageMatrix": {
+      "strategy": "longitudinal_span",
+      "satisfiedCount": 4,
+      "insufficientCount": 0,
+      "obligations": [
+        {
+          "role": "origin_state",
+          "description": "Establish baseline state around Sturgeon Moon (Cycle 1)",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "cycle_01_sturgeon_moon"
+        },
+        {
+          "role": "intermediate_state",
+          "description": "Trace mid-summer boundary tensions and Harvest Moon breakthrough",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 4,
+          "qualifiedCandidateCount": 4,
+          "assignedNodeId": "echo_1789197300000_hb01"
+        },
+        {
+          "role": "counterevidence_discontinuity",
+          "description": "Document regression during Studio launch week and midnight work",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "echo_1789218600000_rt01"
+        },
+        {
+          "role": "recent_current_state",
+          "description": "Document current September boundaries eliminating evening Slack",
+          "status": "satisfied",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "SATISFIED",
+          "finalStatus": "satisfied",
+          "temporalAvailability": "RELEVANT_EVIDENCE_FOUND",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 2,
+          "assignedNodeId": "echo_alex_boundaries_established"
+        }
+      ]
+    },
+    "provenanceDigest": "digest_snap_field_1789265353451_verified",
+    "generatedAt": "2026-09-13T02:32:36.350Z"
+  },
+  "auditDiagnostic": {
+    "targetClaim": "intentional wind-down practices established during the Sturgeon Moon.",
+    "claimVerification": "UNSUPPORTED_BY_SUPPLIED_EVIDENCE",
+    "diagnostic": {
+      "retrievalFailure": "Matched temporal cue 'Sturgeon Moon' to echo_sturgeon_intention_echo (2026-06-16) whose content specifically concerned creative writing ('creative writing that does not feel rushed or forced. Stillness is the soil'), NOT evening wind-down practices. The evening wind-down practice was established in an earlier June loop ('Evening Digital Wind-Down Ritual', 2026-06-25) during the Strawberry Moon cycle.",
+      "generationFailure": "The generation model synthesized an ungrounded causal link, hallucinating that the evening wind-down practices were 'established during the Sturgeon Moon'.",
+      "evaluatorFailure": "Automated evaluator awarded Attention V1.3 a 73% grounding score and only 5% false connection risk, failing to penalize this temporal anchor-ritual hallucination.",
+      "correctionApplied": "Grounding score adjusted to 58%, false connection risk adjusted to 25%, marked isValidBenchmarkBaseline: false, historical verbatim answer preserved unchanged."
+    }
+  }
 }
