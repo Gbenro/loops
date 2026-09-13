@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269129613_udql8",
+  "name": "V1 Session",
+  "description": "V1",
+  "hypothesis": "H1",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:09.613Z",
+  "updatedAt": "2026-09-13T03:12:09.614Z",
+  "runIds": [
+    "run_1789211082230_cal8"
+  ],
+  "metadata": {}
+}

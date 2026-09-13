@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269164440_fs8c5",
+  "name": "Benchmark Session",
+  "description": "Multi-run record",
+  "hypothesis": "Test hypothesis",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:44.440Z",
+  "updatedAt": "2026-09-13T03:12:44.442Z",
+  "runIds": [
+    "run_test_01"
+  ],
+  "metadata": {}
+}

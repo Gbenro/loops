@@ -1,0 +1,15 @@
+{
+  "runId": "run_1789261534197_ue8l",
+  "sessionId": "sess_lab_1789269234384_ccpr1",
+  "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+  "createdAt": "2026-09-12T19:00:00.000Z",
+  "baselines": {
+    "attentionEngineV1": {
+      "baseline": "attention_engine_v1",
+      "verbatimGeneratedAnswer": "V1.2 answer with audio pause"
+    }
+  },
+  "artifactHash": "8e8d13959e85591853f06724eebf3ce03895adcec075a443da5680e9cf5f415e",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false
+}

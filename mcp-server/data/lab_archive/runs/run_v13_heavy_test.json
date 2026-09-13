@@ -1,0 +1,327 @@
+{
+  "runId": "run_v13_heavy_test",
+  "sessionId": "sess_lab_1789269234464_lehcz",
+  "timestamp": "2026-09-13T03:13:54.466Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "valid",
+  "delta": {
+    "overallWinner": "attention_engine_v1"
+  },
+  "attentionPlan": {
+    "planId": "plan_heavy",
+    "candidatesCount": 150,
+    "candidateSources": [
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      },
+      {
+        "id": "cand_1",
+        "text": "large candidate text..."
+      }
+    ]
+  },
+  "contextPacket": {
+    "packetId": "packet_heavy",
+    "totalTokensUsed": 2500,
+    "evidenceItems": [
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      },
+      {
+        "id": "ev_1",
+        "text": "detailed evidence snippet..."
+      }
+    ]
+  },
+  "baselines": {
+    "control": {
+      "groundingScore": 35,
+      "verbatimGeneratedAnswer": "Detailed long answer from control model..."
+    },
+    "broadContext": {
+      "groundingScore": 68,
+      "formattedSnippet": "4000 tokens of raw broad context...",
+      "verbatimGeneratedAnswer": "Detailed long answer from broad baseline model..."
+    },
+    "attentionEngineV1": {
+      "groundingScore": 73,
+      "verbatimGeneratedAnswer": "Detailed long answer from attention engine v1 model..."
+    }
+  },
+  "economics": {
+    "savingsVsBroad": {
+      "tokenReductionPct": 60,
+      "contextTokenReductionPct": 84
+    },
+    "cumulativeLabCost": 0.000683
+  },
+  "artifactHash": "f99a0667cdc9eab479fcf15fef6e8ccab7b45688a635cb9fb65b03a28eb3d2cb",
+  "integrityState": "AUDITABLE",
+  "isValidBenchmarkBaseline": true
+}

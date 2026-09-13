@@ -1,0 +1,23 @@
+{
+  "runId": "run_test_01",
+  "sessionId": "sess_lab_1789269233968_ob47u",
+  "question": "Test question",
+  "category": "current_state",
+  "timestamp": "2026-09-13T03:13:53.969Z",
+  "model": "test-model",
+  "baselines": {
+    "control": {
+      "groundingScore": 50
+    },
+    "broadContext": {
+      "groundingScore": 65
+    },
+    "attentionEngineV1": {
+      "groundingScore": 92
+    }
+  },
+  "evaluatorNotes": "Test note",
+  "artifactHash": "d6e1f7d4de786b57cebdb31fc8316cb39f89a6b2cb944e820ceadefa28c923a3",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false
+}

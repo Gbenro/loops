@@ -1,0 +1,20 @@
+{
+  "runId": "run_1789211082230_cal8",
+  "sessionId": "sess_lab_1789269234413_1qvhj",
+  "question": "Q",
+  "category": "cat",
+  "timestamp": "2026-09-12T10:00:00Z",
+  "model": "m",
+  "status": "valid",
+  "snapshotHash": "hash",
+  "provenanceBreakdown": {
+    "personal_field": 1,
+    "benchmark_fixture": 0,
+    "synthetic": 0
+  },
+  "baselines": {},
+  "evaluatorNotes": "v1 baseline",
+  "artifactHash": "664f49c45a86f9d16694e7c3ba8351153b146ba11be9738b800911bc35e2a4dd",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false
+}

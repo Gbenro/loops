@@ -1,0 +1,72 @@
+{
+  "runId": "run_1789265419630_lue4",
+  "sessionId": "sess_lab_1789265353670_i3w74",
+  "questionId": "bm_long_01",
+  "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+  "category": "longitudinal_reflection",
+  "timestamp": "2026-09-13T02:00:19.630Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "valid",
+  "integrityState": "AUDIT_INCOMPLETE",
+  "isValidBenchmarkBaseline": false,
+  "auditNotes": "Historical run preserved verbatim. Contains claims ('five lunar cycles', 'restorative breathwork', 'Harvest Moon', 'intentional boundary-setting') that lack traceable persisted evidence in the archived ContextPacket. Marked AUDIT_INCOMPLETE per auditability policy. Cannot serve as benchmark baseline without complete persisted evidence.",
+  "snapshotHash": "snap_field_1789265353451_hash_verified",
+  "provenanceBreakdown": {
+    "personal_field": 202,
+    "benchmark_fixture": 0,
+    "synthetic": 0
+  },
+  "baselines": {
+    "control": {
+      "name": "Control (Standard Luna Retrieval)",
+      "contextTokenCount": 183,
+      "temporalSpanDays": 7,
+      "groundingScore": 35,
+      "falseConnectionRisk": 25,
+      "missedEvidenceRisk": 65,
+      "latencyMs": 3200,
+      "summary": "Control standard retrieval",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "Based on the immediate records, evening rituals include recent reflection entries..."
+    },
+    "broadContext": {
+      "name": "Broad Baseline (Window Retrieval)",
+      "contextTokenCount": 3931,
+      "temporalSpanDays": 180,
+      "groundingScore": 68,
+      "falseConnectionRisk": 45,
+      "missedEvidenceRisk": 25,
+      "latencyMs": 14500,
+      "summary": "Broad context window retrieval",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "Across the broad span from August to now, multiple evening routines were documented, though several unrelated development records were mixed in..."
+    },
+    "attentionEngineV1": {
+      "name": "Attention Engine V1.3",
+      "contextTokenCount": 644,
+      "temporalSpanDays": 162,
+      "groundingScore": 73,
+      "falseConnectionRisk": 5,
+      "missedEvidenceRisk": 26,
+      "latencyMs": 8200,
+      "summary": "Attention Engine V1.3 with domain-aware semantic qualification",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "Your relationship to rest has evolved across five lunar cycles. During the Sturgeon Moon, evening rituals centered on restorative breathwork and unhurried wind-down routines. By the Harvest Moon and into September, evening practices shifted toward quiet reflection and intentional boundary-setting, establishing a sustained rhythm without audio playback interruption."
+    }
+  },
+  "delta": {
+    "groundingDelta": 5,
+    "falseConnectionReduction": 40,
+    "contextTokenReduction": 3287,
+    "temporalSpanIncreaseDays": 155,
+    "overallWinner": "attention_engine_v1"
+  },
+  "evaluatorNotes": "Attention V1.3 eliminates DEV/system contamination (DEV \u2014 Voice playback controls excluded). Grounding: 73%, False connection: 5%. Audit note: Evidence packet incomplete.",
+  "artifactHash": "e601ab14b301aa1869508f58c637683513aeb520dd619edc7f3d79dfbe8e0a3a"
+}

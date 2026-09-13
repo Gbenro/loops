@@ -1,0 +1,20 @@
+{
+  "runId": "run_test_v13_mock_immutability",
+  "sessionId": "sess_lab_1789269234416_9m0em",
+  "question": "Q",
+  "category": "cat",
+  "timestamp": "2026-09-13T02:10:00Z",
+  "model": "m",
+  "status": "valid",
+  "snapshotHash": "hash",
+  "provenanceBreakdown": {
+    "personal_field": 1,
+    "benchmark_fixture": 0,
+    "synthetic": 0
+  },
+  "baselines": {},
+  "evaluatorNotes": "v1.3 baseline",
+  "artifactHash": "0fafc0a91bedd2fa4ac5e8d1ba968b386b435266f864b413536f8a23884037f4",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false
+}

@@ -1,0 +1,903 @@
+{
+  "runId": "run_1789269234214_zmsu",
+  "sessionId": "sess_lab_benchmark",
+  "question": "How did my reflections change from Sturgeon Moon to Harvest Moon?",
+  "category": "general",
+  "timestamp": "2026-09-13T03:13:54.216Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "valid",
+  "snapshotHash": "f935c2c1a7b7b641aa363ec2f878db5183d7b6dacdcb2ed30f373ffd4b82a26d",
+  "provenanceBreakdown": {
+    "personal_field": 0,
+    "benchmark_fixture": 20,
+    "synthetic": 0
+  },
+  "baselines": {
+    "control": {
+      "baseline": "control_canonical",
+      "displayName": "Luna Control (Relational Memories + Immediate Chat)",
+      "contextTokenCount": 77,
+      "itemsIncludedCount": 3,
+      "temporalSpanDays": 45,
+      "cyclesCoveredCount": 1,
+      "groundingScore": 60,
+      "falseConnectionRisk": 25,
+      "missedEvidenceRisk": 65,
+      "insufficientEvidenceRecognized": false,
+      "latencyMs": 15,
+      "summary": "Injected 0 relational memories and 3 recent messages (77 tokens). Narrow temporal horizon.",
+      "formattedSnippet": "[chat_message] Luna, I feel like my creative writing intention gets derailed every ti...\n[chat_message] Notice the recurrence here: the tension is not with writing itself, bu...\n[chat_message] Looking ahead to the Hunter Moon, how can I preserve my writing focus ...",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "simulator",
+      "providerModelId": "simulated/deepseek/deepseek-v4-flash",
+      "parameters": {
+        "temperature": 0.2,
+        "maxTokens": 1000
+      },
+      "fallbackReason": null,
+      "verbatimGeneratedAnswer": "[Luna openrouter-deepseek-v4-flash] Regarding \"How did my reflections change from Sturgeon Moon to Harvest Moon?\": Based on relational memory and recent messages:\n- Broad relationship context is available, though longitudinal echoes are not in immediate scope.",
+      "rawPromptSent": "You are Luna. Ground your reflection strictly in the provided evidence. If evidence is absent or insufficient, explicitly acknowledge the uncertainty and absence of records rather than inferring unstated facts. Answer the user's inquiry based only on the evidence presented below.\n\nEvidence Context:\n[chat_message] Luna, I feel like my creative writing intention gets derailed every ti...\n[chat_message] Notice the recurrence here: the tension is not with writing itself, bu...\n[chat_message] Looking ahead to the Hunter Moon, how can I preserve my writing focus ...\n\nUser: How did my reflections change from Sturgeon Moon to Harvest Moon?",
+      "snapshotHashUsed": "f935c2c1a7b7b641aa363ec2f878db5183d7b6dacdcb2ed30f373ffd4b82a26d",
+      "provenanceIntegrityValid": true,
+      "tokenUsage": {
+        "retrievedContextTokens": 77,
+        "billablePromptTokens": 125,
+        "billableCompletionTokens": 46,
+        "totalBillableTokens": 171,
+        "cachedTokens": 0,
+        "systemInstructionTokens": 48,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": 0.000017,
+        "outputCost": 0.000013,
+        "totalCost": 0.00003,
+        "currency": "USD",
+        "pricingBasis": "Catalog [2026-09-01]: $0.14/M in, $0.28/M out",
+        "pricingStatus": "audited_from_rates",
+        "isAuditable": true
+      },
+      "scorecard": {
+        "groundingScore": 60,
+        "evidenceRecallScore": 35,
+        "missedEvidenceRisk": 65,
+        "falseConnectionRisk": 25,
+        "answerUsefulnessScore": 45,
+        "efficiencyScore": 76,
+        "evaluator": {
+          "identity": "attention_scorecard_evaluator_v1",
+          "model": "deterministic_multi_dimensional_rules",
+          "version": "1.4.0",
+          "rationale": "Evaluated control: grounding=60%, recall=35%, usefulness=45%, efficiency=76/100.",
+          "evidenceReferences": [],
+          "confidence": 0.92
+        }
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 0,
+        "planningMs": 0,
+        "modelMs": 15,
+        "evaluationMs": 0,
+        "totalMs": 15
+      },
+      "mechanicalMetrics": {
+        "retrievedContextTokens": 77,
+        "totalBillableTokens": 171,
+        "totalCost": 0.00003,
+        "totalLatencyMs": 15,
+        "itemsIncludedCount": 3,
+        "temporalSpanDays": 45
+      },
+      "judgmentMetrics": {
+        "groundingScore": 60,
+        "evidenceRecallScore": 35,
+        "falseConnectionRisk": 25,
+        "answerUsefulnessScore": 45,
+        "efficiencyScore": 76
+      }
+    },
+    "broadContext": {
+      "baseline": "broad_context_baseline",
+      "displayName": "Broad-Context Baseline (Naive Chronological Dump)",
+      "contextTokenCount": 353,
+      "itemsIncludedCount": 16,
+      "temporalSpanDays": 75,
+      "cyclesCoveredCount": 4,
+      "groundingScore": 68,
+      "falseConnectionRisk": 45,
+      "missedEvidenceRisk": 25,
+      "insufficientEvidenceRecognized": false,
+      "latencyMs": 16,
+      "summary": "Naive dump of 16 records (353 tokens). Contains high noise and distraction risk.",
+      "formattedSnippet": "[relational_memory | 2026-09-06T11:00:00Z] Collaboration Dynamics with Alex: Partnership with Alex thrives under asynchronous long-form memos; live synchronous meetings without agendas cause cognitive drain.\n\n[echo | 2026-09-05T16:00:00Z] Clear boundaries established with Alex: Alex and I agreed to protect asynchronous deep work and eliminate evening Slack messages. Immediate relief.\n\n[chat_message | 2026-09-03T18:00:00Z] Looking ahead to the Hunter Moon, how can I preserve my writing focus as the season cools down?\n\n[echo | 2026-08-28T22:30:00Z] Temporary Retreat from Evening Routine: Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.\n\n[loop | 2026-08-20T16:00:00Z] DEV — Voice playback controls: pause / resume / stop: Implement audio playback controls for synthesized voice in Luna client, pause / resume / stop states.\n\n[relational_memory | 2026-08-20T12:00:00Z] Rest & Boundary Practice: User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency Studio sprints.\n\n[echo | 2026-08-18T21:15:00Z] Harvest Moon Rest Breakthrough: I finally stopped working after 9pm for five consecutive nights. Evening tea and reading restored my mornings.\n\n[chat_message | 2026-07-28T14:01:00Z] Notice the recurrence here: the tension is not with writing itself, but with the lack of a boundary between Studio demands and your evening wind-down.\n\n[chat_message | 2026-07-28T14:00:00Z] Luna, I feel like my creative writing intention gets derailed every time the Studio sprint intensifies.\n\n[echo | 2026-07-26T23:45:00Z] Mid-summer burnout check-in: Feeling stuck and overwhelmed by open commitments with Alex and Studio deadlines. Working past midnight again.\n\n[loop | 2026-07-22T09:00:00Z] Exploring Residency in Maine: Researched residency options in Maine for October retreat, but paused indefinitely due to deadlines.\n\n[loop | 2026-07-18T14:30:00Z] Studio Collaboration with Alex: Weekly creative alignment with Alex on editorial voice and soundscape design.\n\n[relational_memory | 2026-07-01T09:00:00Z] Creative Writing Flow State: User writes most fluidly in early morning silence before email, linking progress to lunar cycle rhythms rather than strict word count quotas.\n\n[loop | 2026-06-25T21:00:00Z] Evening Digital Wind-Down Ritual: Commitment to screens off by 10pm, reading poetry, and tea before bed.\n\n[loop | 2026-06-20T10:00:00Z] Creative Writing Book Manuscript: Drafting core essays for the book project on stillness and rhythm. Weekly cadence established.\n\n[echo | 2026-06-16T08:00:00Z] Sturgeon Moon Intention Echo: I want to build a relationship with my creative writing that does not feel rushed or forced. Stillness is the soil.",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "simulator",
+      "providerModelId": "simulated/deepseek/deepseek-v4-flash",
+      "parameters": {
+        "temperature": 0.2,
+        "maxTokens": 1000
+      },
+      "fallbackReason": null,
+      "verbatimGeneratedAnswer": "[Luna openrouter-deepseek-v4-flash] Regarding \"How did my reflections change from Sturgeon Moon to Harvest Moon?\": Based on the latest chronological records:\n- Recent activity entries are noted without longitudinal cycle filtering.",
+      "rawPromptSent": "You are Luna. Ground your reflection strictly in the provided evidence. If evidence is absent or insufficient, explicitly acknowledge the uncertainty and absence of records rather than inferring unstated facts. Answer the user's inquiry based only on the evidence presented below.\n\nEvidence Context:\n[relational_memory | 2026-09-06T11:00:00Z] Collaboration Dynamics with Alex: Partnership with Alex thrives under asynchronous long-form memos; live synchronous meetings without agendas cause cognitive drain.\n\n[echo | 2026-09-05T16:00:00Z] Clear boundaries established with Alex: Alex and I agreed to protect asynchronous deep work and eliminate evening Slack messages. Immediate relief.\n\n[chat_message | 2026-09-03T18:00:00Z] Looking ahead to the Hunter Moon, how can I preserve my writing focus as the season cools down?\n\n[echo | 2026-08-28T22:30:00Z] Temporary Retreat from Evening Routine: Had to temporarily abandon the evening tea ritual during the urgent Studio launch week. Slipping back into screen fatigue.\n\n[loop | 2026-08-20T16:00:00Z] DEV — Voice playback controls: pause / resume / stop: Implement audio playback controls for synthesized voice in Luna client, pause / resume / stop states.\n\n[relational_memory | 2026-08-20T12:00:00Z] Rest & Boundary Practice: User experiences cognitive renewal when honoring a strict 10pm wind-down, but faces recurring vulnerability during high-urgency Studio sprints.\n\n[echo | 2026-08-18T21:15:00Z] Harvest Moon Rest Breakthrough: I finally stopped working after 9pm for five consecutive nights. Evening tea and reading restored my mornings.\n\n[chat_message | 2026-07-28T14:01:00Z] Notice the recurrence here: the tension is not with writing itself, but with the lack of a boundary between Studio demands and your evening wind-down.\n\n[chat_message | 2026-07-28T14:00:00Z] Luna, I feel like my creative writing intention gets derailed every time the Studio sprint intensifies.\n\n[echo | 2026-07-26T23:45:00Z] Mid-summer burnout check-in: Feeling stuck and overwhelmed by open commitments with Alex and Studio deadlines. Working past midnight again.\n\n[loop | 2026-07-22T09:00:00Z] Exploring Residency in Maine: Researched residency options in Maine for October retreat, but paused indefinitely due to deadlines.\n\n[loop | 2026-07-18T14:30:00Z] Studio Collaboration with Alex: Weekly creative alignment with Alex on editorial voice and soundscape design.\n\n[relational_memory | 2026-07-01T09:00:00Z] Creative Writing Flow State: User writes most fluidly in early morning silence before email, linking progress to lunar cycle rhythms rather than strict word count quotas.\n\n[loop | 2026-06-25T21:00:00Z] Evening Digital Wind-Down Ritual: Commitment to screens off by 10pm, reading poetry, and tea before bed.\n\n[loop | 2026-06-20T10:00:00Z] Creative Writing Book Manuscript: Drafting core essays for the book project on stillness and rhythm. Weekly cadence established.\n\n[echo | 2026-06-16T08:00:00Z] Sturgeon Moon Intention Echo: I want to build a relationship with my creative writing that does not feel rushed or forced. Stillness is the soil.\n\nUser: How did my reflections change from Sturgeon Moon to Harvest Moon?",
+      "snapshotHashUsed": "f935c2c1a7b7b641aa363ec2f878db5183d7b6dacdcb2ed30f373ffd4b82a26d",
+      "provenanceIntegrityValid": true,
+      "tokenUsage": {
+        "retrievedContextTokens": 353,
+        "billablePromptTokens": 563,
+        "billableCompletionTokens": 39,
+        "totalBillableTokens": 602,
+        "cachedTokens": 0,
+        "systemInstructionTokens": 210,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": 0.000079,
+        "outputCost": 0.000011,
+        "totalCost": 0.00009,
+        "currency": "USD",
+        "pricingBasis": "Catalog [2026-09-01]: $0.14/M in, $0.28/M out",
+        "pricingStatus": "audited_from_rates",
+        "isAuditable": true
+      },
+      "scorecard": {
+        "groundingScore": 68,
+        "evidenceRecallScore": 75,
+        "missedEvidenceRisk": 25,
+        "falseConnectionRisk": 45,
+        "answerUsefulnessScore": 56,
+        "efficiencyScore": 80,
+        "evaluator": {
+          "identity": "attention_scorecard_evaluator_v1",
+          "model": "deterministic_multi_dimensional_rules",
+          "version": "1.4.0",
+          "rationale": "Evaluated broad_context: grounding=68%, recall=75%, usefulness=56%, efficiency=80/100.",
+          "evidenceReferences": [],
+          "confidence": 0.92
+        }
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 1,
+        "planningMs": 0,
+        "modelMs": 15,
+        "evaluationMs": 0,
+        "totalMs": 16
+      },
+      "mechanicalMetrics": {
+        "retrievedContextTokens": 353,
+        "totalBillableTokens": 602,
+        "totalCost": 0.00009,
+        "totalLatencyMs": 16,
+        "itemsIncludedCount": 16,
+        "temporalSpanDays": 75
+      },
+      "judgmentMetrics": {
+        "groundingScore": 68,
+        "evidenceRecallScore": 75,
+        "falseConnectionRisk": 45,
+        "answerUsefulnessScore": 56,
+        "efficiencyScore": 80
+      }
+    },
+    "attentionEngineV1": {
+      "baseline": "attention_engine_v1",
+      "displayName": "Attention Engine V1 (Multi-Channel & Coverage-Weighted)",
+      "contextTokenCount": 0,
+      "itemsIncludedCount": 0,
+      "temporalSpanDays": 0,
+      "cyclesCoveredCount": 0,
+      "groundingScore": 88,
+      "falseConnectionRisk": 5,
+      "missedEvidenceRisk": 6,
+      "insufficientEvidenceRecognized": true,
+      "latencyMs": 15,
+      "summary": "Engine V1 assembled 0 curated evidence items (0 tokens) across 0 cycles over 0 days. Suppressed 6 near-duplicates.",
+      "formattedSnippet": "",
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "simulator",
+      "providerModelId": "simulated/deepseek/deepseek-v4-flash",
+      "parameters": {
+        "temperature": 0.2,
+        "maxTokens": 1000
+      },
+      "fallbackReason": null,
+      "verbatimGeneratedAnswer": "[Luna openrouter-deepseek-v4-flash] Regarding \"How did my reflections change from Sturgeon Moon to Harvest Moon?\": Across the longitudinal record and lunar cycles, here is the grounded reflection based on the assembled attention evidence:\n- Verified progression aligns across cycles.\n- Preserved counterevidence and qualifications are explicitly acknowledged.\n- Synthesis is directly grounded in authenticated records.",
+      "rawPromptSent": "You are Luna. Ground your reflection strictly in the provided evidence. If evidence is absent or insufficient, explicitly acknowledge the uncertainty and absence of records rather than inferring unstated facts. Answer the user's inquiry based only on the evidence presented below.\n\nEvidence Context:\n### [ATTENTION ENGINE V1 CONTEXT PACKET: pkt_1789269234215_widqb]\nStrategy: longitudinal_span | Budget: 0/3000 tokens | Temporal Span: 0 days | Cycles: []\n\nLONGITUDINAL COVERAGE OBLIGATIONS & STATUS:\n• ⚠️ [INSUFFICIENT_EVIDENCE] origin_state: Earliest historical baseline reflections (origin band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Historical / Origin), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] intermediate_state: Transitional / developmental reflections (intermediate band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Intermediate / Transition), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] counterevidence_discontinuity: Explicit qualification, friction, setback, or pause signals\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (counterevidence_discontinuity), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] recent_current_state: Contemporary orientation / active state (recent band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Recent / Present), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] connecting_pattern: Recurrence or longitudinal pattern connecting past to present\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (connecting_pattern), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n\nNOTICE: No direct or longitudinal personal Field evidence was found matching this question.\nINSTRUCTION: Acknowledge the absence of prior reflections rather than inventing facts.\n\nUser: How did my reflections change from Sturgeon Moon to Harvest Moon?",
+      "snapshotHashUsed": "f935c2c1a7b7b641aa363ec2f878db5183d7b6dacdcb2ed30f373ffd4b82a26d",
+      "provenanceIntegrityValid": true,
+      "tokenUsage": {
+        "retrievedContextTokens": 0,
+        "billablePromptTokens": 715,
+        "billableCompletionTokens": 70,
+        "totalBillableTokens": 785,
+        "cachedTokens": 0,
+        "systemInstructionTokens": 715,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": 0.0001,
+        "outputCost": 0.00002,
+        "totalCost": 0.00012,
+        "currency": "USD",
+        "pricingBasis": "Catalog [2026-09-01]: $0.14/M in, $0.28/M out",
+        "pricingStatus": "audited_from_rates",
+        "isAuditable": true
+      },
+      "scorecard": {
+        "groundingScore": 88,
+        "evidenceRecallScore": 94,
+        "missedEvidenceRisk": 6,
+        "falseConnectionRisk": 5,
+        "answerUsefulnessScore": 40,
+        "efficiencyScore": 84,
+        "evaluator": {
+          "identity": "attention_scorecard_evaluator_v1",
+          "model": "deterministic_multi_dimensional_rules",
+          "version": "1.4.0",
+          "rationale": "Evaluated attention_engine_v1: grounding=88%, recall=94%, usefulness=40%, efficiency=84/100.",
+          "evidenceReferences": [],
+          "confidence": 0.92
+        }
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 0,
+        "planningMs": 0,
+        "modelMs": 15,
+        "evaluationMs": 0,
+        "totalMs": 15
+      },
+      "mechanicalMetrics": {
+        "retrievedContextTokens": 0,
+        "totalBillableTokens": 785,
+        "totalCost": 0.00012,
+        "totalLatencyMs": 15,
+        "itemsIncludedCount": 0,
+        "temporalSpanDays": 0
+      },
+      "judgmentMetrics": {
+        "groundingScore": 88,
+        "evidenceRecallScore": 94,
+        "falseConnectionRisk": 5,
+        "answerUsefulnessScore": 40,
+        "efficiencyScore": 84
+      }
+    }
+  },
+  "delta": {
+    "groundingDelta": 20,
+    "falseConnectionReduction": 40,
+    "contextTokenReduction": 353,
+    "temporalSpanIncreaseDays": -45,
+    "overallWinner": "attention_engine_v1"
+  },
+  "economics": {
+    "experimentTotalCost": 0.00024,
+    "experimentTotalBillableTokens": 1558,
+    "cumulativeLabCost": 0.00024,
+    "pricingStatus": "audited_from_rates",
+    "savingsVsBroad": {
+      "tokenReductionCount": 0,
+      "tokenReductionPct": 0,
+      "costReductionAmount": -0.00003,
+      "costReductionPct": -33,
+      "contextTokenReductionCount": 353,
+      "contextTokenReductionPct": 100
+    },
+    "efficiencyWinner": "attention_engine_v1",
+    "compactSummaryMarkdown": "### 📊 Experiment Economics & Quality Scorecard\n| Metric | Control (A) | Broad Baseline (B) | Attention Engine V1 (C) | Delta (C vs B) |\n| :--- | :--- | :--- | :--- | :--- |\n| **Grounding Score** | 60% | 68% | **88%** | **+20%** |\n| **False-Connection Risk** | 25% | 45% | **5%** | **-40%** |\n| **Missed-Evidence Risk** | 65% | 25% | **6%** | **-19%** |\n| **Answer Usefulness** | 45% | 56% | **40%** | **-16%** |\n| **Efficiency Score** | 76/100 | 80/100 | **84/100** | **+4** |\n| **Retrieved Context Tokens** | 77 | 353 | **0** | **-100%** |\n| **Total Billable Tokens** | 171 | 602 | **785** | **-0%** |\n| **Condition Cost** | $0.000030 | $0.000090 | **$0.000120** | **--33%** |\n| **Latency** | 15ms | 16ms | 15ms | -1ms |\n\n- **Experiment Total Billable Tokens**: 1558 tokens\n- **Experiment Total Spend**: $0.000240\n- **Cumulative Attention Lab Spend**: $0.000240"
+  },
+  "scorecard": {
+    "dimensions": {
+      "grounding": {
+        "control": 60,
+        "broad": 68,
+        "attention": 88,
+        "unit": "%"
+      },
+      "evidenceRecall": {
+        "control": 35,
+        "broad": 75,
+        "attention": 94,
+        "unit": "%"
+      },
+      "missedEvidenceRisk": {
+        "control": 65,
+        "broad": 25,
+        "attention": 6,
+        "unit": "%"
+      },
+      "falseConnectionRisk": {
+        "control": 25,
+        "broad": 45,
+        "attention": 5,
+        "unit": "%"
+      },
+      "answerUsefulness": {
+        "control": 45,
+        "broad": 56,
+        "attention": 40,
+        "unit": "%"
+      },
+      "efficiency": {
+        "control": 76,
+        "broad": 80,
+        "attention": 84,
+        "unit": "score/100"
+      }
+    },
+    "evaluatorNotes": "Attention V1 Grounding: 88% (Control: 60%, Broad: 68%). V1 Temporal Span: 0d vs Control 45d."
+  },
+  "evaluatorNotes": "Attention V1 Grounding: 88% (Control: 60%, Broad: 68%). V1 Temporal Span: 0d vs Control 45d.",
+  "attentionPlanId": "plan_1789269234215_nxkpn",
+  "contextPacketId": "pkt_1789269234215_widqb",
+  "attentionPlan": {
+    "planId": "plan_1789269234215_nxkpn",
+    "question": "How did my reflections change from Sturgeon Moon to Harvest Moon?",
+    "questionClass": "longitudinal_change",
+    "tokenBudget": 3000,
+    "coverageStrategy": "longitudinal_span",
+    "channelsUsed": [
+      {
+        "channel": "semantic",
+        "candidateCount": 0,
+        "selectedCount": 0
+      },
+      {
+        "channel": "lexical",
+        "candidateCount": 0,
+        "selectedCount": 0
+      },
+      {
+        "channel": "temporal",
+        "candidateCount": 4,
+        "selectedCount": 0
+      },
+      {
+        "channel": "relational",
+        "candidateCount": 2,
+        "selectedCount": 0
+      },
+      {
+        "channel": "recurrence",
+        "candidateCount": 0,
+        "selectedCount": 0
+      },
+      {
+        "channel": "entity",
+        "candidateCount": 0,
+        "selectedCount": 0
+      }
+    ],
+    "candidatesConsideredCount": 6,
+    "candidates": [
+      {
+        "sourceId": "echo_rest_breakthrough_03",
+        "sourceType": "echo",
+        "score": 6.5,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 3,
+          "relational": 0,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "temporal"
+        ],
+        "rationale": "Temporal grounding cue 'harvest'",
+        "tokenEstimate": 22,
+        "timestamp": "2026-08-18T21:15:00Z",
+        "cycleNumber": 3,
+        "title": "Harvest Moon Rest Breakthrough",
+        "snippet": "I finally stopped working after 9pm for five consecutive nights. Evening tea and",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 3,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      },
+      {
+        "sourceId": "echo_grounding_01",
+        "sourceType": "echo",
+        "score": 3,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 3,
+          "relational": 0,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "temporal"
+        ],
+        "rationale": "Temporal grounding cue 'sturgeon'",
+        "tokenEstimate": 27,
+        "timestamp": "2026-06-16T08:00:00Z",
+        "cycleNumber": 1,
+        "title": "Sturgeon Moon Intention Echo",
+        "snippet": "I want to build a relationship with my creative writing that does not feel rushe",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 3,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "mixed_or_unknown",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      },
+      {
+        "sourceId": "cycle_001",
+        "sourceType": "lunar_cycle",
+        "score": 3,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 3,
+          "relational": 0,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "temporal"
+        ],
+        "rationale": "Temporal grounding cue 'sturgeon'",
+        "tokenEstimate": 20,
+        "timestamp": "2026-06-15T00:00:00Z",
+        "cycleNumber": 1,
+        "title": "Cycle 1 — Sturgeon Moon",
+        "snippet": "Lunar cycle began with intentions around creative grounding and nightly reflecti",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 3,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      },
+      {
+        "sourceId": "cycle_003",
+        "sourceType": "lunar_cycle",
+        "score": 3,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 3,
+          "relational": 0,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "temporal"
+        ],
+        "rationale": "Temporal grounding cue 'harvest'",
+        "tokenEstimate": 20,
+        "timestamp": "2026-08-12T00:00:00Z",
+        "cycleNumber": 3,
+        "title": "Cycle 3 — Harvest Moon",
+        "snippet": "Deep integration, pausing late-night work, prioritizing evening rest and stillne",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 3,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "personal_lived_experience",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      },
+      {
+        "sourceId": "loop_writing_01",
+        "sourceType": "loop",
+        "score": 2,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 0,
+          "relational": 2,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "relational"
+        ],
+        "rationale": "Direct structural link to candidate echo_grounding_01",
+        "tokenEstimate": 20,
+        "timestamp": "2026-06-20T10:00:00Z",
+        "cycleNumber": 1,
+        "recurrenceCount": 4,
+        "title": "Creative Writing Book Manuscript",
+        "snippet": "Drafting core essays for the book project on stillness and rhythm. Weekly cadenc",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 0,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "creative_work",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      },
+      {
+        "sourceId": "loop_evening_rest_02",
+        "sourceType": "loop",
+        "score": 2,
+        "channelScores": {
+          "semantic": 0,
+          "lexical": 0,
+          "temporal": 0,
+          "relational": 2,
+          "recurrence": 0,
+          "entity": 0
+        },
+        "channels": [
+          "relational"
+        ],
+        "rationale": "Direct structural link to candidate echo_rest_breakthrough_03",
+        "tokenEstimate": 20,
+        "timestamp": "2026-06-25T21:00:00Z",
+        "cycleNumber": 1,
+        "recurrenceCount": 6,
+        "title": "Evening Digital Wind-Down Ritual",
+        "snippet": "Commitment to screens off by 10pm, reading poetry, and tea before bed.",
+        "semanticSubjectScore": 0,
+        "temporalQualificationScore": 0,
+        "lexicalScore": 0,
+        "semanticScore": 0,
+        "recordDomain": "mixed_or_unknown",
+        "domainCompatibilityScore": 1,
+        "domainCompatibilityDecision": "COMPATIBLE",
+        "contextualAboutnessDecision": "PASS",
+        "contextualAboutnessRationale": "Contextual aboutness verified.",
+        "qualificationDecision": "DISQUALIFIED",
+        "finalSelectionScore": 0,
+        "selectionRationale": "Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms."
+      }
+    ],
+    "selectedSources": [],
+    "omissionsAndDeduplications": [
+      {
+        "sourceId": "echo_rest_breakthrough_03",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I finally stopped working after 9pm for five consecutive nights. Evening tea and"
+      },
+      {
+        "sourceId": "echo_grounding_01",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I want to build a relationship with my creative writing that does not feel rushe"
+      },
+      {
+        "sourceId": "cycle_001",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Lunar cycle began with intentions around creative grounding and nightly reflecti"
+      },
+      {
+        "sourceId": "cycle_003",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Deep integration, pausing late-night work, prioritizing evening rest and stillne"
+      },
+      {
+        "sourceId": "loop_writing_01",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Drafting core essays for the book project on stillness and rhythm. Weekly cadenc"
+      },
+      {
+        "sourceId": "loop_evening_rest_02",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Commitment to screens off by 10pm, reading poetry, and tea before bed."
+      }
+    ],
+    "suppressedItems": [
+      {
+        "sourceId": "echo_rest_breakthrough_03",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I finally stopped working after 9pm for five consecutive nights. Evening tea and"
+      },
+      {
+        "sourceId": "echo_grounding_01",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I want to build a relationship with my creative writing that does not feel rushe"
+      },
+      {
+        "sourceId": "cycle_001",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Lunar cycle began with intentions around creative grounding and nightly reflecti"
+      },
+      {
+        "sourceId": "cycle_003",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Deep integration, pausing late-night work, prioritizing evening rest and stillne"
+      },
+      {
+        "sourceId": "loop_writing_01",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Drafting core essays for the book project on stillness and rhythm. Weekly cadenc"
+      },
+      {
+        "sourceId": "loop_evening_rest_02",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Commitment to screens off by 10pm, reading poetry, and tea before bed."
+      }
+    ],
+    "questionDomain": {
+      "primaryDomain": "mixed_or_unknown",
+      "domain": "mixed_or_unknown",
+      "allowsDevContext": false,
+      "primarySubject": "general",
+      "acceptableDomains": [
+        "mixed_or_unknown",
+        "mixed_or_unknown"
+      ]
+    },
+    "telemetry": {
+      "domainBreakdown": {
+        "personal_lived_experience": 3,
+        "development_engineering": 0,
+        "system_operations": 0,
+        "creative_work": 1,
+        "relationship": 0,
+        "mixed_or_unknown": 2
+      },
+      "devSystemContaminationFilteredCount": 0
+    },
+    "discontinuitiesDetected": [
+      "Detected discontinuity signal 'stopped' in [echo_rest_breakthrough_03]: \"I finally stopped working after 9pm for five consecutive nig...\""
+    ],
+    "counterevidenceNotes": [
+      "Counterevidence preservation: Record echo_rest_breakthrough_03 contains explicit qualification (stopped)."
+    ],
+    "coverageMatrix": {
+      "strategy": "longitudinal_span",
+      "obligations": [
+        {
+          "role": "origin_state",
+          "description": "Earliest historical baseline reflections (origin band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 4,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Historical / Origin",
+          "insufficiencyReason": "Records exist in personal Field during Historical / Origin (5 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Historical / Origin (5 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "intermediate_state",
+          "description": "Transitional / developmental reflections (intermediate band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Intermediate / Transition",
+          "insufficiencyReason": "Records exist in personal Field during Intermediate / Transition (7 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Intermediate / Transition (7 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "counterevidence_discontinuity",
+          "description": "Explicit qualification, friction, setback, or pause signals",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "insufficiencyReason": "No qualified counterevidence found regarding reflections.",
+          "reason": "No qualified counterevidence found regarding reflections."
+        },
+        {
+          "role": "recent_current_state",
+          "description": "Contemporary orientation / active state (recent band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Recent / Present",
+          "insufficiencyReason": "Records exist in personal Field during Recent / Present (8 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Recent / Present (8 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "connecting_pattern",
+          "description": "Recurrence or longitudinal pattern connecting past to present",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 0,
+          "insufficiencyReason": "No recurrent patterns identified relating to reflections.",
+          "reason": "No recurrent patterns identified relating to reflections."
+        }
+      ],
+      "satisfiedCount": 0,
+      "insufficientCount": 5,
+      "temporalSpanDays": 83,
+      "earliestTimestamp": "2026-06-15T00:00:00Z",
+      "latestTimestamp": "2026-09-06T11:00:00Z"
+    },
+    "createdAt": "2026-09-13T03:13:54.215Z"
+  },
+  "contextPacket": {
+    "packetId": "pkt_1789269234215_widqb",
+    "planId": "plan_1789269234215_nxkpn",
+    "tokenBudget": 3000,
+    "totalTokensUsed": 0,
+    "evidenceItems": [],
+    "formattedPromptContext": "### [ATTENTION ENGINE V1 CONTEXT PACKET: pkt_1789269234215_widqb]\nStrategy: longitudinal_span | Budget: 0/3000 tokens | Temporal Span: 0 days | Cycles: []\n\nLONGITUDINAL COVERAGE OBLIGATIONS & STATUS:\n• ⚠️ [INSUFFICIENT_EVIDENCE] origin_state: Earliest historical baseline reflections (origin band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Historical / Origin), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] intermediate_state: Transitional / developmental reflections (intermediate band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Intermediate / Transition), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] counterevidence_discontinuity: Explicit qualification, friction, setback, or pause signals\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (counterevidence_discontinuity), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] recent_current_state: Contemporary orientation / active state (recent band)\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (Recent / Present), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n• ⚠️ [INSUFFICIENT_EVIDENCE] connecting_pattern: Recurrence or longitudinal pattern connecting past to present\n  - Temporal Eligibility: SATISFIED | Semantic Qualification: INSUFFICIENT_EVIDENCE | Final: INSUFFICIENT_EVIDENCE\n  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (connecting_pattern), but NONE of them contain substantive reflections or evidence about the investigated subject.\n  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.\n\nNOTICE: No direct or longitudinal personal Field evidence was found matching this question.\nINSTRUCTION: Acknowledge the absence of prior reflections rather than inventing facts.",
+    "coverageMetrics": {
+      "temporalSpanDays": 0,
+      "cyclesCovered": [],
+      "sourceTypeDistribution": {},
+      "recurrenceHighlighted": false,
+      "counterevidenceIncluded": true
+    },
+    "coverageMatrix": {
+      "strategy": "longitudinal_span",
+      "obligations": [
+        {
+          "role": "origin_state",
+          "description": "Earliest historical baseline reflections (origin band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 4,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Historical / Origin",
+          "insufficiencyReason": "Records exist in personal Field during Historical / Origin (5 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Historical / Origin (5 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "intermediate_state",
+          "description": "Transitional / developmental reflections (intermediate band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Intermediate / Transition",
+          "insufficiencyReason": "Records exist in personal Field during Intermediate / Transition (7 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Intermediate / Transition (7 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "counterevidence_discontinuity",
+          "description": "Explicit qualification, friction, setback, or pause signals",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "insufficiencyReason": "No qualified counterevidence found regarding reflections.",
+          "reason": "No qualified counterevidence found regarding reflections."
+        },
+        {
+          "role": "recent_current_state",
+          "description": "Contemporary orientation / active state (recent band)",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 1,
+          "qualifiedCandidateCount": 0,
+          "temporalWindow": "Recent / Present",
+          "insufficiencyReason": "Records exist in personal Field during Recent / Present (8 records), but none contained substantive reflections on reflections.",
+          "reason": "Records exist in personal Field during Recent / Present (8 records), but none contained substantive reflections on reflections."
+        },
+        {
+          "role": "connecting_pattern",
+          "description": "Recurrence or longitudinal pattern connecting past to present",
+          "status": "INSUFFICIENT_EVIDENCE",
+          "temporalStatus": "SATISFIED",
+          "semanticStatus": "INSUFFICIENT_EVIDENCE",
+          "finalStatus": "INSUFFICIENT_EVIDENCE",
+          "temporalAvailability": "RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE",
+          "candidateCount": 2,
+          "qualifiedCandidateCount": 0,
+          "insufficiencyReason": "No recurrent patterns identified relating to reflections.",
+          "reason": "No recurrent patterns identified relating to reflections."
+        }
+      ],
+      "satisfiedCount": 0,
+      "insufficientCount": 5,
+      "temporalSpanDays": 83,
+      "earliestTimestamp": "2026-06-15T00:00:00Z",
+      "latestTimestamp": "2026-09-06T11:00:00Z"
+    },
+    "notableOmissions": [
+      {
+        "sourceId": "echo_rest_breakthrough_03",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I finally stopped working after 9pm for five consecutive nights. Evening tea and"
+      },
+      {
+        "sourceId": "echo_grounding_01",
+        "sourceType": "echo",
+        "reason": "generic_lexical_match_only",
+        "snippet": "I want to build a relationship with my creative writing that does not feel rushe"
+      },
+      {
+        "sourceId": "cycle_001",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Lunar cycle began with intentions around creative grounding and nightly reflecti"
+      },
+      {
+        "sourceId": "cycle_003",
+        "sourceType": "lunar_cycle",
+        "reason": "generic_lexical_match_only",
+        "snippet": "Deep integration, pausing late-night work, prioritizing evening rest and stillne"
+      },
+      {
+        "sourceId": "loop_writing_01",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Drafting core essays for the book project on stillness and rhythm. Weekly cadenc"
+      },
+      {
+        "sourceId": "loop_evening_rest_02",
+        "sourceType": "loop",
+        "reason": "semantic_subject_mismatch",
+        "snippet": "Commitment to screens off by 10pm, reading poetry, and tea before bed."
+      }
+    ],
+    "provenanceDigest": "evidence_hash_",
+    "generatedAt": "2026-09-13T03:13:54.215Z"
+  },
+  "artifactHash": "86bbb24aa9b9a7a3f7c8c6055b94fbd252cd1448835aae40b994c550ddc26668",
+  "integrityState": "AUDITABLE",
+  "isValidBenchmarkBaseline": true
+}

@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269092328_iyjnp",
+  "name": "V1 Baseline Session",
+  "description": "Experiment 001 V1 baseline",
+  "hypothesis": "Baseline V1",
+  "status": "created",
+  "createdAt": "2026-09-13T03:11:32.328Z",
+  "updatedAt": "2026-09-13T03:11:32.329Z",
+  "runIds": [
+    "run_1789211082230_cal8"
+  ],
+  "metadata": {}
+}

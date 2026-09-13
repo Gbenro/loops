@@ -1,0 +1,17 @@
+{
+  "id": "sess_lab_1789265353670_i3w74",
+  "name": "Attention V1.3 \u2014 Domain-Aware Semantic Qualification (iss_1789263237926_2e3q)",
+  "description": "Attention Lab verification session demonstrating domain qualification, DEV contamination rejection, and longitudinal coverage.",
+  "hypothesis": "Attention Engine V1.3 classifies records into semantic domains, rejects dev/system records for personal lived experience questions, resolves polysemy, and admits dev records for builder inquiries.",
+  "status": "completed",
+  "createdAt": "2026-09-13T01:55:53.670Z",
+  "updatedAt": "2026-09-13T02:10:00.000Z",
+  "runIds": [
+    "run_1789265419630_lue4",
+    "run_1789266756354_inwn"
+  ],
+  "metadata": {
+    "issueId": "iss_1789263237926_2e3q",
+    "version": "v1.3"
+  }
+}

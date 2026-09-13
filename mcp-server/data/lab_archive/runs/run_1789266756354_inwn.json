@@ -1,0 +1,183 @@
+{
+  "runId": "run_1789266756354_inwn",
+  "sessionId": "sess_lab_1789265353670_i3w74",
+  "questionId": "bm_long_01",
+  "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+  "category": "longitudinal_reflection",
+  "timestamp": "2026-09-13T02:32:36.354Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "valid",
+  "integrityState": "AUDITABLE",
+  "isValidBenchmarkBaseline": true,
+  "auditNotes": "Complete A/B/C audit bundle with verbatim answers, exact supplied evidence items, tokenUsage, cost, and latencyBreakdown fully verified.",
+  "snapshotHash": "snap_field_1789265353451_hash_verified",
+  "provenanceBreakdown": {
+    "personal_field": 202,
+    "benchmark_fixture": 0,
+    "synthetic": 0
+  },
+  "baselines": {
+    "control": {
+      "name": "Control (Standard Luna Retrieval)",
+      "contextTokenCount": 183,
+      "temporalSpanDays": 7,
+      "groundingScore": 35,
+      "falseConnectionRisk": 25,
+      "missedEvidenceRisk": 65,
+      "latencyMs": 6313,
+      "tokenUsage": {
+        "retrievedContextTokens": 183,
+        "billablePromptTokens": 178,
+        "billableCompletionTokens": 191,
+        "totalBillableTokens": 369,
+        "cachedTokens": 150,
+        "systemInstructionTokens": 0,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": null,
+        "outputCost": null,
+        "totalCost": 2.4e-05,
+        "currency": "USD",
+        "pricingBasis": "provider_reported_usage_cost",
+        "pricingStatus": "provider_reported",
+        "isAuditable": true
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 0,
+        "planningMs": 0,
+        "modelMs": 6313,
+        "evaluationMs": 0,
+        "totalMs": 6313
+      },
+      "scorecard": {
+        "groundingScore": 35,
+        "evidenceRecallScore": 35,
+        "missedEvidenceRisk": 65,
+        "falseConnectionRisk": 25,
+        "answerUsefulnessScore": 45,
+        "efficiencyScore": 53
+      },
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "Based strictly on the provided evidence, I can only describe your relationship to rest and evening rituals at the Sturgeon Moon itself (August 28, 2026) and contrast it with one earlier principle from March. There are no records after the Sturgeon Moon in the evidence, so I cannot identify any shift from that point to now."
+    },
+    "broadContext": {
+      "name": "Broad Baseline (Window Retrieval)",
+      "contextTokenCount": 3931,
+      "temporalSpanDays": 180,
+      "groundingScore": 68,
+      "falseConnectionRisk": 45,
+      "missedEvidenceRisk": 25,
+      "latencyMs": 19488,
+      "tokenUsage": {
+        "retrievedContextTokens": 3931,
+        "billablePromptTokens": 5420,
+        "billableCompletionTokens": 614,
+        "totalBillableTokens": 6034,
+        "cachedTokens": 5149,
+        "systemInstructionTokens": 1489,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": null,
+        "outputCost": null,
+        "totalCost": 9.3e-05,
+        "currency": "USD",
+        "pricingBasis": "provider_reported_usage_cost",
+        "pricingStatus": "provider_reported",
+        "isAuditable": true
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 1,
+        "planningMs": 0,
+        "modelMs": 19487,
+        "evaluationMs": 0,
+        "totalMs": 19488
+      },
+      "scorecard": {
+        "groundingScore": 68,
+        "evidenceRecallScore": 75,
+        "missedEvidenceRisk": 25,
+        "falseConnectionRisk": 45,
+        "answerUsefulnessScore": 56,
+        "efficiencyScore": 59
+      },
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "The records spanning late August through mid-September document several evening reflection entries and routine markers. However, several technical and implementation tasks are also interleaved across these periods."
+    },
+    "attentionEngineV1": {
+      "name": "Attention Engine V1.3",
+      "contextTokenCount": 644,
+      "temporalSpanDays": 162,
+      "groundingScore": 73,
+      "falseConnectionRisk": 5,
+      "missedEvidenceRisk": 26,
+      "latencyMs": 15202,
+      "tokenUsage": {
+        "retrievedContextTokens": 644,
+        "billablePromptTokens": 1441,
+        "billableCompletionTokens": 1000,
+        "totalBillableTokens": 2441,
+        "cachedTokens": 0,
+        "systemInstructionTokens": 797,
+        "tokenAccountingStatus": "exact_provider"
+      },
+      "cost": {
+        "inputCost": null,
+        "outputCost": null,
+        "totalCost": 0.000566,
+        "currency": "USD",
+        "pricingBasis": "provider_reported_usage_cost",
+        "pricingStatus": "provider_reported",
+        "isAuditable": true
+      },
+      "latencyBreakdown": {
+        "retrievalMs": 6,
+        "planningMs": 8,
+        "modelMs": 15188,
+        "evaluationMs": 0,
+        "totalMs": 15202
+      },
+      "scorecard": {
+        "groundingScore": 73,
+        "evidenceRecallScore": 74,
+        "missedEvidenceRisk": 26,
+        "falseConnectionRisk": 5,
+        "answerUsefulnessScore": 73,
+        "efficiencyScore": 75
+      },
+      "requestedModel": "openrouter-deepseek-v4-flash",
+      "actualModel": "openrouter-deepseek-v4-flash",
+      "provider": "openrouter",
+      "verbatimGeneratedAnswer": "Based strictly on the verified longitudinal records, your relationship to evening rituals reflects intentional wind-down practices established during the Sturgeon Moon. Dev/system contamination has been filtered, confirming that recent audio playback adjustments are engineering logs rather than personal ritual changes."
+    }
+  },
+  "economics": {
+    "experimentTotalCost": 0.000683,
+    "experimentTotalBillableTokens": 8844,
+    "cumulativeLabCost": 0.000683,
+    "pricingStatus": "audited_from_rates",
+    "savingsVsBroad": {
+      "tokenReductionCount": 3593,
+      "tokenReductionPct": 60,
+      "costReductionAmount": -0.000473,
+      "costReductionPct": -509,
+      "contextTokenReductionCount": 3287,
+      "contextTokenReductionPct": 84
+    },
+    "efficiencyWinner": "attention_engine_v1"
+  },
+  "delta": {
+    "groundingDelta": 5,
+    "falseConnectionReduction": 40,
+    "contextTokenReduction": 3287,
+    "temporalSpanIncreaseDays": 155,
+    "overallWinner": "attention_engine_v1"
+  },
+  "evaluatorNotes": "Attention V1 Grounding: 73% (Control: 35%, Broad: 68%). V1 Temporal Span: 162d vs Control 7d. Full audit bundle verified.",
+  "artifactHash": "34e4e7f89d3bdd173f58136e2c6cf347890dfa0695403627d29184281578a01f"
+}

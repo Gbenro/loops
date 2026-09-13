@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269234281_h56id",
+  "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+  "description": "Historical immutable Experiment 001 baseline",
+  "hypothesis": "Original V1 run for regression comparison",
+  "status": "created",
+  "createdAt": "2026-09-13T03:13:54.281Z",
+  "updatedAt": "2026-09-13T03:13:54.283Z",
+  "runIds": [
+    "run_1789211082230_cal8"
+  ],
+  "metadata": {}
+}

@@ -1,0 +1,57 @@
+{
+  "runId": "run_test_audit_1789269225467",
+  "sessionId": "sess_lab_1789269225466_1wylg",
+  "question": "Test question for local archive integrity?",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "valid",
+  "timestamp": "2026-09-13T03:13:45.467Z",
+  "snapshotHash": "snap_test_hash_123",
+  "provenanceBreakdown": {
+    "personal_field": 10,
+    "benchmark_fixture": 0,
+    "synthetic": 0
+  },
+  "baselines": {
+    "control": {
+      "name": "Control",
+      "groundingScore": 40,
+      "falseConnectionRisk": 20,
+      "contextTokenCount": 100,
+      "temporalSpanDays": 5,
+      "latencyMs": 1000,
+      "summary": "Control summary",
+      "verbatimGeneratedAnswer": "Verbatim control answer test."
+    },
+    "broadContext": {
+      "name": "Broad Context",
+      "groundingScore": 60,
+      "falseConnectionRisk": 30,
+      "contextTokenCount": 2000,
+      "temporalSpanDays": 100,
+      "latencyMs": 3000,
+      "summary": "Broad context summary",
+      "verbatimGeneratedAnswer": "Verbatim broad answer test."
+    },
+    "attentionEngineV1": {
+      "name": "Attention Engine V1",
+      "groundingScore": 80,
+      "falseConnectionRisk": 5,
+      "contextTokenCount": 500,
+      "temporalSpanDays": 95,
+      "latencyMs": 2000,
+      "summary": "Attention engine summary",
+      "verbatimGeneratedAnswer": "Verbatim attention answer test with exact evidence."
+    }
+  },
+  "delta": {
+    "groundingDelta": 20,
+    "falseConnectionReduction": 25,
+    "contextTokenReduction": 1500,
+    "temporalSpanIncreaseDays": 90,
+    "overallWinner": "attention_engine_v1"
+  },
+  "evaluatorNotes": "Full audit bundle test verified.",
+  "artifactHash": "86378aac9e75637a9826a8dd56fad9f775ad6e2b9c3b7162eb3fa96d5a5682b9",
+  "integrityState": "AUDITABLE",
+  "isValidBenchmarkBaseline": true
+}

@@ -8,6 +8,8 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { appendDevEvent, DevEvent, createDevIssue } from './devBridge.js';
@@ -649,6 +651,10 @@ export interface ComparisonRun {
   timestamp: string;
   model: string;
   status: 'valid' | 'invalid' | 'failed';
+  integrityState?: 'AUDITABLE' | 'AUDIT_INCOMPLETE' | 'CORRUPT' | 'INVALID';
+  isValidBenchmarkBaseline?: boolean;
+  artifactHash?: string;
+  auditNotes?: string;
   snapshotHash: string;
   provenanceBreakdown: {
     personal_field: number;
@@ -674,6 +680,38 @@ export interface ComparisonRun {
   };
   economics?: ComparativeEconomicsSummary;
   scorecard?: ComparativeScorecard;
+}
+
+export function computeRunArtifactHash(run: Partial<ComparisonRun>): string {
+  const payload = {
+    runId: run.runId,
+    question: run.question,
+    model: run.model,
+    status: run.status,
+    baselines: {
+      control: run.baselines?.control?.verbatimGeneratedAnswer || '',
+      broad: run.baselines?.broadContext?.verbatimGeneratedAnswer || '',
+      attention: run.baselines?.attentionEngineV1?.verbatimGeneratedAnswer || ''
+    },
+    delta: run.delta || null
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+export function determineRunIntegrityState(run: ComparisonRun): 'AUDITABLE' | 'AUDIT_INCOMPLETE' | 'INVALID' {
+  if (run.integrityState === 'AUDIT_INCOMPLETE' || (run.auditNotes && run.auditNotes.includes('AUDIT_INCOMPLETE'))) {
+    return 'AUDIT_INCOMPLETE';
+  }
+  if (!run.baselines || !run.baselines.control || !run.baselines.broadContext || !run.baselines.attentionEngineV1) {
+    return 'INVALID';
+  }
+  const hasAnswers = Boolean(
+    run.baselines.control.verbatimGeneratedAnswer &&
+    run.baselines.broadContext.verbatimGeneratedAnswer &&
+    run.baselines.attentionEngineV1.verbatimGeneratedAnswer
+  );
+  if (!hasAnswers) return 'INVALID';
+  return 'AUDITABLE';
 }
 
 export interface LabSessionSummary {
@@ -3877,117 +3915,180 @@ export class BenchmarkHarness {
 
 // ─── Durable Lab Experiment Session Store ───────────────────────────────────
 
+export function getLabArchiveDir(): string {
+  const candidates = [
+    path.join(process.cwd(), 'mcp-server', 'data', 'lab_archive'),
+    path.join(process.cwd(), 'data', 'lab_archive'),
+    path.join(__dirname, '..', 'data', 'lab_archive'),
+    path.join(__dirname, 'data', 'lab_archive')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
 export class DurableLabStore {
   private sessions = new Map<string, LabExperimentSession>();
+  private runsMap = new Map<string, ComparisonRun>();
   private publishedResults: PublishedLabResultPayload[] = [];
+  private archiveDir: string;
 
   constructor() {
-    // 1. Seed baseline benchmarking session
-    this.createSession({
+    this.archiveDir = getLabArchiveDir();
+    this.hydrateFromLocalArchive();
+  }
+
+  hydrateFromLocalArchive(): void {
+    try {
+      if (!fs.existsSync(this.archiveDir)) {
+        fs.mkdirSync(this.archiveDir, { recursive: true });
+      }
+      const sessDir = path.join(this.archiveDir, 'sessions');
+      const runsDir = path.join(this.archiveDir, 'runs');
+
+      if (fs.existsSync(runsDir)) {
+        const rFiles = fs.readdirSync(runsDir).filter((f: string) => f.endsWith('.json'));
+        for (const file of rFiles) {
+          try {
+            const raw = fs.readFileSync(path.join(runsDir, file), 'utf-8');
+            const run = JSON.parse(raw);
+            if (run && run.runId) {
+              if (!run.artifactHash) run.artifactHash = computeRunArtifactHash(run);
+              if (!run.integrityState) run.integrityState = determineRunIntegrityState(run);
+              if (run.isValidBenchmarkBaseline === undefined) {
+                run.isValidBenchmarkBaseline = (run.integrityState === 'AUDITABLE');
+              }
+              this.runsMap.set(run.runId, run);
+            }
+          } catch (e) {
+            console.warn('[LabArchive] Error loading run file:', file, e);
+          }
+        }
+      }
+
+      if (fs.existsSync(sessDir)) {
+        const sFiles = fs.readdirSync(sessDir).filter((f: string) => f.endsWith('.json'));
+        for (const file of sFiles) {
+          try {
+            const raw = fs.readFileSync(path.join(sessDir, file), 'utf-8');
+            const sess = JSON.parse(raw);
+            if (sess && sess.id) {
+              if (!sess.runs) sess.runs = [];
+              if (Array.isArray(sess.runIds)) {
+                for (const rId of sess.runIds) {
+                  const runObj = this.runsMap.get(rId);
+                  if (runObj && !sess.runs.some((r: any) => r.runId === rId)) {
+                    sess.runs.push(runObj);
+                  }
+                }
+              }
+              this.sessions.set(sess.id, sess);
+            }
+          } catch (e) {
+            console.warn('[LabArchive] Error loading session file:', file, e);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[LabArchive] Hydration notice:', err);
+    }
+
+    if (this.sessions.size === 0) {
+      this.seedDefaultSessions();
+    } else {
+      const exp001 = this.sessions.get('sess_lab_exp001');
+      if (exp001) {
+        exp001.status = 'paused';
+        exp001.pauseReason = 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).';
+        exp001.runs = [];
+      }
+    }
+  }
+
+  private seedDefaultSessions(): void {
+    const s1 = this.createSession({
       name: 'Luna Attention V1 Canonical Benchmark',
       description: 'Systematic comparison of Control (A), Broad Baseline (B), and Attention Engine V1 (C) across 25 question classes.',
       hypothesis: 'Attention Engine V1 achieves >85% grounding with <10% false connection risk and superior longitudinal temporal span compared to Control and Broad baselines.'
     });
-
-    // 2. Seed Attention Experiment 001 and IMMEDIATELY PAUSE it
-    const exp001 = this.createSession({
+    const s2 = this.createSession({
       name: 'Experiment 001',
       description: 'Controlled Attention Lab A/B/C comparison using the same benchmark question, Field snapshot/evidence, model, and parameters across Production/control retrieval, Broad-context retrieval, and Attention Engine V1.',
       hypothesis: 'Attention Engine V1 improves grounding and longitudinal evidence selection versus production/control and broad-context retrieval without changing model intelligence.'
     });
-    this.pauseSession(exp001.id, 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).');
+    this.pauseSession(s2.id, 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).');
+  }
 
-    // 3. Seed Durable Attention V1.3 Regression & Generalization Session (iss_1789263237926_2e3q)
-    const v13SessionId = 'sess_lab_1789265353670_i3w74';
-    const v13Session: LabExperimentSession = {
-      id: v13SessionId,
-      name: 'Attention V1.3 — Domain-Aware Semantic Qualification (iss_1789263237926_2e3q)',
-      description: 'Attention Lab verification session demonstrating domain qualification, DEV contamination rejection, and longitudinal coverage.',
-      hypothesis: 'Attention Engine V1.3 classifies records into semantic domains, rejects dev/system records for personal lived experience questions, resolves polysemy, and admits dev records for builder inquiries.',
-      status: 'completed',
-      createdAt: '2026-09-13T01:55:53.670Z',
-      updatedAt: '2026-09-13T02:10:00.000Z',
-      runs: [
-        {
-          runId: 'run_1789265419630_lue4',
-          sessionId: v13SessionId,
-          questionId: 'bm_long_01',
-          question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
-          category: 'longitudinal_reflection',
-          timestamp: '2026-09-13T02:00:19.630Z',
-          model: 'openrouter-deepseek-v4-flash',
-          status: 'valid',
-          snapshotHash: 'snap_field_1789265353451_hash_verified',
-          provenanceBreakdown: { personal_field: 202, benchmark_fixture: 0, synthetic: 0 },
-          baselines: {
-            control: {
-              name: 'Control (Standard Luna Retrieval)',
-              tokensUsed: 183,
-              temporalSpanDays: 7,
-              groundingScore: 35,
-              falseConnectionRisk: 25,
-              missedEvidenceRisk: 65,
-              completenessScore: 40,
-              latencyMs: 3200,
-              summary: 'Control standard retrieval',
-              requestedModel: 'openrouter-deepseek-v4-flash',
-              actualModel: 'openrouter-deepseek-v4-flash',
-              provider: 'openrouter',
-              verbatimGeneratedAnswer: 'Based on the immediate records, evening rituals include recent reflection entries...'
-            } as any,
-            broadContext: {
-              name: 'Broad Baseline (Window Retrieval)',
-              tokensUsed: 3931,
-              temporalSpanDays: 180,
-              groundingScore: 68,
-              falseConnectionRisk: 45,
-              missedEvidenceRisk: 25,
-              completenessScore: 70,
-              latencyMs: 14500,
-              summary: 'Broad context window retrieval',
-              requestedModel: 'openrouter-deepseek-v4-flash',
-              actualModel: 'openrouter-deepseek-v4-flash',
-              provider: 'openrouter',
-              verbatimGeneratedAnswer: 'Across the broad span from August to now, multiple evening routines were documented, though several unrelated development records were mixed in...'
-            } as any,
-            attentionEngineV1: {
-              name: 'Attention Engine V1.3',
-              tokensUsed: 644,
-              temporalSpanDays: 162,
-              groundingScore: 73,
-              falseConnectionRisk: 5,
-              missedEvidenceRisk: 26,
-              completenessScore: 85,
-              latencyMs: 8200,
-              summary: 'Attention Engine V1.3 with domain-aware semantic qualification',
-              requestedModel: 'openrouter-deepseek-v4-flash',
-              actualModel: 'openrouter-deepseek-v4-flash',
-              provider: 'openrouter',
-              verbatimGeneratedAnswer: 'Your relationship to rest has evolved across five lunar cycles. During the Sturgeon Moon, evening rituals centered on restorative breathwork and unhurried wind-down routines. By the Harvest Moon and into September, evening practices shifted toward quiet reflection and intentional boundary-setting, establishing a sustained rhythm without audio playback interruption.'
-            } as any
-          },
-          delta: {
-            groundingDelta: 5,
-            falseConnectionReduction: 40,
-            contextTokenReduction: 3287,
-            temporalSpanIncreaseDays: 155,
-            overallWinner: 'attention_engine_v1'
-          },
-          evaluatorNotes: 'Attention V1.3 eliminates DEV/system contamination (DEV — Voice playback controls excluded). Grounding: 73%, False connection: 5%.'
-        } as any
-      ],
-      metadata: { issueId: 'iss_1789263237926_2e3q', version: 'v1.3' }
-    };
-    this.sessions.set(v13SessionId, v13Session);
+  getRun(runId: string): ComparisonRun | undefined {
+    return this.runsMap.get(runId);
+  }
+
+  persistRunToArchive(run: ComparisonRun): void {
+    try {
+      const runsDir = path.join(this.archiveDir, 'runs');
+      if (!fs.existsSync(runsDir)) fs.mkdirSync(runsDir, { recursive: true });
+      const target = path.join(runsDir, `${run.runId}.json`);
+      const tmp = path.join(runsDir, `${run.runId}.tmp`);
+      fs.writeFileSync(tmp, JSON.stringify(run, null, 2), 'utf-8');
+      fs.renameSync(tmp, target);
+    } catch (e) {
+      console.warn('[LabArchive] Failed to write run to disk:', run.runId, e);
+    }
+  }
+
+  persistSessionToArchive(sess: LabExperimentSession): void {
+    if (sess.id === 'sess_lab_exp001') {
+      // Keep Experiment 001 template permanently paused on disk
+      return;
+    }
+    try {
+      const sessDir = path.join(this.archiveDir, 'sessions');
+      if (!fs.existsSync(sessDir)) fs.mkdirSync(sessDir, { recursive: true });
+      const target = path.join(sessDir, `${sess.id}.json`);
+      const tmp = path.join(sessDir, `${sess.id}.tmp`);
+      const payload = {
+        id: sess.id,
+        name: sess.name,
+        description: sess.description,
+        hypothesis: sess.hypothesis,
+        status: sess.status,
+        createdAt: sess.createdAt,
+        updatedAt: sess.updatedAt,
+        pausedAt: sess.pausedAt,
+        pauseReason: sess.pauseReason,
+        runIds: sess.runs.map(r => r.runId),
+        metadata: sess.metadata
+      };
+      fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), 'utf-8');
+      fs.renameSync(tmp, target);
+    } catch (e) {
+      console.warn('[LabArchive] Failed to write session to disk:', sess.id, e);
+    }
+  }
+
+  updateCatalog(): void {
+    try {
+      if (!fs.existsSync(this.archiveDir)) fs.mkdirSync(this.archiveDir, { recursive: true });
+      const target = path.join(this.archiveDir, 'catalog.json');
+      const tmp = path.join(this.archiveDir, 'catalog.tmp');
+      const payload = {
+        archiveVersion: '2.0.0',
+        updatedAt: new Date().toISOString(),
+        sessions: this.listSessionSummaries()
+      };
+      fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), 'utf-8');
+      fs.renameSync(tmp, target);
+    } catch (e) {
+      console.warn('[LabArchive] Failed to write catalog to disk:', e);
+    }
   }
 
   getCumulativeLabCost(): number {
     let total = 0;
-    for (const sess of this.sessions.values()) {
-      for (const run of sess.runs) {
-        if (run.economics?.experimentTotalCost) {
-          total += run.economics.experimentTotalCost;
-        }
+    for (const run of this.runsMap.values()) {
+      if (run.economics?.experimentTotalCost) {
+        total += run.economics.experimentTotalCost;
       }
     }
     return Number(total.toFixed(6));
@@ -4007,6 +4108,8 @@ export class DurableLabStore {
       metadata: params.metadata || {}
     };
     this.sessions.set(id, session);
+    this.persistSessionToArchive(session);
+    this.updateCatalog();
     return session;
   }
 
@@ -4017,6 +4120,8 @@ export class DurableLabStore {
     sess.pausedAt = new Date().toISOString();
     sess.pauseReason = reason || 'Manual operator pause pending verification';
     sess.updatedAt = new Date().toISOString();
+    this.persistSessionToArchive(sess);
+    this.updateCatalog();
     return sess;
   }
 
@@ -4026,15 +4131,8 @@ export class DurableLabStore {
     sess.status = 'resumed';
     sess.pauseReason = undefined;
     sess.updatedAt = new Date().toISOString();
-    return sess;
-  }
-
-  markSessionInvalid(sessionId: string, reason: string): LabExperimentSession {
-    const sess = this.sessions.get(sessionId);
-    if (!sess) throw new Error(`Lab Experiment Session '${sessionId}' not found.`);
-    sess.status = 'invalid';
-    sess.pauseReason = reason;
-    sess.updatedAt = new Date().toISOString();
+    this.persistSessionToArchive(sess);
+    this.updateCatalog();
     return sess;
   }
 
@@ -4074,12 +4172,40 @@ export class DurableLabStore {
     if (sess.status === 'paused') {
       throw new Error(`Session '${sessionId}' is paused (${sess.pauseReason || 'no reason provided'}). Resume before recording runs.`);
     }
+
+    if (!run.artifactHash) {
+      run.artifactHash = computeRunArtifactHash(run);
+    }
+    if (!run.integrityState) {
+      run.integrityState = determineRunIntegrityState(run);
+    }
+    if (run.isValidBenchmarkBaseline === undefined) {
+      run.isValidBenchmarkBaseline = (run.integrityState === 'AUDITABLE');
+    }
+
     sess.runs.push(run);
     sess.updatedAt = new Date().toISOString();
+    this.runsMap.set(run.runId, run);
+
+    this.persistRunToArchive(run);
+    this.persistSessionToArchive(sess);
+    this.updateCatalog();
+
     return sess;
   }
 
-  recordPublishedResult(payload: PublishedLabResultPayload): void {
+  exportArchive(): { archiveVersion: string; exportedAt: string; totalSessions: number; totalRuns: number; sessions: any[]; runs: any[] } {
+    return {
+      archiveVersion: '2.0.0',
+      exportedAt: new Date().toISOString(),
+      totalSessions: this.sessions.size,
+      totalRuns: this.runsMap.size,
+      sessions: Array.from(this.sessions.values()),
+      runs: Array.from(this.runsMap.values())
+    };
+  }
+
+    recordPublishedResult(payload: PublishedLabResultPayload): void {
     // Keep most recent first, avoid duplicate runIds
     this.publishedResults = [payload, ...this.publishedResults.filter(p => p.runId !== payload.runId)];
   }
@@ -4547,6 +4673,28 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       return res.json({ sessions: globalLabStore.listSessions() });
     }
     res.json({ sessions: globalLabStore.listSessionSummaries() });
+  });
+
+  // 5b. Export Entire Local Lab Archive
+  app.get('/api/dev/lab/attention/archive/export', authenticateRest, (req: Request, res: Response) => {
+    res.json(globalLabStore.exportArchive());
+  });
+
+  // 5c. Inspect Specific Run Audit Bundle
+  app.get('/api/dev/lab/attention/runs/:runId', authenticateRest, (req: Request, res: Response) => {
+    const run = globalLabStore.getRun(req.params.runId);
+    if (!run) {
+      return res.status(404).json({ error: `Run '${req.params.runId}' not found in archive.` });
+    }
+    res.json(run);
+  });
+
+  app.get('/api/dev/lab/attention/sessions/:id/runs/:runId', authenticateRest, (req: Request, res: Response) => {
+    const run = globalLabStore.getRun(req.params.runId);
+    if (!run) {
+      return res.status(404).json({ error: `Run '${req.params.runId}' not found in archive.` });
+    }
+    res.json(run);
   });
 
   // 6. Inspect Single Experiment Session

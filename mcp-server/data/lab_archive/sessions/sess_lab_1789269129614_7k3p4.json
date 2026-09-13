@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269129614_7k3p4",
+  "name": "V1.3 Session",
+  "description": "V1.3",
+  "hypothesis": "H3",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:09.614Z",
+  "updatedAt": "2026-09-13T03:12:09.615Z",
+  "runIds": [
+    "run_1789265419630_lue4"
+  ],
+  "metadata": {}
+}

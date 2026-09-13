@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269164540_rv4s3",
+  "name": "V1 Session",
+  "description": "V1",
+  "hypothesis": "H1",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:44.540Z",
+  "updatedAt": "2026-09-13T03:12:44.540Z",
+  "runIds": [
+    "run_1789211082230_cal8"
+  ],
+  "metadata": {}
+}

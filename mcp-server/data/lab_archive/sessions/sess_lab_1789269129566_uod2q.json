@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269129566_uod2q",
+  "name": "Controlled Verification Session",
+  "description": "Testing durable reload of verbatim A/B/C outputs",
+  "hypothesis": "Verbatim outputs survive store serialization and retrieval",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:09.566Z",
+  "updatedAt": "2026-09-13T03:12:09.567Z",
+  "runIds": [
+    "run_1789269129564_25kt"
+  ],
+  "metadata": {}
+}

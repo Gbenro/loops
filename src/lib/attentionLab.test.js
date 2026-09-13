@@ -1720,7 +1720,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
 
       const v13Session = store.createSession({ name: 'V1.3 Session', description: 'V1.3', hypothesis: 'H3' });
       store.recordRun(v13Session.id, {
-        runId: 'run_1789265419630_lue4',
+        runId: 'run_test_v13_mock_immutability',
         sessionId: v13Session.id,
         question: 'Q',
         category: 'cat',
@@ -1735,7 +1735,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
 
       // Verify records in store remain untouched
       expect(store.getSession(v1Session.id)?.runs[0].runId).toBe('run_1789211082230_cal8');
-      expect(store.getSession(v13Session.id)?.runs[0].runId).toBe('run_1789265419630_lue4');
+      expect(store.getSession(v13Session.id)?.runs[0].runId).toBe('run_test_v13_mock_immutability');
     });
   });
 
@@ -1842,6 +1842,147 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(s0.runCount).toBe(0);
       expect(s0.latestRunId).toBeUndefined();
       expect(s0.latestWinner).toBeUndefined();
+    });
+  });
+// =========================================================================
+  // Suite 21: Local Durable Archive & Full Auditability (iss_1789268194402_os20)
+  // =========================================================================
+  describe('Suite 21: Attention Lab Local Durable Archive & Full Auditability', () => {
+    it('hydrates durable sessions and runs from local filesystem archive on startup', () => {
+      const store = new DurableLabStore();
+      const sessions = store.listSessions();
+      expect(sessions.length).toBeGreaterThanOrEqual(3);
+
+      const v13 = sessions.find(s => s.id === 'sess_lab_1789265353670_i3w74');
+      expect(v13).toBeDefined();
+      expect(v13.name).toContain('Attention V1.3');
+      expect(v13.runs.length).toBeGreaterThanOrEqual(1);
+
+      const canonical = sessions.find(s => s.id === 'sess_lab_canonical_benchmark');
+      expect(canonical).toBeDefined();
+
+      const exp001 = sessions.find(s => s.id === 'sess_lab_exp001');
+      expect(exp001).toBeDefined();
+      expect(['paused', 'resumed']).toContain(exp001.status);
+    });
+
+    it('enforces auditability integrity states: marks unverified historical claims AUDIT_INCOMPLETE and valid runs AUDITABLE', () => {
+      const store = new DurableLabStore();
+      
+      // Historical V1.3 run with unverified claims
+      const incompleteRun = store.getRun('run_1789265419630_lue4');
+      expect(incompleteRun).toBeDefined();
+      expect(incompleteRun.integrityState).toBe('AUDIT_INCOMPLETE');
+      expect(incompleteRun.isValidBenchmarkBaseline).toBe(false);
+      expect(incompleteRun.artifactHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(incompleteRun.auditNotes).toContain('AUDIT_INCOMPLETE');
+
+      // Fully auditable scorecard run
+      const auditableRun = store.getRun('run_1789266756354_inwn');
+      expect(auditableRun).toBeDefined();
+      expect(auditableRun.integrityState).toBe('AUDITABLE');
+      expect(auditableRun.isValidBenchmarkBaseline).toBe(true);
+      expect(auditableRun.artifactHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(auditableRun.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBeDefined();
+      expect(auditableRun.baselines.control.verbatimGeneratedAnswer).toBeDefined();
+      expect(auditableRun.baselines.broadContext.verbatimGeneratedAnswer).toBeDefined();
+    });
+
+    it('invariant: a historical experiment cannot be a valid benchmark baseline unless traceable to persisted evidence', () => {
+      const store = new DurableLabStore();
+      const run = store.getRun('run_1789265419630_lue4');
+      expect(run.isValidBenchmarkBaseline).toBe(false);
+      expect(run.integrityState).not.toBe('AUDITABLE');
+    });
+
+    it('exports complete local archive with schema version 2.0.0 and zero data loss', () => {
+      const store = new DurableLabStore();
+      const exported = store.exportArchive();
+      expect(exported.archiveVersion).toBe('2.0.0');
+      expect(exported.totalSessions).toBeGreaterThanOrEqual(3);
+      expect(exported.totalRuns).toBeGreaterThanOrEqual(2);
+      expect(exported.sessions.some(s => s.id === 'sess_lab_1789265353670_i3w74')).toBe(true);
+      expect(exported.runs.some(r => r.runId === 'run_1789265419630_lue4')).toBe(true);
+      expect(exported.runs.some(r => r.runId === 'run_1789266756354_inwn')).toBe(true);
+    });
+
+    it('records new runs atomically, updates catalog, and generates immutable artifactHash', () => {
+      const store = new DurableLabStore();
+      const sess = store.createSession({
+        name: 'Audit Persistence Test Session',
+        hypothesis: 'Testing local archive persistence and atomic hash generation'
+      });
+
+      const newRun = {
+        runId: `run_test_audit_${Date.now()}`,
+        sessionId: sess.id,
+        question: 'Test question for local archive integrity?',
+        model: 'openrouter-deepseek-v4-flash',
+        status: 'valid',
+        timestamp: new Date().toISOString(),
+        snapshotHash: 'snap_test_hash_123',
+        provenanceBreakdown: { personal_field: 10, benchmark_fixture: 0, synthetic: 0 },
+        baselines: {
+          control: {
+            name: 'Control',
+            groundingScore: 40,
+            falseConnectionRisk: 20,
+            contextTokenCount: 100,
+            temporalSpanDays: 5,
+            latencyMs: 1000,
+            summary: 'Control summary',
+            verbatimGeneratedAnswer: 'Verbatim control answer test.'
+          },
+          broadContext: {
+            name: 'Broad Context',
+            groundingScore: 60,
+            falseConnectionRisk: 30,
+            contextTokenCount: 2000,
+            temporalSpanDays: 100,
+            latencyMs: 3000,
+            summary: 'Broad context summary',
+            verbatimGeneratedAnswer: 'Verbatim broad answer test.'
+          },
+          attentionEngineV1: {
+            name: 'Attention Engine V1',
+            groundingScore: 80,
+            falseConnectionRisk: 5,
+            contextTokenCount: 500,
+            temporalSpanDays: 95,
+            latencyMs: 2000,
+            summary: 'Attention engine summary',
+            verbatimGeneratedAnswer: 'Verbatim attention answer test with exact evidence.'
+          }
+        },
+        delta: {
+          groundingDelta: 20,
+          falseConnectionReduction: 25,
+          contextTokenReduction: 1500,
+          temporalSpanIncreaseDays: 90,
+          overallWinner: 'attention_engine_v1'
+        },
+        evaluatorNotes: 'Full audit bundle test verified.'
+      };
+
+      store.recordRun(sess.id, newRun);
+
+      // Verify run has artifactHash and AUDITABLE integrity
+      expect(newRun.artifactHash).toBeDefined();
+      expect(newRun.artifactHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(newRun.integrityState).toBe('AUDITABLE');
+      expect(newRun.isValidBenchmarkBaseline).toBe(true);
+
+      // Verify discoverable via getRun and session
+      const fetched = store.getRun(newRun.runId);
+      expect(fetched).toBeDefined();
+      expect(fetched.runId).toBe(newRun.runId);
+      expect(fetched.artifactHash).toBe(newRun.artifactHash);
+
+      const summaries = store.listSessionSummaries();
+      const sSummary = summaries.find(s => s.id === sess.id);
+      expect(sSummary).toBeDefined();
+      expect(sSummary.runCount).toBe(1);
+      expect(sSummary.latestRunId).toBe(newRun.runId);
     });
   });
 });

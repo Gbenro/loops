@@ -1,0 +1,11 @@
+{
+  "id": "sess_lab_1789269225310_ijy62",
+  "name": "Sprint 1 — Recurrence vs Cosine Baseline",
+  "description": "Testing recurrence channel weighting",
+  "hypothesis": "Recurrence weighting reduces false positive drift by 40%",
+  "status": "created",
+  "createdAt": "2026-09-13T03:13:45.310Z",
+  "updatedAt": "2026-09-13T03:13:45.310Z",
+  "runIds": [],
+  "metadata": {}
+}

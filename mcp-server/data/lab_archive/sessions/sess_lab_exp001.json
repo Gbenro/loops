@@ -1,0 +1,16 @@
+{
+  "id": "sess_lab_exp001",
+  "name": "Experiment 001",
+  "description": "Controlled Attention Lab A/B/C comparison using the same benchmark question, Field snapshot/evidence, model, and parameters across Production/control retrieval, Broad-context retrieval, and Attention Engine V1.",
+  "hypothesis": "Attention Engine V1 improves grounding and longitudinal evidence selection versus production/control and broad-context retrieval without changing model intelligence.",
+  "status": "paused",
+  "pauseReason": "Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).",
+  "pausedAt": "2026-09-01T00:00:00.000Z",
+  "createdAt": "2026-09-01T00:00:00.000Z",
+  "updatedAt": "2026-09-01T00:00:00.000Z",
+  "runIds": [],
+  "metadata": {
+    "canonical": true,
+    "immutableBaseline": true
+  }
+}

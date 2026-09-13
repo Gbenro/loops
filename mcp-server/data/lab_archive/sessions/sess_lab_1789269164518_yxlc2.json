@@ -1,0 +1,13 @@
+{
+  "id": "sess_lab_1789269164518_yxlc2",
+  "name": "V1.1 Baseline Session",
+  "description": "Experiment V1.1 baseline",
+  "hypothesis": "Baseline V1.1 with temporal anti-clustering",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:44.518Z",
+  "updatedAt": "2026-09-13T03:12:44.518Z",
+  "runIds": [
+    "run_1789254192740_a4az"
+  ],
+  "metadata": {}
+}

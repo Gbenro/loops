@@ -1,0 +1,12 @@
+{
+  "id": "sess_lab_1789269129618_3uv8d",
+  "name": "V1.3 Regression & Generalization Benchmark",
+  "hypothesis": "Attention Engine V1.3 prevents DEV/system contamination",
+  "status": "created",
+  "createdAt": "2026-09-13T03:12:09.618Z",
+  "updatedAt": "2026-09-13T03:12:09.619Z",
+  "runIds": [
+    "run_v13_heavy_test"
+  ],
+  "metadata": {}
+}
