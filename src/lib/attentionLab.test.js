@@ -17,7 +17,12 @@ import {
   getSupportedLabModels,
   validateAndResolveLabModel,
   executeConditionCompletion,
-  STOP_WORDS
+  STOP_WORDS,
+  decomposeQuery,
+  computeSemanticSubjectScore,
+  GENERIC_RELATIONAL_TERMS,
+  TEMPORAL_ANCHOR_TERMS,
+  SUBJECT_CONCEPT_TAXONOMY
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -1064,6 +1069,270 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(reloadedBaselineSession?.runs[0].baselines.attentionEngineV1.verbatimGeneratedAnswer).toBe(
         'Original V1 Answer for bm_long_01 with 2-day temporal span'
       );
+    });
+  });
+
+
+  // ─── 17. Attention Engine V1.2: Semantic Qualification of Coverage Obligations ──────
+
+  describe('17. Attention Engine V1.2 — Semantic Qualification of Coverage Obligations', () => {
+    let adapter;
+    let index;
+    let engine;
+    let snapshot;
+
+    beforeEach(async () => {
+      adapter = new LunaFieldReadOnlyAdapter({ mode: 'fixture_benchmark' });
+      snapshot = await adapter.captureSnapshot();
+      index = new AttentionIndex();
+      index.rebuild(snapshot);
+      engine = new AttentionEngineV1(index);
+    });
+
+    it('Criterion 1 & 5: Query decomposition extracts subjects, relations, and temporal anchors separately', () => {
+      const decomp = decomposeQuery('How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?');
+      expect(decomp.subjects).toBeDefined();
+      expect(decomp.subjects.length).toBeGreaterThan(0);
+      expect(decomp.subjects.some(s => s.includes('rest') || s.includes('evening'))).toBe(true);
+      
+      // Generic relational terms like 'relationship' and 'shifted' are isolated
+      expect(decomp.genericRelationalTerms).toContain('relationship');
+      expect(decomp.genericRelationalTerms).toContain('shifted');
+      expect(decomp.subjects).not.toContain('relationship');
+      expect(decomp.subjects).not.toContain('shifted');
+
+      // Temporal anchor terms like 'sturgeon' and 'moon' are isolated
+      expect(decomp.temporalAnchorTerms).toContain('moon');
+      expect(decomp.temporalAnchorTerms).toContain('sturgeon');
+      expect(decomp.temporalOrigin).toBe('Sturgeon Moon');
+      expect(decomp.temporalEndpoint).toBe('now');
+    });
+
+    it('Criteria 2, 3 & 4: Rejects generic lexical proxies (Relationship loops & full moon) from rest/evening evidence', () => {
+      const decomp = decomposeQuery('How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?');
+
+      // Test candidate: 'Relationship loops'
+      const itemRelationshipLoops = {
+        id: 'l1772152655361yrcn',
+        sourceType: 'loop',
+        title: 'Relationship loops',
+        content: 'Relationship loops',
+        createdAt: '2026-02-27T00:37:35.795453+00:00',
+        tags: []
+      };
+      const res1 = computeSemanticSubjectScore(itemRelationshipLoops, decomp);
+      expect(res1.pass).toBe(false);
+      expect(res1.score).toBe(0);
+      expect(res1.rationale).toContain('Rejected');
+
+      // Test candidate: 'finish main features of app to showcase for full moon'
+      const itemFullMoonApp = {
+        id: 'p17721595500888jcl',
+        sourceType: 'loop',
+        title: 'finish main features of app to showcase for full moon',
+        content: 'finish main features of app to showcase for full moon',
+        createdAt: '2026-02-27T02:32:30.935167+00:00',
+        tags: []
+      };
+      const res2 = computeSemanticSubjectScore(itemFullMoonApp, decomp);
+      expect(res2.pass).toBe(false);
+      expect(res2.score).toBe(0);
+      expect(res2.rationale).toContain('Rejected');
+
+      // Test genuine subject evidence: 'Rest in dark to let intention rise'
+      const itemRestIntention = {
+        id: 'p1773871745014f1kf',
+        sourceType: 'loop',
+        title: 'Rest in dark to let intention rise',
+        content: 'Rest in dark to let intention rise',
+        createdAt: '2026-03-18T22:09:05.212883+00:00',
+        tags: []
+      };
+      const res3 = computeSemanticSubjectScore(itemRestIntention, decomp);
+      expect(res3.pass).toBe(true);
+      expect(res3.score).toBeGreaterThanOrEqual(2.0);
+      expect(res3.matchedTerms).toContain('rest');
+    });
+
+    it('Criteria 6 & 7: Two-stage coverage assignment exposes temporal and semantic qualification independently', async () => {
+      const { plan, contextPacket } = await engine.planAndAssemble(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        { tokenBudget: 3000, coverageStrategy: 'longitudinal_span' }
+      );
+
+      expect(plan.coverageMatrix).toBeDefined();
+      const obligations = plan.coverageMatrix.obligations;
+
+      for (const ob of obligations) {
+        // Must independently report temporalStatus and semanticStatus
+        expect(['PASS', 'FAIL', 'SATISFIED', 'INSUFFICIENT_EVIDENCE']).toContain(ob.temporalStatus);
+        expect(['PASS', 'FAIL', 'SATISFIED', 'INSUFFICIENT_EVIDENCE']).toContain(ob.semanticStatus);
+        expect(['satisfied', 'INSUFFICIENT_EVIDENCE']).toContain(ob.finalStatus);
+        expect(typeof ob.candidateCount).toBe('number');
+        expect(typeof ob.qualifiedCandidateCount).toBe('number');
+
+        // Core Invariant: SATISFIED only if both temporal and semantic qualification pass!
+        if (ob.finalStatus === 'satisfied') {
+          expect(['PASS', 'SATISFIED']).toContain(ob.temporalStatus);
+          expect(['PASS', 'SATISFIED']).toContain(ob.semanticStatus);
+          expect(ob.assignedNodeId).toBeDefined();
+        } else {
+          // If unsatisfied, must provide descriptive reason without forced slot filling
+          expect(ob.status).toBe('INSUFFICIENT_EVIDENCE');
+          expect(ob.insufficiencyReason || ob.reason).toBeDefined();
+        }
+      }
+    });
+
+    it('Criteria 8 & 9: Epistemic distinction between absence of records vs absence of relevant evidence', async () => {
+      const { plan, contextPacket } = await engine.planAndAssemble(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        { tokenBudget: 3000, coverageStrategy: 'longitudinal_span' }
+      );
+
+      const obligations = plan.coverageMatrix?.obligations || [];
+      const availabilities = obligations.map(o => o.temporalAvailability);
+
+      // Verify valid typed availability states
+      for (const avail of availabilities) {
+        if (avail) {
+          expect(['NO_RECORDS_IN_PERIOD', 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE', 'RELEVANT_EVIDENCE_FOUND']).toContain(avail);
+        }
+      }
+
+      // Check prompt context explicit epistemic notices and instructions
+      const promptText = contextPacket.formattedPromptContext;
+      expect(promptText).toContain('LONGITUDINAL COVERAGE OBLIGATIONS & STATUS:');
+
+      // Invariant: If records exist in period but lack relevant subject evidence, prompt must instruct LLM not to falsely claim no records exist
+      const hasRecordsNoEvidence = obligations.some(o => o.temporalAvailability === 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE');
+      if (hasRecordsNoEvidence) {
+        expect(promptText).toContain('EPISTEMIC NOTICE: Records DO exist in your personal Field');
+        expect(promptText).toContain('CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist');
+      }
+    });
+
+    it('Criterion 10: Preserves temporal anti-clustering and window caps', async () => {
+      const { plan, contextPacket } = await engine.planAndAssemble(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        { tokenBudget: 3000, coverageStrategy: 'longitudinal_span' }
+      );
+
+      // Check per-window distribution
+      const windowCounts = new Map();
+      for (const ev of contextPacket.evidenceItems) {
+        if (ev.timestamp) {
+          const ms = new Date(ev.timestamp).getTime();
+          const bucket = Math.floor(ms / (48 * 3600 * 1000));
+          windowCounts.set(bucket, (windowCounts.get(bucket) || 0) + 1);
+        }
+      }
+
+      // Anti-clustering invariant: no cluster overruns
+      for (const [bucket, count] of windowCounts.entries()) {
+        expect(count).toBeLessThanOrEqual(3);
+      }
+    });
+
+    it('Criteria 11 & 12: Real Field adapter remains strictly read-only with provenance content hashing', async () => {
+      expect(adapter.assertReadOnly()).toBe(true);
+      const snap = await adapter.captureSnapshot();
+      expect(snap.snapshotHash.length).toBe(64);
+      expect(adapter.assertReadOnly()).toBe(true);
+    });
+
+    it('Criterion 13: Preserves both V1 baseline and V1.1 baseline runs as immutable regression baselines', async () => {
+      const store = new DurableLabStore();
+
+      // Seed V1 and V1.1 baseline runs
+      const v1Session = store.createSession({
+        name: 'V1 Baseline Session',
+        description: 'Experiment 001 V1 baseline',
+        hypothesis: 'Baseline V1'
+      });
+      const v1Run = {
+        runId: 'run_1789211082230_cal8',
+        sessionId: v1Session.id,
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        status: 'valid',
+        model: 'openrouter-deepseek-v4-flash',
+        baselines: {
+          attentionEngineV1: {
+            baseline: 'attention_engine_v1',
+            verbatimGeneratedAnswer: 'V1 baseline answer with 2-day temporal cluster'
+          }
+        }
+      };
+      store.recordRun(v1Session.id, v1Run);
+
+      const v11Session = store.createSession({
+        name: 'V1.1 Baseline Session',
+        description: 'Experiment V1.1 baseline',
+        hypothesis: 'Baseline V1.1 with temporal anti-clustering'
+      });
+      const v11Run = {
+        runId: 'run_1789254192740_a4az',
+        sessionId: v11Session.id,
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        status: 'valid',
+        model: 'openrouter-deepseek-v4-flash',
+        baselines: {
+          attentionEngineV1: {
+            baseline: 'attention_engine_v1',
+            verbatimGeneratedAnswer: 'V1.1 baseline answer with generic lexical proxies'
+          }
+        }
+      };
+      store.recordRun(v11Session.id, v11Run);
+
+      // Now execute new V1.2 run
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const v12Run = await harness.compareQuestion(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        {
+          category: 'longitudinal_change',
+          model: 'openrouter-deepseek-v4-flash',
+          benchmarkCase: CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01')
+        }
+      );
+
+      // Invariant: New V1.2 run ID is unique
+      expect(v12Run.runId).not.toBe('run_1789211082230_cal8');
+      expect(v12Run.runId).not.toBe('run_1789254192740_a4az');
+
+      // Invariant: V1 and V1.1 runs in store remain 100% immutable
+      const storedV1 = store.getSession(v1Session.id)?.runs[0];
+      expect(storedV1?.runId).toBe('run_1789211082230_cal8');
+      expect(storedV1?.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBe('V1 baseline answer with 2-day temporal cluster');
+
+      const storedV11 = store.getSession(v11Session.id)?.runs[0];
+      expect(storedV11?.runId).toBe('run_1789254192740_a4az');
+      expect(storedV11?.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBe('V1.1 baseline answer with generic lexical proxies');
+    });
+
+    it('Generalization: Verifies semantic qualification across multiple question classes', async () => {
+      // 1. Recurrence: bm_recur_01 ('What patterns keep surfacing whenever I feel stuck in my work?')
+      const recDecomp = decomposeQuery('What patterns keep surfacing whenever I feel stuck in my work?');
+      expect(recDecomp.subjects.some(s => s.includes('stuck') || s.includes('work'))).toBe(true);
+      expect(recDecomp.genericRelationalTerms).toContain('patterns');
+      expect(recDecomp.genericRelationalTerms).toContain('surfacing');
+
+      // 2. Entity Relationship: bm_entity_01 ('How has my collaboration with Alex evolved regarding studio projects?')
+      const entDecomp = decomposeQuery('How has my collaboration with Alex evolved regarding studio projects?');
+      expect(entDecomp.subjects.some(s => s.includes('alex') || s.includes('studio'))).toBe(true);
+      expect(entDecomp.genericRelationalTerms).toContain('evolved');
+
+      // 3. Negative Control / Insufficient Evidence: bm_neg_01 ('What notes do I have on marathon training?')
+      const negDecomp = decomposeQuery('What notes do I have on marathon training?');
+      expect(negDecomp.subjects.some(s => s.includes('marathon'))).toBe(true);
+      
+      const { plan: negPlan, contextPacket: negPacket } = await engine.planAndAssemble(
+        'What notes do I have on marathon training?',
+        { tokenBudget: 2000 }
+      );
+      // Zero authentic marathon records exist in snapshot -> correctly recognized as insufficient evidence!
+      expect(negPacket.evidenceItems.length).toBe(0);
+      expect(negPacket.formattedPromptContext).toContain('No direct or longitudinal personal Field evidence was found');
     });
   });
 

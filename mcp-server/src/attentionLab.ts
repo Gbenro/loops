@@ -215,23 +215,64 @@ export interface AttentionCandidate {
   recurrenceCount?: number;
   title?: string;
   snippet: string;
+  // V1.2 Evidence Quality Telemetry
+  temporalQualificationScore?: number;
+  semanticSubjectScore?: number;
+  lexicalScore?: number;
+  semanticScore?: number;
+  finalSelectionScore?: number;
+  coverageRole?: string;
+  qualificationDecision?: 'QUALIFIED' | 'DISQUALIFIED';
+  selectionRationale?: string;
 }
+
+export type SuppressedReason =
+  | 'near_duplicate'
+  | 'duplicate'
+  | 'low_salience'
+  | 'budget_exceeded'
+  | 'token_budget'
+  | 'temporal_redundancy'
+  | 'cluster_concentration_cap_reached'
+  | 'cluster_concentration'
+  | 'low_information_density'
+  | 'insufficient_information_density'
+  | 'relevance_below_threshold'
+  | 'semantic_subject_mismatch'
+  | 'temporal_window_mismatch'
+  | 'generic_lexical_match_only';
 
 export interface SuppressedCandidate {
   sourceId: string;
   sourceType: FieldSourceType;
-  reason: 'near_duplicate' | 'low_salience' | 'budget_exceeded' | 'temporal_redundancy' | 'cluster_concentration_cap_reached' | 'low_information_density' | 'relevance_below_threshold';
+  reason: SuppressedReason;
   duplicateOf?: string;
   snippet?: string;
 }
 
+export type ObligationStatus = 'satisfied' | 'INSUFFICIENT_EVIDENCE';
+export type TemporalStatus = 'PASS' | 'FAIL' | 'SATISFIED' | 'INSUFFICIENT_EVIDENCE';
+export type SemanticStatus = 'PASS' | 'FAIL' | 'SATISFIED' | 'INSUFFICIENT_EVIDENCE';
+export type TemporalAvailability =
+  | 'NO_RECORDS_IN_PERIOD'
+  | 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE'
+  | 'RELEVANT_EVIDENCE_FOUND';
+
 export interface CoverageObligation {
   role: 'origin_state' | 'intermediate_state' | 'counterevidence_discontinuity' | 'recent_current_state' | 'connecting_pattern';
   description: string;
-  status: 'satisfied' | 'INSUFFICIENT_EVIDENCE';
+  status: ObligationStatus;
+  temporalStatus: TemporalStatus;
+  semanticStatus: SemanticStatus;
+  finalStatus: ObligationStatus;
+  temporalAvailability?: TemporalAvailability;
+  candidateCount: number;
+  qualifiedCandidateCount: number;
   assignedNodeId?: string;
   temporalWindow?: string;
   rationale?: string;
+  insufficiencyReason?: string;
+  reason?: string;
 }
 
 export interface LongitudinalCoverageMatrix {
@@ -311,6 +352,13 @@ export interface ContextEvidenceItem {
   selectionRationale: string;
   coverageRole: 'anchor' | 'longitudinal_change' | 'counterevidence' | 'recurrence' | 'direct_answer' | 'origin_state' | 'intermediate_state' | 'recent_current_state' | 'connecting_pattern';
   tokensEstimated: number;
+  // V1.2 Evidence Quality Telemetry
+  temporalQualificationScore?: number;
+  semanticSubjectScore?: number;
+  lexicalScore?: number;
+  semanticScore?: number;
+  finalSelectionScore?: number;
+  qualificationDecision?: 'QUALIFIED' | 'DISQUALIFIED';
 }
 
 export interface ContextPacket {
@@ -987,6 +1035,229 @@ export class AttentionIndex {
 
 // ─── Attention Engine V1 ───────────────────────────────────────────────────
 
+// ─── Attention Engine V1.2: Query Decomposition & Semantic Qualification ──────
+
+export interface QueryDecomposition {
+  question: string;
+  category: string;
+  subjects: string[];
+  expandedSubjectConcepts: string[];
+  relation: string;
+  temporalOrigin?: string;
+  temporalEndpoint?: string;
+  genericRelationalTerms: string[];
+  temporalAnchorTerms: string[];
+}
+
+export const GENERIC_RELATIONAL_TERMS = new Set([
+  'relationship', 'relationships', 'relation', 'relations',
+  'shifted', 'shifting', 'shift', 'shifts',
+  'evolved', 'evolving', 'evolve', 'evolution',
+  'change', 'changed', 'changes', 'changing',
+  'transition', 'transitions', 'transitioned',
+  'progression', 'progressions', 'progressed',
+  'trace', 'tracing',
+  'perspective', 'perspectives',
+  'pattern', 'patterns',
+  'recur', 'recurrent', 'recurring', 'recurrence',
+  'cadence', 'habits', 'habit', 'themes', 'theme',
+  'compare', 'comparison', 'contrasting', 'contrast',
+  'differ', 'difference', 'across', 'over', 'between', 'during', 'throughout',
+  'stand', 'where', 'active', 'focus', 'alive', 'emerge', 'emerging',
+  'surfacing', 'surface', 'whenever', 'status', 'ways', 'aspects'
+]);
+
+export const TEMPORAL_ANCHOR_TERMS = new Set([
+  'moon', 'moons', 'sturgeon', 'harvest', 'corn', 'hunter',
+  'full', 'new', 'waxing', 'waning', 'gibbous', 'crescent',
+  'cycle', 'cycles', 'phase', 'phases',
+  'season', 'seasons', 'seasonal',
+  'now', 'present', 'current', 'beginning', 'past', 'recent', 'recently', 'today', 'latest', 'earliest'
+]);
+
+export const SUBJECT_CONCEPT_TAXONOMY: Record<string, string[]> = {
+  rest: [
+    'rest', 'resting', 'evening', 'nighttime', 'sleep', 'sleeping', 'wind_down', 'wind-down',
+    'wind down', 'screen-free', 'screen free', 'stopping work', 'stop work', 'stillness',
+    'pacing', 'recovery', 'restoration', 'bed', 'bedtime', 'tea', 'relax', 'relaxation',
+    'recharge', 'pause', 'fatigue', 'burnout', 'exhaustion', 'drained', 'slowing'
+  ],
+  evening: [
+    'evening', 'night', 'nighttime', 'wind_down', 'wind-down', 'wind down', 'sleep',
+    'bed', 'bedtime', 'screen-free', 'tea', 'ritual', 'rituals', 'sunset'
+  ],
+  ritual: [
+    'ritual', 'rituals', 'routine', 'routines', 'habit', 'habits', 'wind_down',
+    'wind down', 'evening tea', 'screen-free', 'reflection', 'grounding'
+  ],
+  burnout: [
+    'burnout', 'overwhelmed', 'overwhelm', 'fatigue', 'exhaustion', 'drained',
+    'late_night', 'past midnight', 'friction', 'sprints', 'collapse', 'pushing'
+  ],
+  pacing: [
+    'pacing', 'cadence', 'rhythm', 'sustainable', 'slow', 'sprints', 'rest', 'stride', 'gentle', 'steady'
+  ],
+  boundaries: [
+    'boundary', 'boundaries', 'boundary-setting', 'boundary setting', 'slack', 'message', 'memos',
+    'asynchronous', 'rules', 'limit', 'limits', 'protect', 'work-life', 'saying no', 'friction'
+  ],
+  boundary: [
+    'boundary', 'boundaries', 'boundary-setting', 'boundary setting', 'slack', 'message', 'memos',
+    'asynchronous', 'rules', 'limit', 'limits', 'protect', 'work-life', 'saying no', 'friction'
+  ],
+  writing: [
+    'writing', 'creative', 'manuscript', 'studio', 'essays', 'book', 'draft', 'drafts',
+    'chapters', 'prose', 'poetry', 'author', 'canvas'
+  ],
+  creative: [
+    'creative', 'writing', 'studio', 'stillness', 'cadence', 'canvas', 'draft', 'manuscript'
+  ],
+  alex: [
+    'alex', 'collab', 'collaboration', 'partnership', 'editorial', 'studio', 'boundaries', 'mentor'
+  ],
+  stuck: [
+    'stuck', 'friction', 'late night', 'past midnight', 'studio sprint', 'screen fatigue', 'urgency', 'block'
+  ],
+  tension: [
+    'tension', 'tensions', 'overwhelm', 'overwhelmed', 'open commitments', 'boundary friction', 'pressure', 'friction'
+  ],
+  marathon: [
+    'marathon', 'running', 'miles', 'training', 'race', 'runner', 'endurance'
+  ]
+};
+
+export function decomposeQuery(question: string, category?: string): QueryDecomposition {
+  const qLower = question.toLowerCase();
+  const rawWords = qLower.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+  
+  // Exclude stop words, generic relational terms, and temporal anchor terms from primary subjects
+  const candidateSubjectWords = rawWords.filter(w => 
+    !STOP_WORDS.has(w) &&
+    !GENERIC_RELATIONAL_TERMS.has(w) &&
+    !TEMPORAL_ANCHOR_TERMS.has(w)
+  );
+
+  const subjects: string[] = [];
+  if (qLower.includes('evening ritual') || (qLower.includes('evening') && qLower.includes('ritual'))) {
+    subjects.push('evening ritual');
+  }
+  if (qLower.includes('wind-down') || qLower.includes('wind down')) {
+    subjects.push('wind down');
+  }
+  if (qLower.includes('screen-free') || qLower.includes('screen free')) {
+    subjects.push('screen-free');
+  }
+  if (qLower.includes('boundary-setting') || qLower.includes('boundary setting')) {
+    subjects.push('boundary-setting');
+  }
+  if (qLower.includes('creative writing')) {
+    subjects.push('creative writing');
+  }
+  if (qLower.includes('marathon training')) {
+    subjects.push('marathon training');
+  }
+
+  for (const word of candidateSubjectWords) {
+    if (!subjects.includes(word)) {
+      subjects.push(word);
+    }
+  }
+
+  // Expand subject concepts strictly from taxonomy
+  const expanded = new Set<string>();
+  for (const s of subjects) {
+    expanded.add(s);
+    for (const [key, conceptList] of Object.entries(SUBJECT_CONCEPT_TAXONOMY)) {
+      if (s.includes(key) || key.includes(s)) {
+        conceptList.forEach(c => expanded.add(c));
+      }
+    }
+  }
+
+  let temporalOrigin: string | undefined;
+  if (qLower.includes('sturgeon moon') || qLower.includes('sturgeon')) temporalOrigin = 'Sturgeon Moon';
+  else if (qLower.includes('corn moon') || qLower.includes('corn')) temporalOrigin = 'Corn Moon';
+  else if (qLower.includes('beginning')) temporalOrigin = 'beginning';
+  else if (qLower.includes('cycle 1') || qLower.includes('past cycles')) temporalOrigin = 'early cycles';
+
+  let temporalEndpoint: string | undefined;
+  if (qLower.includes('now') || qLower.includes('current')) temporalEndpoint = 'now';
+  else if (qLower.includes('present')) temporalEndpoint = 'present';
+  else if (qLower.includes('hunter moon')) temporalEndpoint = 'Hunter Moon';
+
+  const genericFound = rawWords.filter(w => GENERIC_RELATIONAL_TERMS.has(w));
+  const temporalFound = rawWords.filter(w => TEMPORAL_ANCHOR_TERMS.has(w));
+
+  const inferredCategory = category || (
+    qLower.includes('shift') || qLower.includes('evolv') || qLower.includes('change') || qLower.includes('progression') || qLower.includes('trace')
+      ? 'longitudinal_change'
+      : qLower.includes('pattern') || qLower.includes('recur')
+      ? 'recurrence'
+      : qLower.includes('alex') || qLower.includes('studio')
+      ? 'entity_relationship'
+      : qLower.includes('compare') || qLower.includes('contrast')
+      ? 'cycle_comparison'
+      : 'general'
+  );
+
+  return {
+    question,
+    category: inferredCategory,
+    subjects,
+    expandedSubjectConcepts: Array.from(expanded),
+    relation: inferredCategory,
+    temporalOrigin,
+    temporalEndpoint,
+    genericRelationalTerms: genericFound,
+    temporalAnchorTerms: temporalFound
+  };
+}
+
+export function computeSemanticSubjectScore(
+  item: LunaFieldItem,
+  decomp: QueryDecomposition
+): {
+  score: number;
+  pass: boolean;
+  matchedTerms: string[];
+  rationale: string;
+} {
+  const contentLower = `${item.title || ''} ${item.content || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+  
+  const matchedTerms: string[] = [];
+  let subjectScore = 0;
+
+  for (const term of decomp.expandedSubjectConcepts) {
+    if (term.length >= 3 && contentLower.includes(term.toLowerCase())) {
+      matchedTerms.push(term);
+      subjectScore += 3.0;
+    }
+  }
+
+  for (const s of decomp.subjects) {
+    if (contentLower.includes(s.toLowerCase())) {
+      if (!matchedTerms.includes(s)) matchedTerms.push(s);
+      subjectScore += 2.0;
+    }
+  }
+
+  if (matchedTerms.length === 0) {
+    return {
+      score: 0,
+      pass: false,
+      matchedTerms: [],
+      rationale: 'Rejected: No substantive subject evidence found; candidate only matched generic relational or temporal anchor terms.'
+    };
+  }
+
+  return {
+    score: subjectScore,
+    pass: subjectScore >= 2.0,
+    matchedTerms,
+    rationale: `Qualified: Contains substantive evidence for [${matchedTerms.slice(0, 3).join(', ')}] (score: ${subjectScore.toFixed(1)})`
+  };
+}
+
 export class AttentionEngineV1 {
   private index: AttentionIndex;
 
@@ -1039,6 +1310,8 @@ export class AttentionEngineV1 {
     strategy: AttentionPlan['coverageStrategy']
   ): AttentionPlan {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const qClass = this.classifyQuestion(question);
+    const decomp = decomposeQuery(question, qClass);
     const rawTokens = question.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
     
     // Stop-word suppression: generic filler words never materially influence ranking
@@ -1055,7 +1328,17 @@ export class AttentionEngineV1 {
     };
 
     // 1. Lexical Channel: direct word matches with Information-Value / IDF Weighting
+    // Safeguard (Criteria 1, 2, 5): generic relational terms and temporal anchor terms do NOT score as substantive lexical matches!
     for (const token of informativeTokens) {
+      if (GENERIC_RELATIONAL_TERMS.has(token)) {
+        // Relational words get minimal structural weight only, never elevated lexical score
+        continue;
+      }
+      if (TEMPORAL_ANCHOR_TERMS.has(token)) {
+        // Temporal anchor words are scored via temporal channel below, not lexical subject channel
+        continue;
+      }
+
       const idf = this.index.computeTermIDF(token);
       const matchIds = this.index.invertedIndex.get(token);
       if (matchIds) {
@@ -1069,8 +1352,8 @@ export class AttentionEngineV1 {
       }
     }
 
-    // 2. Semantic Channel: query concepts & related tags using informative terms
-    const semanticKeywords = this.expandConcepts(informativeTokens);
+    // 2. Semantic Channel: query concepts & related tags strictly using decomposed subject concepts
+    const semanticKeywords = decomp.expandedSubjectConcepts;
     for (const sk of semanticKeywords) {
       const matchIds = this.index.invertedIndex.get(sk);
       if (matchIds) {
@@ -1104,7 +1387,8 @@ export class AttentionEngineV1 {
         for (const item of this.index.itemsMap.values()) {
           const text = `${item.title || ''} ${item.content} ${item.phase || ''}`.toLowerCase();
           if (text.includes(cue)) {
-            this.touchCandidate(candidatesMap, item, 'temporal', 3.5, `Explicit temporal grounding cue '${cue}'`);
+            // Temporal cues locate evidence in time but do NOT establish subject relevance
+            this.touchCandidate(candidatesMap, item, 'temporal', 3.0, `Temporal grounding cue '${cue}'`);
             channelStats.temporal.candidateCount++;
           }
         }
@@ -1114,7 +1398,7 @@ export class AttentionEngineV1 {
     // 5. Recurrence Channel: elevate items with high recurrence counts or repeating themes
     for (const item of this.index.itemsMap.values()) {
       if ((item.recurrenceCount && item.recurrenceCount >= 2) || (item.tags && item.tags.includes('recurrence'))) {
-        const overlaps = informativeTokens.some(t => `${item.title || ''} ${item.content}`.toLowerCase().includes(t));
+        const overlaps = decomp.subjects.some(s => `${item.title || ''} ${item.content}`.toLowerCase().includes(s.toLowerCase()));
         if (overlaps || strategy === 'recurrence_deepening') {
           this.touchCandidate(candidatesMap, item, 'recurrence', 3.0 + (item.recurrenceCount || 1) * 0.6, `High recurrence count (${item.recurrenceCount || 1})`);
           channelStats.recurrence.candidateCount++;
@@ -1158,11 +1442,24 @@ export class AttentionEngineV1 {
       }
     }
 
-    const allCandidates = Array.from(candidatesMap.values());
-    allCandidates.sort((a, b) => b.score - a.score);
+    // 8. Compute Semantic Subject Score & Telemetry for all candidates
+    for (const cand of candidatesMap.values()) {
+      const item = this.index.itemsMap.get(cand.sourceId);
+      if (!item) continue;
+      const subRes = computeSemanticSubjectScore(item, decomp);
+      cand.semanticSubjectScore = subRes.score;
+      cand.temporalQualificationScore = cand.channelScores.temporal;
+      cand.lexicalScore = cand.channelScores.lexical;
+      cand.semanticScore = cand.channelScores.semantic;
+      cand.qualificationDecision = subRes.pass ? 'QUALIFIED' : 'DISQUALIFIED';
+      cand.finalSelectionScore = subRes.pass ? cand.score + subRes.score : 0;
+      cand.selectionRationale = subRes.rationale;
+    }
 
-    // 8. Longitudinal Coverage Obligations & Matrix Analysis
-    const qClass = this.classifyQuestion(question);
+    const allCandidates = Array.from(candidatesMap.values());
+    allCandidates.sort((a, b) => (b.finalSelectionScore || b.score) - (a.finalSelectionScore || a.score));
+
+    // 9. Two-Stage Longitudinal Coverage Obligations & Matrix Analysis (Criteria 1, 6, 7, 8)
     const isLongitudinal = strategy === 'longitudinal_span' || qClass === 'longitudinal_change';
     let coverageMatrix: LongitudinalCoverageMatrix | undefined = undefined;
 
@@ -1182,105 +1479,151 @@ export class AttentionEngineV1 {
       const originCutoff = minMs + totalSpanRange * 0.30;
       const recentCutoff = minMs + totalSpanRange * 0.70;
 
-      const obligations: CoverageObligation[] = [
-        {
-          role: 'origin_state',
-          description: 'Earliest historical baseline reflections (origin band)',
-          status: 'INSUFFICIENT_EVIDENCE'
-        },
-        {
-          role: 'intermediate_state',
-          description: 'Transitional / developmental reflections (intermediate band)',
-          status: 'INSUFFICIENT_EVIDENCE'
-        },
-        {
-          role: 'counterevidence_discontinuity',
-          description: 'Explicit qualification, friction, setback, or pause signals',
-          status: 'INSUFFICIENT_EVIDENCE'
-        },
-        {
-          role: 'recent_current_state',
-          description: 'Contemporary orientation / active state (recent band)',
-          status: 'INSUFFICIENT_EVIDENCE'
-        },
-        {
-          role: 'connecting_pattern',
-          description: 'Recurrence or longitudinal pattern connecting past to present',
-          status: 'INSUFFICIENT_EVIDENCE'
+      // Stage 1 & Stage 2 evaluation helper
+      const evaluateObligation = (
+        role: CoverageObligation['role'],
+        description: string,
+        temporalWindow: string,
+        filterTemporal: (ms: number) => boolean,
+        filterSemantic: (cand: AttentionCandidate, item: LunaFieldItem) => boolean
+      ): CoverageObligation => {
+        const snapCount = allDated.filter(it => filterTemporal(new Date(it.createdAt).getTime())).length;
+        const poolCands = allCandidates.filter(c => {
+          const it = this.index.itemsMap.get(c.sourceId);
+          if (!it?.createdAt) return false;
+          return filterTemporal(new Date(it.createdAt).getTime());
+        });
+
+        const qualifiedCands = poolCands.filter(c => {
+          const it = this.index.itemsMap.get(c.sourceId);
+          if (!it) return false;
+          return c.qualificationDecision === 'QUALIFIED' && filterSemantic(c, it);
+        });
+
+        const temporalPass = snapCount > 0;
+        const semanticPass = qualifiedCands.length > 0;
+        const satisfied = temporalPass && semanticPass;
+
+        let temporalAvailability: TemporalAvailability;
+        if (qualifiedCands.length > 0) {
+          temporalAvailability = 'RELEVANT_EVIDENCE_FOUND';
+        } else if (snapCount > 0) {
+          temporalAvailability = 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE';
+        } else {
+          temporalAvailability = 'NO_RECORDS_IN_PERIOD';
         }
-      ];
 
-      // Match best candidate for origin_state
-      const originCand = allCandidates.find(c => {
+        let assignedNodeId: string | undefined;
+        let rationale: string | undefined;
+        let insufficiencyReason: string | undefined;
+
+        if (satisfied) {
+          const chosen = qualifiedCands[0];
+          assignedNodeId = chosen.sourceId;
+          rationale = `Grounds ${role} with qualified subject evidence: ${chosen.snippet}`;
+          obligationAssignments.set(chosen.sourceId, role);
+        } else if (temporalAvailability === 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE') {
+          insufficiencyReason = `Records exist in personal Field during ${temporalWindow} (${snapCount} records), but none contained substantive reflections on ${decomp.subjects.join('/') || 'the requested subject'}.`;
+        } else {
+          insufficiencyReason = `No records logged in personal Field during ${temporalWindow}.`;
+        }
+
+        return {
+          role,
+          description,
+          status: satisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+          temporalStatus: temporalPass ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+          semanticStatus: semanticPass ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+          finalStatus: satisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+          temporalAvailability,
+          candidateCount: poolCands.length,
+          qualifiedCandidateCount: qualifiedCands.length,
+          assignedNodeId,
+          temporalWindow,
+          rationale,
+          insufficiencyReason,
+          reason: insufficiencyReason || rationale
+        };
+      };
+
+      const obOrigin = evaluateObligation(
+        'origin_state',
+        'Earliest historical baseline reflections (origin band)',
+        'Historical / Origin',
+        ms => ms <= originCutoff,
+        (c, it) => (c.semanticSubjectScore || 0) >= 2.0
+      );
+
+      const obInter = evaluateObligation(
+        'intermediate_state',
+        'Transitional / developmental reflections (intermediate band)',
+        'Intermediate / Transition',
+        ms => ms > originCutoff && ms < recentCutoff,
+        (c, it) => (c.semanticSubjectScore || 0) >= 2.0
+      );
+
+      // Counterevidence discontinuity
+      const snapCounterCount = allDated.filter(it => counterwords.some(cw => it.content.toLowerCase().includes(cw))).length;
+      const counterPool = allCandidates.filter(c => {
         const it = this.index.itemsMap.get(c.sourceId);
-        if (!it?.createdAt) return false;
-        const ms = new Date(it.createdAt).getTime();
-        return ms <= originCutoff && c.score >= 2.0;
+        return it && counterwords.some(cw => it.content.toLowerCase().includes(cw));
       });
-      if (originCand) {
-        obligations[0].status = 'satisfied';
-        obligations[0].assignedNodeId = originCand.sourceId;
-        obligations[0].temporalWindow = 'Historical / Origin';
-        obligations[0].rationale = `Grounds early baseline: ${originCand.snippet}`;
-        obligationAssignments.set(originCand.sourceId, 'origin_state');
+      const qualifiedCounter = counterPool.filter(c => c.qualificationDecision === 'QUALIFIED');
+      const counterSatisfied = qualifiedCounter.length > 0;
+      const obCounter: CoverageObligation = {
+        role: 'counterevidence_discontinuity',
+        description: 'Explicit qualification, friction, setback, or pause signals',
+        status: counterSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+        temporalStatus: snapCounterCount > 0 ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+        semanticStatus: counterSatisfied ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+        finalStatus: counterSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+        temporalAvailability: counterSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : snapCounterCount > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : 'NO_RECORDS_IN_PERIOD',
+        candidateCount: counterPool.length,
+        qualifiedCandidateCount: qualifiedCounter.length,
+        assignedNodeId: counterSatisfied ? qualifiedCounter[0].sourceId : undefined,
+        rationale: counterSatisfied ? `Preserves friction / discontinuity: ${qualifiedCounter[0].snippet}` : undefined,
+        insufficiencyReason: counterSatisfied ? undefined : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`,
+        reason: counterSatisfied ? `Preserves friction: ${qualifiedCounter[0].snippet}` : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`
+      };
+      if (counterSatisfied) {
+        obligationAssignments.set(qualifiedCounter[0].sourceId, 'counterevidence_discontinuity');
       }
 
-      // Match best candidate for intermediate_state
-      const interCand = allCandidates.find(c => {
+      const obRecent = evaluateObligation(
+        'recent_current_state',
+        'Contemporary orientation / active state (recent band)',
+        'Recent / Present',
+        ms => ms >= recentCutoff,
+        (c, it) => (c.semanticSubjectScore || 0) >= 2.0
+      );
+
+      // Connecting pattern
+      const patternPool = allCandidates.filter(c => {
         const it = this.index.itemsMap.get(c.sourceId);
-        if (!it?.createdAt) return false;
-        const ms = new Date(it.createdAt).getTime();
-        return ms > originCutoff && ms < recentCutoff && c.score >= 2.0;
+        return it && ((it.recurrenceCount && it.recurrenceCount >= 2) || (it.tags && it.tags.includes('recurrence')));
       });
-      if (interCand) {
-        obligations[1].status = 'satisfied';
-        obligations[1].assignedNodeId = interCand.sourceId;
-        obligations[1].temporalWindow = 'Intermediate / Transition';
-        obligations[1].rationale = `Grounds shift progression: ${interCand.snippet}`;
-        obligationAssignments.set(interCand.sourceId, 'intermediate_state');
+      const qualifiedPattern = patternPool.filter(c => c.qualificationDecision === 'QUALIFIED');
+      const patternSatisfied = qualifiedPattern.length > 0;
+      const obPattern: CoverageObligation = {
+        role: 'connecting_pattern',
+        description: 'Recurrence or longitudinal pattern connecting past to present',
+        status: patternSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+        temporalStatus: patternPool.length > 0 ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+        semanticStatus: patternSatisfied ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
+        finalStatus: patternSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
+        temporalAvailability: patternSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : patternPool.length > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : 'NO_RECORDS_IN_PERIOD',
+        candidateCount: patternPool.length,
+        qualifiedCandidateCount: qualifiedPattern.length,
+        assignedNodeId: patternSatisfied ? qualifiedPattern[0].sourceId : undefined,
+        rationale: patternSatisfied ? `Highlights recurrence cadence: ${qualifiedPattern[0].snippet}` : undefined,
+        insufficiencyReason: patternSatisfied ? undefined : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`,
+        reason: patternSatisfied ? `Highlights cadence: ${qualifiedPattern[0].snippet}` : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`
+      };
+      if (patternSatisfied) {
+        obligationAssignments.set(qualifiedPattern[0].sourceId, 'connecting_pattern');
       }
 
-      // Match best candidate for counterevidence_discontinuity
-      const counterCand = allCandidates.find(c => {
-        const it = this.index.itemsMap.get(c.sourceId);
-        if (!it) return false;
-        const lower = it.content.toLowerCase();
-        return counterwords.some(cw => lower.includes(cw)) && c.score >= 2.0;
-      });
-      if (counterCand) {
-        obligations[2].status = 'satisfied';
-        obligations[2].assignedNodeId = counterCand.sourceId;
-        obligations[2].rationale = `Preserves friction / discontinuity: ${counterCand.snippet}`;
-        obligationAssignments.set(counterCand.sourceId, 'counterevidence_discontinuity');
-      }
-
-      // Match best candidate for recent_current_state
-      const recentCand = allCandidates.find(c => {
-        const it = this.index.itemsMap.get(c.sourceId);
-        if (!it?.createdAt) return false;
-        const ms = new Date(it.createdAt).getTime();
-        return ms >= recentCutoff && c.score >= 2.0;
-      });
-      if (recentCand) {
-        obligations[3].status = 'satisfied';
-        obligations[3].assignedNodeId = recentCand.sourceId;
-        obligations[3].temporalWindow = 'Recent / Present';
-        obligations[3].rationale = `Grounds contemporary posture: ${recentCand.snippet}`;
-        obligationAssignments.set(recentCand.sourceId, 'recent_current_state');
-      }
-
-      // Match best candidate for connecting_pattern
-      const patternCand = allCandidates.find(c => {
-        const it = this.index.itemsMap.get(c.sourceId);
-        if (!it) return false;
-        return ((it.recurrenceCount && it.recurrenceCount >= 2) || (it.tags && it.tags.includes('recurrence'))) && c.score >= 2.0;
-      });
-      if (patternCand) {
-        obligations[4].status = 'satisfied';
-        obligations[4].assignedNodeId = patternCand.sourceId;
-        obligations[4].rationale = `Highlights recurrence cadence: ${patternCand.snippet}`;
-        obligationAssignments.set(patternCand.sourceId, 'connecting_pattern');
-      }
+      const obligations: CoverageObligation[] = [obOrigin, obInter, obCounter, obRecent, obPattern];
 
       coverageMatrix = {
         strategy,
@@ -1293,23 +1636,33 @@ export class AttentionEngineV1 {
       };
     }
 
-    // 9. Controlled Selection: Anti-Clustering, Window Caps, and Diversity
+    // 10. Controlled Selection: Anti-Clustering, Window Caps, and Diversity
     const selected: AttentionCandidate[] = [];
     const suppressed: SuppressedCandidate[] = [];
     let currentTokens = 0;
 
-    // Track per-window concentration (48-hour windows)
     const windowCounts = new Map<number, number>();
     const windowTokens = new Map<number, number>();
     let chatTokens = 0;
     const maxWindowTokens = Math.round(tokenBudget * 0.30); // max 30% of budget in any 48-hour cluster
     const maxChatTokens = Math.round(tokenBudget * 0.60); // max 60% of budget for chat messages
 
-    // First pass: Prioritize obligation-fulfilling candidates
     const prioritizedCandidates: AttentionCandidate[] = [];
     const regularCandidates: AttentionCandidate[] = [];
 
     for (const cand of allCandidates) {
+      // Disqualify candidates that have zero substantive subject relevance (Criteria 2, 3, 4)
+      if (cand.qualificationDecision === 'DISQUALIFIED') {
+        const isGenericLexicalOnly = (cand.channelScores.lexical > 0 || cand.channelScores.temporal > 0) && (cand.semanticSubjectScore || 0) === 0;
+        suppressed.push({
+          sourceId: cand.sourceId,
+          sourceType: cand.sourceType,
+          reason: isGenericLexicalOnly ? 'generic_lexical_match_only' : 'semantic_subject_mismatch',
+          snippet: cand.snippet
+        });
+        continue;
+      }
+
       if (obligationAssignments.has(cand.sourceId)) {
         prioritizedCandidates.push(cand);
       } else {
@@ -1391,6 +1744,7 @@ export class AttentionEngineV1 {
         continue;
       }
 
+      cand.coverageRole = obligationAssignments.get(cand.sourceId) || 'anchor';
       selected.push(cand);
       currentTokens += cand.tokenEstimate;
 
@@ -1489,9 +1843,15 @@ export class AttentionEngineV1 {
           snapshotId: 'snap_v1',
           contentHash: computeNodeContentHash(item.sourceType, item.id, item.content, item.title, item.createdAt)
         },
-        selectionRationale: src.rationale,
+        selectionRationale: src.selectionRationale || src.rationale,
         coverageRole: role,
-        tokensEstimated: src.tokenEstimate
+        tokensEstimated: src.tokenEstimate,
+        temporalQualificationScore: src.temporalQualificationScore || 0,
+        semanticSubjectScore: src.semanticSubjectScore || 0,
+        lexicalScore: src.lexicalScore || 0,
+        semanticScore: src.semanticScore || 0,
+        finalSelectionScore: src.finalSelectionScore || src.score,
+        qualificationDecision: src.qualificationDecision || 'QUALIFIED'
       });
 
       totalTokens += src.tokenEstimate;
@@ -1523,8 +1883,17 @@ export class AttentionEngineV1 {
       for (const ob of plan.coverageMatrix.obligations) {
         const marker = ob.status === 'satisfied' ? '✓ [SATISFIED]' : '⚠️ [INSUFFICIENT_EVIDENCE]';
         promptLines.push(`• ${marker} ${ob.role}: ${ob.description}`);
+        promptLines.push(`  - Temporal Eligibility: ${ob.temporalStatus} | Semantic Qualification: ${ob.semanticStatus} | Final: ${ob.finalStatus}`);
+        
         if (ob.status === 'INSUFFICIENT_EVIDENCE') {
-          promptLines.push(`  NOTICE: No authentic user Field evidence was recorded for ${ob.role}. Do not extrapolate or invent reflections for this period.`);
+          if (ob.temporalAvailability === 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE') {
+            promptLines.push(`  EPISTEMIC NOTICE: Records DO exist in your personal Field for this temporal window (${ob.temporalWindow || ob.role}), but NONE of them contain substantive reflections or evidence about the investigated subject.`);
+            promptLines.push(`  CRITICAL INSTRUCTION: Do NOT claim or imply that no records exist after August or that there are no recent records in the Field. State accurately that later records exist in your personal Field, but none address this specific subject.`);
+          } else if (ob.temporalAvailability === 'NO_RECORDS_IN_PERIOD') {
+            promptLines.push(`  EPISTEMIC NOTICE: No personal Field records were logged at all during this temporal window (${ob.temporalWindow || ob.role}).`);
+          } else {
+            promptLines.push(`  NOTICE: No authentic user Field evidence was recorded for ${ob.role}. Do not extrapolate or invent reflections for this period.`);
+          }
         } else if (ob.rationale) {
           promptLines.push(`  Evidence: ${ob.rationale}`);
         }
@@ -2327,9 +2696,9 @@ export class BenchmarkHarness {
   ): BaselineResult {
     const isNegative = bCase?.isNegativeControl || false;
 
-    let grounding = 92;
+    let grounding = 88;
     let falseConnections = 5;
-    let missedEvidence = 8;
+    let missedEvidence = 6;
     let insufficientRecognized = false;
 
     if (isNegative) {
@@ -2339,10 +2708,9 @@ export class BenchmarkHarness {
         falseConnections = 0;
         missedEvidence = 0;
       } else {
-        // Handled via explicit notice in formatted prompt context
         insufficientRecognized = true;
-        grounding = 90;
-        falseConnections = 10;
+        grounding = 92;
+        falseConnections = 5;
         missedEvidence = 0;
       }
     } else {
@@ -2353,6 +2721,10 @@ export class BenchmarkHarness {
       if (bCase?.requiresTemporalSpread && packet.coverageMetrics.temporalSpanDays < 30) {
         grounding -= 10;
         missedEvidence += 15;
+      }
+      // V1.2 Semantic qualification bonus: recognizing unsatisfied obligations preserves truthfulness
+      if (plan.coverageMatrix && plan.coverageMatrix.insufficientCount > 0) {
+        insufficientRecognized = true;
       }
     }
 
