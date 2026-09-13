@@ -1,0 +1,906 @@
+{
+  "timestamp": "2026-09-13T04:30:00.000Z",
+  "collapsedSessions": [
+    {
+      "file": "sess_lab_1789273681246_9my8k.json",
+      "id": "sess_lab_1789273681246_9my8k",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225389_j3hr2.json",
+      "id": "sess_lab_1789269225389_j3hr2",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129605_rxgbc.json",
+      "id": "sess_lab_1789269129605_rxgbc",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172676_uyriy.json",
+      "id": "sess_lab_1789269172676_uyriy",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164528_4h2ef.json",
+      "id": "sess_lab_1789269164528_4h2ef",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225417_77f49.json",
+      "id": "sess_lab_1789269225417_77f49",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172763_8qxpw.json",
+      "id": "sess_lab_1789269172763_8qxpw",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216719_3bfou.json",
+      "id": "sess_lab_1789270216719_3bfou",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789270216720"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225419_1dyf4.json",
+      "id": "sess_lab_1789269225419_1dyf4",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092353_b767m.json",
+      "id": "sess_lab_1789269092353_b767m",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234281_h56id.json",
+      "id": "sess_lab_1789269234281_h56id",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681420_c8r96.json",
+      "id": "sess_lab_1789273681420_c8r96",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789273681422"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216664_vnrc3.json",
+      "id": "sess_lab_1789270216664_vnrc3",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234413_1qvhj.json",
+      "id": "sess_lab_1789269234413_1qvhj",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216542_4cbgf.json",
+      "id": "sess_lab_1789270216542_4cbgf",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789270216649_3d6rf.json",
+      "id": "sess_lab_1789270216649_3d6rf",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129593_1sbny.json",
+      "id": "sess_lab_1789269129593_1sbny",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273680789_8oab4.json",
+      "id": "sess_lab_1789273680789_8oab4",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092355_lvisz.json",
+      "id": "sess_lab_1789269092355_lvisz",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269164546_9ahvr.json",
+      "id": "sess_lab_1789269164546_9ahvr",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172593_7giip.json",
+      "id": "sess_lab_1789269172593_7giip",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269172572_fgd7"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681285_1yb4y.json",
+      "id": "sess_lab_1789273681285_1yb4y",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172723_psn4d.json",
+      "id": "sess_lab_1789269172723_psn4d",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129618_3uv8d.json",
+      "id": "sess_lab_1789269129618_3uv8d",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092349_8mhj2.json",
+      "id": "sess_lab_1789269092349_8mhj2",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681324_iqqh7.json",
+      "id": "sess_lab_1789273681324_iqqh7",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269092266_bswfb.json",
+      "id": "sess_lab_1789269092266_bswfb",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216694_yj8i7.json",
+      "id": "sess_lab_1789270216694_yj8i7",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269164500_7tcyx.json",
+      "id": "sess_lab_1789269164500_7tcyx",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216665_f1rrv.json",
+      "id": "sess_lab_1789270216665_f1rrv",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092339_oqq3h.json",
+      "id": "sess_lab_1789269092339_oqq3h",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216615_c8fk9.json",
+      "id": "sess_lab_1789270216615_c8fk9",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789270216608_hbtr"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129614_7k3p4.json",
+      "id": "sess_lab_1789269129614_7k3p4",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_1789265419630_lue4"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234343_zp1fn.json",
+      "id": "sess_lab_1789269234343_zp1fn",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172833_sh9ze.json",
+      "id": "sess_lab_1789269172833_sh9ze",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269172836"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129592_a2e34.json",
+      "id": "sess_lab_1789269129592_a2e34",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273680743_0c6ub.json",
+      "id": "sess_lab_1789273680743_0c6ub",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269234416_9m0em.json",
+      "id": "sess_lab_1789269234416_9m0em",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172720_1mane.json",
+      "id": "sess_lab_1789269172720_1mane",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681060_wrj3w.json",
+      "id": "sess_lab_1789273681060_wrj3w",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789273681000_e9i2"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216647_dh88p.json",
+      "id": "sess_lab_1789270216647_dh88p",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172747_6pfhy.json",
+      "id": "sess_lab_1789269172747_6pfhy",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681307_b0vud.json",
+      "id": "sess_lab_1789273681307_b0vud",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164517_jyoj8.json",
+      "id": "sess_lab_1789269164517_jyoj8",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216662_8rufa.json",
+      "id": "sess_lab_1789270216662_8rufa",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234384_ccpr1.json",
+      "id": "sess_lab_1789269234384_ccpr1",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092329_jaed7.json",
+      "id": "sess_lab_1789269092329_jaed7",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234464_lehcz.json",
+      "id": "sess_lab_1789269234464_lehcz",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225466_1wylg.json",
+      "id": "sess_lab_1789269225466_1wylg",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269225467"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129660_ar5s4.json",
+      "id": "sess_lab_1789269129660_ar5s4",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269129660"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164440_fs8c5.json",
+      "id": "sess_lab_1789269164440_fs8c5",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092383_x74yl.json",
+      "id": "sess_lab_1789269092383_x74yl",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269092384"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269233945_ltool.json",
+      "id": "sess_lab_1789269233945_ltool",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269129577_t9grv.json",
+      "id": "sess_lab_1789269129577_t9grv",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164529_muy02.json",
+      "id": "sess_lab_1789269164529_muy02",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681232_4wu17.json",
+      "id": "sess_lab_1789273681232_4wu17",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092328_iyjnp.json",
+      "id": "sess_lab_1789269092328_iyjnp",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172754_n7x39.json",
+      "id": "sess_lab_1789269172754_n7x39",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225441_jkg7z.json",
+      "id": "sess_lab_1789269225441_jkg7z",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681147_7y1hq.json",
+      "id": "sess_lab_1789273681147_7y1hq",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234339_na1ed.json",
+      "id": "sess_lab_1789269234339_na1ed",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225406_hqlqe.json",
+      "id": "sess_lab_1789269225406_hqlqe",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681185_01j6x.json",
+      "id": "sess_lab_1789273681185_01j6x",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129513_425cq.json",
+      "id": "sess_lab_1789269129513_425cq",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269234495_1nexf.json",
+      "id": "sess_lab_1789269234495_1nexf",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269172641_n4m1w.json",
+      "id": "sess_lab_1789269172641_n4m1w",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681244_hagsx.json",
+      "id": "sess_lab_1789273681244_hagsx",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164541_ma789.json",
+      "id": "sess_lab_1789269164541_ma789",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225446_q73m4.json",
+      "id": "sess_lab_1789269225446_q73m4",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269164550_l185b.json",
+      "id": "sess_lab_1789269164550_l185b",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269234232_8s1rv.json",
+      "id": "sess_lab_1789269234232_8s1rv",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269234214_zmsu"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129623_mxlai.json",
+      "id": "sess_lab_1789269129623_mxlai",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269092315_fsl15.json",
+      "id": "sess_lab_1789269092315_fsl15",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225435_x0tjo.json",
+      "id": "sess_lab_1789269225435_x0tjo",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225433_1h61h.json",
+      "id": "sess_lab_1789269225433_1h61h",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164518_yxlc2.json",
+      "id": "sess_lab_1789269164518_yxlc2",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164431_o7g9r.json",
+      "id": "sess_lab_1789269164431_o7g9r",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269129604_3hf61.json",
+      "id": "sess_lab_1789269129604_3hf61",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164566_0ysh7.json",
+      "id": "sess_lab_1789269164566_0ysh7",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269164567"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216629_do5os.json",
+      "id": "sess_lab_1789270216629_do5os",
+      "name": "Luna Attention V1 Canonical Benchmark - Original Run",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129603_ks6t9.json",
+      "id": "sess_lab_1789269129603_ks6t9",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225374_34lrd.json",
+      "id": "sess_lab_1789269225374_34lrd",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269225370_o6p7"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234378_n1z4s.json",
+      "id": "sess_lab_1789269234378_n1z4s",
+      "name": null,
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234381_2mqqq.json",
+      "id": "sess_lab_1789269234381_2mqqq",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172683_t20r2.json",
+      "id": "sess_lab_1789269172683_t20r2",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172289_s88xv.json",
+      "id": "sess_lab_1789269172289_s88xv",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269092341_16btb.json",
+      "id": "sess_lab_1789269092341_16btb",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164540_rv4s3.json",
+      "id": "sess_lab_1789269164540_rv4s3",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172771_e3uhq.json",
+      "id": "sess_lab_1789269172771_e3uhq",
+      "name": "Empty Session Test",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269225404_tt5um.json",
+      "id": "sess_lab_1789269225404_tt5um",
+      "name": "V1 Baseline Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269234571_cn6ri.json",
+      "id": "sess_lab_1789269234571_cn6ri",
+      "name": "Audit Persistence Test Session",
+      "runIds": [
+        "run_test_audit_1789269234572"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129522_cmzaf.json",
+      "id": "sess_lab_1789269129522_cmzaf",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269233968_ob47u.json",
+      "id": "sess_lab_1789269233968_ob47u",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681289_el06a.json",
+      "id": "sess_lab_1789273681289_el06a",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225320_n6ri7.json",
+      "id": "sess_lab_1789269225320_n6ri7",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216554_qhw7y.json",
+      "id": "sess_lab_1789270216554_qhw7y",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164489_6oq03.json",
+      "id": "sess_lab_1789269164489_6oq03",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269164486_r5w6"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172726_l2r8b.json",
+      "id": "sess_lab_1789269172726_l2r8b",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225310_ijy62.json",
+      "id": "sess_lab_1789269225310_ijy62",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789269092350_y9hxj.json",
+      "id": "sess_lab_1789269092350_y9hxj",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_1789265419630_lue4"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092305_4k77t.json",
+      "id": "sess_lab_1789269092305_4k77t",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269092304_fbtn"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216687_i9aaz.json",
+      "id": "sess_lab_1789270216687_i9aaz",
+      "name": "V1.3 Regression & Generalization Benchmark",
+      "runIds": [
+        "run_v13_heavy_test"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092340_kl759.json",
+      "id": "sess_lab_1789269092340_kl759",
+      "name": null,
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269172319_74gx5.json",
+      "id": "sess_lab_1789269172319_74gx5",
+      "name": "Benchmark Session",
+      "runIds": [
+        "run_test_01"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129613_udql8.json",
+      "id": "sess_lab_1789269129613_udql8",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789273681188_eczfv.json",
+      "id": "sess_lab_1789273681188_eczfv",
+      "name": "V1.1 Baseline Session",
+      "runIds": [
+        "run_1789254192740_a4az"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269129566_uod2q.json",
+      "id": "sess_lab_1789269129566_uod2q",
+      "name": "Controlled Verification Session",
+      "runIds": [
+        "run_1789269129564_25kt"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269164530_v5b3b.json",
+      "id": "sess_lab_1789269164530_v5b3b",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269225420_juwex.json",
+      "id": "sess_lab_1789269225420_juwex",
+      "name": null,
+      "runIds": [
+        "run_1789261534197_ue8l"
+      ]
+    },
+    {
+      "file": "sess_lab_1789270216678_bf571.json",
+      "id": "sess_lab_1789270216678_bf571",
+      "name": "V1 Session",
+      "runIds": [
+        "run_1789211082230_cal8"
+      ]
+    },
+    {
+      "file": "sess_lab_1789269092258_lk3rr.json",
+      "id": "sess_lab_1789269092258_lk3rr",
+      "name": "Sprint 1 \u2014 Recurrence vs Cosine Baseline",
+      "runIds": []
+    },
+    {
+      "file": "sess_lab_1789270216679_s02ad.json",
+      "id": "sess_lab_1789270216679_s02ad",
+      "name": "V1.3 Session",
+      "runIds": [
+        "run_test_v13_mock_immutability"
+      ]
+    }
+  ],
+  "segregatedTestFixtures": [
+    "run_blocked_01",
+    "run_v13_heavy_test",
+    "run_test_v13_mock_immutability",
+    "run_allowed_02",
+    "run_test_01"
+  ],
+  "prunedEphemeralTestRuns": [
+    "run_test_audit_1789269172836.json",
+    "run_1789269092304_fbtn.json",
+    "run_test_audit_1789269234572.json",
+    "run_1789269234214_zmsu.json",
+    "run_test_audit_1789269129660.json",
+    "run_1789273681000_e9i2.json",
+    "run_1789269129564_25kt.json",
+    "run_test_audit_1789273681422.json",
+    "run_1789270216608_hbtr.json",
+    "run_test_audit_1789270216720.json",
+    "run_test_audit_1789269164567.json",
+    "run_test_audit_1789269225467.json",
+    "run_test_audit_1789269092384.json",
+    "run_1789269225370_o6p7.json",
+    "run_1789269172572_fgd7.json",
+    "run_1789269164486_r5w6.json"
+  ],
+  "authoritativeRuns": [
+    "run_1789211082230_cal8",
+    "run_1789254192740_a4az",
+    "run_1789261534197_ue8l",
+    "run_1789265419630_lue4",
+    "run_1789266756354_inwn"
+  ],
+  "authoritativeSessions": [
+    "sess_lab_canonical_benchmark",
+    "sess_lab_exp001",
+    "sess_lab_1789265353670_i3w74"
+  ]
+}

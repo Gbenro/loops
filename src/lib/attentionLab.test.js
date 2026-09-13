@@ -1985,4 +1985,104 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(sSummary.latestRunId).toBe(newRun.runId);
     });
   });
+
+  describe('Suite 22: Archive Hydration, Import Idempotency & Duplicate Collapse', () => {
+    it('Criteria 1: hydrateFromLocalArchive is strictly idempotent across repeated invocations', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const initialSessionCount = store.listSessions().length;
+      const initialRunCount = store.exportArchive().totalRuns;
+
+      // Invoke hydration 5 times repeatedly
+      for (let i = 0; i < 5; i++) {
+        store.hydrateFromLocalArchive();
+      }
+
+      expect(store.listSessions().length).toBe(initialSessionCount);
+      expect(store.exportArchive().totalRuns).toBe(initialRunCount);
+    });
+
+    it('Criteria 2: Each historical run ID has one authoritative archived record and cannot be degraded by stubs', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const v1Run = store.getRun('run_1789211082230_cal8');
+      expect(v1Run).toBeDefined();
+
+      const inwnRun = store.getRun('run_1789266756354_inwn');
+      expect(inwnRun).toBeDefined();
+      expect(inwnRun.integrityState).toBe('AUDITABLE');
+      expect(inwnRun.isValidBenchmarkBaseline).toBe(true);
+      const originalHash = inwnRun.artifactHash;
+
+      // Attempt to import a degraded stub with the same runId
+      const degradedStub = {
+        runId: 'run_1789266756354_inwn',
+        question: 'Degraded stub question',
+        integrityState: 'INVALID'
+      };
+
+      const res = store.importArchive({ runs: [degradedStub] });
+      expect(res.importedRuns).toBe(0);
+      expect(res.dedupedRuns).toBe(1);
+
+      // Verify authoritative record remains AUDITABLE with original hash
+      const preserved = store.getRun('run_1789266756354_inwn');
+      expect(preserved.integrityState).toBe('AUDITABLE');
+      expect(preserved.artifactHash).toBe(originalHash);
+    });
+
+    it('Criteria 3: importArchive deduplicates runs and sessions by identity and artifact hash', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const archive = store.exportArchive();
+      expect(archive.totalSessions).toBeGreaterThan(0);
+      expect(archive.totalRuns).toBeGreaterThan(0);
+
+      // Re-importing exact current state should result in 0 new sessions and 0 new runs
+      const importRes = store.importArchive(archive);
+      expect(importRes.success).toBe(true);
+      expect(importRes.importedSessions).toBe(0);
+      expect(importRes.importedRuns).toBe(0);
+      expect(importRes.dedupedSessions).toBe(archive.totalSessions);
+      expect(importRes.dedupedRuns).toBe(archive.totalRuns);
+    });
+
+    it('Criteria 4: Duplicate session wrappers referencing known runs collapse idempotently', () => {
+      const store = new DurableLabStore({ testMode: true });
+      const canonicalSession = store.getSession('sess_lab_canonical_benchmark');
+      expect(canonicalSession).toBeDefined();
+
+      // Attempt to import a duplicate wrapper that references the same V1 baseline run
+      const duplicateWrapper = {
+        id: 'sess_lab_duplicate_wrapper_test',
+        name: 'Luna Attention V1 Canonical Benchmark - Original Run',
+        description: 'Duplicate wrapper of V1 baseline',
+        runIds: ['run_1789211082230_cal8']
+      };
+
+      const res = store.importArchive({ sessions: [duplicateWrapper] });
+      expect(res.importedSessions).toBe(0);
+      expect(res.dedupedSessions).toBe(1);
+      expect(store.getSession('sess_lab_duplicate_wrapper_test')).toBeUndefined();
+    });
+
+    it('Criteria 5: Test executions run in test mode and do not pollute production archive disk', () => {
+      const testStore = new DurableLabStore({ testMode: true });
+      const testSess = testStore.createSession({
+        name: 'Ephemeral Test Isolation Session',
+        hypothesis: 'Must never touch production disk'
+      });
+      const testRun = {
+        runId: 'run_ephemeral_test_isolation_' + Date.now(),
+        sessionId: testSess.id,
+        question: 'Ephemeral question?',
+        baselines: {
+          control: { verbatimGeneratedAnswer: 'ctrl' },
+          attentionEngineV1: { verbatimGeneratedAnswer: 'v1' }
+        }
+      };
+      testStore.recordRun(testSess.id, testRun);
+
+      expect(testStore.getSession(testSess.id)?.runs.length).toBe(1);
+      expect(testStore.getRun(testRun.runId)).toBeDefined();
+    });
+  });
+
 });

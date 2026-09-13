@@ -741,6 +741,7 @@ export interface LabExperimentSession {
   pausedAt?: string;
   pauseReason?: string;
   runs: ComparisonRun[];
+  runIds?: string[];
   metadata?: Record<string, any>;
 }
 
@@ -3935,14 +3936,24 @@ export function getLabArchiveDir(): string {
   return candidates[0] || path.join(process.cwd(), 'mcp-server', 'data', 'lab_archive');
 }
 
+export interface DurableLabStoreOptions {
+  archiveDir?: string;
+  inMemoryOnly?: boolean;
+  testMode?: boolean;
+}
+
 export class DurableLabStore {
   private sessions = new Map<string, LabExperimentSession>();
   private runsMap = new Map<string, ComparisonRun>();
   private publishedResults: PublishedLabResultPayload[] = [];
   private archiveDir: string;
+  private isTestInstance = false;
+  private inMemoryOnly = false;
 
-  constructor() {
-    this.archiveDir = getLabArchiveDir();
+  constructor(options: DurableLabStoreOptions = {}) {
+    this.inMemoryOnly = Boolean(options.inMemoryOnly);
+    this.isTestInstance = Boolean(options.testMode) || (process.env.VITEST === 'true' && !options.archiveDir);
+    this.archiveDir = options.archiveDir || getLabArchiveDir();
     this.hydrateFromLocalArchive();
   }
 
@@ -3966,7 +3977,15 @@ export class DurableLabStore {
               if (run.isValidBenchmarkBaseline === undefined) {
                 run.isValidBenchmarkBaseline = (run.integrityState === 'AUDITABLE');
               }
-              this.runsMap.set(run.runId, run);
+              const existing = this.runsMap.get(run.runId);
+              if (!existing) {
+                this.runsMap.set(run.runId, run);
+              } else {
+                // If existing is not auditable and incoming is auditable, upgrade to authoritative
+                if (run.integrityState === 'AUDITABLE' && existing.integrityState !== 'AUDITABLE') {
+                  this.runsMap.set(run.runId, run);
+                }
+              }
             }
           } catch (e) {
             console.warn('[LabArchive] Error loading run file:', file, e);
@@ -3982,15 +4001,23 @@ export class DurableLabStore {
             const sess = JSON.parse(raw);
             if (sess && sess.id) {
               if (!sess.runs) sess.runs = [];
-              if (Array.isArray(sess.runIds)) {
-                for (const rId of sess.runIds) {
-                  const runObj = this.runsMap.get(rId);
-                  if (runObj && !sess.runs.some((r: any) => r.runId === rId)) {
-                    sess.runs.push(runObj);
+              const existingSess = this.sessions.get(sess.id);
+              if (existingSess) {
+                // Idempotent merge of runIds
+                const mergedRunIds = Array.from(new Set([...(existingSess.runIds || []), ...(sess.runIds || [])]));
+                existingSess.runIds = mergedRunIds;
+                existingSess.runs = mergedRunIds.map((rId: string) => this.runsMap.get(rId)).filter((r: any): r is ComparisonRun => Boolean(r));
+              } else {
+                if (Array.isArray(sess.runIds)) {
+                  for (const rId of sess.runIds) {
+                    const runObj = this.runsMap.get(rId);
+                    if (runObj && !sess.runs.some((r: any) => r.runId === rId)) {
+                      sess.runs.push(runObj);
+                    }
                   }
                 }
+                this.sessions.set(sess.id, sess);
               }
-              this.sessions.set(sess.id, sess);
             }
           } catch (e) {
             console.warn('[LabArchive] Error loading session file:', file, e);
@@ -4003,28 +4030,75 @@ export class DurableLabStore {
 
     if (this.sessions.size === 0) {
       this.seedDefaultSessions();
-    } else {
-      const exp001 = this.sessions.get('sess_lab_exp001');
-      if (exp001) {
-        exp001.status = 'paused';
-        exp001.pauseReason = 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).';
-        exp001.runs = [];
-      }
+    }
+
+    // Ensure authoritative sessions are present and linked
+    const canonicalBenchmark = this.sessions.get('sess_lab_canonical_benchmark');
+    if (canonicalBenchmark) {
+      const baselineIds = ['run_1789211082230_cal8', 'run_1789254192740_a4az', 'run_1789261534197_ue8l'];
+      const merged = Array.from(new Set([...(canonicalBenchmark.runIds || []), ...baselineIds.filter(id => this.runsMap.has(id))]));
+      canonicalBenchmark.runIds = merged;
+      canonicalBenchmark.runs = merged.map(id => this.runsMap.get(id)).filter((r: any): r is ComparisonRun => Boolean(r));
+    }
+
+    const v13Session = this.sessions.get('sess_lab_1789265353670_i3w74');
+    if (v13Session) {
+      const v13RunIds = ['run_1789265419630_lue4', 'run_1789266756354_inwn'];
+      const merged = Array.from(new Set([...(v13Session.runIds || []), ...v13RunIds.filter(id => this.runsMap.has(id))]));
+      v13Session.runIds = merged;
+      v13Session.runs = merged.map(id => this.runsMap.get(id)).filter((r: any): r is ComparisonRun => Boolean(r));
+    }
+
+    // Ensure Experiment 001 template is strictly immutable and permanently paused
+    const exp001 = this.sessions.get('sess_lab_exp001');
+    if (exp001) {
+      exp001.status = 'paused';
+      exp001.pauseReason = 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).';
+      exp001.runs = [];
     }
   }
 
   private seedDefaultSessions(): void {
-    const s1 = this.createSession({
+    const s1: LabExperimentSession = {
+      id: 'sess_lab_canonical_benchmark',
       name: 'Luna Attention V1 Canonical Benchmark',
       description: 'Systematic comparison of Control (A), Broad Baseline (B), and Attention Engine V1 (C) across 25 question classes.',
-      hypothesis: 'Attention Engine V1 achieves >85% grounding with <10% false connection risk and superior longitudinal temporal span compared to Control and Broad baselines.'
-    });
-    const s2 = this.createSession({
+      hypothesis: 'Attention Engine V1 achieves >85% grounding with <10% false connection risk and superior longitudinal temporal span compared to Control and Broad baselines.',
+      status: 'completed',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-12T19:00:00.000Z',
+      runs: [],
+      metadata: { canonical: true, description: 'Authoritative canonical benchmark session containing historical V1, V1.1, and V1.2 baselines.' }
+    };
+    this.sessions.set(s1.id, s1);
+
+    const s2: LabExperimentSession = {
+      id: 'sess_lab_exp001',
       name: 'Experiment 001',
       description: 'Controlled Attention Lab A/B/C comparison using the same benchmark question, Field snapshot/evidence, model, and parameters across Production/control retrieval, Broad-context retrieval, and Attention Engine V1.',
-      hypothesis: 'Attention Engine V1 improves grounding and longitudinal evidence selection versus production/control and broad-context retrieval without changing model intelligence.'
-    });
-    this.pauseSession(s2.id, 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).');
+      hypothesis: 'Attention Engine V1 improves grounding and longitudinal evidence selection versus production/control and broad-context retrieval without changing model intelligence.',
+      status: 'paused',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+      pausedAt: '2026-09-12T18:00:00.000Z',
+      pauseReason: 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).',
+      runs: [],
+      metadata: { canonical: true, immutableBaseline: true }
+    };
+    this.sessions.set(s2.id, s2);
+
+    const s3: LabExperimentSession = {
+      id: 'sess_lab_1789265353670_i3w74',
+      name: 'Attention V1.3 — Domain-Aware Semantic Qualification (iss_1789263237926_2e3q)',
+      description: 'Attention Lab verification session demonstrating domain qualification, DEV contamination rejection, and longitudinal coverage.',
+      hypothesis: 'Attention Engine V1.3 classifies records into semantic domains, rejects dev/system records for personal lived experience questions, resolves polysemy, and admits dev records for builder inquiries.',
+      status: 'completed',
+      createdAt: '2026-09-13T01:55:53.670Z',
+      updatedAt: '2026-09-13T02:35:00.000Z',
+      runs: [],
+      metadata: { issueId: 'iss_1789263237926_2e3q', version: 'v1.3' }
+    };
+    this.sessions.set(s3.id, s3);
   }
 
   getRun(runId: string): ComparisonRun | undefined {
@@ -4032,6 +4106,7 @@ export class DurableLabStore {
   }
 
   persistRunToArchive(run: ComparisonRun): void {
+    if (this.inMemoryOnly || this.isTestInstance) return;
     try {
       const runsDir = path.join(this.archiveDir, 'runs');
       if (!fs.existsSync(runsDir)) fs.mkdirSync(runsDir, { recursive: true });
@@ -4045,6 +4120,7 @@ export class DurableLabStore {
   }
 
   persistSessionToArchive(sess: LabExperimentSession): void {
+    if (this.inMemoryOnly || this.isTestInstance) return;
     if (sess.id === 'sess_lab_exp001') {
       // Keep Experiment 001 template permanently paused on disk
       return;
@@ -4075,6 +4151,7 @@ export class DurableLabStore {
   }
 
   updateCatalog(): void {
+    if (this.inMemoryOnly || this.isTestInstance) return;
     try {
       if (!fs.existsSync(this.archiveDir)) fs.mkdirSync(this.archiveDir, { recursive: true });
       const target = path.join(this.archiveDir, 'catalog.json');
@@ -4082,6 +4159,7 @@ export class DurableLabStore {
       const payload = {
         archiveVersion: '2.0.0',
         updatedAt: new Date().toISOString(),
+        totalSessions: this.sessions.size,
         sessions: this.listSessionSummaries()
       };
       fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), 'utf-8');
@@ -4101,18 +4179,26 @@ export class DurableLabStore {
     return Number(total.toFixed(6));
   }
 
-  createSession(params: { name: string; description: string; hypothesis: string; metadata?: Record<string, any> }): LabExperimentSession {
-    const id = `sess_lab_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  createSession(params: { id?: string; name?: string; description?: string; hypothesis?: string; metadata?: Record<string, any> } | string): LabExperimentSession {
+    const raw: any = typeof params === 'string' ? { name: params, description: params, hypothesis: params } : (params || {});
+    const id = raw.id || `sess_lab_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    
+    // Idempotent: If a session with this stable id already exists, return it
+    const existing = this.sessions.get(id);
+    if (existing) {
+      return existing;
+    }
+
     const session: LabExperimentSession = {
       id,
-      name: params.name,
-      description: params.description,
-      hypothesis: params.hypothesis,
+      name: raw.name || 'Untitled Lab Session',
+      description: raw.description || '',
+      hypothesis: raw.hypothesis || '',
       status: 'created',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       runs: [],
-      metadata: params.metadata || {}
+      metadata: raw.metadata || {}
     };
     this.sessions.set(id, session);
     this.persistSessionToArchive(session);
@@ -4190,7 +4276,13 @@ export class DurableLabStore {
       run.isValidBenchmarkBaseline = (run.integrityState === 'AUDITABLE');
     }
 
-    sess.runs.push(run);
+    // Idempotent: avoid duplicate runs in session array
+    const existingIdx = sess.runs.findIndex(r => r.runId === run.runId);
+    if (existingIdx >= 0) {
+      sess.runs[existingIdx] = run;
+    } else {
+      sess.runs.push(run);
+    }
     sess.updatedAt = new Date().toISOString();
     this.runsMap.set(run.runId, run);
 
@@ -4212,7 +4304,124 @@ export class DurableLabStore {
     };
   }
 
-    recordPublishedResult(payload: PublishedLabResultPayload): void {
+  importArchive(payload: {
+    sessions?: any[];
+    runs?: any[];
+  }, options: { overwrite?: boolean; dryRun?: boolean } = {}): {
+    success: boolean;
+    importedSessions: number;
+    dedupedSessions: number;
+    importedRuns: number;
+    dedupedRuns: number;
+    authoritativeRuns: string[];
+  } {
+    let importedRuns = 0;
+    let dedupedRuns = 0;
+    let importedSessions = 0;
+    let dedupedSessions = 0;
+
+    const incomingRuns = Array.isArray(payload.runs) ? payload.runs : [];
+    const incomingSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+
+    // 1. Process and deduplicate runs
+    for (const run of incomingRuns) {
+      if (!run || !run.runId) continue;
+      if (!run.artifactHash) run.artifactHash = computeRunArtifactHash(run);
+      if (!run.integrityState) run.integrityState = determineRunIntegrityState(run);
+      if (run.isValidBenchmarkBaseline === undefined) {
+        run.isValidBenchmarkBaseline = (run.integrityState === 'AUDITABLE');
+      }
+
+      const existing = this.runsMap.get(run.runId);
+      if (existing) {
+        if (existing.artifactHash === run.artifactHash) {
+          dedupedRuns++;
+        } else if (run.integrityState === 'AUDITABLE' && existing.integrityState !== 'AUDITABLE') {
+          // Upgrade incomplete existing run to authoritative auditable version
+          if (!options.dryRun) {
+            this.runsMap.set(run.runId, run);
+            this.persistRunToArchive(run);
+          }
+          importedRuns++;
+        } else if (options.overwrite) {
+          if (!options.dryRun) {
+            this.runsMap.set(run.runId, run);
+            this.persistRunToArchive(run);
+          }
+          importedRuns++;
+        } else {
+          dedupedRuns++;
+        }
+      } else {
+        if (!options.dryRun) {
+          this.runsMap.set(run.runId, run);
+          this.persistRunToArchive(run);
+        }
+        importedRuns++;
+      }
+    }
+
+    // 2. Process and deduplicate sessions
+    for (const s of incomingSessions) {
+      if (!s || !s.id) continue;
+      const existing = this.sessions.get(s.id);
+      if (existing) {
+        dedupedSessions++;
+        if (!options.dryRun && Array.isArray(s.runIds)) {
+          const merged = Array.from(new Set([...(existing.runIds || []), ...s.runIds]));
+          existing.runIds = merged;
+          existing.runs = merged.map((rid: string) => this.runsMap.get(rid)).filter((r: any): r is ComparisonRun => Boolean(r));
+          this.persistSessionToArchive(existing);
+        }
+      } else {
+        // Check if duplicate wrapper matching an existing session by name or run content
+        const duplicateWrapper = Array.from(this.sessions.values()).find(existingSess => {
+          if (existingSess.name === s.name) return true;
+          const existingRunIds = existingSess.runIds || existingSess.runs.map(r => r.runId);
+          if (Array.isArray(s.runIds) && s.runIds.length > 0) {
+            return s.runIds.every((r: string) => existingRunIds.includes(r));
+          }
+          return false;
+        });
+
+        if (duplicateWrapper) {
+          dedupedSessions++;
+        } else {
+          if (!options.dryRun) {
+            const newSession: LabExperimentSession = {
+              id: s.id,
+              name: s.name || 'Imported Session',
+              description: s.description || '',
+              hypothesis: s.hypothesis || '',
+              status: s.status || 'created',
+              createdAt: s.createdAt || new Date().toISOString(),
+              updatedAt: s.updatedAt || new Date().toISOString(),
+              runs: Array.isArray(s.runIds) ? s.runIds.map((rid: string) => this.runsMap.get(rid)).filter((r: any): r is ComparisonRun => Boolean(r)) : [],
+              metadata: s.metadata || {}
+            };
+            this.sessions.set(newSession.id, newSession);
+            this.persistSessionToArchive(newSession);
+          }
+          importedSessions++;
+        }
+      }
+    }
+
+    if (!options.dryRun) {
+      this.updateCatalog();
+    }
+
+    return {
+      success: true,
+      importedSessions,
+      dedupedSessions,
+      importedRuns,
+      dedupedRuns,
+      authoritativeRuns: Array.from(this.runsMap.keys())
+    };
+  }
+
+  recordPublishedResult(payload: PublishedLabResultPayload): void {
     // Keep most recent first, avoid duplicate runIds
     this.publishedResults = [payload, ...this.publishedResults.filter(p => p.runId !== payload.runId)];
   }
@@ -4685,6 +4894,17 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
   // 5b. Export Entire Local Lab Archive
   app.get('/api/dev/lab/attention/archive/export', authenticateRest, (req: Request, res: Response) => {
     res.json(globalLabStore.exportArchive());
+  });
+
+  // 5b-2. Import Lab Archive Idempotently
+  app.post('/api/dev/lab/attention/archive/import', authenticateRest, (req: Request, res: Response) => {
+    try {
+      const payload = req.body || {};
+      const result = globalLabStore.importArchive(payload, { overwrite: Boolean(payload.overwrite) });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to import archive.' });
+    }
   });
 
   // 5c. Inspect Specific Run Audit Bundle

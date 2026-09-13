@@ -3,11 +3,16 @@
   "name": "Luna Attention V1 Canonical Benchmark",
   "description": "Systematic comparison of Control (A), Broad Baseline (B), and Attention Engine V1 (C) across 25 question classes.",
   "hypothesis": "Attention Engine V1 achieves >85% grounding with <10% false connection risk and superior longitudinal temporal span compared to Control and Broad baselines.",
-  "status": "created",
+  "status": "completed",
   "createdAt": "2026-09-01T00:00:00.000Z",
-  "updatedAt": "2026-09-01T00:00:00.000Z",
-  "runIds": [],
+  "updatedAt": "2026-09-12T19:00:00.000Z",
+  "runIds": [
+    "run_1789211082230_cal8",
+    "run_1789254192740_a4az",
+    "run_1789261534197_ue8l"
+  ],
   "metadata": {
-    "canonical": true
+    "canonical": true,
+    "description": "Authoritative canonical benchmark session containing historical V1, V1.1, and V1.2 baselines."
   }
 }
