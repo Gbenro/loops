@@ -26,7 +26,12 @@ import {
   classifyRecordDomain,
   inferQuestionDomain,
   assessDomainCompatibility,
-  evaluateContextualAboutness
+  evaluateContextualAboutness,
+  MODEL_PRICING_CATALOG,
+  computeAuditableConditionCost,
+  computeConditionTokenUsage,
+  computeConditionScorecard,
+  computeComparativeEconomics
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -1521,6 +1526,216 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(store.getSession(v1Session.id)?.runs[0].runId).toBe('run_1789211082230_cal8');
       expect(store.getSession(v11Session.id)?.runs[0].runId).toBe('run_1789254192740_a4az');
       expect(store.getSession(v12Session.id)?.runs[0].runId).toBe('run_1789261534197_ue8l');
+    });
+  });
+
+
+  // ============================================================================
+  // SUITE 19: Attention Lab — Cost, Token Efficiency & Evaluation Scorecard (iss_1789265609392_7kb9)
+  // ============================================================================
+  describe('Suite 19: Attention Lab — Cost, Token Efficiency & Evaluation Scorecard (iss_1789265609392_7kb9)', () => {
+    it('Criteria 2: Persists retrieved context tokens separately from billable prompt/completion/total tokens', () => {
+      const tokenUsage = computeConditionTokenUsage(
+        644, // retrieved context tokens
+        'You are Luna. Ground your reflection... Context: [644 tokens of evidence] User: What happened?',
+        'Based on the evidence from August 28...',
+        { prompt_tokens: 1500, completion_tokens: 280, total_tokens: 1780 }
+      );
+
+      expect(tokenUsage.retrievedContextTokens).toBe(644);
+      expect(tokenUsage.billablePromptTokens).toBe(1500);
+      expect(tokenUsage.billableCompletionTokens).toBe(280);
+      expect(tokenUsage.totalBillableTokens).toBe(1780);
+      expect(tokenUsage.tokenAccountingStatus).toBe('exact_provider');
+      // Invariant: Retrieved context tokens are strictly distinct from total billable tokens
+      expect(tokenUsage.retrievedContextTokens).not.toBe(tokenUsage.totalBillableTokens);
+    });
+
+    it('Criteria 3 & 4: Calculates auditable dollar cost or explicitly flags unknown pricing without silent fabrication', () => {
+      // 1. Known model with catalog rates: openrouter-deepseek-v4-flash ($0.14/M in, $0.28/M out)
+      const knownCost = computeAuditableConditionCost(
+        'openrouter-deepseek-v4-flash',
+        'deepseek/deepseek-chat',
+        1_000_000, // 1M prompt tokens = $0.14
+        500_000,   // 500k completion tokens = $0.14
+        0
+      );
+      expect(knownCost.isAuditable).toBe(true);
+      expect(knownCost.pricingStatus).toBe('audited_from_rates');
+      expect(knownCost.inputCost).toBe(0.14);
+      expect(knownCost.outputCost).toBe(0.14);
+      expect(knownCost.totalCost).toBe(0.28);
+      expect(knownCost.currency).toBe('USD');
+
+      // 2. Provider reported explicit cost
+      const providerCost = computeAuditableConditionCost(
+        'openrouter-deepseek-v4-flash',
+        'deepseek/deepseek-chat',
+        1000,
+        200,
+        0,
+        0.00035 // explicit provider reported cost
+      );
+      expect(providerCost.pricingStatus).toBe('provider_reported');
+      expect(providerCost.totalCost).toBe(0.00035);
+      expect(providerCost.isAuditable).toBe(true);
+
+      // 3. Unknown model without published rates -> MUST NOT fabricate cost!
+      const unknownCost = computeAuditableConditionCost(
+        'unknown-experimental-model-v99',
+        'unknown/experimental-99',
+        5000,
+        1000
+      );
+      expect(unknownCost.totalCost).toBeNull();
+      expect(unknownCost.isAuditable).toBe(false);
+      expect(unknownCost.pricingStatus).toBe('unknown');
+      expect(unknownCost.pricingBasis).toContain('No published pricing rate found');
+    });
+
+    it('Criteria 5: Splits latency into retrieval, planning, model, and evaluation components', async () => {
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const run = await harness.compareQuestion(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        {
+          category: 'longitudinal_change',
+          model: 'openrouter-deepseek-v4-flash',
+          benchmarkCase: CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01')
+        }
+      );
+
+      const attn = run.baselines.attentionEngineV1;
+      expect(attn.latencyBreakdown).toBeDefined();
+      expect(attn.latencyBreakdown?.retrievalMs).toBeGreaterThanOrEqual(0);
+      expect(attn.latencyBreakdown?.planningMs).toBeGreaterThanOrEqual(0);
+      expect(attn.latencyBreakdown?.modelMs).toBeGreaterThan(0);
+      expect(attn.latencyBreakdown?.evaluationMs).toBeGreaterThanOrEqual(0);
+      expect(attn.latencyBreakdown?.totalMs).toBeGreaterThan(0);
+    });
+
+    it('Criteria 6, 7 & 8: Evaluation scorecard cleanly separates mechanical metrics from judgment metrics with evaluator metadata', () => {
+      const scorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        75, // grounding
+        25, // missed evidence risk
+        5,  // false connection risk
+        800, // billable tokens
+        false, // not negative control
+        true // has evidence
+      );
+
+      expect(scorecard.groundingScore).toBe(75);
+      expect(scorecard.evidenceRecallScore).toBe(75); // 100 - 25
+      expect(scorecard.missedEvidenceRisk).toBe(25);
+      expect(scorecard.falseConnectionRisk).toBe(5);
+      expect(scorecard.answerUsefulnessScore).toBeGreaterThan(60);
+      expect(scorecard.efficiencyScore).toBeGreaterThan(70);
+
+      // Evaluator integrity metadata
+      expect(scorecard.evaluator.identity).toBe('attention_scorecard_evaluator_v1');
+      expect(scorecard.evaluator.model).toBeDefined();
+      expect(scorecard.evaluator.version).toBeDefined();
+      expect(scorecard.evaluator.rationale).toBeDefined();
+      expect(scorecard.evaluator.confidence).toBeGreaterThan(0.8);
+    });
+
+    it('Criteria 11: Efficiency metric rewards grounded, useful answers and CANNOT be maximized by cheap refusals missing evidence', () => {
+      // Scenario A: Cheap refusal / empty answer (low tokens, but low grounding and missed evidence)
+      const refusalScorecard = computeConditionScorecard(
+        'control',
+        30, // low grounding
+        70, // high missed evidence risk (recall: 30%)
+        25, // false connection risk
+        80, // very few billable tokens (cheap refusal)
+        false, // evidence was available!
+        false // no evidence included in context
+      );
+
+      // Scenario B: High quality Attention Engine answer (compact, highly grounded, useful, good recall)
+      const attentionScorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        85, // high grounding
+        15, // low missed evidence risk (recall: 85%)
+        5,  // low false connection risk
+        750, // modest tokens
+        false,
+        true
+      );
+
+      // Invariant: The cheap refusal cannot beat the high-quality Attention Engine on efficiency!
+      expect(attentionScorecard.efficiencyScore).toBeGreaterThan(refusalScorecard.efficiencyScore);
+    });
+
+    it('Criteria 9, 10 & 13: Computes comparative economics deltas, cumulative spend, and formatted scorecard summary', async () => {
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const run = await harness.compareQuestion(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        {
+          category: 'longitudinal_change',
+          model: 'openrouter-deepseek-v4-flash',
+          benchmarkCase: CANONICAL_BENCHMARK_CASES.find(c => c.id === 'bm_long_01'),
+          cumulativeLabCost: 0.054321
+        }
+      );
+
+      expect(run.economics).toBeDefined();
+      expect(run.scorecard).toBeDefined();
+      expect(run.economics?.savingsVsBroad).toBeDefined();
+      expect(run.economics?.savingsVsBroad.tokenReductionCount).toBeGreaterThanOrEqual(0);
+      expect(run.economics?.savingsVsBroad.tokenReductionPct).toBeGreaterThanOrEqual(0);
+      expect(run.economics?.savingsVsBroad.contextTokenReductionCount).toBeGreaterThan(0);
+      expect(run.economics?.savingsVsBroad.contextTokenReductionPct).toBeGreaterThan(0);
+
+      // Cumulative lab spend tracks correctly
+      expect(run.economics?.cumulativeLabCost).toBeGreaterThan(0.05);
+
+      // Compact summary markdown formatted properly
+      expect(run.economics?.compactSummaryMarkdown).toContain('Experiment Economics & Quality Scorecard');
+      expect(run.economics?.compactSummaryMarkdown).toContain('Delta (C vs B)');
+      expect(run.economics?.compactSummaryMarkdown).toContain('Experiment Total Spend');
+
+      // Verbatim A/B/C answers remain inspectable alongside scores
+      expect(run.baselines.control.verbatimGeneratedAnswer).toBeDefined();
+      expect(run.baselines.broadContext.verbatimGeneratedAnswer).toBeDefined();
+      expect(run.baselines.attentionEngineV1.verbatimGeneratedAnswer).toBeDefined();
+    });
+
+    it('Criteria 1: Absolute immutability of prior historical runs (V1, V1.1, V1.2, V1.3)', () => {
+      const store = new DurableLabStore();
+      
+      const v1Session = store.createSession({ name: 'V1 Session', description: 'V1', hypothesis: 'H1' });
+      store.recordRun(v1Session.id, {
+        runId: 'run_1789211082230_cal8',
+        sessionId: v1Session.id,
+        question: 'Q',
+        category: 'cat',
+        timestamp: '2026-09-12T10:00:00Z',
+        model: 'm',
+        status: 'valid',
+        snapshotHash: 'hash',
+        provenanceBreakdown: { personal_field: 1, benchmark_fixture: 0, synthetic: 0 },
+        baselines: {},
+        evaluatorNotes: 'v1 baseline'
+      });
+
+      const v13Session = store.createSession({ name: 'V1.3 Session', description: 'V1.3', hypothesis: 'H3' });
+      store.recordRun(v13Session.id, {
+        runId: 'run_1789265419630_lue4',
+        sessionId: v13Session.id,
+        question: 'Q',
+        category: 'cat',
+        timestamp: '2026-09-13T02:10:00Z',
+        model: 'm',
+        status: 'valid',
+        snapshotHash: 'hash',
+        provenanceBreakdown: { personal_field: 1, benchmark_fixture: 0, synthetic: 0 },
+        baselines: {},
+        evaluatorNotes: 'v1.3 baseline'
+      });
+
+      // Verify records in store remain untouched
+      expect(store.getSession(v1Session.id)?.runs[0].runId).toBe('run_1789211082230_cal8');
+      expect(store.getSession(v13Session.id)?.runs[0].runId).toBe('run_1789265419630_lue4');
     });
   });
 

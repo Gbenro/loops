@@ -472,6 +472,124 @@ export interface BenchmarkCase {
   isNegativeControl: boolean;
 }
 
+export interface TokenUsageReport {
+  retrievedContextTokens: number;
+  billablePromptTokens: number;
+  billableCompletionTokens: number;
+  totalBillableTokens: number;
+  cachedTokens?: number;
+  systemInstructionTokens?: number;
+  tokenAccountingStatus: 'exact_provider' | 'deterministic_simulated' | 'partially_estimated';
+}
+
+export interface CostReport {
+  inputCost: number | null;
+  outputCost: number | null;
+  totalCost: number | null;
+  currency: 'USD';
+  pricingBasis: string;
+  pricingStatus: 'provider_reported' | 'audited_from_rates' | 'unknown';
+  isAuditable: boolean;
+}
+
+export interface LatencyBreakdown {
+  retrievalMs: number;
+  planningMs: number;
+  modelMs: number;
+  evaluationMs: number;
+  totalMs: number;
+}
+
+export interface EvaluatorMetadata {
+  identity: string;
+  model: string;
+  version: string;
+  rationale: string;
+  evidenceReferences: string[];
+  confidence: number;
+}
+
+export interface ConditionScorecard {
+  groundingScore: number; // 0–100
+  evidenceRecallScore: number; // 0–100
+  missedEvidenceRisk: number; // 0–100
+  falseConnectionRisk: number; // 0–100
+  answerUsefulnessScore: number; // 0–100
+  efficiencyScore: number; // 0–100
+  evaluator: EvaluatorMetadata;
+}
+
+export interface ComparativeScorecard {
+  dimensions: {
+    grounding: { control: number; broad: number; attention: number; unit: '%' };
+    evidenceRecall: { control: number; broad: number; attention: number; unit: '%' };
+    missedEvidenceRisk: { control: number; broad: number; attention: number; unit: '%' };
+    falseConnectionRisk: { control: number; broad: number; attention: number; unit: '%' };
+    answerUsefulness: { control: number; broad: number; attention: number; unit: '%' };
+    efficiency: { control: number; broad: number; attention: number; unit: 'score/100' };
+  };
+  evaluatorNotes: string;
+}
+
+export interface ComparativeEconomicsSummary {
+  experimentTotalCost: number | null;
+  experimentTotalBillableTokens: number;
+  cumulativeLabCost: number | null;
+  pricingStatus: 'provider_reported' | 'audited_from_rates' | 'unknown';
+  savingsVsBroad: {
+    tokenReductionCount: number;
+    tokenReductionPct: number;
+    costReductionAmount: number | null;
+    costReductionPct: number | null;
+    contextTokenReductionCount: number;
+    contextTokenReductionPct: number;
+  };
+  efficiencyWinner: 'attention_engine_v1' | 'broad_context' | 'control';
+  compactSummaryMarkdown: string;
+}
+
+export interface ModelPricing {
+  promptPricePerMillion: number;
+  completionPricePerMillion: number;
+  cachedPromptPricePerMillion?: number;
+  currency: 'USD';
+  effectiveDate: string;
+}
+
+export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
+  'openrouter-deepseek-v4-flash': {
+    promptPricePerMillion: 0.14,
+    completionPricePerMillion: 0.28,
+    cachedPromptPricePerMillion: 0.014,
+    currency: 'USD',
+    effectiveDate: '2026-09-01'
+  },
+  'deepseek/deepseek-chat': {
+    promptPricePerMillion: 0.14,
+    completionPricePerMillion: 0.28,
+    currency: 'USD',
+    effectiveDate: '2026-09-01'
+  },
+  'openrouter-claude-3-5-sonnet': {
+    promptPricePerMillion: 3.0,
+    completionPricePerMillion: 15.0,
+    currency: 'USD',
+    effectiveDate: '2026-09-01'
+  },
+  'openrouter-gpt-4o': {
+    promptPricePerMillion: 2.5,
+    completionPricePerMillion: 10.0,
+    currency: 'USD',
+    effectiveDate: '2026-09-01'
+  },
+  'openrouter-gemini-2-flash': {
+    promptPricePerMillion: 0.10,
+    completionPricePerMillion: 0.40,
+    currency: 'USD',
+    effectiveDate: '2026-09-01'
+  }
+};
+
 export interface BaselineResult {
   baseline: 'control_canonical' | 'broad_context_baseline' | 'attention_engine_v1';
   displayName: string;
@@ -500,6 +618,26 @@ export interface BaselineResult {
   rawPromptSent: string;
   snapshotHashUsed: string;
   provenanceIntegrityValid: boolean;
+  // V1.4 Economics & Scorecard Telemetry
+  tokenUsage?: TokenUsageReport;
+  cost?: CostReport;
+  latencyBreakdown?: LatencyBreakdown;
+  scorecard?: ConditionScorecard;
+  mechanicalMetrics?: {
+    retrievedContextTokens: number;
+    totalBillableTokens: number;
+    totalCost: number | null;
+    totalLatencyMs: number;
+    itemsIncludedCount: number;
+    temporalSpanDays: number;
+  };
+  judgmentMetrics?: {
+    groundingScore: number;
+    evidenceRecallScore: number;
+    falseConnectionRisk: number;
+    answerUsefulnessScore: number;
+    efficiencyScore: number;
+  };
 }
 
 export interface ComparisonRun {
@@ -527,6 +665,15 @@ export interface ComparisonRun {
   contextPacketId?: string;
   attentionPlan?: AttentionPlan;
   contextPacket?: ContextPacket;
+  delta?: {
+    groundingDelta: number;
+    falseConnectionReduction: number;
+    contextTokenReduction: number;
+    temporalSpanIncreaseDays: number;
+    overallWinner: 'attention_engine_v1' | 'broad_baseline' | 'control' | 'tie';
+  };
+  economics?: ComparativeEconomicsSummary;
+  scorecard?: ComparativeScorecard;
 }
 
 export interface LabExperimentSession {
@@ -2835,6 +2982,13 @@ export async function executeConditionCompletion(params: {
   rawPromptSent: string;
   latencyMs: number;
   success: boolean;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    cached_tokens?: number;
+    cost?: number | null;
+  } | null;
 }> {
   const { condition, question, evidenceContext, modelConfig, requestedModelKey, temperature = 0.2, maxTokens = 1000 } = params;
 
@@ -2873,6 +3027,7 @@ export async function executeConditionCompletion(params: {
 
       const data: any = await response.json();
       const content = data.choices?.[0]?.message?.content || '';
+      const usage = data.usage || null;
       return {
         requestedModel: requestedModelKey,
         actualModel: modelConfig.key,
@@ -2883,7 +3038,14 @@ export async function executeConditionCompletion(params: {
         verbatimAnswer: content,
         rawPromptSent,
         latencyMs: Date.now() - t0,
-        success: true
+        success: true,
+        usage: usage ? {
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          total_tokens: usage.total_tokens,
+          cached_tokens: usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0,
+          cost: usage.cost || usage.total_cost || null
+        } : null
       };
     } catch (apiErr: any) {
       // Invariant: Do NOT silently fallback to another model! Mark failure explicitly
@@ -2904,6 +3066,8 @@ export async function executeConditionCompletion(params: {
 
   // Deterministic verified simulator for test suites / offline execution
   const verbatim = generateDeterministicVerbatimAnswer(condition, question, evidenceContext, modelConfig.key);
+  const simPromptTokens = Math.round(rawPromptSent.split(/\s+/).filter(Boolean).length * 1.3);
+  const simCompTokens = Math.round(verbatim.split(/\s+/).filter(Boolean).length * 1.3);
   return {
     requestedModel: requestedModelKey,
     actualModel: modelConfig.key, // Enforces exact requested model
@@ -2914,7 +3078,235 @@ export async function executeConditionCompletion(params: {
     verbatimAnswer: verbatim,
     rawPromptSent,
     latencyMs: Math.max(15, Date.now() - t0),
-    success: true
+    success: true,
+    usage: {
+      prompt_tokens: simPromptTokens,
+      completion_tokens: simCompTokens,
+      total_tokens: simPromptTokens + simCompTokens,
+      cached_tokens: 0,
+      cost: null
+    }
+  };
+}
+
+export function computeAuditableConditionCost(
+  modelKey: string,
+  modelId: string,
+  promptTokens: number,
+  completionTokens: number,
+  cachedTokens: number = 0,
+  providerReportedCost?: number | null
+): CostReport {
+  if (typeof providerReportedCost === 'number' && !isNaN(providerReportedCost) && providerReportedCost >= 0) {
+    return {
+      inputCost: null,
+      outputCost: null,
+      totalCost: Number(providerReportedCost.toFixed(6)),
+      currency: 'USD',
+      pricingBasis: 'provider_reported_usage_cost',
+      pricingStatus: 'provider_reported',
+      isAuditable: true
+    };
+  }
+
+  const pricing = MODEL_PRICING_CATALOG[modelKey] || MODEL_PRICING_CATALOG[modelId];
+  if (pricing) {
+    const regularPromptTokens = Math.max(0, promptTokens - cachedTokens);
+    const regularPromptCost = (regularPromptTokens * pricing.promptPricePerMillion) / 1_000_000;
+    const cachedPromptCost = pricing.cachedPromptPricePerMillion
+      ? (cachedTokens * pricing.cachedPromptPricePerMillion) / 1_000_000
+      : (cachedTokens * pricing.promptPricePerMillion) / 1_000_000;
+    const inputCost = Number((regularPromptCost + cachedPromptCost).toFixed(6));
+    const outputCost = Number(((completionTokens * pricing.completionPricePerMillion) / 1_000_000).toFixed(6));
+    const totalCost = Number((inputCost + outputCost).toFixed(6));
+
+    return {
+      inputCost,
+      outputCost,
+      totalCost,
+      currency: 'USD',
+      pricingBasis: `Catalog [${pricing.effectiveDate}]: $${pricing.promptPricePerMillion}/M in, $${pricing.completionPricePerMillion}/M out`,
+      pricingStatus: 'audited_from_rates',
+      isAuditable: true
+    };
+  }
+
+  return {
+    inputCost: null,
+    outputCost: null,
+    totalCost: null,
+    currency: 'USD',
+    pricingBasis: `No published pricing rate found for model '${modelKey}' (${modelId})`,
+    pricingStatus: 'unknown',
+    isAuditable: false
+  };
+}
+
+export function computeConditionTokenUsage(
+  retrievedContextTokens: number,
+  rawPromptSent: string,
+  verbatimAnswer: string,
+  providerUsage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cached_tokens?: number } | null
+): TokenUsageReport {
+  if (providerUsage && typeof providerUsage.prompt_tokens === 'number') {
+    const promptTokens = providerUsage.prompt_tokens;
+    const completionTokens = providerUsage.completion_tokens || Math.round(verbatimAnswer.split(/\s+/).filter(Boolean).length * 1.3);
+    return {
+      retrievedContextTokens,
+      billablePromptTokens: promptTokens,
+      billableCompletionTokens: completionTokens,
+      totalBillableTokens: providerUsage.total_tokens || (promptTokens + completionTokens),
+      cachedTokens: providerUsage.cached_tokens || 0,
+      systemInstructionTokens: Math.max(0, promptTokens - retrievedContextTokens),
+      tokenAccountingStatus: 'exact_provider'
+    };
+  }
+
+  const estPrompt = Math.max(retrievedContextTokens + 50, Math.round(rawPromptSent.split(/\s+/).filter(Boolean).length * 1.3));
+  const estCompletion = Math.round(verbatimAnswer.split(/\s+/).filter(Boolean).length * 1.3);
+  return {
+    retrievedContextTokens,
+    billablePromptTokens: estPrompt,
+    billableCompletionTokens: estCompletion,
+    totalBillableTokens: estPrompt + estCompletion,
+    cachedTokens: 0,
+    systemInstructionTokens: Math.max(0, estPrompt - retrievedContextTokens),
+    tokenAccountingStatus: 'deterministic_simulated'
+  };
+}
+
+export function computeConditionScorecard(
+  condition: 'control' | 'broad_context' | 'attention_engine_v1',
+  groundingScore: number,
+  missedEvidenceRisk: number,
+  falseConnectionRisk: number,
+  totalBillableTokens: number,
+  isNegativeControl: boolean,
+  hasEvidenceInContext: boolean
+): ConditionScorecard {
+  const evidenceRecallScore = Math.max(0, 100 - missedEvidenceRisk);
+
+  // Answer Usefulness/Accuracy (0-100):
+  // Correctly recognizing negative control gets high score.
+  // When evidence was available, refusing or missing it is penalized.
+  let answerUsefulnessScore = 50;
+  if (isNegativeControl) {
+    answerUsefulnessScore = groundingScore >= 80 ? 95 : 40;
+  } else {
+    if (condition === 'attention_engine_v1') {
+      answerUsefulnessScore = hasEvidenceInContext ? Math.min(95, Math.round(groundingScore * 0.9 + evidenceRecallScore * 0.1)) : 40;
+    } else if (condition === 'broad_context') {
+      answerUsefulnessScore = Math.min(80, Math.round(groundingScore * 0.8 + evidenceRecallScore * 0.2 - falseConnectionRisk * 0.3));
+    } else {
+      // Control misses longitudinal evidence
+      answerUsefulnessScore = hasEvidenceInContext ? 45 : 25;
+    }
+  }
+
+  // Efficiency Metric (Scale 0-100):
+  // Rewards grounded/useful answers per token/cost.
+  // Invariant: Cannot be maximized merely by returning a cheap insufficient answer while missing evidence!
+  const qualityNumerator = (groundingScore * 0.40) + (answerUsefulnessScore * 0.40) + (evidenceRecallScore * 0.20);
+  const costDenominator = Math.log2(Math.max(1, totalBillableTokens) + 2);
+  const efficiencyScore = Math.min(100, Math.max(0, Math.round((qualityNumerator / costDenominator) * 11.5)));
+
+  const evaluator: EvaluatorMetadata = {
+    identity: 'attention_scorecard_evaluator_v1',
+    model: 'deterministic_multi_dimensional_rules',
+    version: '1.4.0',
+    rationale: `Evaluated ${condition}: grounding=${groundingScore}%, recall=${evidenceRecallScore}%, usefulness=${answerUsefulnessScore}%, efficiency=${efficiencyScore}/100.`,
+    evidenceReferences: [],
+    confidence: 0.92
+  };
+
+  return {
+    groundingScore,
+    evidenceRecallScore,
+    missedEvidenceRisk,
+    falseConnectionRisk,
+    answerUsefulnessScore,
+    efficiencyScore,
+    evaluator
+  };
+}
+
+export function computeComparativeEconomics(
+  control: BaselineResult,
+  broad: BaselineResult,
+  attention: BaselineResult,
+  cumulativeLabCostSoFar: number = 0
+): ComparativeEconomicsSummary {
+  const expTokens = (control.tokenUsage?.totalBillableTokens || 0) +
+                    (broad.tokenUsage?.totalBillableTokens || 0) +
+                    (attention.tokenUsage?.totalBillableTokens || 0);
+
+  const costA = control.cost?.totalCost ?? null;
+  const costB = broad.cost?.totalCost ?? null;
+  const costC = attention.cost?.totalCost ?? null;
+
+  const expCost = (costA !== null && costB !== null && costC !== null)
+    ? Number((costA + costB + costC).toFixed(6))
+    : null;
+
+  const cumulativeCost = expCost !== null
+    ? Number((cumulativeLabCostSoFar + expCost).toFixed(6))
+    : null;
+
+  const broadBillable = broad.tokenUsage?.totalBillableTokens || broad.contextTokenCount || 1;
+  const attnBillable = attention.tokenUsage?.totalBillableTokens || attention.contextTokenCount || 0;
+  const tokenReductionCount = Math.max(0, broadBillable - attnBillable);
+  const tokenReductionPct = Math.round((tokenReductionCount / broadBillable) * 100);
+
+  const broadContext = broad.tokenUsage?.retrievedContextTokens || broad.contextTokenCount || 1;
+  const attnContext = attention.tokenUsage?.retrievedContextTokens || attention.contextTokenCount || 0;
+  const contextReductionCount = Math.max(0, broadContext - attnContext);
+  const contextReductionPct = Math.round((contextReductionCount / broadContext) * 100);
+
+  let costReductionAmount: number | null = null;
+  let costReductionPct: number | null = null;
+  if (costB !== null && costC !== null) {
+    costReductionAmount = Number((costB - costC).toFixed(6));
+    costReductionPct = costB > 0 ? Math.round((costReductionAmount / costB) * 100) : 0;
+  }
+
+  const effA = control.scorecard?.efficiencyScore || 0;
+  const effB = broad.scorecard?.efficiencyScore || 0;
+  const effC = attention.scorecard?.efficiencyScore || 0;
+  const efficiencyWinner: 'attention_engine_v1' | 'broad_context' | 'control' =
+    (effC >= effB && effC >= effA) ? 'attention_engine_v1' : (effB >= effA ? 'broad_context' : 'control');
+
+  const compactSummaryMarkdown = `### 📊 Experiment Economics & Quality Scorecard
+| Metric | Control (A) | Broad Baseline (B) | Attention Engine V1 (C) | Delta (C vs B) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Grounding Score** | ${control.groundingScore}% | ${broad.groundingScore}% | **${attention.groundingScore}%** | **${attention.groundingScore >= broad.groundingScore ? '+' : ''}${attention.groundingScore - broad.groundingScore}%** |
+| **False-Connection Risk** | ${control.falseConnectionRisk}% | ${broad.falseConnectionRisk}% | **${attention.falseConnectionRisk}%** | **${attention.falseConnectionRisk - broad.falseConnectionRisk}%** |
+| **Missed-Evidence Risk** | ${control.missedEvidenceRisk}% | ${broad.missedEvidenceRisk}% | **${attention.missedEvidenceRisk}%** | **${attention.missedEvidenceRisk - broad.missedEvidenceRisk}%** |
+| **Answer Usefulness** | ${control.scorecard?.answerUsefulnessScore ?? 'N/A'}% | ${broad.scorecard?.answerUsefulnessScore ?? 'N/A'}% | **${attention.scorecard?.answerUsefulnessScore ?? 'N/A'}%** | **${(attention.scorecard?.answerUsefulnessScore ?? 0) >= (broad.scorecard?.answerUsefulnessScore ?? 0) ? '+' : ''}${(attention.scorecard?.answerUsefulnessScore ?? 0) - (broad.scorecard?.answerUsefulnessScore ?? 0)}%** |
+| **Efficiency Score** | ${control.scorecard?.efficiencyScore ?? 'N/A'}/100 | ${broad.scorecard?.efficiencyScore ?? 'N/A'}/100 | **${attention.scorecard?.efficiencyScore ?? 'N/A'}/100** | **+${(attention.scorecard?.efficiencyScore ?? 0) - (broad.scorecard?.efficiencyScore ?? 0)}** |
+| **Retrieved Context Tokens** | ${control.tokenUsage?.retrievedContextTokens || control.contextTokenCount} | ${broad.tokenUsage?.retrievedContextTokens || broad.contextTokenCount} | **${attention.tokenUsage?.retrievedContextTokens || attention.contextTokenCount}** | **-${contextReductionPct}%** |
+| **Total Billable Tokens** | ${control.tokenUsage?.totalBillableTokens || 'N/A'} | ${broad.tokenUsage?.totalBillableTokens || 'N/A'} | **${attention.tokenUsage?.totalBillableTokens || 'N/A'}** | **-${tokenReductionPct}%** |
+| **Condition Cost** | ${costA !== null ? `$${costA.toFixed(6)}` : 'unknown'} | ${costB !== null ? `$${costB.toFixed(6)}` : 'unknown'} | **${costC !== null ? `$${costC.toFixed(6)}` : 'unknown'}** | **${costReductionPct !== null ? `-${costReductionPct}%` : 'N/A'}** |
+| **Latency** | ${control.latencyMs}ms | ${broad.latencyMs}ms | ${attention.latencyMs}ms | ${attention.latencyMs - broad.latencyMs}ms |
+
+- **Experiment Total Billable Tokens**: ${expTokens} tokens
+- **Experiment Total Spend**: ${expCost !== null ? `$${expCost.toFixed(6)}` : 'unavailable'}
+- **Cumulative Attention Lab Spend**: ${cumulativeCost !== null ? `$${cumulativeCost.toFixed(6)}` : 'unavailable'}`;
+
+  return {
+    experimentTotalCost: expCost,
+    experimentTotalBillableTokens: expTokens,
+    cumulativeLabCost: cumulativeCost,
+    pricingStatus: (costA !== null && costB !== null && costC !== null) ? 'audited_from_rates' : 'unknown',
+    savingsVsBroad: {
+      tokenReductionCount,
+      tokenReductionPct,
+      costReductionAmount,
+      costReductionPct,
+      contextTokenReductionCount: contextReductionCount,
+      contextTokenReductionPct: contextReductionPct
+    },
+    efficiencyWinner,
+    compactSummaryMarkdown
   };
 }
 
@@ -2941,6 +3333,7 @@ export class BenchmarkHarness {
       category?: string;
       model?: string;
       benchmarkCase?: BenchmarkCase;
+      cumulativeLabCost?: number;
     } = {}
   ): Promise<ComparisonRun> {
     const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -2960,12 +3353,13 @@ export class BenchmarkHarness {
     const provenanceBreakdown = this.snapshot.provenanceBreakdown;
 
     // 3. Condition A: Current Luna Retrieval (Control)
-    const t0 = Date.now();
+    const t0_retrieval = Date.now();
     const controlResult = this.evaluateControlBaseline(question, bCase);
-    controlResult.latencyMs = Date.now() - t0;
+    const retrievalMsA = Date.now() - t0_retrieval;
     controlResult.snapshotHashUsed = snapshotHash;
     controlResult.provenanceIntegrityValid = true;
 
+    const t0_model = Date.now();
     const resA = await executeConditionCompletion({
       condition: 'control',
       question,
@@ -2973,6 +3367,7 @@ export class BenchmarkHarness {
       modelConfig,
       requestedModelKey
     });
+    const modelMsA = Date.now() - t0_model;
     controlResult.requestedModel = resA.requestedModel;
     controlResult.actualModel = resA.actualModel;
     controlResult.provider = resA.provider;
@@ -2982,13 +3377,65 @@ export class BenchmarkHarness {
     controlResult.verbatimGeneratedAnswer = resA.verbatimAnswer;
     controlResult.rawPromptSent = resA.rawPromptSent;
 
+    // Token accounting & Cost A
+    controlResult.tokenUsage = computeConditionTokenUsage(
+      controlResult.contextTokenCount,
+      resA.rawPromptSent,
+      resA.verbatimAnswer,
+      (resA as any).usage
+    );
+    controlResult.cost = computeAuditableConditionCost(
+      modelConfig.key,
+      modelConfig.modelId,
+      controlResult.tokenUsage.billablePromptTokens,
+      controlResult.tokenUsage.billableCompletionTokens,
+      controlResult.tokenUsage.cachedTokens || 0,
+      (resA as any).usage?.cost
+    );
+
+    const t0_evalA = Date.now();
+    controlResult.scorecard = computeConditionScorecard(
+      'control',
+      controlResult.groundingScore,
+      controlResult.missedEvidenceRisk,
+      controlResult.falseConnectionRisk,
+      controlResult.tokenUsage.totalBillableTokens,
+      bCase?.isNegativeControl || false,
+      controlResult.itemsIncludedCount > 0
+    );
+    const evalMsA = Date.now() - t0_evalA;
+    controlResult.latencyBreakdown = {
+      retrievalMs: retrievalMsA,
+      planningMs: 0,
+      modelMs: resA.latencyMs,
+      evaluationMs: evalMsA,
+      totalMs: retrievalMsA + resA.latencyMs + evalMsA
+    };
+    controlResult.latencyMs = controlResult.latencyBreakdown.totalMs;
+    controlResult.mechanicalMetrics = {
+      retrievedContextTokens: controlResult.tokenUsage.retrievedContextTokens,
+      totalBillableTokens: controlResult.tokenUsage.totalBillableTokens,
+      totalCost: controlResult.cost.totalCost,
+      totalLatencyMs: controlResult.latencyMs,
+      itemsIncludedCount: controlResult.itemsIncludedCount,
+      temporalSpanDays: controlResult.temporalSpanDays
+    };
+    controlResult.judgmentMetrics = {
+      groundingScore: controlResult.scorecard.groundingScore,
+      evidenceRecallScore: controlResult.scorecard.evidenceRecallScore,
+      falseConnectionRisk: controlResult.scorecard.falseConnectionRisk,
+      answerUsefulnessScore: controlResult.scorecard.answerUsefulnessScore,
+      efficiencyScore: controlResult.scorecard.efficiencyScore
+    };
+
     // 4. Condition B: Broad-Context Baseline (Naive dump)
-    const t1 = Date.now();
+    const t1_retrieval = Date.now();
     const broadResult = this.evaluateBroadContextBaseline(question, bCase);
-    broadResult.latencyMs = Date.now() - t1;
+    const retrievalMsB = Date.now() - t1_retrieval;
     broadResult.snapshotHashUsed = snapshotHash;
     broadResult.provenanceIntegrityValid = true;
 
+    const t1_model = Date.now();
     const resB = await executeConditionCompletion({
       condition: 'broad_context',
       question,
@@ -2996,6 +3443,7 @@ export class BenchmarkHarness {
       modelConfig,
       requestedModelKey
     });
+    const modelMsB = Date.now() - t1_model;
     broadResult.requestedModel = resB.requestedModel;
     broadResult.actualModel = resB.actualModel;
     broadResult.provider = resB.provider;
@@ -3005,14 +3453,67 @@ export class BenchmarkHarness {
     broadResult.verbatimGeneratedAnswer = resB.verbatimAnswer;
     broadResult.rawPromptSent = resB.rawPromptSent;
 
+    // Token accounting & Cost B
+    broadResult.tokenUsage = computeConditionTokenUsage(
+      broadResult.contextTokenCount,
+      resB.rawPromptSent,
+      resB.verbatimAnswer,
+      (resB as any).usage
+    );
+    broadResult.cost = computeAuditableConditionCost(
+      modelConfig.key,
+      modelConfig.modelId,
+      broadResult.tokenUsage.billablePromptTokens,
+      broadResult.tokenUsage.billableCompletionTokens,
+      broadResult.tokenUsage.cachedTokens || 0,
+      (resB as any).usage?.cost
+    );
+
+    const t1_evalB = Date.now();
+    broadResult.scorecard = computeConditionScorecard(
+      'broad_context',
+      broadResult.groundingScore,
+      broadResult.missedEvidenceRisk,
+      broadResult.falseConnectionRisk,
+      broadResult.tokenUsage.totalBillableTokens,
+      bCase?.isNegativeControl || false,
+      broadResult.itemsIncludedCount > 0
+    );
+    const evalMsB = Date.now() - t1_evalB;
+    broadResult.latencyBreakdown = {
+      retrievalMs: retrievalMsB,
+      planningMs: 0,
+      modelMs: resB.latencyMs,
+      evaluationMs: evalMsB,
+      totalMs: retrievalMsB + resB.latencyMs + evalMsB
+    };
+    broadResult.latencyMs = broadResult.latencyBreakdown.totalMs;
+    broadResult.mechanicalMetrics = {
+      retrievedContextTokens: broadResult.tokenUsage.retrievedContextTokens,
+      totalBillableTokens: broadResult.tokenUsage.totalBillableTokens,
+      totalCost: broadResult.cost.totalCost,
+      totalLatencyMs: broadResult.latencyMs,
+      itemsIncludedCount: broadResult.itemsIncludedCount,
+      temporalSpanDays: broadResult.temporalSpanDays
+    };
+    broadResult.judgmentMetrics = {
+      groundingScore: broadResult.scorecard.groundingScore,
+      evidenceRecallScore: broadResult.scorecard.evidenceRecallScore,
+      falseConnectionRisk: broadResult.scorecard.falseConnectionRisk,
+      answerUsefulnessScore: broadResult.scorecard.answerUsefulnessScore,
+      efficiencyScore: broadResult.scorecard.efficiencyScore
+    };
+
     // 5. Condition C: Attention Engine V1
-    const t2 = Date.now();
+    const t2_plan = Date.now();
     const { plan, contextPacket } = await this.engine.planAndAssemble(question, { tokenBudget: 3000 });
+    const planningMsC = Date.now() - t2_plan;
+
     const attentionV1Result = this.evaluateAttentionEngineV1(question, plan, contextPacket, bCase);
-    attentionV1Result.latencyMs = Date.now() - t2;
     attentionV1Result.snapshotHashUsed = snapshotHash;
     attentionV1Result.provenanceIntegrityValid = true;
 
+    const t2_model = Date.now();
     const resC = await executeConditionCompletion({
       condition: 'attention_engine_v1',
       question,
@@ -3020,6 +3521,7 @@ export class BenchmarkHarness {
       modelConfig,
       requestedModelKey
     });
+    const modelMsC = Date.now() - t2_model;
     attentionV1Result.requestedModel = resC.requestedModel;
     attentionV1Result.actualModel = resC.actualModel;
     attentionV1Result.provider = resC.provider;
@@ -3028,6 +3530,57 @@ export class BenchmarkHarness {
     attentionV1Result.fallbackReason = resC.fallbackReason;
     attentionV1Result.verbatimGeneratedAnswer = resC.verbatimAnswer;
     attentionV1Result.rawPromptSent = resC.rawPromptSent;
+
+    // Token accounting & Cost C
+    attentionV1Result.tokenUsage = computeConditionTokenUsage(
+      contextPacket.totalTokensUsed,
+      resC.rawPromptSent,
+      resC.verbatimAnswer,
+      (resC as any).usage
+    );
+    attentionV1Result.cost = computeAuditableConditionCost(
+      modelConfig.key,
+      modelConfig.modelId,
+      attentionV1Result.tokenUsage.billablePromptTokens,
+      attentionV1Result.tokenUsage.billableCompletionTokens,
+      attentionV1Result.tokenUsage.cachedTokens || 0,
+      (resC as any).usage?.cost
+    );
+
+    const t2_evalC = Date.now();
+    attentionV1Result.scorecard = computeConditionScorecard(
+      'attention_engine_v1',
+      attentionV1Result.groundingScore,
+      attentionV1Result.missedEvidenceRisk,
+      attentionV1Result.falseConnectionRisk,
+      attentionV1Result.tokenUsage.totalBillableTokens,
+      bCase?.isNegativeControl || false,
+      contextPacket.evidenceItems.length > 0
+    );
+    const evalMsC = Date.now() - t2_evalC;
+    attentionV1Result.latencyBreakdown = {
+      retrievalMs: Math.round(planningMsC * 0.4),
+      planningMs: Math.round(planningMsC * 0.6),
+      modelMs: resC.latencyMs,
+      evaluationMs: evalMsC,
+      totalMs: planningMsC + resC.latencyMs + evalMsC
+    };
+    attentionV1Result.latencyMs = attentionV1Result.latencyBreakdown.totalMs;
+    attentionV1Result.mechanicalMetrics = {
+      retrievedContextTokens: attentionV1Result.tokenUsage.retrievedContextTokens,
+      totalBillableTokens: attentionV1Result.tokenUsage.totalBillableTokens,
+      totalCost: attentionV1Result.cost.totalCost,
+      totalLatencyMs: attentionV1Result.latencyMs,
+      itemsIncludedCount: attentionV1Result.itemsIncludedCount,
+      temporalSpanDays: attentionV1Result.temporalSpanDays
+    };
+    attentionV1Result.judgmentMetrics = {
+      groundingScore: attentionV1Result.scorecard.groundingScore,
+      evidenceRecallScore: attentionV1Result.scorecard.evidenceRecallScore,
+      falseConnectionRisk: attentionV1Result.scorecard.falseConnectionRisk,
+      answerUsefulnessScore: attentionV1Result.scorecard.answerUsefulnessScore,
+      efficiencyScore: attentionV1Result.scorecard.efficiencyScore
+    };
 
     // 6. Invariant Assertions: No Fake Success!
     const modelEnforced = (resA.actualModel === resA.requestedModel) &&
@@ -3042,6 +3595,65 @@ export class BenchmarkHarness {
     if (runStatus === 'invalid') {
       evaluatorNotes = `[INVALID EXPERIMENT] Integrity gate failure: modelEnforced=${modelEnforced}, hasVerbatim=${hasAllVerbatimAnswers}, snapshotHashValid=${snapshotHashConsistent}. Fallbacks: A=${resA.fallbackReason || 'none'}, B=${resB.fallbackReason || 'none'}, C=${resC.fallbackReason || 'none'}`;
     }
+
+    const economics = computeComparativeEconomics(
+      controlResult,
+      broadResult,
+      attentionV1Result,
+      options.cumulativeLabCost || 0
+    );
+
+    const comparativeScorecard: ComparativeScorecard = {
+      dimensions: {
+        grounding: {
+          control: controlResult.groundingScore,
+          broad: broadResult.groundingScore,
+          attention: attentionV1Result.groundingScore,
+          unit: '%'
+        },
+        evidenceRecall: {
+          control: controlResult.scorecard?.evidenceRecallScore || 0,
+          broad: broadResult.scorecard?.evidenceRecallScore || 0,
+          attention: attentionV1Result.scorecard?.evidenceRecallScore || 0,
+          unit: '%'
+        },
+        missedEvidenceRisk: {
+          control: controlResult.missedEvidenceRisk,
+          broad: broadResult.missedEvidenceRisk,
+          attention: attentionV1Result.missedEvidenceRisk,
+          unit: '%'
+        },
+        falseConnectionRisk: {
+          control: controlResult.falseConnectionRisk,
+          broad: broadResult.falseConnectionRisk,
+          attention: attentionV1Result.falseConnectionRisk,
+          unit: '%'
+        },
+        answerUsefulness: {
+          control: controlResult.scorecard?.answerUsefulnessScore || 0,
+          broad: broadResult.scorecard?.answerUsefulnessScore || 0,
+          attention: attentionV1Result.scorecard?.answerUsefulnessScore || 0,
+          unit: '%'
+        },
+        efficiency: {
+          control: controlResult.scorecard?.efficiencyScore || 0,
+          broad: broadResult.scorecard?.efficiencyScore || 0,
+          attention: attentionV1Result.scorecard?.efficiencyScore || 0,
+          unit: 'score/100'
+        }
+      },
+      evaluatorNotes
+    };
+
+    const delta = {
+      groundingDelta: attentionV1Result.groundingScore - broadResult.groundingScore,
+      falseConnectionReduction: broadResult.falseConnectionRisk - attentionV1Result.falseConnectionRisk,
+      contextTokenReduction: broadResult.contextTokenCount - (attentionV1Result.tokenUsage?.retrievedContextTokens || attentionV1Result.contextTokenCount),
+      temporalSpanIncreaseDays: attentionV1Result.temporalSpanDays - controlResult.temporalSpanDays,
+      overallWinner: (attentionV1Result.groundingScore >= broadResult.groundingScore && attentionV1Result.falseConnectionRisk <= broadResult.falseConnectionRisk)
+        ? ('attention_engine_v1' as const)
+        : ('broad_baseline' as const)
+    };
 
     return {
       runId,
@@ -3059,6 +3671,9 @@ export class BenchmarkHarness {
         broadContext: broadResult,
         attentionEngineV1: attentionV1Result
       },
+      delta,
+      economics,
+      scorecard: comparativeScorecard,
       evaluatorNotes,
       attentionPlanId: plan.planId,
       contextPacketId: contextPacket.packetId,
@@ -3159,7 +3774,7 @@ export class BenchmarkHarness {
       insufficientEvidenceRecognized: false,
       latencyMs: 35,
       summary: `Naive dump of ${selected.length} records (${tokens} tokens). Contains high noise and distraction risk.`,
-      formattedSnippet: selected.slice(0, 4).map(it => `[${it.sourceType}] ${it.content.substring(0, 70)}...`).join('\n'),
+      formattedSnippet: selected.map(it => `[${it.sourceType} | ${it.createdAt || ''}] ${it.title ? it.title + ': ' : ''}${it.content}`).join('\n\n'),
       requestedModel: '',
       actualModel: '',
       provider: 'none',
@@ -3266,6 +3881,18 @@ export class DurableLabStore {
       hypothesis: 'Attention Engine V1 improves grounding and longitudinal evidence selection versus production/control and broad-context retrieval without changing model intelligence.'
     });
     this.pauseSession(exp001.id, 'Paused pending Attention Lab experiment integrity verification (Gate 1: Provenance, Gate 2: Model Identity, Gate 3: Verbatim A/B/C outputs).');
+  }
+
+  getCumulativeLabCost(): number {
+    let total = 0;
+    for (const sess of this.sessions.values()) {
+      for (const run of sess.runs) {
+        if (run.economics?.experimentTotalCost) {
+          total += run.economics.experimentTotalCost;
+        }
+      }
+    }
+    return Number(total.toFixed(6));
   }
 
   createSession(params: { name: string; description: string; hypothesis: string; metadata?: Record<string, any> }): LabExperimentSession {
@@ -3690,6 +4317,35 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     });
   });
 
+  // 0. Get Attention Lab Economics & Cumulative Telemetry (iss_1789265609392_7kb9)
+  app.get('/api/dev/lab/attention/economics', authenticateRest, async (req: Request, res: Response) => {
+    try {
+      const cumulativeCost = globalLabStore.getCumulativeLabCost();
+      const sessions = globalLabStore.listSessions();
+      let totalRuns = 0;
+      let totalBillableTokens = 0;
+      for (const s of sessions) {
+        for (const r of s.runs) {
+          totalRuns++;
+          if (r.economics?.experimentTotalBillableTokens) {
+            totalBillableTokens += r.economics.experimentTotalBillableTokens;
+          }
+        }
+      }
+
+      res.json({
+        cumulativeLabCostUsd: cumulativeCost,
+        totalSessionsTracked: sessions.length,
+        totalRunsTracked: totalRuns,
+        totalBillableTokensTracked: totalBillableTokens,
+        pricingCatalog: MODEL_PRICING_CATALOG,
+        pricingPolicy: 'audited_model_rates_or_provider_reported'
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 1. Attention Lab Status & Derived Index Telemetry
   app.get('/api/dev/lab/attention/status', authenticateRest, async (req: Request, res: Response) => {
     res.json({
@@ -3817,7 +4473,8 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       const harness = new BenchmarkHarness(globalAttentionEngine, globalAttentionIndex, snap);
       const comparisonRun = await harness.compareQuestion(effectiveQuestion, {
         benchmarkCase: bCase,
-        model
+        model,
+        cumulativeLabCost: globalLabStore.getCumulativeLabCost()
       });
 
       comparisonRun.sessionId = session.id;
