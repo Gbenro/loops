@@ -16,6 +16,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { appendDevEvent, DevEvent, createDevIssue } from './devBridge.js';
 import { getSupabaseService } from './db.js';
 import { MODEL_REGISTRY, MODEL_ALIASES, ModelConfig } from './models.js';
+import { getLunarData, getMoonAge } from './lunar.js';
 
 // ─── Domain Models & Core Types ─────────────────────────────────────────────
 
@@ -403,6 +404,7 @@ export interface AttentionPlan {
   counterevidenceNotes: string[];
   coverageMatrix?: LongitudinalCoverageMatrix;
   questionDomain?: QuestionDomainInference;
+  queryDecomposition?: QueryDecomposition;
   telemetry?: {
     domainBreakdown?: Record<string, number>;
     devSystemContaminationFilteredCount?: number;
@@ -438,6 +440,15 @@ export interface ContextEvidenceItem {
   contextualAboutnessRationale?: string;
 }
 
+export interface TemporalInterval {
+  startMs: number;
+  endMs: number;
+  startIso: string;
+  endIso: string;
+  type: 'lunar_interval' | 'calendar_interval';
+  description: string;
+}
+
 export interface ContextPacket {
   packetId: string;
   planId: string;
@@ -445,6 +456,11 @@ export interface ContextPacket {
   totalTokensUsed: number;
   evidenceItems: ContextEvidenceItem[];
   formattedPromptContext: string;
+  temporalRange?: {
+    start: string;
+    end: string;
+    description: string;
+  };
   coverageMetrics: {
     temporalSpanDays: number;
     cyclesCovered: number[];
@@ -1469,6 +1485,7 @@ export interface QueryDecomposition {
   relation: string;
   temporalOrigin?: string;
   temporalEndpoint?: string;
+  temporalInterval?: TemporalInterval;
   genericRelationalTerms: string[];
   temporalAnchorTerms: string[];
   domain?: QuestionDomain;
@@ -1476,7 +1493,16 @@ export interface QueryDecomposition {
   allowsDevContext?: boolean;
 }
 
+export const SYSTEM_AND_HARNESS_TERMS = new Set([
+  'field', 'fields', 'personal', 'memory', 'memories', 'relational',
+  'control', 'specimen', 'specimens', 'frozen', 'artifact', 'artifacts',
+  'output', 'outputs', 'experiment', 'experiments', 'baseline', 'baselines',
+  'behavior', 'preserve', 'associated', 'use', 'normal', 'prompt', 'prompts',
+  'system', 'evidence', 'context', 'packet', 'session', 'sessions', 'run', 'runs'
+]);
+
 export const GENERIC_RELATIONAL_TERMS = new Set([
+  'unfold', 'unfolds', 'unfolding', 'unfolded',
   'relationship', 'relationships', 'relation', 'relations',
   'shifted', 'shifting', 'shift', 'shifts',
   'evolved', 'evolving', 'evolve', 'evolution',
@@ -1503,6 +1529,10 @@ export const TEMPORAL_ANCHOR_TERMS = new Set([
 ]);
 
 export const SUBJECT_CONCEPT_TAXONOMY: Record<string, string[]> = {
+  building: [
+    'building', 'luna', 'voice', 'playback', 'controls', 'audio', 'client',
+    'dev', 'development', 'feature', 'features', 'mcp', 'server', 'code'
+  ],
   rest: [
     'rest', 'resting', 'evening', 'nighttime', 'sleep', 'sleeping', 'wind_down', 'wind-down',
     'wind down', 'screen-free', 'screen free', 'stopping work', 'stop work', 'stillness',
@@ -1553,34 +1583,43 @@ export const SUBJECT_CONCEPT_TAXONOMY: Record<string, string[]> = {
   ]
 };
 
-export function decomposeQuery(question: string, category?: string): QueryDecomposition {
-  const qLower = question.toLowerCase();
-  const rawWords = qLower.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+export function decomposeQuery(question: string, category?: string, referenceDate?: Date): QueryDecomposition {
+  // 1. Separate core question from testing/harness boilerplate if present
+  // Questions often arrive like: "What has unfolded in my Field from the beginning of the current New Moon until now? CONTROL specimen 1/5. Use the frozen Field evidence/context..."
+  let cleanQuestion = question;
+  if (cleanQuestion.includes('?')) {
+    cleanQuestion = cleanQuestion.split('?')[0] + '?';
+  } else {
+    cleanQuestion = cleanQuestion.replace(/\s*(?:CONTROL|SPECIMEN|USE THE FROZEN|PRESERVE OUTPUTS).*$/i, '');
+  }
+  const cleanQLower = cleanQuestion.toLowerCase();
+  const rawWords = cleanQLower.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
   
-  // Exclude stop words, generic relational terms, and temporal anchor terms from primary subjects
+  // Exclude stop words, generic relational terms, temporal anchor terms, and system/harness terms from primary subjects
   const candidateSubjectWords = rawWords.filter(w => 
     !STOP_WORDS.has(w) &&
     !GENERIC_RELATIONAL_TERMS.has(w) &&
-    !TEMPORAL_ANCHOR_TERMS.has(w)
+    !TEMPORAL_ANCHOR_TERMS.has(w) &&
+    !SYSTEM_AND_HARNESS_TERMS.has(w)
   );
 
   const subjects: string[] = [];
-  if (qLower.includes('evening ritual') || (qLower.includes('evening') && qLower.includes('ritual'))) {
+  if (cleanQLower.includes('evening ritual') || (cleanQLower.includes('evening') && cleanQLower.includes('ritual'))) {
     subjects.push('evening ritual');
   }
-  if (qLower.includes('wind-down') || qLower.includes('wind down')) {
+  if (cleanQLower.includes('wind-down') || cleanQLower.includes('wind down')) {
     subjects.push('wind down');
   }
-  if (qLower.includes('screen-free') || qLower.includes('screen free')) {
+  if (cleanQLower.includes('screen-free') || cleanQLower.includes('screen free')) {
     subjects.push('screen-free');
   }
-  if (qLower.includes('boundary-setting') || qLower.includes('boundary setting')) {
+  if (cleanQLower.includes('boundary-setting') || cleanQLower.includes('boundary setting')) {
     subjects.push('boundary-setting');
   }
-  if (qLower.includes('creative writing')) {
+  if (cleanQLower.includes('creative writing')) {
     subjects.push('creative writing');
   }
-  if (qLower.includes('marathon training')) {
+  if (cleanQLower.includes('marathon training')) {
     subjects.push('marathon training');
   }
 
@@ -1601,33 +1640,63 @@ export function decomposeQuery(question: string, category?: string): QueryDecomp
     }
   }
 
+  // 2. Astronomical Temporal Interval Calculation (New Moon & explicit boundaries)
+  let temporalInterval: TemporalInterval | undefined = undefined;
   let temporalOrigin: string | undefined;
-  if (qLower.includes('sturgeon moon') || qLower.includes('sturgeon')) temporalOrigin = 'Sturgeon Moon';
-  else if (qLower.includes('corn moon') || qLower.includes('corn')) temporalOrigin = 'Corn Moon';
-  else if (qLower.includes('beginning')) temporalOrigin = 'beginning';
-  else if (qLower.includes('cycle 1') || qLower.includes('past cycles')) temporalOrigin = 'early cycles';
-
   let temporalEndpoint: string | undefined;
-  if (qLower.includes('now') || qLower.includes('current')) temporalEndpoint = 'now';
-  else if (qLower.includes('present')) temporalEndpoint = 'present';
-  else if (qLower.includes('hunter moon')) temporalEndpoint = 'Hunter Moon';
+
+  const isCurrentNewMoon = 
+    cleanQLower.includes('current new moon') ||
+    cleanQLower.includes('beginning of the current new moon') ||
+    cleanQLower.includes('from the new moon') ||
+    cleanQLower.includes('since the new moon') ||
+    (cleanQLower.includes('new moon') && cleanQLower.includes('until now'));
+
+  if (isCurrentNewMoon) {
+    const refDate = referenceDate || new Date();
+    const nowMs = refDate.getTime();
+    const ageDays = getMoonAge(refDate);
+    const startMs = Math.round(nowMs - (ageDays * 86400 * 1000));
+    const startIso = new Date(startMs).toISOString();
+    const endIso = refDate.toISOString();
+
+    temporalInterval = {
+      startMs,
+      endMs: nowMs,
+      startIso,
+      endIso,
+      type: 'lunar_interval',
+      description: `Current New Moon interval (${startIso} to ${endIso})`
+    };
+    temporalOrigin = `Current New Moon (${startIso})`;
+    temporalEndpoint = 'now';
+  } else {
+    if (cleanQLower.includes('sturgeon moon') || cleanQLower.includes('sturgeon')) temporalOrigin = 'Sturgeon Moon';
+    else if (cleanQLower.includes('corn moon') || cleanQLower.includes('corn')) temporalOrigin = 'Corn Moon';
+    else if (cleanQLower.includes('beginning')) temporalOrigin = 'beginning';
+    else if (cleanQLower.includes('cycle 1') || cleanQLower.includes('past cycles')) temporalOrigin = 'early cycles';
+
+    if (cleanQLower.includes('now') || cleanQLower.includes('current')) temporalEndpoint = 'now';
+    else if (cleanQLower.includes('present')) temporalEndpoint = 'present';
+    else if (cleanQLower.includes('hunter moon')) temporalEndpoint = 'Hunter Moon';
+  }
 
   const genericFound = rawWords.filter(w => GENERIC_RELATIONAL_TERMS.has(w));
   const temporalFound = rawWords.filter(w => TEMPORAL_ANCHOR_TERMS.has(w));
 
   const inferredCategory = category || (
-    qLower.includes('shift') || qLower.includes('evolv') || qLower.includes('change') || qLower.includes('progression') || qLower.includes('trace')
+    cleanQLower.includes('shift') || cleanQLower.includes('evolv') || cleanQLower.includes('change') || cleanQLower.includes('progression') || cleanQLower.includes('trace')
       ? 'longitudinal_change'
-      : qLower.includes('pattern') || qLower.includes('recur')
+      : cleanQLower.includes('pattern') || cleanQLower.includes('recur')
       ? 'recurrence'
-      : qLower.includes('alex') || qLower.includes('studio')
+      : cleanQLower.includes('alex') || cleanQLower.includes('studio')
       ? 'entity_relationship'
-      : qLower.includes('compare') || qLower.includes('contrast')
+      : cleanQLower.includes('compare') || cleanQLower.includes('contrast')
       ? 'cycle_comparison'
       : 'general'
   );
 
-  const qDomain = classifyQuestionDomain(question);
+  const qDomain = classifyQuestionDomain(cleanQuestion);
 
   return {
     question,
@@ -1637,6 +1706,7 @@ export function decomposeQuery(question: string, category?: string): QueryDecomp
     relation: inferredCategory,
     temporalOrigin,
     temporalEndpoint,
+    temporalInterval,
     genericRelationalTerms: genericFound,
     temporalAnchorTerms: temporalFound,
     domain: qDomain.domain,
@@ -1673,6 +1743,39 @@ export function computeSemanticSubjectScore(
     }
   }
 
+  // Handle temporal interval qualification (e.g. "from the beginning of the current New Moon until now")
+  if (decomp.temporalInterval && item.createdAt) {
+    const itemMs = new Date(item.createdAt).getTime();
+    const inInterval = !isNaN(itemMs) && itemMs >= decomp.temporalInterval.startMs && itemMs <= decomp.temporalInterval.endMs;
+
+    // If query has no narrow topical subject (open-ended temporal field reflection)
+    if (decomp.subjects.length === 0 || decomp.primarySubject === 'personal_field_reflection') {
+      if (inInterval) {
+        // User Original Echoes are the highest fidelity personal field evidence
+        const intervalScore = item.sourceType === 'echo' ? 10.0 : item.sourceType === 'loop' ? 7.0 : 4.0;
+        return {
+          score: intervalScore,
+          pass: true,
+          matchedTerms: ['temporal_interval:current_new_moon'],
+          rationale: `Qualified: Personal Field reflection recorded during current New Moon interval (${item.sourceType})`
+        };
+      } else {
+        return {
+          score: 0,
+          pass: false,
+          matchedTerms: [],
+          rationale: 'Rejected: Record timestamp outside requested New Moon interval.'
+        };
+      }
+    } else {
+      // If topical subjects exist, boost records that fall within the interval
+      if (inInterval) {
+        subjectScore += 3.0;
+        matchedTerms.push('in_temporal_interval');
+      }
+    }
+  }
+
   if (matchedTerms.length === 0) {
     return {
       score: 0,
@@ -1700,17 +1803,21 @@ export function classifyRecordDomain(item: LunaFieldItem): DomainClassification 
 
   const indicators: string[] = [];
 
-  if (titleUpper.startsWith('DEV —') || titleUpper.startsWith('DEV -') || titleUpper.startsWith('DEV:')) {
+  const isDevPrefix =
+    titleUpper.startsWith('DEV') ||
+    titleUpper.startsWith('BUG') ||
+    titleUpper.startsWith('TEST') ||
+    titleUpper.startsWith('CRITICAL') ||
+    titleUpper.startsWith('FEATURE') ||
+    titleUpper.startsWith('TASK') ||
+    titleUpper.includes('DEV LAB') ||
+    titleUpper.includes('DEV FUTURE');
+
+  if (isDevPrefix) {
     indicators.push('prefix:DEV');
   }
-  if (titleUpper.startsWith('BUG —') || titleUpper.startsWith('BUG -') || titleUpper.startsWith('BUG:')) {
-    indicators.push('prefix:BUG');
-  }
-  if (titleUpper.startsWith('TEST —') || titleUpper.startsWith('TEST -') || titleUpper.startsWith('TEST:')) {
-    indicators.push('prefix:TEST');
-  }
-  if (titleUpper.startsWith('CRITICAL —') || titleUpper.startsWith('CRITICAL -') || titleUpper.startsWith('CRITICAL:')) {
-    indicators.push('prefix:CRITICAL');
+  if ((item.tags || []).some(t => ['dev', 'development', 'bug', 'engineering', 'mcp', 'code', 'system'].includes(t.toLowerCase()))) {
+    indicators.push('tag:dev');
   }
 
   const techTerms = [
@@ -1797,7 +1904,9 @@ export function classifyQuestionDomain(question: string): QuestionDomainClassifi
     'engineering', 'feature', 'features', 'bug', 'code', 'coding',
     'voice playback', 'kokoro', 'mcp', 'server', 'railway', 'api'
   ];
-  const hasDevIntent = devIntentTerms.some(t => qLower.includes(t));
+  // Lab testing boilerplate terms like 'preserve outputs only in lab artifacts' should not trigger devIntent
+  const hasDevIntent = devIntentTerms.some(t => qLower.includes(t)) &&
+    !qLower.includes('preserve outputs only in lab artifacts');
 
   if (hasDevIntent) {
     return {
@@ -1806,6 +1915,20 @@ export function classifyQuestionDomain(question: string): QuestionDomainClassifi
         : 'development_engineering',
       allowsDevContext: true,
       primarySubject: 'building_luna_or_dev'
+    };
+  }
+
+  if (
+    qLower.includes('in my field') || qLower.includes('unfolded in my field') ||
+    qLower.includes('my field') || qLower.includes('personal field') ||
+    qLower.includes('reflection') || qLower.includes('reflections') ||
+    qLower.includes('what has unfolded') || qLower.includes('unfolded') ||
+    qLower.includes('my journey') || qLower.includes('my life')
+  ) {
+    return {
+      domain: 'personal_lived_experience',
+      allowsDevContext: false,
+      primarySubject: 'personal_field_reflection'
     };
   }
 
@@ -1857,12 +1980,12 @@ export function evaluateDomainCompatibility(
   questionDomain: QuestionDomain,
   allowsDevContext: boolean
 ): DomainCompatibilityResult {
-  if (!allowsDevContext && questionDomain === 'personal_lived_experience') {
+  if (!allowsDevContext) {
     if (recordDomain === 'development_engineering' || recordDomain === 'system_operations') {
       return {
         score: 0.0,
         decision: 'INCOMPATIBLE',
-        rationale: 'Rejected: Engineering/system record incompatible with personal lived experience inquiry.'
+        rationale: 'Rejected: Engineering/system record incompatible with inquiry that does not allow dev context.'
       };
     }
   }
@@ -2147,15 +2270,28 @@ export class AttentionEngineV1 {
     }
 
     // 4. Temporal / Cycle Channel: look for cycle names, seasonal moons, or phase cues
-    const cycleCues = ['cycle 1', 'cycle 2', 'cycle 3', 'cycle 4', 'sturgeon', 'harvest', 'corn', 'hunter', 'full moon', 'new moon', 'spring', 'autumn', 'summer', 'winter'];
-    for (const cue of cycleCues) {
-      if (question.toLowerCase().includes(cue)) {
-        for (const item of this.index.itemsMap.values()) {
-          const text = `${item.title || ''} ${item.content} ${item.phase || ''}`.toLowerCase();
-          if (text.includes(cue)) {
-            // Temporal cues locate evidence in time but do NOT establish subject relevance
-            this.touchCandidate(candidatesMap, item, 'temporal', 3.0, `Temporal grounding cue '${cue}'`);
-            channelStats.temporal.candidateCount++;
+    if (decomp.temporalInterval) {
+      const { startMs, endMs, description } = decomp.temporalInterval;
+      for (const item of this.index.itemsMap.values()) {
+        if (!item.createdAt) continue;
+        const itemMs = new Date(item.createdAt).getTime();
+        if (!isNaN(itemMs) && itemMs >= startMs && itemMs <= endMs) {
+          const weight = item.sourceType === 'echo' ? 5.0 : 3.5;
+          this.touchCandidate(candidatesMap, item, 'temporal', weight, `Item within ${description}`);
+          channelStats.temporal.candidateCount++;
+        }
+      }
+    } else {
+      const cycleCues = ['cycle 1', 'cycle 2', 'cycle 3', 'cycle 4', 'sturgeon', 'harvest', 'corn', 'hunter', 'full moon', 'new moon', 'spring', 'autumn', 'summer', 'winter'];
+      for (const cue of cycleCues) {
+        if (question.toLowerCase().includes(cue)) {
+          for (const item of this.index.itemsMap.values()) {
+            const text = `${item.title || ''} ${item.content} ${item.phase || ''}`.toLowerCase();
+            if (text.includes(cue)) {
+              // Temporal cues locate evidence in time but do NOT establish subject relevance
+              this.touchCandidate(candidatesMap, item, 'temporal', 3.0, `Temporal grounding cue '${cue}'`);
+              channelStats.temporal.candidateCount++;
+            }
           }
         }
       }
@@ -2236,7 +2372,7 @@ export class AttentionEngineV1 {
 
       const isDisqualified = !subRes.pass || compatRes.decision === 'INCOMPATIBLE' || !aboutRes.pass;
       cand.qualificationDecision = isDisqualified ? 'DISQUALIFIED' : 'QUALIFIED';
-      cand.finalSelectionScore = isDisqualified ? 0 : cand.score + subRes.score;
+      cand.finalSelectionScore = isDisqualified ? 0 : cand.score + subRes.score + (item.sourceType === 'echo' ? 4.0 : 0);
 
       if (compatRes.decision === 'INCOMPATIBLE') {
         cand.selectionRationale = compatRes.rationale;
@@ -2601,6 +2737,7 @@ export class AttentionEngineV1 {
       omissionsAndDeduplications: suppressed,
       suppressedItems: suppressed,
       questionDomain: inferQuestionDomain(question),
+      queryDecomposition: decomp,
       telemetry: {
         domainBreakdown,
         devSystemContaminationFilteredCount
@@ -2754,6 +2891,11 @@ export class AttentionEngineV1 {
       totalTokensUsed: totalTokens,
       evidenceItems,
       formattedPromptContext: promptLines.join('\n'),
+      temporalRange: plan.queryDecomposition?.temporalInterval ? {
+        start: plan.queryDecomposition.temporalInterval.startIso,
+        end: plan.queryDecomposition.temporalInterval.endIso,
+        description: plan.queryDecomposition.temporalInterval.description
+      } : undefined,
       coverageMetrics: {
         temporalSpanDays: spanDays,
         cyclesCovered: Array.from(cycles).sort(),
@@ -5289,6 +5431,116 @@ export async function publishLabResultToDevBridge(params: {
   };
 }
 
+export function toLightweightComparisonRun(run: ComparisonRun): any {
+  if (!run) return run;
+
+  const lightweightBaselines: Record<string, any> = {};
+  if (run.baselines) {
+    for (const [key, b] of Object.entries(run.baselines)) {
+      if (!b) continue;
+      lightweightBaselines[key] = {
+        baseline: b.baseline,
+        displayName: b.displayName,
+        contextTokenCount: b.contextTokenCount,
+        itemsIncludedCount: b.itemsIncludedCount,
+        temporalSpanDays: b.temporalSpanDays,
+        cyclesCoveredCount: b.cyclesCoveredCount,
+        groundingScore: b.groundingScore,
+        falseConnectionRisk: b.falseConnectionRisk,
+        missedEvidenceRisk: b.missedEvidenceRisk,
+        insufficientEvidenceRecognized: b.insufficientEvidenceRecognized,
+        latencyMs: b.latencyMs,
+        summary: b.summary,
+        requestedModel: b.requestedModel,
+        actualModel: b.actualModel,
+        provider: b.provider,
+        providerModelId: b.providerModelId,
+        parameters: b.parameters,
+        fallbackReason: b.fallbackReason,
+        verbatimGeneratedAnswer: b.verbatimGeneratedAnswer,
+        formattedSnippetPreview: b.formattedSnippet ? b.formattedSnippet.substring(0, 300) : '',
+        snapshotHashUsed: b.snapshotHashUsed,
+        provenanceIntegrityValid: b.provenanceIntegrityValid,
+        tokenUsage: b.tokenUsage,
+        cost: b.cost,
+        latencyBreakdown: b.latencyBreakdown,
+        scorecard: b.scorecard,
+        mechanicalMetrics: b.mechanicalMetrics
+      };
+    }
+  }
+
+  const lightweightPlan = run.attentionPlan ? {
+    planId: run.attentionPlan.planId,
+    question: run.attentionPlan.question,
+    questionClass: run.attentionPlan.questionClass,
+    tokenBudget: run.attentionPlan.tokenBudget,
+    coverageStrategy: run.attentionPlan.coverageStrategy,
+    channelsUsed: run.attentionPlan.channelsUsed,
+    queryDecomposition: run.attentionPlan.queryDecomposition,
+    coverageMatrix: run.attentionPlan.coverageMatrix,
+    discontinuitiesDetected: run.attentionPlan.discontinuitiesDetected,
+    counterevidenceNotes: run.attentionPlan.counterevidenceNotes,
+    candidatesConsideredCount: run.attentionPlan.candidatesConsideredCount,
+    selectedSourcesCount: run.attentionPlan.selectedSources?.length || 0,
+    suppressedCount: (run.attentionPlan.omissionsAndDeduplications || run.attentionPlan.suppressedItems)?.length || 0,
+    questionDomain: run.attentionPlan.questionDomain,
+    telemetry: run.attentionPlan.telemetry
+  } : undefined;
+
+  const lightweightContextPacket = run.contextPacket ? {
+    packetId: run.contextPacket.packetId,
+    planId: run.contextPacket.planId,
+    tokenBudget: run.contextPacket.tokenBudget,
+    totalTokensUsed: run.contextPacket.totalTokensUsed,
+    coverageMetrics: run.contextPacket.coverageMetrics,
+    temporalRange: (run.contextPacket as any).temporalRange,
+    provenanceDigest: run.contextPacket.provenanceDigest,
+    evidenceItemsCount: run.contextPacket.evidenceItems?.length || 0,
+    evidenceItemSummaries: run.contextPacket.evidenceItems?.map(e => ({
+      id: e.id,
+      sourceId: e.sourceId,
+      sourceType: e.sourceType,
+      title: e.title,
+      timestamp: e.timestamp,
+      cycleNumber: e.cycleNumber,
+      coverageRole: e.coverageRole,
+      domain: e.recordDomain || (e as any).domain,
+      tokensEstimated: e.tokensEstimated,
+      excerptSnippet: e.contentSnippet ? e.contentSnippet.substring(0, 160) : undefined
+    })),
+    notableOmissionsCount: run.contextPacket.notableOmissions?.length || 0,
+    generatedAt: run.contextPacket.generatedAt
+  } : undefined;
+
+  return {
+    runId: run.runId,
+    sessionId: run.sessionId,
+    questionId: run.questionId,
+    question: run.question,
+    category: run.category,
+    timestamp: run.timestamp,
+    model: run.model,
+    status: run.status,
+    integrityState: run.integrityState,
+    isValidBenchmarkBaseline: run.isValidBenchmarkBaseline,
+    artifactHash: run.artifactHash,
+    auditNotes: run.auditNotes,
+    auditDiagnostic: run.auditDiagnostic,
+    snapshotHash: run.snapshotHash,
+    provenanceBreakdown: run.provenanceBreakdown,
+    baselines: lightweightBaselines,
+    evaluatorNotes: run.evaluatorNotes,
+    attentionPlanId: run.attentionPlanId,
+    contextPacketId: run.contextPacketId,
+    attentionPlan: lightweightPlan,
+    contextPacket: lightweightContextPacket,
+    delta: run.delta,
+    economics: run.economics,
+    scorecard: run.scorecard
+  };
+}
+
 export function registerAttentionLabRoutes(app: any, authenticateRest: any): void {
   // 0. Expose Supported OpenRouter Model Catalog (Model Discovery)
   app.get('/api/dev/lab/attention/models', authenticateRest, (req: Request, res: Response) => {
@@ -5438,6 +5690,15 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     res.json(auditBundle);
   });
 
+  app.get('/api/dev/lab/attention/sessions/:id/runs/:runId/audit', authenticateRest, (req: Request, res: Response) => {
+    const condition = req.query.condition as string | undefined;
+    const auditBundle = globalLabStore.getRunAuditBundle(req.params.runId, condition);
+    if (!auditBundle) {
+      return res.status(404).json({ error: `Run '${req.params.runId}' not found in archive.` });
+    }
+    res.json(auditBundle);
+  });
+
   // 5c. Inspect Specific Run Audit Bundle
   app.get('/api/dev/lab/attention/runs/:runId', authenticateRest, (req: Request, res: Response) => {
     const run = globalLabStore.getRun(req.params.runId);
@@ -5461,7 +5722,13 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     if (!session) {
       return res.status(404).json({ error: `Session '${req.params.id}' not found.` });
     }
-    res.json(session);
+    if (req.query.full === 'true') {
+      return res.json(session);
+    }
+    res.json({
+      ...session,
+      runs: session.runs.map(toLightweightComparisonRun)
+    });
   });
 
   // 7. Run Comparison within Session (A vs B vs C)
@@ -5536,7 +5803,11 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
         console.warn('[AttentionLab] Auto-publish notice:', pubErr);
       }
 
-      res.json(comparisonRun);
+      if (req.query.full === 'true') {
+        res.json(comparisonRun);
+      } else {
+        res.json(toLightweightComparisonRun(comparisonRun));
+      }
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -5595,7 +5866,9 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
           control: Math.round(falseConnectionsControl / n)
         }
       },
-      runs: session.runs
+      runs: req.query.full === 'true'
+        ? session.runs
+        : session.runs.map(toLightweightComparisonRun)
     });
   });
 
@@ -5695,7 +5968,17 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
   app.post('/api/dev/lab/attention/sessions/:id/pause', authenticateRest, (req: Request, res: Response) => {
     try {
       const session = globalLabStore.pauseSession(req.params.id, req.body?.reason);
-      res.json(session);
+      if (req.query.full === 'true') {
+        return res.json(session);
+      }
+      res.json({
+        id: session.id,
+        name: session.name,
+        status: session.status,
+        pausedAt: session.pausedAt,
+        pauseReason: session.pauseReason,
+        completedRunsCount: session.runs.length
+      });
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -5705,7 +5988,17 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
   app.post('/api/dev/lab/attention/sessions/:id/resume', authenticateRest, (req: Request, res: Response) => {
     try {
       const session = globalLabStore.resumeSession(req.params.id);
-      res.json(session);
+      if (req.query.full === 'true') {
+        return res.json(session);
+      }
+      res.json({
+        id: session.id,
+        name: session.name,
+        status: session.status,
+        pausedAt: session.pausedAt,
+        pauseReason: session.pauseReason,
+        completedRunsCount: session.runs.length
+      });
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }

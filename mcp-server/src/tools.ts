@@ -5,7 +5,8 @@ import {
   globalLabStore,
   globalFieldAdapter,
   CANONICAL_BENCHMARK_CASES,
-  BenchmarkHarness
+  BenchmarkHarness,
+  toLightweightComparisonRun
 } from './attentionLab.js';
 import { getLunarData } from './lunar.js';
 import {
@@ -3095,7 +3096,11 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     case 'lunar_lab_attention_inspect_session': {
       const session = globalLabStore.getSession(args.sessionId);
       if (!session) throw new Error(`Session '${args.sessionId}' not found.`);
-      return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+      const result = args.full ? session : {
+        ...session,
+        runs: session.runs.map(toLightweightComparisonRun)
+      };
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 
     case 'lunar_lab_attention_list_benchmarks': {
