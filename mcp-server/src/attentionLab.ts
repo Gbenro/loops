@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { appendDevEvent, DevEvent, createDevIssue } from './devBridge.js';
@@ -3916,16 +3917,22 @@ export class BenchmarkHarness {
 // ─── Durable Lab Experiment Session Store ───────────────────────────────────
 
 export function getLabArchiveDir(): string {
+  let moduleDir = '';
+  try {
+    moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  } catch (_) {}
+
   const candidates = [
     path.join(process.cwd(), 'mcp-server', 'data', 'lab_archive'),
     path.join(process.cwd(), 'data', 'lab_archive'),
-    path.join(__dirname, '..', 'data', 'lab_archive'),
-    path.join(__dirname, 'data', 'lab_archive')
-  ];
+    moduleDir ? path.join(moduleDir, '..', 'data', 'lab_archive') : '',
+    moduleDir ? path.join(moduleDir, 'data', 'lab_archive') : ''
+  ].filter(Boolean);
+
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  return candidates[0];
+  return candidates[0] || path.join(process.cwd(), 'mcp-server', 'data', 'lab_archive');
 }
 
 export class DurableLabStore {
