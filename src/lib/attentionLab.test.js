@@ -1739,4 +1739,109 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
     });
   });
 
+// =========================================================================
+  // Suite 20: Lightweight Session Summaries (iss_1789267167162_3prg)
+  // =========================================================================
+  describe('Suite 20: Attention Lab Lightweight Session Summaries', () => {
+    it('returns lightweight session summaries without embedding complete runs, ContextPackets, or candidate arrays', () => {
+      const store = new DurableLabStore();
+      const sess = store.createSession({
+        name: 'V1.3 Regression & Generalization Benchmark',
+        hypothesis: 'Attention Engine V1.3 prevents DEV/system contamination'
+      });
+
+      // Add a heavy run with complete artifacts, context packet, and verbatim answers
+      const mockRun = {
+        runId: 'run_v13_heavy_test',
+        sessionId: sess.id,
+        timestamp: new Date().toISOString(),
+        model: 'openrouter-deepseek-v4-flash',
+        status: 'valid',
+        delta: { overallWinner: 'attention_engine_v1' },
+        attentionPlan: {
+          planId: 'plan_heavy',
+          candidatesCount: 150,
+          candidateSources: new Array(50).fill({ id: 'cand_1', text: 'large candidate text...' })
+        },
+        contextPacket: {
+          packetId: 'packet_heavy',
+          totalTokensUsed: 2500,
+          evidenceItems: new Array(20).fill({ id: 'ev_1', text: 'detailed evidence snippet...' })
+        },
+        baselines: {
+          control: {
+            groundingScore: 35,
+            verbatimGeneratedAnswer: 'Detailed long answer from control model...'
+          },
+          broadContext: {
+            groundingScore: 68,
+            formattedSnippet: '4000 tokens of raw broad context...',
+            verbatimGeneratedAnswer: 'Detailed long answer from broad baseline model...'
+          },
+          attentionEngineV1: {
+            groundingScore: 73,
+            verbatimGeneratedAnswer: 'Detailed long answer from attention engine v1 model...'
+          }
+        },
+        economics: {
+          savingsVsBroad: { tokenReductionPct: 60, contextTokenReductionPct: 84 },
+          cumulativeLabCost: 0.000683
+        }
+      };
+      store.recordRun(sess.id, mockRun);
+
+      // Verify listSessionSummaries()
+      const summaries = store.listSessionSummaries();
+      expect(Array.isArray(summaries)).toBe(true);
+      expect(summaries.length).toBeGreaterThanOrEqual(3);
+
+      const s0 = summaries.find(s => s.id === sess.id);
+      expect(s0).toBeDefined();
+      // Acceptance Criteria 2 & 3: Contains discovery metadata but NO heavy artifacts
+      expect(s0.id).toBe(sess.id);
+      expect(s0.name).toBe('V1.3 Regression & Generalization Benchmark');
+      expect(s0.status).toBe('created');
+      expect(s0.runCount).toBe(1);
+      expect(s0.latestRunId).toBe('run_v13_heavy_test');
+      expect(s0.latestWinner).toBe('attention_engine_v1');
+      expect(typeof s0.createdAt).toBe('string');
+      expect(typeof s0.updatedAt).toBe('string');
+
+      // Crucial: Must NOT contain embedded runs, context packets, or candidates
+      expect(s0.runs).toBeUndefined();
+      expect(s0.attentionPlan).toBeUndefined();
+      expect(s0.contextPacket).toBeUndefined();
+      expect(s0.candidateSources).toBeUndefined();
+      expect(s0.evidenceItems).toBeUndefined();
+
+      // Acceptance Criteria 4 & 5: Existing durable sessions and detailed runs remain intact via getSession()
+      const fullSess = store.getSession(sess.id);
+      expect(fullSess).toBeDefined();
+      expect(fullSess.runs.length).toBe(1);
+      expect(fullSess.runs[0].contextPacket.packetId).toBe('packet_heavy');
+      expect(fullSess.runs[0].baselines.broadContext.formattedSnippet).toBe('4000 tokens of raw broad context...');
+
+      // Verify payload size reduction (> 90% smaller)
+      const fullSize = JSON.stringify(fullSess).length;
+      const summarySize = JSON.stringify(s0).length;
+      expect(summarySize).toBeLessThan(fullSize * 0.2); // More than 80% smaller
+      expect(summarySize).toBeLessThan(1000); // Lightweight summary is well under 1 KB
+    });
+
+    it('handles sessions with zero runs gracefully without errors', () => {
+      const store = new DurableLabStore();
+      const sess = store.createSession({
+        name: 'Empty Session Test',
+        hypothesis: 'Testing summary format when no runs exist'
+      });
+
+      const summaries = store.listSessionSummaries();
+      expect(summaries.length).toBeGreaterThanOrEqual(3);
+      const s0 = summaries.find(s => s.id === sess.id);
+      expect(s0).toBeDefined();
+      expect(s0.runCount).toBe(0);
+      expect(s0.latestRunId).toBeUndefined();
+      expect(s0.latestWinner).toBeUndefined();
+    });
+  });
 });

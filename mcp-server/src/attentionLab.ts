@@ -676,6 +676,21 @@ export interface ComparisonRun {
   scorecard?: ComparativeScorecard;
 }
 
+export interface LabSessionSummary {
+  id: string;
+  name: string;
+  description: string;
+  hypothesis: string;
+  status: 'created' | 'running' | 'paused' | 'resumed' | 'completed' | 'invalid' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  runCount: number;
+  latestRunId?: string;
+  latestRunTimestamp?: string;
+  latestWinner?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface LabExperimentSession {
   id: string;
   name: string;
@@ -3944,6 +3959,28 @@ export class DurableLabStore {
     return this.sessions.get(id);
   }
 
+  listSessionSummaries(): LabSessionSummary[] {
+    return Array.from(this.sessions.values())
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map(s => {
+        const latestRun = s.runs && s.runs.length > 0 ? s.runs[s.runs.length - 1] : undefined;
+        return {
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          hypothesis: s.hypothesis,
+          status: s.status,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          runCount: s.runs ? s.runs.length : 0,
+          latestRunId: latestRun ? latestRun.runId : undefined,
+          latestRunTimestamp: latestRun ? latestRun.timestamp : undefined,
+          latestWinner: latestRun?.delta?.overallWinner,
+          metadata: s.metadata
+        };
+      });
+  }
+
   listSessions(): LabExperimentSession[] {
     return Array.from(this.sessions.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
@@ -4421,9 +4458,12 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
     }
   });
 
-  // 5. List Durable Experiment Sessions
+  // 5. List Durable Experiment Sessions (Lightweight summaries to prevent ResponseTooLargeError)
   app.get('/api/dev/lab/attention/sessions', authenticateRest, (req: Request, res: Response) => {
-    res.json({ sessions: globalLabStore.listSessions() });
+    if (req.query.full === 'true') {
+      return res.json({ sessions: globalLabStore.listSessions() });
+    }
+    res.json({ sessions: globalLabStore.listSessionSummaries() });
   });
 
   // 6. Inspect Single Experiment Session
