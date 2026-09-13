@@ -215,7 +215,7 @@ export interface AttentionCandidate {
   recurrenceCount?: number;
   title?: string;
   snippet: string;
-  // V1.2 Evidence Quality Telemetry
+  // V1.2 & V1.3 Evidence Quality & Domain Qualification Telemetry
   temporalQualificationScore?: number;
   semanticSubjectScore?: number;
   lexicalScore?: number;
@@ -224,6 +224,65 @@ export interface AttentionCandidate {
   coverageRole?: string;
   qualificationDecision?: 'QUALIFIED' | 'DISQUALIFIED';
   selectionRationale?: string;
+  recordDomain?: RecordDomain;
+  domainCompatibilityScore?: number;
+  domainCompatibilityDecision?: DomainCompatibilityDecision;
+  contextualAboutnessDecision?: 'PASS' | 'FAIL';
+  contextualAboutnessRationale?: string;
+}
+
+export type RecordDomain =
+  | 'personal_lived_experience'
+  | 'development_engineering'
+  | 'system_operations'
+  | 'relationship'
+  | 'creative_work'
+  | 'mixed_or_unknown';
+
+export type QuestionDomain =
+  | 'personal_lived_experience'
+  | 'development_engineering'
+  | 'system_operations'
+  | 'relationship'
+  | 'creative_work'
+  | 'mixed_or_unknown';
+
+export type DomainCompatibilityDecision = 'COMPATIBLE' | 'INCOMPATIBLE' | 'PENALIZED';
+
+export interface DomainClassification {
+  primaryDomain: RecordDomain;
+  domain: RecordDomain;
+  confidence: number;
+  indicators: string[];
+  isDevOrSystemRecord: boolean;
+}
+
+export interface QuestionDomainClassification {
+  domain: QuestionDomain;
+  allowsDevContext: boolean;
+  primarySubject?: string;
+}
+
+export interface QuestionDomainInference {
+  primaryDomain: QuestionDomain;
+  domain: QuestionDomain;
+  allowsDevContext: boolean;
+  primarySubject?: string;
+  acceptableDomains: RecordDomain[];
+}
+
+export interface DomainCompatibilityResult {
+  score: number;
+  decision: DomainCompatibilityDecision;
+  rationale: string;
+}
+
+export interface ContextualAboutnessResult {
+  pass: boolean;
+  isContextuallyAbout?: boolean;
+  decision?: 'PASS' | 'FAIL';
+  reason?: string;
+  rationale: string;
 }
 
 export type SuppressedReason =
@@ -240,7 +299,10 @@ export type SuppressedReason =
   | 'relevance_below_threshold'
   | 'semantic_subject_mismatch'
   | 'temporal_window_mismatch'
-  | 'generic_lexical_match_only';
+  | 'generic_lexical_match_only'
+  | 'domain_mismatch_dev_system'
+  | 'polysemous_concept_mismatch'
+  | 'incompatible_domain';
 
 export interface SuppressedCandidate {
   sourceId: string;
@@ -337,6 +399,13 @@ export interface AttentionPlan {
   discontinuitiesDetected: string[];
   counterevidenceNotes: string[];
   coverageMatrix?: LongitudinalCoverageMatrix;
+  questionDomain?: QuestionDomainInference;
+  telemetry?: {
+    domainBreakdown?: Record<string, number>;
+    devSystemContaminationFilteredCount?: number;
+    [key: string]: any;
+  };
+  suppressedItems?: SuppressedCandidate[];
   createdAt: string;
 }
 
@@ -352,13 +421,18 @@ export interface ContextEvidenceItem {
   selectionRationale: string;
   coverageRole: 'anchor' | 'longitudinal_change' | 'counterevidence' | 'recurrence' | 'direct_answer' | 'origin_state' | 'intermediate_state' | 'recent_current_state' | 'connecting_pattern';
   tokensEstimated: number;
-  // V1.2 Evidence Quality Telemetry
+  // V1.2 & V1.3 Telemetry
   temporalQualificationScore?: number;
   semanticSubjectScore?: number;
   lexicalScore?: number;
   semanticScore?: number;
   finalSelectionScore?: number;
   qualificationDecision?: 'QUALIFIED' | 'DISQUALIFIED';
+  recordDomain?: RecordDomain;
+  domainCompatibilityScore?: number;
+  domainCompatibilityDecision?: DomainCompatibilityDecision;
+  contextualAboutnessDecision?: 'PASS' | 'FAIL';
+  contextualAboutnessRationale?: string;
 }
 
 export interface ContextPacket {
@@ -519,6 +593,16 @@ const RAW_MOCK_LUNA_FIELD_FIXTURES: Array<Omit<LunaFieldItem, 'provenance'>> = [
   },
 
   // Loops
+  {
+    id: 'l1788024537208zyvs',
+    sourceType: 'loop',
+    title: 'DEV — Voice playback controls: pause / resume / stop',
+    content: 'Implement audio playback controls for synthesized voice in Luna client, pause / resume / stop states.',
+    createdAt: '2026-08-20T16:00:00Z',
+    cycleNumber: 3,
+    status: 'active',
+    tags: ['dev', 'audio', 'voice', 'playback']
+  },
   {
     id: 'loop_writing_01',
     sourceType: 'loop',
@@ -1047,6 +1131,9 @@ export interface QueryDecomposition {
   temporalEndpoint?: string;
   genericRelationalTerms: string[];
   temporalAnchorTerms: string[];
+  domain?: QuestionDomain;
+  primarySubject?: string;
+  allowsDevContext?: boolean;
 }
 
 export const GENERIC_RELATIONAL_TERMS = new Set([
@@ -1200,6 +1287,8 @@ export function decomposeQuery(question: string, category?: string): QueryDecomp
       : 'general'
   );
 
+  const qDomain = classifyQuestionDomain(question);
+
   return {
     question,
     category: inferredCategory,
@@ -1209,7 +1298,10 @@ export function decomposeQuery(question: string, category?: string): QueryDecomp
     temporalOrigin,
     temporalEndpoint,
     genericRelationalTerms: genericFound,
-    temporalAnchorTerms: temporalFound
+    temporalAnchorTerms: temporalFound,
+    domain: qDomain.domain,
+    primarySubject: qDomain.primarySubject,
+    allowsDevContext: qDomain.allowsDevContext
   };
 }
 
@@ -1255,6 +1347,340 @@ export function computeSemanticSubjectScore(
     pass: subjectScore >= 2.0,
     matchedTerms,
     rationale: `Qualified: Contains substantive evidence for [${matchedTerms.slice(0, 3).join(', ')}] (score: ${subjectScore.toFixed(1)})`
+  };
+}
+
+// ─── Attention Engine V1.3: Domain Classification & Contextual Aboutness ────
+
+export function classifyRecordDomain(item: LunaFieldItem): DomainClassification {
+  const title = item.title || '';
+  const content = item.content || (item as any).description || '';
+  const combined = `${title} ${content} ${(item.tags || []).join(' ')}`.toLowerCase();
+  const titleUpper = title.toUpperCase();
+
+  const indicators: string[] = [];
+
+  if (titleUpper.startsWith('DEV —') || titleUpper.startsWith('DEV -') || titleUpper.startsWith('DEV:')) {
+    indicators.push('prefix:DEV');
+  }
+  if (titleUpper.startsWith('BUG —') || titleUpper.startsWith('BUG -') || titleUpper.startsWith('BUG:')) {
+    indicators.push('prefix:BUG');
+  }
+  if (titleUpper.startsWith('TEST —') || titleUpper.startsWith('TEST -') || titleUpper.startsWith('TEST:')) {
+    indicators.push('prefix:TEST');
+  }
+  if (titleUpper.startsWith('CRITICAL —') || titleUpper.startsWith('CRITICAL -') || titleUpper.startsWith('CRITICAL:')) {
+    indicators.push('prefix:CRITICAL');
+  }
+
+  const techTerms = [
+    'kokoro', 'af_nova', 'playback controls', 'audio playback', 'voice playback',
+    'pause / resume / stop', 'pause/resume', 'supabase', 'endpoint', 'railway',
+    'groq', 'vite', 'build', 'commit', 'pr_', 'git', 'transcription', 'transcriber',
+    'tokens', 'mcp', 'sdk', 'daemon', 'api/dev', 'model context protocol',
+    'rest api', 'bug', 'patch', 'refactor', 'timeout recovery', 'unit test',
+    'sqlite', 'postgres', 'docker', 'deploy', 'deployment'
+  ];
+
+  for (const tt of techTerms) {
+    if (combined.includes(tt)) {
+      indicators.push(`tech_term:${tt}`);
+    }
+  }
+
+  const livedTerms = [
+    'feeling', 'felt', 'tired', 'sleep', 'sleeping', 'wind down', 'wind-down',
+    'rest', 'resting', 'tea', 'morning walk', 'gratitude', 'overwhelmed',
+    'boundary', 'boundaries', 'bedtime', 'stillness', 'breathe', 'quiet',
+    'burned out', 'burnout', 'rhythm', 'intention', 'renewal', 'heart'
+  ];
+  const livedMatches = livedTerms.filter(lt => combined.includes(lt));
+
+  const creativeTerms = ['manuscript', 'studio writing', 'essays', 'book draft', 'chapters', 'prose', 'poetry'];
+  const creativeMatches = creativeTerms.filter(ct => combined.includes(ct));
+
+  const relTerms = ['brother tony', 'alex', 'mentor', 'partner', 'friendship', 'collaboration with alex'];
+  const relMatches = relTerms.filter(rt => combined.includes(rt));
+
+  let primaryDomain: RecordDomain = 'mixed_or_unknown';
+  let confidence = 0.5;
+
+  if (indicators.length > 0) {
+    if (combined.includes('system') || combined.includes('cron') || combined.includes('worker') || combined.includes('heartbeat') || (item.sourceType as string) === 'log') {
+      primaryDomain = 'system_operations';
+      confidence = 0.9;
+    } else if (livedMatches.length >= 2 && !titleUpper.startsWith('DEV —') && !titleUpper.startsWith('BUG —')) {
+      primaryDomain = 'mixed_or_unknown';
+      confidence = 0.8;
+      indicators.push(...livedMatches.map(m => `lived:${m}`));
+    } else {
+      primaryDomain = 'development_engineering';
+      confidence = indicators.some(i => i.startsWith('prefix:DEV')) ? 0.95 : 0.85;
+    }
+  } else if (creativeMatches.length > 0) {
+    primaryDomain = 'creative_work';
+    confidence = 0.85;
+    indicators.push(...creativeMatches.map(m => `creative:${m}`));
+  } else if (relMatches.length > 0) {
+    primaryDomain = 'relationship';
+    confidence = 0.85;
+    indicators.push(...relMatches.map(m => `relationship:${m}`));
+  } else if (livedMatches.length > 0) {
+    primaryDomain = 'personal_lived_experience';
+    confidence = 0.9;
+    indicators.push(...livedMatches.map(m => `lived:${m}`));
+  } else {
+    primaryDomain = 'mixed_or_unknown';
+    confidence = 0.5;
+    indicators.push('default_unknown');
+  }
+
+  const isDevOrSystemRecord =
+    indicators.some(i => i.startsWith('prefix:DEV') || i.startsWith('prefix:BUG') || i.startsWith('prefix:TEST') || i.startsWith('tech_term:')) ||
+    primaryDomain === 'development_engineering' ||
+    primaryDomain === 'system_operations';
+
+  return {
+    primaryDomain,
+    domain: primaryDomain,
+    confidence,
+    indicators,
+    isDevOrSystemRecord
+  };
+}
+
+export function classifyQuestionDomain(question: string): QuestionDomainClassification {
+  const qLower = question.toLowerCase();
+
+  const devIntentTerms = [
+    'building luna', 'build luna', 'developing luna', 'development',
+    'engineering', 'feature', 'features', 'bug', 'code', 'coding',
+    'voice playback', 'kokoro', 'mcp', 'server', 'railway', 'api'
+  ];
+  const hasDevIntent = devIntentTerms.some(t => qLower.includes(t));
+
+  if (hasDevIntent) {
+    return {
+      domain: qLower.includes('relationship') || qLower.includes('shift') || qLower.includes('feel')
+        ? 'personal_lived_experience'
+        : 'development_engineering',
+      allowsDevContext: true,
+      primarySubject: 'building_luna_or_dev'
+    };
+  }
+
+  if (
+    qLower.includes('rest') || qLower.includes('evening') || qLower.includes('ritual') ||
+    qLower.includes('sleep') || qLower.includes('burnout') || qLower.includes('pacing') ||
+    qLower.includes('wind down') || qLower.includes('wind-down') || qLower.includes('boundary') ||
+    qLower.includes('habit')
+  ) {
+    return {
+      domain: 'personal_lived_experience',
+      allowsDevContext: false,
+      primarySubject: 'personal_rest_or_habit'
+    };
+  }
+
+  if (qLower.includes('writing') || qLower.includes('creative') || qLower.includes('manuscript') || qLower.includes('book')) {
+    return {
+      domain: 'creative_work',
+      allowsDevContext: false,
+      primarySubject: 'creative_writing'
+    };
+  }
+
+  return {
+    domain: 'mixed_or_unknown',
+    allowsDevContext: false,
+    primarySubject: 'general'
+  };
+}
+
+export function inferQuestionDomain(question: string): QuestionDomainInference {
+  const result = classifyQuestionDomain(question);
+  const acceptableDomains: RecordDomain[] = result.allowsDevContext
+    ? ['development_engineering', 'system_operations', 'creative_work', 'personal_lived_experience', 'mixed_or_unknown']
+    : [result.domain, 'mixed_or_unknown', ...(result.domain === 'personal_lived_experience' ? (['creative_work', 'relationship'] as RecordDomain[]) : [])];
+
+  return {
+    primaryDomain: result.domain,
+    domain: result.domain,
+    allowsDevContext: result.allowsDevContext,
+    primarySubject: result.primarySubject,
+    acceptableDomains
+  };
+}
+
+export function evaluateDomainCompatibility(
+  recordDomain: RecordDomain,
+  questionDomain: QuestionDomain,
+  allowsDevContext: boolean
+): DomainCompatibilityResult {
+  if (!allowsDevContext && questionDomain === 'personal_lived_experience') {
+    if (recordDomain === 'development_engineering' || recordDomain === 'system_operations') {
+      return {
+        score: 0.0,
+        decision: 'INCOMPATIBLE',
+        rationale: 'Rejected: Engineering/system record incompatible with personal lived experience inquiry.'
+      };
+    }
+  }
+
+  if (allowsDevContext) {
+    if (recordDomain === 'development_engineering' || recordDomain === 'personal_lived_experience' || recordDomain === 'mixed_or_unknown' || recordDomain === 'creative_work') {
+      return {
+        score: 1.0,
+        decision: 'COMPATIBLE',
+        rationale: 'Compatible: Record aligns with development and creator relationship context.'
+      };
+    }
+  }
+
+  if (recordDomain === questionDomain || recordDomain === 'mixed_or_unknown' || questionDomain === 'mixed_or_unknown') {
+    return {
+      score: 1.0,
+      decision: 'COMPATIBLE',
+      rationale: 'Compatible domain match.'
+    };
+  }
+
+  if (questionDomain === 'personal_lived_experience' && (recordDomain === 'creative_work' || recordDomain === 'relationship')) {
+    return {
+      score: 0.8,
+      decision: 'COMPATIBLE',
+      rationale: 'Adjacent personal creative/relationship context.'
+    };
+  }
+
+  return {
+    score: 0.7,
+    decision: 'COMPATIBLE',
+    rationale: 'Permitted general domain.'
+  };
+}
+
+export function assessDomainCompatibility(
+  qInferenceOrRecordDomain: any,
+  rClassificationOrQuestionDomain?: any,
+  allowsDevContext?: boolean
+): { compatible: boolean; decision: DomainCompatibilityDecision; reason: string; rationale: string; score: number } {
+  if (typeof qInferenceOrRecordDomain === 'object' && qInferenceOrRecordDomain !== null && 'allowsDevContext' in qInferenceOrRecordDomain) {
+    const qInf = qInferenceOrRecordDomain;
+    const rClass = rClassificationOrQuestionDomain;
+    const recDom = rClass?.primaryDomain || rClass?.domain || 'mixed_or_unknown';
+    const qDom = qInf.primaryDomain || qInf.domain || 'personal_lived_experience';
+    const allowsDev = !!qInf.allowsDevContext;
+    const res = evaluateDomainCompatibility(recDom, qDom, allowsDev);
+    return {
+      compatible: res.decision === 'COMPATIBLE',
+      decision: res.decision,
+      reason: res.decision === 'INCOMPATIBLE' ? 'domain_mismatch_dev_system' : 'domain_match',
+      rationale: res.rationale,
+      score: res.score
+    };
+  } else {
+    const res = evaluateDomainCompatibility(qInferenceOrRecordDomain, rClassificationOrQuestionDomain, allowsDevContext || false);
+    return {
+      compatible: res.decision === 'COMPATIBLE',
+      decision: res.decision,
+      reason: res.decision === 'INCOMPATIBLE' ? 'domain_mismatch_dev_system' : 'domain_match',
+      rationale: res.rationale,
+      score: res.score
+    };
+  }
+}
+
+export function checkContextualAboutness(
+  item: LunaFieldItem,
+  decomp: QueryDecomposition,
+  recordDomain: RecordDomain
+): ContextualAboutnessResult {
+  const combined = `${item.title || ''} ${item.content || (item as any).description || ''}`.toLowerCase();
+
+  if (combined.includes('pause')) {
+    const isAudioPlaybackPause =
+      combined.includes('playback') ||
+      combined.includes('audio') ||
+      combined.includes('voice out') ||
+      combined.includes('kokoro') ||
+      combined.includes('controls: pause') ||
+      combined.includes('pause / resume') ||
+      combined.includes('pause/resume') ||
+      combined.includes('stop or pause');
+
+    if (isAudioPlaybackPause && !decomp.allowsDevContext) {
+      return {
+        pass: false,
+        decision: 'FAIL',
+        reason: 'polysemous_concept_mismatch',
+        rationale: 'Rejected: "pause" is used in technical audio playback context, not human rest.'
+      };
+    }
+  }
+
+  if (combined.includes('reflection')) {
+    const isTechReflection =
+      combined.includes('tuning') ||
+      combined.includes('pipeline') ||
+      combined.includes('system prompt') ||
+      combined.includes('reflection loop worker');
+
+    if (isTechReflection && !decomp.allowsDevContext && decomp.domain === 'personal_lived_experience') {
+      return {
+        pass: false,
+        decision: 'FAIL',
+        reason: 'polysemous_concept_mismatch',
+        rationale: 'Rejected: "reflection" is used in technical system worker context, not personal reflective journaling.'
+      };
+    }
+  }
+
+  return {
+    pass: true,
+    decision: 'PASS',
+    rationale: 'Contextual aboutness verified.'
+  };
+}
+
+export function evaluateContextualAboutness(
+  textOrItem: any,
+  subjectOrDecomp: any,
+  recordDomain?: any
+): { isContextuallyAbout: boolean; pass: boolean; decision: 'PASS' | 'FAIL'; reason?: string; rationale: string } {
+  let text = '';
+  if (typeof textOrItem === 'string') {
+    text = textOrItem;
+  } else if (textOrItem && typeof textOrItem === 'object') {
+    text = `${textOrItem.title || ''} ${textOrItem.content || (textOrItem as any).description || ''}`;
+  }
+  const textLower = text.toLowerCase();
+
+  let subject = '';
+  if (typeof subjectOrDecomp === 'string') {
+    subject = subjectOrDecomp;
+  } else if (subjectOrDecomp && typeof subjectOrDecomp === 'object') {
+    subject = subjectOrDecomp.primarySubject || (subjectOrDecomp.subjects ? subjectOrDecomp.subjects[0] : '');
+  }
+
+  if (textLower.includes('pause')) {
+    const isAudio = textLower.includes('playback') || textLower.includes('audio') || textLower.includes('voice') || textLower.includes('controls') || textLower.includes('resume');
+    if (isAudio && (subject.includes('rest') || subject.includes('ritual') || subject.includes('sleep') || !subject)) {
+      return {
+        isContextuallyAbout: false,
+        pass: false,
+        decision: 'FAIL',
+        reason: 'polysemous_concept_mismatch',
+        rationale: 'Polysemous mismatch: audio playback pause is not personal rest.'
+      };
+    }
+  }
+
+  return {
+    isContextuallyAbout: true,
+    pass: true,
+    decision: 'PASS',
+    rationale: 'Contextual aboutness verified.'
   };
 }
 
@@ -1442,7 +1868,7 @@ export class AttentionEngineV1 {
       }
     }
 
-    // 8. Compute Semantic Subject Score & Telemetry for all candidates
+    // 8. Compute Semantic Subject Score, Domain Classification, & Aboutness Telemetry for all candidates
     for (const cand of candidatesMap.values()) {
       const item = this.index.itemsMap.get(cand.sourceId);
       if (!item) continue;
@@ -1451,9 +1877,36 @@ export class AttentionEngineV1 {
       cand.temporalQualificationScore = cand.channelScores.temporal;
       cand.lexicalScore = cand.channelScores.lexical;
       cand.semanticScore = cand.channelScores.semantic;
-      cand.qualificationDecision = subRes.pass ? 'QUALIFIED' : 'DISQUALIFIED';
-      cand.finalSelectionScore = subRes.pass ? cand.score + subRes.score : 0;
-      cand.selectionRationale = subRes.rationale;
+
+      // V1.3 Domain Classification & Contextual Aboutness Gates
+      const domainRes = classifyRecordDomain(item);
+      cand.recordDomain = domainRes.primaryDomain;
+
+      const compatRes = evaluateDomainCompatibility(
+        domainRes.primaryDomain,
+        decomp.domain || 'personal_lived_experience',
+        decomp.allowsDevContext || false
+      );
+      cand.domainCompatibilityScore = compatRes.score;
+      cand.domainCompatibilityDecision = compatRes.decision;
+
+      const aboutRes = checkContextualAboutness(item, decomp, domainRes.primaryDomain);
+      cand.contextualAboutnessDecision = aboutRes.pass ? 'PASS' : 'FAIL';
+      cand.contextualAboutnessRationale = aboutRes.rationale;
+
+      const isDisqualified = !subRes.pass || compatRes.decision === 'INCOMPATIBLE' || !aboutRes.pass;
+      cand.qualificationDecision = isDisqualified ? 'DISQUALIFIED' : 'QUALIFIED';
+      cand.finalSelectionScore = isDisqualified ? 0 : cand.score + subRes.score;
+
+      if (compatRes.decision === 'INCOMPATIBLE') {
+        cand.selectionRationale = compatRes.rationale;
+      } else if (!aboutRes.pass) {
+        cand.selectionRationale = aboutRes.rationale;
+      } else if (!subRes.pass) {
+        cand.selectionRationale = subRes.rationale;
+      } else {
+        cand.selectionRationale = `${subRes.rationale} [Domain: ${domainRes.primaryDomain}]`;
+      }
     }
 
     const allCandidates = Array.from(candidatesMap.values());
@@ -1651,13 +2104,20 @@ export class AttentionEngineV1 {
     const regularCandidates: AttentionCandidate[] = [];
 
     for (const cand of allCandidates) {
-      // Disqualify candidates that have zero substantive subject relevance (Criteria 2, 3, 4)
+      // Disqualify candidates with domain mismatch, polysemy failure, or zero subject relevance
       if (cand.qualificationDecision === 'DISQUALIFIED') {
-        const isGenericLexicalOnly = (cand.channelScores.lexical > 0 || cand.channelScores.temporal > 0) && (cand.semanticSubjectScore || 0) === 0;
+        let reason: SuppressedReason = 'semantic_subject_mismatch';
+        if (cand.domainCompatibilityDecision === 'INCOMPATIBLE') {
+          reason = 'domain_mismatch_dev_system';
+        } else if (cand.contextualAboutnessDecision === 'FAIL') {
+          reason = 'polysemous_concept_mismatch';
+        } else if ((cand.channelScores.lexical > 0 || cand.channelScores.temporal > 0) && (cand.semanticSubjectScore || 0) === 0) {
+          reason = 'generic_lexical_match_only';
+        }
         suppressed.push({
           sourceId: cand.sourceId,
           sourceType: cand.sourceType,
-          reason: isGenericLexicalOnly ? 'generic_lexical_match_only' : 'semantic_subject_mismatch',
+          reason,
           snippet: cand.snippet
         });
         continue;
@@ -1766,6 +2226,24 @@ export class AttentionEngineV1 {
       }
     }
 
+    const domainBreakdown: Record<string, number> = {
+      personal_lived_experience: 0,
+      development_engineering: 0,
+      system_operations: 0,
+      creative_work: 0,
+      relationship: 0,
+      mixed_or_unknown: 0
+    };
+    let devSystemContaminationFilteredCount = 0;
+    for (const cand of allCandidates) {
+      if (cand.recordDomain) {
+        domainBreakdown[cand.recordDomain] = (domainBreakdown[cand.recordDomain] || 0) + 1;
+      }
+      if (cand.qualificationDecision === 'DISQUALIFIED' && (cand.domainCompatibilityDecision === 'INCOMPATIBLE' || cand.recordDomain === 'development_engineering' || cand.recordDomain === 'system_operations')) {
+        devSystemContaminationFilteredCount++;
+      }
+    }
+
     return {
       planId,
       question,
@@ -1781,6 +2259,12 @@ export class AttentionEngineV1 {
       candidates: allCandidates,
       selectedSources: selected,
       omissionsAndDeduplications: suppressed,
+      suppressedItems: suppressed,
+      questionDomain: inferQuestionDomain(question),
+      telemetry: {
+        domainBreakdown,
+        devSystemContaminationFilteredCount
+      },
       discontinuitiesDetected: discontinuities,
       counterevidenceNotes,
       coverageMatrix,
@@ -1851,7 +2335,12 @@ export class AttentionEngineV1 {
         lexicalScore: src.lexicalScore || 0,
         semanticScore: src.semanticScore || 0,
         finalSelectionScore: src.finalSelectionScore || src.score,
-        qualificationDecision: src.qualificationDecision || 'QUALIFIED'
+        qualificationDecision: src.qualificationDecision || 'QUALIFIED',
+        recordDomain: src.recordDomain,
+        domainCompatibilityScore: src.domainCompatibilityScore,
+        domainCompatibilityDecision: src.domainCompatibilityDecision,
+        contextualAboutnessDecision: src.contextualAboutnessDecision,
+        contextualAboutnessRationale: src.contextualAboutnessRationale
       });
 
       totalTokens += src.tokenEstimate;
@@ -3588,3 +4077,14 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
   });
 
 }
+
+
+export const BENCHMARK_CASE_BUILDING_LUNA: BenchmarkCase = {
+  id: 'bm_long_05',
+  category: 'longitudinal_change',
+  question: 'How has my relationship with building Luna changed over the last several months?',
+  expectedCoverageAspects: ['initial architecture intentions', 'development sprints and friction', 'voice/kokoro milestones', 'recent stabilization and boundary setting'],
+  requiresTemporalSpread: true,
+  requiresCounterevidence: true,
+  isNegativeControl: false
+};

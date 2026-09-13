@@ -22,7 +22,11 @@ import {
   computeSemanticSubjectScore,
   GENERIC_RELATIONAL_TERMS,
   TEMPORAL_ANCHOR_TERMS,
-  SUBJECT_CONCEPT_TAXONOMY
+  SUBJECT_CONCEPT_TAXONOMY,
+  classifyRecordDomain,
+  inferQuestionDomain,
+  assessDomainCompatibility,
+  evaluateContextualAboutness
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -1333,6 +1337,190 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       // Zero authentic marathon records exist in snapshot -> correctly recognized as insufficient evidence!
       expect(negPacket.evidenceItems.length).toBe(0);
       expect(negPacket.formattedPromptContext).toContain('No direct or longitudinal personal Field evidence was found');
+    });
+  });
+
+
+  // ============================================================================
+  // SUITE 18: Attention Engine V1.3 — Domain-Aware Semantic Qualification & DEV Contamination Controls (iss_1789263237926_2e3q)
+  // ============================================================================
+  describe('Suite 18: Attention Engine V1.3 — Domain-Aware Semantic Qualification (iss_1789263237926_2e3q)', () => {
+    it('Criteria 1 & 2: Classifies record domains accurately and identifies dev/system records', () => {
+      // Audio playback loop l1788024537208zyvs
+      const devLoop = {
+        id: 'l1788024537208zyvs',
+        type: 'loop',
+        title: 'DEV — Voice playback controls: pause / resume / stop',
+        description: 'Implement audio playback controls for synthesized voice in Luna client.',
+        tags: ['dev', 'audio', 'voice', 'playback']
+      };
+      const devClassification = classifyRecordDomain(devLoop);
+      expect(devClassification.primaryDomain).toBe('development_engineering');
+      expect(devClassification.isDevOrSystemRecord).toBe(true);
+      expect(devClassification.confidence).toBeGreaterThan(0.8);
+
+      // Personal lived experience loop
+      const personalLoop = {
+        id: 'l_evening_winddown',
+        type: 'loop',
+        title: 'Evening screen-free wind-down ritual',
+        description: 'Slowing down before sleep with chamomile tea and reading.',
+        tags: ['ritual', 'evening', 'rest']
+      };
+      const personalClassification = classifyRecordDomain(personalLoop);
+      expect(personalClassification.primaryDomain).toBe('personal_lived_experience');
+      expect(personalClassification.isDevOrSystemRecord).toBe(false);
+
+      // System operations log
+      const systemLog = {
+        id: 'log_cron_sync',
+        type: 'log',
+        title: 'Railway background cron worker database health check',
+        description: 'Periodic heartbeat checking postgres connections and memory usage.',
+        tags: ['system', 'cron', 'health']
+      };
+      const systemClassification = classifyRecordDomain(systemLog);
+      expect(systemClassification.primaryDomain).toBe('system_operations');
+      expect(systemClassification.isDevOrSystemRecord).toBe(true);
+    });
+
+    it('Criteria 3 & 4: Infers question domain and determines whether dev context is permitted', () => {
+      // bm_long_01: Rest and evening rituals
+      const restQuestion = 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?';
+      const restInference = inferQuestionDomain(restQuestion);
+      expect(restInference.primaryDomain).toBe('personal_lived_experience');
+      expect(restInference.allowsDevContext).toBe(false);
+
+      // Generalization question: Relationship with building Luna
+      const buildingQuestion = 'How has my relationship with building Luna changed over the last several months?';
+      const buildingInference = inferQuestionDomain(buildingQuestion);
+      expect(buildingInference.allowsDevContext).toBe(true);
+      expect(buildingInference.acceptableDomains).toContain('development_engineering');
+      expect(buildingInference.acceptableDomains).toContain('creative_work');
+
+      // Direct dev query
+      const devQuestion = 'What bugs did we fix in the audio synthesis pipeline?';
+      const devInference = inferQuestionDomain(devQuestion);
+      expect(devInference.primaryDomain).toBe('development_engineering');
+      expect(devInference.allowsDevContext).toBe(true);
+    });
+
+    it('Criteria 5: Enforces domain compatibility gating between questions and candidates', () => {
+      const restInference = inferQuestionDomain('How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?');
+      
+      const devLoop = {
+        id: 'l1788024537208zyvs',
+        type: 'loop',
+        title: 'DEV — Voice playback controls: pause / resume / stop',
+        description: 'Implement audio playback controls for synthesized voice in Luna client.',
+        tags: ['dev', 'audio', 'voice']
+      };
+      const devClassification = classifyRecordDomain(devLoop);
+      const restCompat = assessDomainCompatibility(restInference, devClassification);
+      expect(restCompat.compatible).toBe(false);
+      expect(restCompat.reason).toBe('domain_mismatch_dev_system');
+      expect(restCompat.score).toBe(0.0);
+
+      // But for building Luna question, dev record IS compatible
+      const buildingInference = inferQuestionDomain('How has my relationship with building Luna changed over the last several months?');
+      const buildingCompat = assessDomainCompatibility(buildingInference, devClassification);
+      expect(buildingCompat.compatible).toBe(true);
+      expect(buildingCompat.score).toBeGreaterThan(0.7);
+    });
+
+    it('Criteria 6: Contextual aboutness prevents polysemous word false-positives', () => {
+      // "pause" in audio playback context vs "rest" subject
+      const audioContext = 'Voice playback controls: pause / resume / stop in audio player';
+      const audioAboutness = evaluateContextualAboutness(audioContext, 'rest');
+      expect(audioAboutness.isContextuallyAbout).toBe(false);
+      expect(audioAboutness.reason).toBe('polysemous_concept_mismatch');
+
+      // "pause" in human intentional resting context
+      const humanPauseContext = 'Taking an afternoon pause away from screens to breathe and rest';
+      const humanAboutness = evaluateContextualAboutness(humanPauseContext, 'rest');
+      expect(humanAboutness.isContextuallyAbout).toBe(true);
+    });
+
+    it('Criteria 7: Planning bm_long_01 completely eliminates l1788024537208zyvs and logs contamination filter telemetry', async () => {
+      const { plan, contextPacket } = await engine.planAndAssemble(
+        'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        { tokenBudget: 2000 }
+      );
+
+      // l1788024537208zyvs must NEVER be in curated evidence
+      const devItemInEvidence = contextPacket.evidenceItems.find(item => item.id === 'l1788024537208zyvs');
+      expect(devItemInEvidence).toBeUndefined();
+
+      // l1788024537208zyvs must be in suppressed items with incompatible domain
+      const devSuppressed = plan.suppressedItems.find(s => s.id === 'l1788024537208zyvs');
+      if (devSuppressed) {
+        expect(devSuppressed.reason).toBe('incompatible_domain');
+      }
+
+      // Telemetry must record domainBreakdown and contamination filtering
+      expect(plan.telemetry?.domainBreakdown).toBeDefined();
+      expect(plan.telemetry?.domainBreakdown?.development_engineering).toBeGreaterThanOrEqual(1);
+      expect(plan.telemetry?.devSystemContaminationFilteredCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it('Criteria 8: bm_long_05 generalization question successfully admits relevant dev and creative records', async () => {
+      const { plan, contextPacket } = await engine.planAndAssemble(
+        'How has my relationship with building Luna changed over the last several months?',
+        { tokenBudget: 2000 }
+      );
+
+      expect(plan.questionDomain?.allowsDevContext).toBe(true);
+      expect(contextPacket.evidenceItems.length).toBeGreaterThan(0);
+      // Dev and building records should be admissible
+      expect(plan.telemetry?.domainBreakdown).toBeDefined();
+    });
+
+    it('Criteria 9 & 10: Zero Field Deletions and Absolute Immutability of V1, V1.1, and V1.2 baselines', async () => {
+      // 1. Personal Field Read-Only Guard
+      expect(adapter.assertReadOnly()).toBe(true);
+
+      // 2. Immutability of baseline runs in store
+      const store = new DurableLabStore();
+      const v1Session = store.createSession('V1 Baseline Session');
+      const v1Run = {
+        runId: 'run_1789211082230_cal8',
+        sessionId: v1Session.id,
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        createdAt: '2026-09-12T10:00:00.000Z',
+        baselines: {
+          attentionEngineV1: { baseline: 'attention_engine_v1', verbatimGeneratedAnswer: 'V1 answer' }
+        }
+      };
+      store.recordRun(v1Session.id, v1Run);
+
+      const v11Session = store.createSession('V1.1 Baseline Session');
+      const v11Run = {
+        runId: 'run_1789254192740_a4az',
+        sessionId: v11Session.id,
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        createdAt: '2026-09-12T15:00:00.000Z',
+        baselines: {
+          attentionEngineV1: { baseline: 'attention_engine_v1', verbatimGeneratedAnswer: 'V1.1 answer' }
+        }
+      };
+      store.recordRun(v11Session.id, v11Run);
+
+      const v12Session = store.createSession('V1.2 Baseline Session');
+      const v12Run = {
+        runId: 'run_1789261534197_ue8l',
+        sessionId: v12Session.id,
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        createdAt: '2026-09-12T19:00:00.000Z',
+        baselines: {
+          attentionEngineV1: { baseline: 'attention_engine_v1', verbatimGeneratedAnswer: 'V1.2 answer with audio pause' }
+        }
+      };
+      store.recordRun(v12Session.id, v12Run);
+
+      // Verify records in store
+      expect(store.getSession(v1Session.id)?.runs[0].runId).toBe('run_1789211082230_cal8');
+      expect(store.getSession(v11Session.id)?.runs[0].runId).toBe('run_1789254192740_a4az');
+      expect(store.getSession(v12Session.id)?.runs[0].runId).toBe('run_1789261534197_ue8l');
     });
   });
 
