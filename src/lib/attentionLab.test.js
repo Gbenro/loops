@@ -37,7 +37,8 @@ import {
   BENCHMARK_CASE_BUILDING_LUNA,
   computeFactualEconomicsAttribution,
   generateEconomicsOptimizationProposal,
-  determineRunIntegrityState
+  determineRunIntegrityState,
+  evaluatePredicateEntailment
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -2931,6 +2932,232 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:false_connection'))).toBe(true);
       expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:recall'))).toBe(true);
       expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:usefulness'))).toBe(true);
+    });
+  });
+
+  describe('Suite 26: Attention V1.5 — Predicate Entailment, Evidence Roles & Search/RAG Baseline (iss_1789511476765_k0fg)', () => {
+    let adapter;
+    let index;
+    let engine;
+    let store;
+    let harness;
+    let snapshot;
+
+    beforeEach(async () => {
+      adapter = new LunaFieldReadOnlyAdapter({ testMode: true });
+      snapshot = await adapter.captureSnapshot();
+      index = new AttentionIndex();
+      index.rebuild(snapshot);
+      engine = new AttentionEngineV1(index);
+      store = new DurableLabStore({ testMode: true });
+      harness = new BenchmarkHarness(engine, index, snapshot);
+    });
+
+    it('AC 1 & AC 10: Historical V1.4 and earlier sessions/runs remain immutable and auditable', () => {
+      store.createSession({ id: 'sess_lab_historical', name: 'Historical' });
+      store.createSession({ id: 'sess_lab_canonical', name: 'Canonical' });
+      store.createSession({ id: 'sess_lab_1789506917393_bdsmd', name: 'Generalization' });
+
+      // Historical blocker run remains invalid baseline
+      store.recordRun('sess_lab_historical', {
+        runId: 'run_1789266756354_inwn',
+        status: 'valid',
+        integrityState: 'AUDITABLE',
+        isValidBenchmarkBaseline: false
+      });
+      // V1.4 verified acceptance baseline
+      store.recordRun('sess_lab_canonical', {
+        runId: 'run_1789506335580_mp1w',
+        status: 'valid',
+        integrityState: 'AUDITABLE',
+        isValidBenchmarkBaseline: true
+      });
+      // V1.4 generalization run
+      store.recordRun('sess_lab_1789506917393_bdsmd', {
+        runId: 'run_1789508078262_umgj',
+        status: 'valid',
+        integrityState: 'AUDITABLE',
+        isValidBenchmarkBaseline: true
+      });
+
+      const inwn = store.getRun('run_1789266756354_inwn');
+      expect(inwn.isValidBenchmarkBaseline).toBe(false);
+
+      const mp1w = store.getRun('run_1789506335580_mp1w');
+      expect(mp1w.isValidBenchmarkBaseline).toBe(true);
+
+      const umgj = store.getRun('run_1789508078262_umgj');
+      expect(umgj.isValidBenchmarkBaseline).toBe(true);
+    });
+
+    it('AC 2 & AC 3: evaluatePredicateEntailment distinguishes subject mention from predicate entailment and assigns explicit evidence roles', () => {
+      const decomp = {
+        question: 'How has my relationship with building Luna changed over the last several months?',
+        category: 'longitudinal_change',
+        subjects: ['building luna', 'luna'],
+        expandedSubjectConcepts: ['development', 'engineering'],
+        relation: 'longitudinal_change'
+      };
+
+      // 1. "Luna Fm" brief note
+      const lunaFmItem = {
+        id: 'loop_luna_fm',
+        sourceType: 'loop',
+        title: 'Luna Fm',
+        content: 'Luna Fm',
+        createdAt: '2026-03-27T10:00:00Z'
+      };
+      const lunaFmRes = evaluatePredicateEntailment(lunaFmItem, decomp, 'personal_lived_experience');
+      expect(lunaFmRes.result.decision).toBe('UNENTAILED');
+      expect(lunaFmRes.role).toBe('CHRONOLOGY');
+      expect(lunaFmRes.result.version).toBe('v1.5');
+      expect(lunaFmRes.result.rationale).toContain('zero reflective or experiential text');
+
+      // 2. DEV engineering ticket
+      const devVoiceItem = {
+        id: 'loop_dev_voice',
+        sourceType: 'loop',
+        title: 'DEV — Voice playback controls: pause / resume / stop',
+        content: 'Implement audio playback controls in mcp-server voice module',
+        createdAt: '2026-04-10T10:00:00Z'
+      };
+      const devRes = evaluatePredicateEntailment(devVoiceItem, decomp, 'development_engineering');
+      expect(devRes.result.decision).toBe('CONTEXT_ONLY');
+      expect(devRes.role).toBe('CHRONOLOGY');
+      expect(devRes.result.rationale).toContain('does not independently entail psychological, identity, or relational shifts');
+
+      // 3. Substantive first-person intention
+      const originItem = {
+        id: 'loop_origin',
+        sourceType: 'loop',
+        title: 'Initial Showcase Intention',
+        content: 'finish main features of app to showcase for full moon and establish creative writing intention',
+        createdAt: '2026-02-27T10:00:00Z'
+      };
+      const originRes = evaluatePredicateEntailment(originItem, decomp, 'personal_lived_experience');
+      expect(originRes.result.decision).toBe('ENTAILED');
+      expect(originRes.role).toBe('SUBSTANTIVE');
+      expect(originRes.result.rationale).toContain('Substantive predicate entailment');
+
+      // 4. Counterevidence / friction
+      const frictionItem = {
+        id: 'echo_friction',
+        sourceType: 'echo',
+        title: 'Launch Friction & Burnout',
+        content: 'Intense project deadlines led to boundary friction, working past midnight, and burnout.',
+        createdAt: '2026-07-20T10:00:00Z'
+      };
+      const frictionRes = evaluatePredicateEntailment(frictionItem, decomp, 'personal_lived_experience');
+      expect(frictionRes.result.decision).toBe('ENTAILED');
+      expect(frictionRes.role).toBe('COUNTEREVIDENCE');
+      expect(frictionRes.result.rationale).toContain('Counterevidence qualification');
+    });
+
+    it('AC 4: Luna Fm cannot independently support branding/naming or relationship-change claims', () => {
+      const scorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        88,
+        10,
+        5,
+        2500,
+        false,
+        true,
+        {
+          question: 'How has my relationship with building Luna changed over the last several months?',
+          verbatimAnswer: 'In March 2026, Luna Fm was recorded, which was likely a naming or branding milestone in the transition from an app to a named entity.',
+          evidenceItems: [{ id: 'loop_luna_fm', title: 'Luna Fm', evidenceRole: 'CHRONOLOGY' }]
+        }
+      );
+
+      // Penalized due to unsupported naming/branding synthesis from Luna Fm
+      expect(scorecard.groundingScore).toBe(63); // 88 - 25
+      expect(scorecard.falseConnectionRisk).toBe(30); // 5 + 25
+      expect(scorecard.claimsTrace).toBeDefined();
+      expect(scorecard.claimsTrace.some(c => c.status === 'UNSUPPORTED_SYNTHESIS')).toBe(true);
+      expect(scorecard.evaluator.rationale).toContain('Predicate entailment violation');
+    });
+
+    it('AC 5: DEV/engineering activity cannot independently establish psychological/philosophical transformation without entailing evidence', () => {
+      const scorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        88,
+        10,
+        5,
+        2500,
+        false,
+        true,
+        {
+          question: 'How has my relationship with building Luna changed over the last several months?',
+          verbatimAnswer: 'Through the implementation of voice playback controls and development service verification, the user became deeply shaped by Luna, transitioning from a builder to a builder + philosopher.',
+          evidenceItems: [{ id: 'loop_dev_voice', title: 'DEV Voice playback controls', evidenceRole: 'CHRONOLOGY' }]
+        }
+      );
+
+      // Penalized due to unsupported psychological transformation claim from engineering tickets
+      expect(scorecard.groundingScore).toBe(63); // 88 - 25
+      expect(scorecard.falseConnectionRisk).toBe(30); // 5 + 25
+      expect(scorecard.claimsTrace).toBeDefined();
+      expect(scorecard.claimsTrace.some(c => c.status === 'UNSUPPORTED_SYNTHESIS')).toBe(true);
+      expect(scorecard.evaluator.rationale).toContain('DEV engineering activity establishes chronology/context, but cannot independently prove psychological');
+    });
+
+    it('AC 6 & AC 7: Evaluator produces claim-to-evidence traces and rewards grounded substantive synthesis', () => {
+      const scorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        88,
+        10,
+        5,
+        2500,
+        false,
+        true,
+        {
+          question: 'How has my relationship with building Luna changed over the last several months?',
+          verbatimAnswer: 'Your earliest record showed a clear task-oriented intention to finish main features for the showcase. Later in the summer, intense deadlines caused friction and burnout before healthy boundary practices were restored.',
+          evidenceItems: [
+            { id: 'loop_origin', title: 'Finish main features', evidenceRole: 'SUBSTANTIVE', coverageRole: 'origin_state' },
+            { id: 'echo_friction', title: 'Launch Friction', evidenceRole: 'COUNTEREVIDENCE', coverageRole: 'breakthrough' }
+          ],
+          evaluatorVersion: '1.5.0'
+        }
+      );
+
+      expect(scorecard.groundingScore).toBe(88); // No penalty
+      expect(scorecard.falseConnectionRisk).toBe(5);
+      expect(scorecard.evaluator.identity).toBe('attention_scorecard_evaluator_v1.5');
+      expect(scorecard.evaluator.version).toBe('1.5.0');
+      expect(scorecard.claimsTrace).toBeDefined();
+      expect(scorecard.claimsTrace.some(c => c.status === 'VERIFIED_SUBSTANTIVE')).toBe(true);
+    });
+
+    it('AC 8 & AC 9: Search/RAG baseline executes top-K relevance retrieval across Field snapshot and persists telemetry', () => {
+      const ragResult = harness.evaluateSearchRagBaseline('How has my relationship with building Luna changed over the last several months?');
+
+      expect(ragResult.baseline).toBe('search_rag_v1');
+      expect(ragResult.displayName).toBe('Search / RAG Baseline (Top-K Relevance)');
+      expect(ragResult.itemsIncludedCount).toBeGreaterThan(0);
+      expect(ragResult.contextTokenCount).toBeGreaterThan(0);
+      expect(ragResult.formattedSnippet).toContain('CONVENTIONAL SEARCH / RAG RETRIEVED CONTEXT');
+      expect(ragResult.searchRagTelemetry).toBeDefined();
+      expect(ragResult.searchRagTelemetry.rankingMethod).toBe('bm25_lexical_similarity_v1');
+      expect(ragResult.searchRagTelemetry.rankingVersion).toBe('v1.5');
+      expect(ragResult.searchRagTelemetry.topK).toBe(ragResult.itemsIncludedCount);
+      expect(ragResult.searchRagTelemetry.evidenceIds.length).toBe(ragResult.itemsIncludedCount);
+
+      // Sentinel control baseline remains accessible
+      const sentinelControl = harness.evaluateControlBaseline('How has my relationship with building Luna changed?');
+      expect(sentinelControl.baseline).toBe('control_canonical');
+    });
+
+    it('AC 11 & AC 14: Read-only guard is strictly enforced and personal Field mutations remain disabled', () => {
+      expect(adapter.assertReadOnly()).toBe(true);
+      const proto = Object.getPrototypeOf(adapter);
+      const methods = Object.getOwnPropertyNames(proto);
+      const mutationKeywords = ['insert', 'update', 'delete', 'upsert', 'write', 'modify', 'drop', 'alter'];
+      for (const m of methods) {
+        for (const bad of mutationKeywords) {
+          expect(m.toLowerCase()).not.toContain(bad);
+        }
+      }
     });
   });
 });
