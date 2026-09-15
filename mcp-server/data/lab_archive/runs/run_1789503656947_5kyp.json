@@ -1,0 +1,27 @@
+{
+  "runId": "run_1789503656947_5kyp",
+  "sessionId": "sess_lab_1789503264712_qq888",
+  "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+  "questionId": "bm_long_01",
+  "category": "longitudinal_change",
+  "timestamp": "2026-09-15T20:20:56.947Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "invalid",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false,
+  "invalidationReason": "Attention Engine V1 returned empty verbatim answer despite positive completion tokens",
+  "baselines": {
+    "control": {
+      "verbatimGeneratedAnswer": "Based strictly on the provided evidence, there is no record or mention of the Sturgeon Moon in relation to evening wind-down rituals.",
+      "groundingScore": 45
+    },
+    "broadContext": {
+      "verbatimGeneratedAnswer": "Based solely on the evidence provided, I can trace a specific thread regarding rest and evening routines.",
+      "groundingScore": 80
+    },
+    "attentionEngineV1": {
+      "verbatimGeneratedAnswer": "",
+      "groundingScore": 0
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "sess_lab_1789503264712_qq888",
+  "name": "Attention V1.4 Regression - Rest & Evening Rituals",
+  "description": "Controlled regression evaluation of Attention Engine V1.4 on bm_long_01 across A/B/C conditions",
+  "hypothesis": "Attention Engine V1.4 solves empty output capture and bounds factual attribution",
+  "status": "created",
+  "createdAt": "2026-09-15T20:00:00.000Z",
+  "updatedAt": "2026-09-15T20:00:00.000Z",
+  "runIds": [
+    "run_1789503267724_8z5x",
+    "run_1789503656947_5kyp",
+    "run_1789504226571_6jni",
+    "run_1789506335580_mp1w"
+  ],
+  "metadata": {
+    "benchmarkId": "bm_long_01",
+    "model": "openrouter-deepseek-v4-flash"
+  }
+}

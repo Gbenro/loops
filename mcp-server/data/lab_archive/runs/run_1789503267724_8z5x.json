@@ -1,0 +1,27 @@
+{
+  "runId": "run_1789503267724_8z5x",
+  "sessionId": "sess_lab_1789503264712_qq888",
+  "question": "How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?",
+  "questionId": "bm_long_01",
+  "category": "longitudinal_change",
+  "timestamp": "2026-09-15T20:14:27.724Z",
+  "model": "openrouter-deepseek-v4-flash",
+  "status": "invalid",
+  "integrityState": "INVALID",
+  "isValidBenchmarkBaseline": false,
+  "invalidationReason": "Broad baseline returned empty verbatim answer despite positive completion tokens",
+  "baselines": {
+    "control": {
+      "verbatimGeneratedAnswer": "Based on the evidence provided, there are no records or references to the Sturgeon Moon or evening rituals.",
+      "groundingScore": 45
+    },
+    "broadContext": {
+      "verbatimGeneratedAnswer": "",
+      "groundingScore": 0
+    },
+    "attentionEngineV1": {
+      "verbatimGeneratedAnswer": "Based on the provided evidence, there are a few indications of how your relationship to rest and rituals shifted.",
+      "groundingScore": 75
+    }
+  }
+}
