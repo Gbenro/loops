@@ -2774,4 +2774,163 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(mechanism).not.toContain('compared to 614 tokens');
     });
   });
+
+  // ─── 25. Order 76: Gate Supersession, Economics Wording, and Evaluator Tracing ──
+
+  describe('25. Gate Supersession, Economics Formatting & Evaluator Traces (iss_1789507094631_55t7)', () => {
+    it('AC 1, AC 2, AC 3, AC 4: verifyGeneralizationGate reports allowed=true with supersession audit trail when qualified acceptance run exists', () => {
+      const store = new DurableLabStore({ testMode: true });
+
+      // Before supersession: bm_long_05 is blocked
+      const initialGate = store.verifyGeneralizationGate('bm_long_05');
+      expect(initialGate.allowed).toBe(false);
+      expect(initialGate.reason).toContain('strictly gated');
+
+      // Verify historical run is immutably false
+      const hist = store.getRun('run_1789266756354_inwn');
+      expect(hist).toBeDefined();
+      expect(hist.isValidBenchmarkBaseline).toBe(false);
+
+      // Record the qualified V1.4 acceptance regression run
+      const acceptanceRun = {
+        runId: 'run_1789506335580_mp1w',
+        sessionId: 'sess_lab_1789503264712_qq888',
+        questionId: 'bm_long_01',
+        question: 'How has my relationship to rest and evening rituals shifted from the Sturgeon Moon to now?',
+        category: 'longitudinal_change',
+        timestamp: '2026-09-15T21:06:00.000Z',
+        model: 'openrouter-deepseek-v4-flash',
+        status: 'valid',
+        integrityState: 'AUDITABLE',
+        isValidBenchmarkBaseline: true,
+        accountingStatus: 'RECONCILED',
+        baselines: {
+          control: { verbatimGeneratedAnswer: 'Based on the evidence provided, there are no records of rest rituals in the Sturgeon Moon.' },
+          broadContext: { verbatimGeneratedAnswer: 'Based on the records, I can trace rest and evening rituals from the Sturgeon Moon to now.' },
+          attentionEngineV1: { verbatimGeneratedAnswer: 'Based strictly on the provided evidence, no evening wind-down rituals were established during the Sturgeon Moon. Evening wind-down was established in late June 2026.' }
+        }
+      };
+
+      store.recordRun('sess_lab_canonical_benchmark', acceptanceRun);
+
+      const supersessionRes = store.recordGateSupersession({ acceptanceRunId: 'run_1789506335580_mp1w' });
+      expect(supersessionRes.success).toBe(true);
+      expect(supersessionRes.supersession).toBeDefined();
+
+      // After supersession: bm_long_05 is allowed!
+      const clearedGate = store.verifyGeneralizationGate('bm_long_05');
+      expect(clearedGate.allowed).toBe(true);
+      expect(clearedGate.reason).toContain('superseded by verified V1.4 acceptance regression run_1789506335580_mp1w');
+      expect(clearedGate.supersededBy).toBeDefined();
+      expect(clearedGate.supersededBy.gate).toBe('pre_generalization_sturgeon_rest');
+      expect(clearedGate.supersededBy.gateVersion).toBe('v1.4');
+      expect(clearedGate.supersededBy.blockedRunId).toBe('run_1789266756354_inwn');
+      expect(clearedGate.supersededBy.acceptanceRunId).toBe('run_1789506335580_mp1w');
+      expect(clearedGate.supersededBy.auditTrail.length).toBeGreaterThan(2);
+
+      // Verify historical run remained unchanged
+      const histAfter = store.getRun('run_1789266756354_inwn');
+      expect(histAfter.isValidBenchmarkBaseline).toBe(false);
+    });
+
+    it('AC 5: computeComparativeEconomics formats signed cost delta properly without double negatives (--55%)', () => {
+      // Mock condition where Attention is more expensive (cost increase)
+      const mockControl = {
+        groundingScore: 35,
+        falseConnectionRisk: 10,
+        missedEvidenceRisk: 60,
+        cost: { totalCost: 0.000045 },
+        tokenUsage: { retrievedContextTokens: 200, totalBillableTokens: 329 },
+        latencyMs: 1200
+      };
+      const mockBroad = {
+        groundingScore: 68,
+        falseConnectionRisk: 15,
+        missedEvidenceRisk: 30,
+        cost: { totalCost: 0.000141 },
+        tokenUsage: { retrievedContextTokens: 4800, totalBillableTokens: 5521 },
+        latencyMs: 1800
+      };
+      const mockAttn = {
+        groundingScore: 73,
+        falseConnectionRisk: 5,
+        missedEvidenceRisk: 25,
+        cost: { totalCost: 0.000219 },
+        tokenUsage: { retrievedContextTokens: 1400, totalBillableTokens: 2393 },
+        latencyMs: 2100
+      };
+
+      const summary = computeComparativeEconomics(mockControl, mockBroad, mockAttn, 0.010);
+      expect(summary.compactSummaryMarkdown).not.toContain('--55%');
+      expect(summary.compactSummaryMarkdown).not.toMatch(/--\d+%/);
+      expect(summary.compactSummaryMarkdown).toContain('+55%'); // cost increase rendered with positive sign
+
+      // Mock condition where Attention is cheaper (cost reduction)
+      const mockAttnCheaper = {
+        ...mockAttn,
+        cost: { totalCost: 0.000070 } // 50% cheaper than Broad ($0.000141)
+      };
+      const summaryCheaper = computeComparativeEconomics(mockControl, mockBroad, mockAttnCheaper, 0.010);
+      expect(summaryCheaper.compactSummaryMarkdown).not.toContain('--50%');
+      expect(summaryCheaper.compactSummaryMarkdown).not.toMatch(/--\d+%/);
+      expect(summaryCheaper.compactSummaryMarkdown).toContain('-50%'); // cost reduction rendered with negative sign
+    });
+
+    it('AC 6: computeFactualEconomicsAttribution compares completion volume directionally and numerically correctly', () => {
+      // Attention completion (285) is LOWER than Broad (507)
+      const mockBroad = {
+        cost: { totalCost: 0.000141 },
+        tokenUsage: {
+          totalBillableTokens: 5521,
+          billablePromptTokens: 5014,
+          cachedTokens: 5014,
+          billableCompletionTokens: 507,
+          retrievedContextTokens: 4800
+        }
+      };
+      const mockAttn = {
+        cost: { totalCost: 0.000219 },
+        tokenUsage: {
+          totalBillableTokens: 2393,
+          billablePromptTokens: 2108,
+          cachedTokens: 0,
+          billableCompletionTokens: 285,
+          retrievedContextTokens: 1400
+        }
+      };
+
+      const attribution = computeFactualEconomicsAttribution('run_direction_test', mockBroad, mockAttn);
+      expect(attribution.factualSummary).toContain('Lower completion volume (285 vs 507 tokens)');
+      expect(attribution.factualSummary).not.toContain('Higher completion volume (285 vs 507');
+      expect(attribution.rootCauses.completionTokenVolume.mechanism).toContain('saving 222 completion tokens');
+    });
+
+    it('AC 8: computeConditionScorecard populates evidenceReferences and claim-level evaluation traces', () => {
+      const scorecard = computeConditionScorecard(
+        'attention_engine_v1',
+        75,
+        20,
+        5,
+        2500,
+        false,
+        true,
+        {
+          verbatimAnswer: 'Based on authentic records, evening wind-down rituals were established in late June 2026.',
+          question: 'How has my relationship to rest shifted?',
+          evidenceItems: [
+            { id: 'loop_evening_winddown_01', title: 'Evening Digital Wind-Down Ritual', cycleNumber: 6, coverageRole: 'breakthrough' },
+            { id: 'echo_grounding_01', title: 'Sturgeon Moon Intention Echo', cycleNumber: 5, coverageRole: 'origin' }
+          ]
+        }
+      );
+
+      expect(scorecard.evaluator.evidenceReferences).toBeDefined();
+      expect(scorecard.evaluator.evidenceReferences.length).toBeGreaterThan(4);
+      expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('loop_evening_winddown_01'))).toBe(true);
+      expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:grounding'))).toBe(true);
+      expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:false_connection'))).toBe(true);
+      expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:recall'))).toBe(true);
+      expect(scorecard.evaluator.evidenceReferences.some(r => r.includes('claim_trace:usefulness'))).toBe(true);
+    });
+  });
 });

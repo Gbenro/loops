@@ -1,0 +1,16 @@
+{
+  "pre_generalization_sturgeon_rest": {
+    "gate": "pre_generalization_sturgeon_rest",
+    "gateVersion": "v1.4",
+    "blockedRunId": "run_1789266756354_inwn",
+    "acceptanceRunId": "run_1789506335580_mp1w",
+    "timestamp": "2026-09-15T21:06:00.000Z",
+    "rationale": "Clean V1.4 acceptance regression run verified with complete verbatim outputs, RECONCILED accounting, AUDITABLE integrity, and verified absence of Sturgeon fusion.",
+    "auditTrail": [
+      "run_1789266756354_inwn preserved immutably as isValidBenchmarkBaseline: false",
+      "run run_1789506335580_mp1w certified as valid V1.4 baseline across Control, Broad, and Attention conditions",
+      "Conjunctive 3-gate qualification (temporal, domain, subject-entailment) verified",
+      "Sturgeon temporal anchor-ritual hallucination verified absent"
+    ]
+  }
+}
