@@ -1014,8 +1014,11 @@ export function determineRunIntegrityState(run: ComparisonRun): 'AUDITABLE' | 'A
   }
   const hasAnswers = Boolean(
     run.baselines.control.verbatimGeneratedAnswer &&
+    run.baselines.control.verbatimGeneratedAnswer.trim() &&
     run.baselines.broadContext.verbatimGeneratedAnswer &&
-    run.baselines.attentionEngineV1.verbatimGeneratedAnswer
+    run.baselines.broadContext.verbatimGeneratedAnswer.trim() &&
+    run.baselines.attentionEngineV1.verbatimGeneratedAnswer &&
+    run.baselines.attentionEngineV1.verbatimGeneratedAnswer.trim()
   );
   if (!hasAnswers) return 'INVALID';
   return 'AUDITABLE';
@@ -3715,7 +3718,7 @@ export async function executeConditionCompletion(params: {
     cost?: number | null;
   } | null;
 }> {
-  const { condition, question, evidenceContext, modelConfig, requestedModelKey, temperature = 0.2, maxTokens = 1000 } = params;
+  const { condition, question, evidenceContext, modelConfig, requestedModelKey, temperature = 0.2, maxTokens = 2500 } = params;
 
   const systemPrompt = `You are Luna. Ground your reflection strictly in the provided evidence. If evidence is absent or insufficient, explicitly acknowledge the uncertainty and absence of records rather than inferring unstated facts. Answer the user's inquiry based only on the evidence presented below.\n\nEvidence Context:\n${evidenceContext}`;
   const userPrompt = question;
@@ -3751,8 +3754,37 @@ export async function executeConditionCompletion(params: {
       }
 
       const data: any = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
+      const choice = data.choices?.[0];
+      let parsedContent = (choice?.message?.content || choice?.text || '').trim();
+      if (!parsedContent && choice?.message?.reasoning_content) {
+        parsedContent = choice.message.reasoning_content.trim();
+      }
       const usage = data.usage || null;
+      const completionTokens = usage?.completion_tokens || 0;
+      const finishReason = choice?.finish_reason || 'unknown';
+
+      if (!parsedContent) {
+        return {
+          requestedModel: requestedModelKey,
+          actualModel: 'FAILED',
+          provider: 'openrouter',
+          providerModelId: modelConfig.modelId,
+          parameters: { temperature, maxTokens },
+          fallbackReason: `OpenRouter provider returned empty verbatim answer despite completion_tokens=${completionTokens} (finish_reason: ${finishReason})`,
+          verbatimAnswer: '',
+          rawPromptSent,
+          latencyMs: Date.now() - t0,
+          success: false,
+          usage: usage ? {
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: usage.completion_tokens,
+            total_tokens: usage.total_tokens,
+            cached_tokens: usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0,
+            cost: usage.cost || usage.total_cost || null
+          } : null
+        };
+      }
+
       return {
         requestedModel: requestedModelKey,
         actualModel: modelConfig.key,
@@ -3760,7 +3792,7 @@ export async function executeConditionCompletion(params: {
         providerModelId: modelConfig.modelId,
         parameters: { temperature, maxTokens },
         fallbackReason: null,
-        verbatimAnswer: content,
+        verbatimAnswer: parsedContent,
         rawPromptSent,
         latencyMs: Date.now() - t0,
         success: true,
@@ -3791,6 +3823,20 @@ export async function executeConditionCompletion(params: {
 
   // Deterministic verified simulator for test suites / offline execution
   const verbatim = generateDeterministicVerbatimAnswer(condition, question, evidenceContext, modelConfig.key);
+  if (!verbatim || !verbatim.trim()) {
+    return {
+      requestedModel: requestedModelKey,
+      actualModel: 'FAILED',
+      provider: 'simulator',
+      providerModelId: `simulated/${modelConfig.modelId}`,
+      parameters: { temperature, maxTokens },
+      fallbackReason: `Simulator failed to produce non-empty verbatim answer for condition '${condition}'`,
+      verbatimAnswer: '',
+      rawPromptSent,
+      latencyMs: Date.now() - t0,
+      success: false
+    };
+  }
   const simPromptTokens = Math.round(rawPromptSent.split(/\s+/).filter(Boolean).length * 1.3);
   const simCompTokens = Math.round(verbatim.split(/\s+/).filter(Boolean).length * 1.3);
   return {
@@ -4132,9 +4178,13 @@ export class BenchmarkHarness {
       question,
       evidenceContext: controlResult.formattedSnippet,
       modelConfig,
-      requestedModelKey
+      requestedModelKey,
+      maxTokens: 2500
     });
     const modelMsA = Date.now() - t0_model;
+    if (!resA.success || !resA.verbatimAnswer || !resA.verbatimAnswer.trim()) {
+      throw new Error(`Output capture failure for Condition A (control): ${resA.fallbackReason || 'Verbatim generated answer was empty or missing'}`);
+    }
     controlResult.requestedModel = resA.requestedModel;
     controlResult.actualModel = resA.actualModel;
     controlResult.provider = resA.provider;
@@ -4210,9 +4260,13 @@ export class BenchmarkHarness {
       question,
       evidenceContext: broadResult.formattedSnippet,
       modelConfig,
-      requestedModelKey
+      requestedModelKey,
+      maxTokens: 2500
     });
     const modelMsB = Date.now() - t1_model;
+    if (!resB.success || !resB.verbatimAnswer || !resB.verbatimAnswer.trim()) {
+      throw new Error(`Output capture failure for Condition B (broad_context): ${resB.fallbackReason || 'Verbatim generated answer was empty or missing'}`);
+    }
     broadResult.requestedModel = resB.requestedModel;
     broadResult.actualModel = resB.actualModel;
     broadResult.provider = resB.provider;
@@ -4290,9 +4344,13 @@ export class BenchmarkHarness {
       question,
       evidenceContext: contextPacket.formattedPromptContext,
       modelConfig,
-      requestedModelKey
+      requestedModelKey,
+      maxTokens: 2500
     });
     const modelMsC = Date.now() - t2_model;
+    if (!resC.success || !resC.verbatimAnswer || !resC.verbatimAnswer.trim()) {
+      throw new Error(`Output capture failure for Condition C (attention_engine_v1): ${resC.fallbackReason || 'Verbatim generated answer was empty or missing'}`);
+    }
     attentionV1Result.requestedModel = resC.requestedModel;
     attentionV1Result.actualModel = resC.actualModel;
     attentionV1Result.provider = resC.provider;
@@ -4360,7 +4418,11 @@ export class BenchmarkHarness {
                           (resB.actualModel === resB.requestedModel) &&
                           (resC.actualModel === resC.requestedModel) &&
                           resA.success && resB.success && resC.success;
-    const hasAllVerbatimAnswers = Boolean(resA.verbatimAnswer && resB.verbatimAnswer && resC.verbatimAnswer);
+    const hasAllVerbatimAnswers = Boolean(
+      resA.verbatimAnswer && resA.verbatimAnswer.trim() &&
+      resB.verbatimAnswer && resB.verbatimAnswer.trim() &&
+      resC.verbatimAnswer && resC.verbatimAnswer.trim()
+    );
     const snapshotHashConsistent = Boolean(snapshotHash && snapshotHash.length === 64);
     const runStatus: 'valid' | 'invalid' = (modelEnforced && hasAllVerbatimAnswers && snapshotHashConsistent) ? 'valid' : 'invalid';
 
@@ -4446,6 +4508,8 @@ export class BenchmarkHarness {
       timestamp: new Date().toISOString(),
       model: modelConfig.key,
       status: runStatus,
+      integrityState: (runStatus === 'valid' ? 'AUDITABLE' : 'INVALID'),
+      isValidBenchmarkBaseline: (runStatus === 'valid'),
       accountingStatus,
       reconciliation,
       factualAttribution,
@@ -4912,14 +4976,14 @@ export function computeFactualEconomicsAttribution(
 
   const broadCached = broad.tokenUsage?.cachedTokens || 5149;
   const broadPromptTotal = broad.tokenUsage?.billablePromptTokens || 5420;
-  const broadCacheHitPct = broadPromptTotal > 0 ? Number(((broadCached / broadPromptTotal) * 100).toFixed(1)) : 95.0;
+  const broadCacheHitPct = broadPromptTotal > 0 ? Math.min(100.0, Math.max(0.0, Number(((broadCached / broadPromptTotal) * 100).toFixed(1)))) : 95.0;
   const broadPromptCost = Number((((broadPromptTotal - broadCached) * 0.14 + broadCached * 0.014) / 1_000_000).toFixed(6));
   const broadEffectivePromptRate = broadPromptTotal > 0 ? Number(((broadPromptCost / broadPromptTotal) * 1_000_000).toFixed(4)) : 0.0207;
   const broadCacheSavings = Number((((broadCached * (0.14 - 0.014)) / 1_000_000)).toFixed(6));
 
   const attnCached = attention.tokenUsage?.cachedTokens || 0;
   const attnPromptTotal = attention.tokenUsage?.billablePromptTokens || 1444;
-  const attnCacheHitPct = attnPromptTotal > 0 ? Number(((attnCached / attnPromptTotal) * 100).toFixed(1)) : 0.0;
+  const attnCacheHitPct = attnPromptTotal > 0 ? Math.min(100.0, Math.max(0.0, Number(((attnCached / attnPromptTotal) * 100).toFixed(1)))) : 0.0;
   const attnPromptCost = Number((((attnPromptTotal - attnCached) * 0.14 + attnCached * 0.014) / 1_000_000).toFixed(6));
   const attnEffectivePromptRate = attnPromptTotal > 0 ? Number(((attnPromptCost / attnPromptTotal) * 1_000_000).toFixed(4)) : 0.1400;
 
@@ -4948,14 +5012,14 @@ export function computeFactualEconomicsAttribution(
         attentionCacheHitPct: attnCacheHitPct,
         attentionEffectivePromptRatePerMillion: attnEffectivePromptRate,
         attentionPromptCost: attnPromptCost,
-        mechanism: 'Broad baseline shared identical prefix tokens with prior runs yielding a 95.0% prompt cache hit ($0.014/M rate), whereas Attention Engine synthesized dynamic multi-channel context with 0% cache hit ($0.14/M rate), producing a 10x prompt rate disparity.'
+        mechanism: `Broad baseline shared identical prefix tokens with prior runs yielding a ${broadCacheHitPct}% prompt cache hit ($0.014/M rate), whereas Attention Engine synthesized dynamic multi-channel context with ${attnCacheHitPct}% cache hit ($0.14/M rate), producing a prompt rate disparity.`
       },
       completionTokenVolume: {
         broadCompletionTokens: broadCompletion,
         broadCompletionCost,
         attentionCompletionTokens: attnCompletion,
         attentionCompletionCost: attnCompletionCost,
-        mechanism: 'Attention Engine generated extensive structured longitudinal analysis with counterevidence and synthesis hitting the 1,000 completion token ceiling ($0.000280), compared to 614 tokens ($0.000172) for the broad baseline.'
+        mechanism: `Attention Engine generated structured longitudinal analysis with counterevidence hitting ${attnCompletion} completion tokens ($${attnCompletionCost.toFixed(6)}), compared to ${broadCompletion} tokens ($${broadCompletionCost.toFixed(6)}) for the broad baseline.`
       },
       stageCostDistribution: {
         preGenerationCostDollars: 0,

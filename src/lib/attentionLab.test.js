@@ -36,7 +36,8 @@ import {
   buildRunAuditBundle,
   BENCHMARK_CASE_BUILDING_LUNA,
   computeFactualEconomicsAttribution,
-  generateEconomicsOptimizationProposal
+  generateEconomicsOptimizationProposal,
+  determineRunIntegrityState
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -719,7 +720,7 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
         expect(baseline.provider).toBeDefined();
         expect(baseline.providerModelId).toBeDefined();
         expect(baseline.parameters.temperature).toBe(0.2);
-        expect(baseline.parameters.maxTokens).toBe(1000);
+        expect(baseline.parameters.maxTokens).toBe(2500);
         expect(baseline.fallbackReason).toBeNull();
       }
     });
@@ -2581,6 +2582,196 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(readOnlyAdapter.deleteLoop).toBeUndefined();
       expect(readOnlyAdapter.insertEcho).toBeUndefined();
       expect(readOnlyAdapter.writeRecord).toBeUndefined();
+    });
+  });
+
+  // ─── 24. Order 75: Verbatim Output Capture, Atomicity, and Bounded Economics ─
+
+  describe('24. Output Capture Atomicity & Bounded Attribution (iss_1789504465826_woxk)', () => {
+    it('AC 1 & AC 2: executeConditionCompletion fails when parsing yields empty content despite positive completion tokens', async () => {
+      const origFetch = global.fetch;
+      try {
+        global.fetch = async () => ({
+          ok: true,
+          json: async () => ({
+            choices: [{
+              finish_reason: 'length',
+              message: { content: '', role: 'assistant' }
+            }],
+            usage: {
+              prompt_tokens: 1500,
+              completion_tokens: 1000,
+              total_tokens: 2500
+            }
+          })
+        });
+
+        process.env.OPENROUTER_API_KEY = 'test-key-mock';
+        const modelConfig = {
+          key: 'openrouter-deepseek-v4-flash',
+          modelId: 'deepseek/deepseek-chat',
+          accessProvider: 'openrouter'
+        };
+
+        const result = await executeConditionCompletion({
+          condition: 'broad_context',
+          question: 'Test question',
+          evidenceContext: 'Sample evidence',
+          modelConfig,
+          requestedModelKey: 'openrouter-deepseek-v4-flash'
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.actualModel).toBe('FAILED');
+        expect(result.verbatimAnswer).toBe('');
+        expect(result.fallbackReason).toContain('empty verbatim answer despite completion_tokens=1000');
+      } finally {
+        global.fetch = origFetch;
+        delete process.env.OPENROUTER_API_KEY;
+      }
+    });
+
+    it('AC 3: BenchmarkHarness.compareQuestion throws and prevents partial artifacts from advancing to scorecard evaluation when capture is empty', async () => {
+      const origFetch = global.fetch;
+      try {
+        global.fetch = async () => ({
+          ok: true,
+          json: async () => ({
+            choices: [{
+              finish_reason: 'length',
+              message: { content: '', role: 'assistant' }
+            }],
+            usage: {
+              prompt_tokens: 1000,
+              completion_tokens: 1000,
+              total_tokens: 2000
+            }
+          })
+        });
+
+        process.env.OPENROUTER_API_KEY = 'test-key-mock';
+        const harness = new BenchmarkHarness(engine, index, snapshot);
+        await expect(
+          harness.compareQuestion('How has my relationship to rest shifted?', {
+            model: 'openrouter-deepseek-v4-flash'
+          })
+        ).rejects.toThrow(/Output capture failure for Condition/);
+      } finally {
+        global.fetch = origFetch;
+        delete process.env.OPENROUTER_API_KEY;
+      }
+    });
+
+    it('AC 4: All three conditions (A/B/C) retain complete verbatimGeneratedAnswer strings in session runs', async () => {
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const comparison = await harness.compareQuestion('How has my relationship to rest shifted?', {
+        model: 'openrouter-deepseek-v4-flash'
+      });
+
+      expect(comparison.status).toBe('valid');
+      expect(comparison.integrityState).toBe('AUDITABLE');
+      expect(comparison.isValidBenchmarkBaseline).toBe(true);
+
+      const aAns = comparison.baselines.control.verbatimGeneratedAnswer;
+      const bAns = comparison.baselines.broadContext.verbatimGeneratedAnswer;
+      const cAns = comparison.baselines.attentionEngineV1.verbatimGeneratedAnswer;
+
+      expect(typeof aAns).toBe('string');
+      expect(aAns.trim().length).toBeGreaterThan(20);
+      expect(typeof bAns).toBe('string');
+      expect(bAns.trim().length).toBeGreaterThan(20);
+      expect(typeof cAns).toBe('string');
+      expect(cAns.trim().length).toBeGreaterThan(20);
+    });
+
+    it('AC 5: determineRunIntegrityState marks runs with empty or whitespace verbatim answer as INVALID', () => {
+      const validRun = {
+        runId: 'run_test_valid',
+        baselines: {
+          control: { verbatimGeneratedAnswer: 'Grounded control answer' },
+          broadContext: { verbatimGeneratedAnswer: 'Grounded broad answer' },
+          attentionEngineV1: { verbatimGeneratedAnswer: 'Grounded attention answer' }
+        }
+      };
+      expect(determineRunIntegrityState(validRun)).toBe('AUDITABLE');
+
+      const emptyBroadRun = {
+        runId: 'run_test_invalid_broad',
+        baselines: {
+          control: { verbatimGeneratedAnswer: 'Grounded control answer' },
+          broadContext: { verbatimGeneratedAnswer: '' },
+          attentionEngineV1: { verbatimGeneratedAnswer: 'Grounded attention answer' }
+        }
+      };
+      expect(determineRunIntegrityState(emptyBroadRun)).toBe('INVALID');
+
+      const whitespaceAttnRun = {
+        runId: 'run_test_invalid_attn',
+        baselines: {
+          control: { verbatimGeneratedAnswer: 'Grounded control answer' },
+          broadContext: { verbatimGeneratedAnswer: 'Grounded broad answer' },
+          attentionEngineV1: { verbatimGeneratedAnswer: '   \n  ' }
+        }
+      };
+      expect(determineRunIntegrityState(whitespaceAttnRun)).toBe('INVALID');
+    });
+
+    it('AC 6: In factualAttribution, cache hit percentage calculation is mathematically bounded <= 100%', () => {
+      const mockBroad = {
+        cost: { totalCost: 0.000100 },
+        tokenUsage: {
+          totalBillableTokens: 5200,
+          billablePromptTokens: 5000,
+          cachedTokens: 5500, // cached exceeds prompt total due to upstream breakdown discrepancy
+          billableCompletionTokens: 200,
+          retrievedContextTokens: 4800
+        }
+      };
+      const mockAttn = {
+        cost: { totalCost: 0.000400 },
+        tokenUsage: {
+          totalBillableTokens: 2500,
+          billablePromptTokens: 1500,
+          cachedTokens: 0,
+          billableCompletionTokens: 1000,
+          retrievedContextTokens: 1400
+        }
+      };
+
+      const attribution = computeFactualEconomicsAttribution('run_test_bounds', mockBroad, mockAttn);
+      expect(attribution.rootCauses.promptCacheAsymmetry.broadCacheHitPct).toBe(100.0);
+      expect(attribution.rootCauses.promptCacheAsymmetry.broadCacheHitPct).toBeLessThanOrEqual(100.0);
+      expect(attribution.rootCauses.promptCacheAsymmetry.attentionCacheHitPct).toBe(0.0);
+    });
+
+    it('AC 7: In factualAttribution.rootCauses.completionTokenVolume.mechanism, token counts are dynamic', () => {
+      const mockBroad = {
+        cost: { totalCost: 0.000100 },
+        tokenUsage: {
+          totalBillableTokens: 5200,
+          billablePromptTokens: 5000,
+          cachedTokens: 4000,
+          billableCompletionTokens: 345,
+          retrievedContextTokens: 4800
+        }
+      };
+      const mockAttn = {
+        cost: { totalCost: 0.000400 },
+        tokenUsage: {
+          totalBillableTokens: 2500,
+          billablePromptTokens: 1500,
+          cachedTokens: 0,
+          billableCompletionTokens: 876,
+          retrievedContextTokens: 1400
+        }
+      };
+
+      const attribution = computeFactualEconomicsAttribution('run_test_dynamic', mockBroad, mockAttn);
+      const mechanism = attribution.rootCauses.completionTokenVolume.mechanism;
+      expect(mechanism).toContain('876 completion tokens');
+      expect(mechanism).toContain('345 tokens');
+      expect(mechanism).not.toContain('hitting the 1,000 completion token ceiling');
+      expect(mechanism).not.toContain('compared to 614 tokens');
     });
   });
 });
