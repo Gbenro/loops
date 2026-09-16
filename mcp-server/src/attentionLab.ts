@@ -5072,6 +5072,24 @@ export function computeComparativeEconomics(
   };
 }
 
+// ─── Attention Token Budget Controls (Order 82/83 iss_1789576840753_bb8p) ────
+export const SUPPORTED_TOKEN_BUDGETS = [3000, 6000, 12000, 24000, 48000] as const;
+export type SupportedTokenBudget = typeof SUPPORTED_TOKEN_BUDGETS[number];
+
+export function validateAttentionTokenBudget(tokenBudget: unknown): { valid: boolean; budget?: number; error?: string } {
+  if (tokenBudget === undefined || tokenBudget === null) {
+    return { valid: true, budget: undefined };
+  }
+  const tb = typeof tokenBudget === 'number' ? tokenBudget : Number(tokenBudget);
+  if (!Number.isInteger(tb) || !(SUPPORTED_TOKEN_BUDGETS as readonly number[]).includes(tb)) {
+    return {
+      valid: false,
+      error: `Invalid tokenBudget: '${tokenBudget}'. Supported controlled values are: 3000, 6000, 12000, 24000, 48000.`
+    };
+  }
+  return { valid: true, budget: tb };
+}
+
 export class BenchmarkHarness {
   private engine: AttentionEngineV1;
   private index: AttentionIndex;
@@ -5414,8 +5432,12 @@ export class BenchmarkHarness {
     broadResult.costAttribution = computeConditionCostAttribution('broad_context', broadResult, modelConfig.key);
 
     // 5. Condition C: Attention Engine V1 (Adaptive Budget Ceiling Parameterized)
+    const budgetValidation = validateAttentionTokenBudget(options.tokenBudget);
+    if (!budgetValidation.valid) {
+      throw new Error(budgetValidation.error);
+    }
     const t2_plan = Date.now();
-    const budgetRequested = options.tokenBudget !== undefined ? Math.round(options.tokenBudget) : 3000;
+    const budgetRequested = budgetValidation.budget !== undefined ? budgetValidation.budget : 3000;
     const budgetEffective = budgetRequested;
     const { plan, contextPacket } = await this.engine.planAndAssemble(question, { tokenBudget: budgetEffective });
     const planningMsC = Date.now() - t2_plan;
@@ -8291,15 +8313,11 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       }
 
       const { tokenBudget } = req.body || {};
-      let validatedBudget: number | undefined = undefined;
-      if (tokenBudget !== undefined && tokenBudget !== null) {
-        if (typeof tokenBudget !== 'number' || isNaN(tokenBudget) || tokenBudget <= 0) {
-          return res.status(400).json({
-            error: `Invalid tokenBudget: '${tokenBudget}'. Must be a positive integer ceiling (e.g. 3000, 6000, 12000, 24000, 48000).`
-          });
-        }
-        validatedBudget = Math.round(tokenBudget);
+      const budgetValidation = validateAttentionTokenBudget(tokenBudget);
+      if (!budgetValidation.valid) {
+        return res.status(400).json({ error: budgetValidation.error });
       }
+      const validatedBudget = budgetValidation.budget;
 
       let effectiveQuestion = question;
       let bCase: BenchmarkCase | undefined;

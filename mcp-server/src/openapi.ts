@@ -2971,7 +2971,7 @@ export const LUNA_LAB_OPENAPI_SPEC = {
   info: {
     title: "Lunar Lab GPT Attention & Retrieval Actions API",
     description: "Authenticated experimental interface for Lunar Lab GPT to drive, inspect, and evaluate Attention Engine V1 benchmarks, plans, context packets, and longitudinal runs.",
-    version: "1.0.0"
+    version: "1.1.0"
   },
   servers: [
     {
@@ -3376,9 +3376,14 @@ export const LUNA_LAB_OPENAPI_SPEC = {
               schema: {
                 type: "object",
                 properties: {
-                  question: { type: "string" },
-                  benchmarkId: { type: "string" },
-                  model: { type: "string" }
+                  question: { type: "string", description: "Question text to evaluate." },
+                  benchmarkId: { type: "string", description: "Optional canonical benchmark case ID (e.g. bm_curr_01)." },
+                  model: { type: "string", description: "Optional model identifier." },
+                  tokenBudget: {
+                    type: "integer",
+                    description: "Optional explicit Attention token budget ceiling (supported controlled values: 3000, 6000, 12000, 24000, 48000). Omitting preserves default 3000 budget.",
+                    enum: [3000, 6000, 12000, 24000, 48000]
+                  }
                 }
               }
             }
@@ -3394,7 +3399,12 @@ export const LUNA_LAB_OPENAPI_SPEC = {
                   properties: {
                     runId: { type: "string" },
                     sessionId: { type: "string" },
-                    baselines: { type: "object" }
+                    baselines: { type: "object" },
+                    budgetRequested: { type: "integer" },
+                    budgetEffective: { type: "integer" },
+                    budgetUtilization: { type: "number" },
+                    packetTokensUsed: { type: "integer" },
+                    manifestRecall: { type: "object" }
                   },
                   required: ["runId", "sessionId", "baselines"]
                 }

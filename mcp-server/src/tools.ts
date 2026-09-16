@@ -6,7 +6,9 @@ import {
   globalFieldAdapter,
   CANONICAL_BENCHMARK_CASES,
   BenchmarkHarness,
-  toLightweightComparisonRun
+  toLightweightComparisonRun,
+  validateAttentionTokenBudget,
+  SUPPORTED_TOKEN_BUDGETS
 } from './attentionLab.js';
 import { getLunarData } from './lunar.js';
 import {
@@ -913,14 +915,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'lunar_lab_attention_run_comparison',
-    description: 'Attention Lab V1: Execute a 3-way comparative evaluation holding Field evidence and question constant: (A) Control, (B) Broad Baseline, (C) Attention Engine V1.',
+    description: 'Attention Lab V1: Execute a 3-way comparative evaluation holding Field evidence and question constant: (A) Control, (B) Broad Baseline, (C) Attention Engine V1. Accepts optional explicit tokenBudget integer (3000, 6000, 12000, 24000, 48000).',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: { type: 'string', description: 'Durable experiment session ID.' },
         question: { type: 'string', description: 'Question text to evaluate.' },
         benchmarkId: { type: 'string', description: 'Optional canonical benchmark case ID (e.g. bm_curr_01, bm_long_01).' },
-        model: { type: 'string', description: 'Optional model identifier (default: openrouter-anthropic-sonnet-5).' }
+        model: { type: 'string', description: 'Optional model identifier (default: openrouter-anthropic-sonnet-5).' },
+        tokenBudget: {
+          type: 'integer',
+          description: 'Optional explicit Attention token budget ceiling (supported controlled values: 3000, 6000, 12000, 24000, 48000). Omitting preserves default 3000 budget.',
+          enum: [3000, 6000, 12000, 24000, 48000]
+        }
       },
       required: ['sessionId']
     }
@@ -3073,12 +3080,22 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
       if (!q) throw new Error("Either 'question' or 'benchmarkId' is required.");
 
+      const budgetValidation = validateAttentionTokenBudget(args.tokenBudget);
+      if (!budgetValidation.valid) {
+        throw new Error(budgetValidation.error);
+      }
+      const tokenBudget = budgetValidation.budget;
+
       const snap = await globalFieldAdapter.captureSnapshot();
       if (globalAttentionIndex.totalIndexedNodes === 0) {
         globalAttentionIndex.rebuild(snap);
       }
       const harness = new BenchmarkHarness(globalAttentionEngine, globalAttentionIndex, snap);
-      const comparison = await harness.compareQuestion(q, { benchmarkCase: bCase, model: args.model });
+      const comparison = await harness.compareQuestion(q, {
+        benchmarkCase: bCase,
+        model: args.model,
+        tokenBudget
+      });
       comparison.sessionId = sess.id;
       globalLabStore.recordRun(sess.id, comparison);
       return { content: [{ type: 'text', text: JSON.stringify(comparison, null, 2) }] };

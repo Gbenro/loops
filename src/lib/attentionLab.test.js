@@ -42,10 +42,13 @@ import {
   CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS,
   CANONICAL_MANIFEST_FIXTURE_ITEMS,
   verifyProductionEvidenceManifest,
-  executeAdaptiveBudgetSweep
+  executeAdaptiveBudgetSweep,
+  SUPPORTED_TOKEN_BUDGETS,
+  validateAttentionTokenBudget
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
+import { TOOL_DEFINITIONS } from '../../mcp-server/src/tools.ts';
 
 describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_1789200638196_mhry)', () => {
   let adapter;
@@ -3795,6 +3798,100 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       const v1Result = run.baselines.attentionEngineV1;
       expect(v1Result.manifestRecall).toBeDefined();
       expect(v1Result.missedEvidenceRisk).toBeGreaterThan(50); // Since only a fraction of 37 fits in 3K budget
+    });
+  });
+
+
+  // ─── Suite 30: Order 83 Refresh LUNA Lab GPT Tool Schema for Explicit Attention tokenBudget (iss_1789576840753_bb8p) ───
+  describe('Suite 30: Order 83 Refresh LUNA Lab GPT Tool Schema for Explicit Attention tokenBudget (iss_1789576840753_bb8p)', () => {
+    it('AC 1, 5: LUNA_LAB_OPENAPI_SPEC exposes version 1.1.0 and optional tokenBudget with controlled enum in run_session_comparison', () => {
+      expect(LUNA_LAB_OPENAPI_SPEC.info.version).toBe('1.1.0');
+
+      const runOp = LUNA_LAB_OPENAPI_SPEC.paths['/api/dev/lab/attention/sessions/{id}/run'].post;
+      expect(runOp).toBeDefined();
+      expect(runOp.operationId).toBe('run_session_comparison');
+
+      const bodySchema = runOp.requestBody.content['application/json'].schema;
+      expect(bodySchema.properties).toHaveProperty('tokenBudget');
+
+      const tbProp = bodySchema.properties.tokenBudget;
+      expect(tbProp.type).toBe('integer');
+      expect(tbProp.enum).toEqual([3000, 6000, 12000, 24000, 48000]);
+      expect(tbProp.description).toContain('3000, 6000, 12000, 24000, 48000');
+      expect(tbProp.description).toContain('Omitting preserves default 3000 budget');
+
+      // Backward compatibility: tokenBudget is not required
+      expect(bodySchema.required).toBeUndefined();
+
+      // Responses include telemetry properties
+      const resp200 = runOp.responses['200'].content['application/json'].schema.properties;
+      expect(resp200).toHaveProperty('budgetRequested');
+      expect(resp200).toHaveProperty('budgetEffective');
+      expect(resp200).toHaveProperty('budgetUtilization');
+      expect(resp200).toHaveProperty('packetTokensUsed');
+      expect(resp200).toHaveProperty('manifestRecall');
+    });
+
+    it('AC 1: lunar_lab_attention_run_comparison MCP tool exposes tokenBudget in inputSchema with identical constraints', () => {
+      const tool = TOOL_DEFINITIONS.find(t => t.name === 'lunar_lab_attention_run_comparison');
+      expect(tool).toBeDefined();
+      expect(tool.inputSchema.properties).toHaveProperty('tokenBudget');
+
+      const tbProp = tool.inputSchema.properties.tokenBudget;
+      expect(tbProp.type).toBe('integer');
+      expect(tbProp.enum).toEqual([3000, 6000, 12000, 24000, 48000]);
+
+      // Required array contains only sessionId; tokenBudget remains optional
+      expect(tool.inputSchema.required).toContain('sessionId');
+      expect(tool.inputSchema.required).not.toContain('tokenBudget');
+    });
+
+    it('AC 2, 3, 4: validateAttentionTokenBudget accepts supported values and rejects invalid values explicitly', () => {
+      // 1. Supported values succeed and preserve exact integers
+      for (const budget of [3000, 6000, 12000, 24000, 48000]) {
+        const res = validateAttentionTokenBudget(budget);
+        expect(res.valid).toBe(true);
+        expect(res.budget).toBe(budget);
+        expect(res.error).toBeUndefined();
+      }
+
+      // 2. String representations of supported values parse and pass
+      expect(validateAttentionTokenBudget('12000')).toEqual({ valid: true, budget: 12000 });
+
+      // 3. Omitting (undefined/null) preserves backward compatibility
+      expect(validateAttentionTokenBudget(undefined)).toEqual({ valid: true, budget: undefined });
+      expect(validateAttentionTokenBudget(null)).toEqual({ valid: true, budget: undefined });
+
+      // 4. Unsupported or arbitrary integers fail explicitly without clamping
+      const invalidCases = [5000, 1500, 2500, 3500, 10000, 50000, 0, -3000, 3000.5, 'invalid', NaN];
+      for (const bad of invalidCases) {
+        const res = validateAttentionTokenBudget(bad);
+        expect(res.valid).toBe(false);
+        expect(res.budget).toBeUndefined();
+        expect(res.error).toContain('Supported controlled values are: 3000, 6000, 12000, 24000, 48000');
+      }
+    });
+
+    it('AC 2, 4, 8: BenchmarkHarness enforces tokenBudget validation without triggering model inference', async () => {
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const q = 'How has my relationship with building Luna changed over the last several months?';
+
+      // 1. Unsupported budget rejects immediately before any model inference or planning
+      await expect(
+        harness.compareQuestion(q, { tokenBudget: 5000, model: 'openrouter-deepseek-v4-flash' })
+      ).rejects.toThrow("Invalid tokenBudget: '5000'. Supported controlled values are: 3000, 6000, 12000, 24000, 48000.");
+
+      await expect(
+        harness.compareQuestion(q, { tokenBudget: -100, model: 'openrouter-deepseek-v4-flash' })
+      ).rejects.toThrow("Invalid tokenBudget: '-100'. Supported controlled values are: 3000, 6000, 12000, 24000, 48000.");
+
+      // 2. Dry interface verification of supported budget forwarding through engine plan & assemble
+      for (const validBudget of [3000, 6000, 12000, 24000, 48000]) {
+        const { plan, contextPacket } = await engine.planAndAssemble(q, { tokenBudget: validBudget });
+        expect(plan.tokenBudget).toBe(validBudget);
+        expect(contextPacket.tokenBudget).toBe(validBudget);
+        expect(contextPacket.totalTokensUsed).toBeLessThanOrEqual(validBudget);
+      }
     });
   });
 
