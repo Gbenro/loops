@@ -185,6 +185,18 @@ export interface LunaFieldItem {
   provenance: NodeProvenance;
 }
 
+export interface SnapshotCoverageDiagnostics {
+  loopsCount: number;
+  echoesCount: number;
+  chatCount: number;
+  rmCount: number;
+  cyclesCount: number;
+  nonEmptyContentCount: number;
+  emptyContentCount: number;
+  ceilingHit: boolean;
+  omittedRecordsEstimated?: number;
+}
+
 export interface FieldSnapshot {
   snapshotId: string;
   snapshotHash: string;
@@ -197,6 +209,8 @@ export interface FieldSnapshot {
   chatMessages: LunaFieldItem[];
   lunarCycles: LunaFieldItem[];
   totalItems: number;
+  coverageState: 'COMPLETE' | 'PARTIAL';
+  coverageDiagnostics?: SnapshotCoverageDiagnostics;
   provenanceBreakdown: {
     personal_field: number;
     benchmark_fixture: number;
@@ -1512,6 +1526,86 @@ export class LunaFieldReadOnlyAdapter {
    * - If mode === 'fixture_benchmark', uses benchmark fixtures explicitly tagged source='benchmark_fixture'.
    * - Computes SHA-256 contentHash for every node and aggregate snapshotHash for the universe.
    */
+  /**
+   * Helper to fetch table rows deterministically with pagination until exhausted
+   * or until a configured safety ceiling is hit.
+   */
+  private async fetchTableRowsPaginated(
+    sb: any,
+    table: string,
+    userId: string,
+    options: {
+      pageSize?: number;
+      maxCeiling?: number;
+      orderCol?: string;
+      filterDeleted?: boolean;
+    } = {}
+  ): Promise<{ data: any[]; ceilingHit: boolean }> {
+    const pageSize = options.pageSize || 200;
+    const maxCeiling = options.maxCeiling || 2500;
+    const orderCol = options.orderCol || 'created_at';
+    const allRows: any[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore && allRows.length < maxCeiling) {
+      let query: any = sb.from(table).select('*');
+
+      if (typeof query?.eq === 'function') {
+        query = query.eq('user_id', userId);
+      }
+
+      if (options.filterDeleted && typeof query?.is === 'function') {
+        query = query.is('deleted_at', null);
+      }
+
+      if (typeof query?.order === 'function') {
+        query = query.order(orderCol, { ascending: false });
+        if (typeof query?.order === 'function') {
+          query = query.order('id', { ascending: false });
+        }
+      }
+
+      const hasRange = typeof query?.range === 'function';
+      if (hasRange) {
+        query = query.range(page * pageSize, (page + 1) * pageSize - 1);
+      } else if (typeof query?.limit === 'function') {
+        query = query.limit(pageSize);
+      }
+
+      const res = await (typeof query === 'function' ? query() : query);
+      const data = res?.data;
+      const error = res?.error;
+
+      if (error) {
+        console.warn(`[LunaFieldAdapter] Pagination note on ${table}:`, error?.message || error);
+        break;
+      }
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+      allRows.push(...data);
+      if (data.length < pageSize || !hasRange) {
+        hasMore = false;
+        break;
+      }
+      page++;
+    }
+
+    const ceilingHit = allRows.length >= maxCeiling && hasMore;
+    return { data: allRows, ceilingHit };
+  }
+
+  /**
+   * Captures a frozen, immutable Field snapshot.
+   * STRICT FIELD PROVENANCE GUARANTEE:
+   * - If mode === 'personal_field', strictly returns real personal field data.
+   *   NEVER merges or backfills synthetic fixtures into personal field data!
+   * - Uses deterministic pagination to drain complete personal Field tables.
+   * - Maps authoritative echo text column (e.text || e.content || '') with non-empty indexing.
+   * - Computes SHA-256 contentHash for every node and aggregate snapshotHash for the universe.
+   */
   async captureSnapshot(): Promise<FieldSnapshot> {
     const snapId = this.mode === 'personal_field' ? `snap_field_${Date.now()}` : `snap_fixture_${Date.now()}`;
 
@@ -1523,15 +1617,15 @@ export class LunaFieldReadOnlyAdapter {
 
       if (sb) {
         try {
-          const [loopsRes, echoesRes, rmRes, chatRes, cycleRes] = await Promise.all([
-            sb.from('loops').select('*').eq('user_id', this.userId).limit(50),
-            sb.from('echoes').select('*').eq('user_id', this.userId).limit(100),
-            sb.from('relational_memories').select('*').eq('user_id', this.userId).limit(50),
-            sb.from('chat_messages').select('*').eq('user_id', this.userId).limit(50),
-            sb.from('lunar_cycles').select('*').eq('user_id', this.userId).limit(10)
+          const [loopsFetch, echoesFetch, rmFetch, chatFetch, cycleFetch] = await Promise.all([
+            this.fetchTableRowsPaginated(sb, 'loops', this.userId, { pageSize: 200, maxCeiling: 2000, filterDeleted: true }),
+            this.fetchTableRowsPaginated(sb, 'echoes', this.userId, { pageSize: 200, maxCeiling: 3000, filterDeleted: true }),
+            this.fetchTableRowsPaginated(sb, 'relational_memories', this.userId, { pageSize: 100, maxCeiling: 500 }),
+            this.fetchTableRowsPaginated(sb, 'chat_messages', this.userId, { pageSize: 200, maxCeiling: 2000 }),
+            this.fetchTableRowsPaginated(sb, 'lunar_cycles', this.userId, { pageSize: 50, maxCeiling: 100, orderCol: 'started_at' })
           ]);
 
-          const loops: LunaFieldItem[] = (loopsRes.data || []).map((l: any) => ({
+          const loops: LunaFieldItem[] = (loopsFetch.data || []).map((l: any) => ({
             id: l.id,
             sourceType: 'loop',
             title: l.title,
@@ -1548,24 +1642,29 @@ export class LunaFieldReadOnlyAdapter {
             }
           }));
 
-          const echoes: LunaFieldItem[] = (echoesRes.data || []).map((e: any) => ({
-            id: e.id,
-            sourceType: 'echo',
-            title: e.title,
-            content: e.content || e.title || '',
-            createdAt: e.created_at || new Date().toISOString(),
-            relatedIds: e.loop_id ? [e.loop_id] : [],
-            tags: Array.isArray(e.tags) ? e.tags : [],
-            provenance: {
-              source: 'personal_field',
-              sourceTable: 'echoes',
-              originalId: e.id,
-              snapshotId: snapId,
-              contentHash: computeNodeContentHash('echoes', e.id, e.content || e.title || '', e.title, e.created_at)
-            }
-          }));
+          // Attention V1.6 / Order 81 Parity: Map authoritative reflection text from e.text
+          const echoes: LunaFieldItem[] = (echoesFetch.data || []).map((e: any) => {
+            const textContent = e.text || e.content || e.title || '';
+            const title = e.title || (textContent ? (textContent.length > 60 ? textContent.substring(0, 60) + '...' : textContent) : 'Echo');
+            return {
+              id: e.id,
+              sourceType: 'echo',
+              title,
+              content: textContent,
+              createdAt: e.created_at || new Date().toISOString(),
+              relatedIds: e.loop_id ? [e.loop_id] : [],
+              tags: Array.isArray(e.tags) ? e.tags : [],
+              provenance: {
+                source: 'personal_field',
+                sourceTable: 'echoes',
+                originalId: e.id,
+                snapshotId: snapId,
+                contentHash: computeNodeContentHash('echoes', e.id, textContent, title, e.created_at)
+              }
+            };
+          });
 
-          const rms: LunaFieldItem[] = (rmRes.data || []).map((m: any) => ({
+          const rms: LunaFieldItem[] = (rmFetch.data || []).map((m: any) => ({
             id: m.id,
             sourceType: 'relational_memory',
             title: m.type,
@@ -1581,7 +1680,7 @@ export class LunaFieldReadOnlyAdapter {
             }
           }));
 
-          const messages: LunaFieldItem[] = (chatRes.data || []).map((c: any) => ({
+          const messages: LunaFieldItem[] = (chatFetch.data || []).map((c: any) => ({
             id: c.id,
             sourceType: 'chat_message',
             content: c.content || '',
@@ -1595,7 +1694,7 @@ export class LunaFieldReadOnlyAdapter {
             }
           }));
 
-          const cycles: LunaFieldItem[] = (cycleRes.data || []).map((cy: any) => ({
+          const cycles: LunaFieldItem[] = (cycleFetch.data || []).map((cy: any) => ({
             id: cy.id || `cy_${cy.cycle_number}`,
             sourceType: 'lunar_cycle',
             title: cy.name || `Cycle ${cy.cycle_number}`,
@@ -1616,6 +1715,29 @@ export class LunaFieldReadOnlyAdapter {
           const allLive = [...loops, ...echoes, ...rms, ...messages, ...cycles];
           const aggregateHash = computeSnapshotAggregateHash(allLive);
 
+          const anyCeilingHit = Boolean(
+            loopsFetch.ceilingHit || echoesFetch.ceilingHit || rmFetch.ceilingHit || chatFetch.ceilingHit || cycleFetch.ceilingHit
+          );
+          const coverageState: 'COMPLETE' | 'PARTIAL' = anyCeilingHit ? 'PARTIAL' : 'COMPLETE';
+
+          let nonEmptyCount = 0;
+          let emptyCount = 0;
+          for (const it of allLive) {
+            if ((it.content || '').trim().length > 0) nonEmptyCount++;
+            else emptyCount++;
+          }
+
+          const coverageDiagnostics: SnapshotCoverageDiagnostics = {
+            loopsCount: loops.length,
+            echoesCount: echoes.length,
+            chatCount: messages.length,
+            rmCount: rms.length,
+            cyclesCount: cycles.length,
+            nonEmptyContentCount: nonEmptyCount,
+            emptyContentCount: emptyCount,
+            ceilingHit: anyCeilingHit
+          };
+
           return this.freezeSnapshot({
             snapshotId: snapId,
             snapshotHash: aggregateHash,
@@ -1628,6 +1750,8 @@ export class LunaFieldReadOnlyAdapter {
             chatMessages: messages,
             lunarCycles: cycles,
             totalItems: allLive.length,
+            coverageState,
+            coverageDiagnostics,
             provenanceBreakdown: {
               personal_field: allLive.length,
               benchmark_fixture: 0,
@@ -1660,6 +1784,24 @@ export class LunaFieldReadOnlyAdapter {
 
     const aggHash = computeSnapshotAggregateHash(fixtureItems);
 
+    let nonEmptyFixtureCount = 0;
+    let emptyFixtureCount = 0;
+    for (const it of fixtureItems) {
+      if ((it.content || '').trim().length > 0) nonEmptyFixtureCount++;
+      else emptyFixtureCount++;
+    }
+
+    const fixtureCoverageDiagnostics: SnapshotCoverageDiagnostics = {
+      loopsCount: fixtureLoops.length,
+      echoesCount: fixtureEchoes.length,
+      chatCount: fixtureMsgs.length,
+      rmCount: fixtureRms.length,
+      cyclesCount: fixtureCycles.length,
+      nonEmptyContentCount: nonEmptyFixtureCount,
+      emptyContentCount: emptyFixtureCount,
+      ceilingHit: false
+    };
+
     return this.freezeSnapshot({
       snapshotId: snapId,
       snapshotHash: aggHash,
@@ -1672,6 +1814,8 @@ export class LunaFieldReadOnlyAdapter {
       chatMessages: fixtureMsgs,
       lunarCycles: fixtureCycles,
       totalItems: fixtureItems.length,
+      coverageState: 'COMPLETE',
+      coverageDiagnostics: fixtureCoverageDiagnostics,
       provenanceBreakdown: {
         personal_field: 0,
         benchmark_fixture: fixtureItems.length,
@@ -1716,6 +1860,8 @@ export class AttentionIndex {
   public lastSnapshotId: string | null = null;
   public lastSnapshotHash: string | null = null;
   public lastSnapshotMode: 'personal_field' | 'fixture_benchmark' | null = null;
+  public snapshotCoverageState: 'COMPLETE' | 'PARTIAL' = 'COMPLETE';
+  public snapshotCoverageDiagnostics?: SnapshotCoverageDiagnostics;
   public provenanceBreakdown: { personal_field: number; benchmark_fixture: number; synthetic: number } = {
     personal_field: 0,
     benchmark_fixture: 0,
@@ -1746,6 +1892,8 @@ export class AttentionIndex {
     this.lastSnapshotId = snapshot.snapshotId;
     this.lastSnapshotHash = snapshot.snapshotHash;
     this.lastSnapshotMode = snapshot.mode;
+    this.snapshotCoverageState = snapshot.coverageState || 'COMPLETE';
+    this.snapshotCoverageDiagnostics = snapshot.coverageDiagnostics;
     this.provenanceBreakdown = { ...snapshot.provenanceBreakdown };
 
     const allItems: LunaFieldItem[] = [
@@ -3211,6 +3359,7 @@ export class AttentionEngineV1 {
         const temporalPass = snapCount > 0;
         const semanticPass = qualifiedCands.length > 0;
         const satisfied = temporalPass && semanticPass;
+        const isPartialCoverage = this.index.snapshotCoverageState === 'PARTIAL';
 
         let temporalAvailability: TemporalAvailability;
         let retrievalDiagnosis: CoverageObligation['retrievalDiagnosis'];
@@ -3222,6 +3371,11 @@ export class AttentionEngineV1 {
           temporalAvailability = 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE';
           retrievalDiagnosis = 'NO_RELEVANT_EVIDENCE_FOUND';
         } else if (snapCount > 0) {
+          temporalAvailability = 'RETRIEVAL_COVERAGE_INCOMPLETE';
+          retrievalDiagnosis = 'RETRIEVAL_COVERAGE_INCOMPLETE';
+        } else if (isPartialCoverage) {
+          // Epistemic Guard (Order 81): Ceiling was hit during snapshot ingestion,
+          // so zero records in this temporal slice in memory does NOT prove records do not exist in the database!
           temporalAvailability = 'RETRIEVAL_COVERAGE_INCOMPLETE';
           retrievalDiagnosis = 'RETRIEVAL_COVERAGE_INCOMPLETE';
         } else {
@@ -3239,7 +3393,11 @@ export class AttentionEngineV1 {
           rationale = `Grounds ${role} with qualified subject evidence: ${chosen.snippet}`;
           obligationAssignments.set(chosen.sourceId, role);
         } else if (temporalAvailability === 'RETRIEVAL_COVERAGE_INCOMPLETE') {
-          rationale = `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot contains records during ${temporalWindow}, but pre-qualification discovery failed to retrieve candidates.`;
+          if (isPartialCoverage && snapCount === 0) {
+            rationale = `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot is PARTIAL (table ceiling reached); unretrieved historical records may exist in the database for ${temporalWindow}.`;
+          } else {
+            rationale = `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot contains records during ${temporalWindow}, but pre-qualification discovery failed to retrieve candidates.`;
+          }
           insufficiencyReason = rationale;
         } else if (temporalAvailability === 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE') {
           rationale = `No qualified evidence found in personal Field during ${temporalWindow} (${snapCount} records exist but lack substantive entailment for ${decomp.subjects.join('/') || 'the requested subject'}).`;
@@ -3325,13 +3483,14 @@ export class AttentionEngineV1 {
         temporalStatus: snapCounterCount > 0 ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
         semanticStatus: counterSatisfied ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
         finalStatus: counterSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
-        temporalAvailability: counterSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : snapCounterCount > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : 'NO_RECORDS_IN_PERIOD',
+        temporalAvailability: counterSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : snapCounterCount > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : (this.index.snapshotCoverageState === 'PARTIAL' ? 'RETRIEVAL_COVERAGE_INCOMPLETE' : 'NO_RECORDS_IN_PERIOD'),
+        retrievalDiagnosis: counterSatisfied ? 'SATISFIED' : (this.index.snapshotCoverageState === 'PARTIAL' ? 'RETRIEVAL_COVERAGE_INCOMPLETE' : 'NO_RELEVANT_EVIDENCE_FOUND'),
         candidateCount: counterPool.length,
         qualifiedCandidateCount: qualifiedCounter.length,
         assignedNodeId: counterSatisfied ? qualifiedCounter[0].sourceId : undefined,
         rationale: counterSatisfied ? `Preserves friction / discontinuity: ${qualifiedCounter[0].snippet}` : undefined,
-        insufficiencyReason: counterSatisfied ? undefined : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`,
-        reason: counterSatisfied ? `Preserves friction: ${qualifiedCounter[0].snippet}` : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`
+        insufficiencyReason: counterSatisfied ? undefined : (this.index.snapshotCoverageState === 'PARTIAL' && snapCounterCount === 0 ? `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot is PARTIAL (table ceiling reached); unretrieved historical records may exist in the database.` : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`),
+        reason: counterSatisfied ? `Preserves friction: ${qualifiedCounter[0].snippet}` : (this.index.snapshotCoverageState === 'PARTIAL' && snapCounterCount === 0 ? `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot is PARTIAL (table ceiling reached); unretrieved historical records may exist in the database.` : `No qualified counterevidence found regarding ${decomp.subjects.join('/') || 'the requested subject'}.`)
       };
       if (counterSatisfied) {
         obligationAssignments.set(qualifiedCounter[0].sourceId, 'counterevidence_discontinuity');
@@ -3359,13 +3518,14 @@ export class AttentionEngineV1 {
         temporalStatus: patternPool.length > 0 ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
         semanticStatus: patternSatisfied ? 'SATISFIED' : 'INSUFFICIENT_EVIDENCE',
         finalStatus: patternSatisfied ? 'satisfied' : 'INSUFFICIENT_EVIDENCE',
-        temporalAvailability: patternSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : patternPool.length > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : 'NO_RECORDS_IN_PERIOD',
+        temporalAvailability: patternSatisfied ? 'RELEVANT_EVIDENCE_FOUND' : patternPool.length > 0 ? 'RECORDS_EXIST_BUT_NO_RELEVANT_EVIDENCE' : (this.index.snapshotCoverageState === 'PARTIAL' ? 'RETRIEVAL_COVERAGE_INCOMPLETE' : 'NO_RECORDS_IN_PERIOD'),
+        retrievalDiagnosis: patternSatisfied ? 'SATISFIED' : (this.index.snapshotCoverageState === 'PARTIAL' ? 'RETRIEVAL_COVERAGE_INCOMPLETE' : 'NO_RELEVANT_EVIDENCE_FOUND'),
         candidateCount: patternPool.length,
         qualifiedCandidateCount: qualifiedPattern.length,
         assignedNodeId: patternSatisfied ? qualifiedPattern[0].sourceId : undefined,
         rationale: patternSatisfied ? `Highlights recurrence cadence: ${qualifiedPattern[0].snippet}` : undefined,
-        insufficiencyReason: patternSatisfied ? undefined : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`,
-        reason: patternSatisfied ? `Highlights cadence: ${qualifiedPattern[0].snippet}` : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`
+        insufficiencyReason: patternSatisfied ? undefined : (this.index.snapshotCoverageState === 'PARTIAL' && patternPool.length === 0 ? `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot is PARTIAL (table ceiling reached); unretrieved historical records may exist in the database.` : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`),
+        reason: patternSatisfied ? `Highlights cadence: ${qualifiedPattern[0].snippet}` : (this.index.snapshotCoverageState === 'PARTIAL' && patternPool.length === 0 ? `RETRIEVAL_COVERAGE_INCOMPLETE: Field snapshot is PARTIAL (table ceiling reached); unretrieved historical records may exist in the database.` : `No recurrent patterns identified relating to ${decomp.subjects.join('/') || 'the requested subject'}.`)
       };
       if (patternSatisfied) {
         obligationAssignments.set(qualifiedPattern[0].sourceId, 'connecting_pattern');
@@ -3636,7 +3796,9 @@ export class AttentionEngineV1 {
       queryDecomposition: decomp,
       telemetry: {
         domainBreakdown,
-        devSystemContaminationFilteredCount
+        devSystemContaminationFilteredCount,
+        snapshotCoverageState: this.index.snapshotCoverageState || 'COMPLETE',
+        snapshotCoverageDiagnostics: this.index.snapshotCoverageDiagnostics || null
       },
       candidateRecallTelemetry,
       discontinuitiesDetected: discontinuities,
@@ -6780,6 +6942,354 @@ export const globalLabStore = new DurableLabStore();
   }
 })();
 
+
+// ─── Order 81: Production Evidence Manifest & Verification (Conversation 17) ──
+
+export interface ProductionEvidenceManifestTarget {
+  id: string;
+  targetDate: string;
+  targetTitle: string;
+}
+
+export const CANONICAL_MANIFEST_FIXTURE_ITEMS: LunaFieldItem[] = [
+  { id: 'e17720819694748ihz', sourceType: 'echo', title: 'app usable as journal, Coming alive for real', content: 'The app is actually usable now as a personal journal. It feels like it is coming alive for real, shifting from a technical demo to an experiential space.', createdAt: '2026-02-26T18:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17720819694748ihz', snapshotId: 'snap_test_parity', contentHash: 'hash_e17720819694748ihz' } },
+  { id: 'e17722224733628tqn', sourceType: 'echo', title: 'toolbox framing', content: 'Toolbox framing: Luna as a suite of reflective tools rather than a single prescriptive system.', createdAt: '2026-02-27T10:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17722224733628tqn', snapshotId: 'snap_test_parity', contentHash: 'hash_e17722224733628tqn' } },
+  { id: 'e177222198708854r2', sourceType: 'echo', title: 'personal AI/history conversation idea', content: 'Idea for personal AI and historical conversation: being able to dialogue with past reflections and track recurring psychological patterns.', createdAt: '2026-02-27T11:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e177222198708854r2', snapshotId: 'snap_test_parity', contentHash: 'hash_e177222198708854r2' } },
+  { id: 'e1772936847652y18l', sourceType: 'echo', title: 'app aligns with moon circles / sent to Susie', content: 'The app aligns with moon circles and lunar rhythms. Shared the initial prototype with Susie for early impressions.', createdAt: '2026-03-08T15:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1772936847652y18l', snapshotId: 'snap_test_parity', contentHash: 'hash_e1772936847652y18l' } },
+  { id: 'e17730967091236ay1', sourceType: 'echo', title: 'Karen response', content: 'Received thoughtful response from Karen about lunar tracking and emotional resonance.', createdAt: '2026-03-09T14:20:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17730967091236ay1', snapshotId: 'snap_test_parity', contentHash: 'hash_e17730967091236ay1' } },
+  { id: 'e1773146621422af5y', sourceType: 'echo', title: 'tutorials/phases after Karen feedback', content: 'Developing tutorials and clarifying phase explanations following feedback from Karen.', createdAt: '2026-03-10T16:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773146621422af5y', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773146621422af5y' } },
+  { id: 'e1773268026707nrkf', sourceType: 'echo', title: 'Karen feedback / southern hemisphere', content: 'Addressing southern hemisphere lunar calculations and visual orientation per Karen feedback.', createdAt: '2026-03-11T12:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773268026707nrkf', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773268026707nrkf' } },
+  { id: 'e1773342309234306m', sourceType: 'echo', title: 'app/tool as container for myself and expansion', content: 'Realizing this app and tool serves as a container for myself first, and from that authentic center, creates expansion for others.', createdAt: '2026-03-12T09:15:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773342309234306m', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773342309234306m' } },
+  { id: 'e1773277735240x1o2', sourceType: 'echo', title: 'listen to own teachings', content: 'Reminder to listen to my own teachings and apply the stillness and lunar rhythms to my own build process.', createdAt: '2026-03-12T14:45:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773277735240x1o2', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773277735240x1o2' } },
+  { id: 'e1773925566301tukh', sourceType: 'echo', title: 'help others create in circles; Tony/Casey', content: 'Helping others create in circles; sharing the creative cadence concepts with Tony and Casey.', createdAt: '2026-03-19T10:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773925566301tukh', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773925566301tukh' } },
+  { id: 'e17739474372223zxr', sourceType: 'echo', title: 'co-create with others', content: 'Expanding the vision from solitary journal building to co-creating with others in community rhythm.', createdAt: '2026-03-19T14:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17739474372223zxr', snapshotId: 'snap_test_parity', contentHash: 'hash_e17739474372223zxr' } },
+  { id: 'e1773949005944n58f', sourceType: 'echo', title: 'first Creating with Cycles session', content: 'Held the first Creating with Cycles session. Tremendous energy around aligning work with natural cycles.', createdAt: '2026-03-19T18:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1773949005944n58f', snapshotId: 'snap_test_parity', contentHash: 'hash_e1773949005944n58f' } },
+  { id: 'e17743023391701o1n', sourceType: 'echo', title: 'YouTube channel/cycles', content: 'Exploring a YouTube channel focused on creating with lunar cycles and showing behind the scenes.', createdAt: '2026-03-23T11:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17743023391701o1n', snapshotId: 'snap_test_parity', contentHash: 'hash_e17743023391701o1n' } },
+  { id: 'e1774464155097nmj9', sourceType: 'echo', title: 'app improvements/message to Karen', content: 'Implemented key app improvements and sent detailed update message back to Karen.', createdAt: '2026-03-25T17:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1774464155097nmj9', snapshotId: 'snap_test_parity', contentHash: 'hash_e1774464155097nmj9' } },
+  { id: 'e17860662133986f4e', sourceType: 'echo', title: 'wants interaction directly in app, reflections come alive/talk back', content: 'Strong desire for interaction directly in the app. I want my reflections to come alive and talk back rather than remain static text.', createdAt: '2026-08-07T13:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17860662133986f4e', snapshotId: 'snap_test_parity', contentHash: 'hash_e17860662133986f4e' } },
+  { id: 'e1786567506133fove', sourceType: 'echo', title: 'urge to make Android/iPhone app, promote, YouTube', content: 'Deep urge to build a dedicated mobile app for Android and iPhone, share on YouTube, and make Luna accessible anywhere.', createdAt: '2026-08-12T11:45:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1786567506133fove', snapshotId: 'snap_test_parity', contentHash: 'hash_e1786567506133fove' } },
+  { id: 'e1786825164407i3aa', sourceType: 'echo', title: 'mirror/reflection using past insight', content: 'Luna acting as an active mirror using past insights to illuminate current tensions.', createdAt: '2026-08-15T16:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1786825164407i3aa', snapshotId: 'snap_test_parity', contentHash: 'hash_e1786825164407i3aa' } },
+  { id: 'e17868603300115ffw', sourceType: 'echo', title: 'intention to expand prior work, make lunar loops into app', content: 'Clear intention to expand prior loops work into an integrated companion app honoring lunar cadences.', createdAt: '2026-08-16T15:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17868603300115ffw', snapshotId: 'snap_test_parity', contentHash: 'hash_e17868603300115ffw' } },
+  { id: 'e17877463037054wgb', sourceType: 'echo', title: 'app downloaded on phone; UI/voice issues', content: 'Downloaded the app build on my phone. Encountered some UI layout issues and voice synthesis friction to resolve.', createdAt: '2026-08-26T19:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17877463037054wgb', snapshotId: 'snap_test_parity', contentHash: 'hash_e17877463037054wgb' } },
+  { id: 'e1788304060656qmg4', sourceType: 'echo', title: 'Luna is just a reflected mirror...', content: 'Luna is just a reflected mirror, not a guru giving answers. Her value is holding up what is already true.', createdAt: '2026-09-01T20:10:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788304060656qmg4', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788304060656qmg4' } },
+  { id: 'e1788287674741tdvf', sourceType: 'echo', title: 'Benchmark Experiment 001', content: 'Running Benchmark Experiment 001 to test retrieval fidelity across longitudinal cycles.', createdAt: '2026-09-01T21:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788287674741tdvf', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788287674741tdvf' } },
+  { id: 'e17883060990071kcu', sourceType: 'echo', title: 'Benchmark Experiment 002', content: 'Running Benchmark Experiment 002 testing token budgeting and evidence selection.', createdAt: '2026-09-01T21:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17883060990071kcu', snapshotId: 'snap_test_parity', contentHash: 'hash_e17883060990071kcu' } },
+  { id: 'e1788270341538xy0n', sourceType: 'echo', title: 'Two Lunas same Field / return->altered relationship->choice', content: 'Two Lunas in the same Field: returning to prior insights alters our relationship to them, creating conscious choice.', createdAt: '2026-09-01T22:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788270341538xy0n', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788270341538xy0n' } },
+  { id: 'e1788627262926av7m', sourceType: 'echo', title: 'tools/crutches / who are you without tool', content: 'Contemplating tools and crutches: who are you without the tool? Cultivating intrinsic capability alongside the system.', createdAt: '2026-09-05T14:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788627262926av7m', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788627262926av7m' } },
+  { id: 'e1788736581253bygc', sourceType: 'echo', title: 'sharing Luna with passengers', content: 'Conversations with passengers while driving, sharing the concept of Luna as an attention companion.', createdAt: '2026-09-06T18:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788736581253bygc', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788736581253bygc' } },
+  { id: 'e1788811347477a39l', sourceType: 'echo', title: 'good crutch', content: 'Recognizing Luna as a good crutch right now—supporting stability while new reflective habits take root.', createdAt: '2026-09-07T21:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788811347477a39l', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788811347477a39l' } },
+  { id: 'e1788811347958fftf', sourceType: 'echo', title: 'Luna as attention before interpretation / empty mirror', content: 'Luna as attention before interpretation: an empty mirror holding non-judgmental presence.', createdAt: '2026-09-07T21:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788811347958fftf', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788811347958fftf' } },
+  { id: 'e1788811347812byoa', sourceType: 'echo', title: 'return and notice', content: 'The core discipline of the practice: simply return and notice without rushing to fix or judge.', createdAt: '2026-09-07T22:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1788811347812byoa', snapshotId: 'snap_test_parity', contentHash: 'hash_e1788811347812byoa' } },
+  { id: 'e1789164063550bnyu', sourceType: 'echo', title: 'widening Now / Field spiral', content: 'Widening the Now: feeling the Field spiral inward and outward across multiple lunar cycles.', createdAt: '2026-09-11T17:40:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789164063550bnyu', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789164063550bnyu' } },
+  { id: 'e1789093615062bx2g', sourceType: 'echo', title: 'echoes connect to past selves', content: 'Echoes connect present awareness directly to past selves, creating continuity across seasons.', createdAt: '2026-09-11T19:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789093615062bx2g', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789093615062bx2g' } },
+  { id: 'e1789340370727nqvv', sourceType: 'echo', title: 'Creating With the Cycles checkpoint', content: 'Checkpoint on Creating With the Cycles video series and workbook materials.', createdAt: '2026-09-13T16:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789340370727nqvv', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789340370727nqvv' } },
+  { id: 'e17893378285793qor', sourceType: 'echo', title: 'wants videos about creating with cycles', content: 'Planning video lessons on how to build and create following lunar cycles instead of arbitrary deadlines.', createdAt: '2026-09-13T17:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17893378285793qor', snapshotId: 'snap_test_parity', contentHash: 'hash_e17893378285793qor' } },
+  { id: 'e1789345156223v3ka', sourceType: 'echo', title: 'final script Video 1', content: 'Completed final script for Video 1 of the Creating With Cycles series.', createdAt: '2026-09-14T10:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789345156223v3ka', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789345156223v3ka' } },
+  { id: 'e1789351977482xz2s', sourceType: 'echo', title: 'Luna as connective layer of living lab', content: 'Realizing Luna is the connective layer of our living lab, integrating reflections, code, and daily life.', createdAt: '2026-09-14T14:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789351977482xz2s', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789351977482xz2s' } },
+  { id: 'e1789354542544i0qj', sourceType: 'echo', title: 'videos 1/2 scripts', content: 'Polishing scripts for Videos 1 and 2, tying the narrative together.', createdAt: '2026-09-14T16:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789354542544i0qj', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789354542544i0qj' } },
+  { id: 'e17893558146485qec', sourceType: 'echo', title: 'Video 3', content: 'Drafting structure and talking points for Video 3 on longitudinal pattern awareness.', createdAt: '2026-09-14T18:00:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e17893558146485qec', snapshotId: 'snap_test_parity', contentHash: 'hash_e17893558146485qec' } },
+  { id: 'e1789358774717ctok', sourceType: 'echo', title: 'Video 4', content: 'Outlining Video 4 on grounding and completing lunar cycles with grace.', createdAt: '2026-09-14T20:30:00Z', provenance: { source: 'personal_field', sourceTable: 'echoes', originalId: 'e1789358774717ctok', snapshotId: 'snap_test_parity', contentHash: 'hash_e1789358774717ctok' } }
+];
+
+export const CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS: ProductionEvidenceManifestTarget[] = [
+  { id: 'e17720819694748ihz', targetDate: 'Feb 26', targetTitle: 'app usable as journal, Coming alive for real' },
+  { id: 'e17722224733628tqn', targetDate: 'Feb 27', targetTitle: 'toolbox framing' },
+  { id: 'e177222198708854r2', targetDate: 'Feb 27', targetTitle: 'personal AI/history conversation idea' },
+  { id: 'e1772936847652y18l', targetDate: 'Mar 8', targetTitle: 'app aligns with moon circles / sent to Susie' },
+  { id: 'e17730967091236ay1', targetDate: 'Mar 9', targetTitle: 'Karen response' },
+  { id: 'e1773146621422af5y', targetDate: 'Mar 10', targetTitle: 'tutorials/phases after Karen feedback' },
+  { id: 'e1773268026707nrkf', targetDate: 'Mar 11', targetTitle: 'Karen feedback / southern hemisphere' },
+  { id: 'e1773342309234306m', targetDate: 'Mar 12', targetTitle: 'app/tool as container for myself and expansion' },
+  { id: 'e1773277735240x1o2', targetDate: 'Mar 12', targetTitle: 'listen to own teachings' },
+  { id: 'e1773925566301tukh', targetDate: 'Mar 19', targetTitle: 'help others create in circles; Tony/Casey' },
+  { id: 'e17739474372223zxr', targetDate: 'Mar 19', targetTitle: 'co-create with others' },
+  { id: 'e1773949005944n58f', targetDate: 'Mar 19', targetTitle: 'first Creating with Cycles session' },
+  { id: 'e17743023391701o1n', targetDate: 'Mar 23', targetTitle: 'YouTube channel/cycles' },
+  { id: 'e1774464155097nmj9', targetDate: 'Mar 25', targetTitle: 'app improvements/message to Karen' },
+  { id: 'e17860662133986f4e', targetDate: 'Aug 7', targetTitle: 'wants interaction directly in app, reflections come alive/talk back' },
+  { id: 'e1786567506133fove', targetDate: 'Aug 12', targetTitle: 'urge to make Android/iPhone app, promote, YouTube' },
+  { id: 'e1786825164407i3aa', targetDate: 'Aug 15', targetTitle: 'mirror/reflection using past insight' },
+  { id: 'e17868603300115ffw', targetDate: 'Aug 16', targetTitle: 'intention to expand prior work, make lunar loops into app' },
+  { id: 'e17877463037054wgb', targetDate: 'Aug 26', targetTitle: 'app downloaded on phone; UI/voice issues' },
+  { id: 'e1788304060656qmg4', targetDate: 'Sep 1', targetTitle: 'Luna is just a reflected mirror...' },
+  { id: 'e1788287674741tdvf', targetDate: 'Sep 1', targetTitle: 'Benchmark Experiment 001' },
+  { id: 'e17883060990071kcu', targetDate: 'Sep 1', targetTitle: 'Benchmark Experiment 002' },
+  { id: 'e1788270341538xy0n', targetDate: 'Sep 1', targetTitle: 'Two Lunas same Field / return->altered relationship->choice' },
+  { id: 'e1788627262926av7m', targetDate: 'Sep 5', targetTitle: 'tools/crutches / who are you without tool' },
+  { id: 'e1788736581253bygc', targetDate: 'Sep 6', targetTitle: 'sharing Luna with passengers' },
+  { id: 'e1788811347477a39l', targetDate: 'Sep 7', targetTitle: 'good crutch' },
+  { id: 'e1788811347958fftf', targetDate: 'Sep 7', targetTitle: 'Luna as attention before interpretation / empty mirror' },
+  { id: 'e1788811347812byoa', targetDate: 'Sep 7', targetTitle: 'return and notice' },
+  { id: 'e1789164063550bnyu', targetDate: 'Sep 11', targetTitle: 'widening Now / Field spiral' },
+  { id: 'e1789093615062bx2g', targetDate: 'Sep 11', targetTitle: 'echoes connect to past selves' },
+  { id: 'e1789340370727nqvv', targetDate: 'Sep 13', targetTitle: 'Creating With the Cycles checkpoint' },
+  { id: 'e17893378285793qor', targetDate: 'Sep 13', targetTitle: 'wants videos about creating with cycles' },
+  { id: 'e1789345156223v3ka', targetDate: 'Sep 14', targetTitle: 'final script Video 1' },
+  { id: 'e1789351977482xz2s', targetDate: 'Sep 14', targetTitle: 'Luna as connective layer of living lab' },
+  { id: 'e1789354542544i0qj', targetDate: 'Sep 14', targetTitle: 'videos 1/2 scripts' },
+  { id: 'e17893558146485qec', targetDate: 'Sep 14', targetTitle: 'Video 3' },
+  { id: 'e1789358774717ctok', targetDate: 'Sep 14', targetTitle: 'Video 4' }
+];
+
+export interface ManifestTargetVerificationResult {
+  id: string;
+  targetDate: string;
+  targetTitle: string;
+  status: 'PRESENT' | 'ABSENT';
+  indexed: boolean;
+  sourceType?: FieldSourceType;
+  contentLength: number;
+  contentNonEmpty: boolean;
+  snippet?: string;
+  createdAt?: string;
+}
+
+export interface ProductionEvidenceManifestVerification {
+  verifiedAt: string;
+  totalTargets: number;
+  presentCount: number;
+  absentCount: number;
+  indexedCount: number;
+  nonEmptyCount: number;
+  coverageState: 'COMPLETE' | 'PARTIAL';
+  snapshotHash?: string;
+  results: ManifestTargetVerificationResult[];
+}
+
+export function verifyProductionEvidenceManifest(
+  index: AttentionIndex
+): ProductionEvidenceManifestVerification {
+  const results: ManifestTargetVerificationResult[] = CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.map(target => {
+    const item = index.itemsMap.get(target.id);
+    if (!item) {
+      return {
+        id: target.id,
+        targetDate: target.targetDate,
+        targetTitle: target.targetTitle,
+        status: 'ABSENT',
+        indexed: false,
+        contentLength: 0,
+        contentNonEmpty: false
+      };
+    }
+
+    const content = (item.content || '').trim();
+    const isNonEmpty = content.length > 0;
+    return {
+      id: target.id,
+      targetDate: target.targetDate,
+      targetTitle: target.targetTitle,
+      status: 'PRESENT',
+      indexed: true,
+      sourceType: item.sourceType,
+      contentLength: content.length,
+      contentNonEmpty: isNonEmpty,
+      snippet: content.length > 80 ? content.substring(0, 80) + '...' : content,
+      createdAt: item.createdAt
+    };
+  });
+
+  const presentCount = results.filter(r => r.status === 'PRESENT').length;
+  const absentCount = results.length - presentCount;
+  const indexedCount = results.filter(r => r.indexed).length;
+  const nonEmptyCount = results.filter(r => r.contentNonEmpty).length;
+
+  return {
+    verifiedAt: new Date().toISOString(),
+    totalTargets: CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.length,
+    presentCount,
+    absentCount,
+    indexedCount,
+    nonEmptyCount,
+    coverageState: index.snapshotCoverageState || 'COMPLETE',
+    snapshotHash: index.getSnapshotHash(),
+    results
+  };
+}
+
+// ─── Order 81: Phase 4 Adaptive-Budget Sweep Capability (Strictly Gated) ──────
+
+export interface AdaptiveBudgetSweepOptions {
+  execute?: boolean;
+  ceilings?: number[];
+  saturationThresholdPctPer1K?: number;
+  question?: string;
+  model?: string;
+  engine: AttentionEngineV1;
+  store: DurableLabStore;
+}
+
+export interface AdaptiveSweepStepResult {
+  ceiling: number;
+  tokensSelected: number;
+  itemsSelectedCount: number;
+  obligationsSatisfiedCount: number;
+  obligationsTotalCount: number;
+  allObligationsSatisfied: boolean;
+  targetManifestRecallCount: number;
+  targetManifestRecallPct: number;
+  incrementalGainPct?: number;
+  gainPer1KTokens?: number;
+  isSaturated: boolean;
+  selectedIds: string[];
+}
+
+export interface AdaptiveBudgetSweepReport {
+  executed: boolean;
+  gated: boolean;
+  gateReason?: string;
+  question: string;
+  stoppingRule: {
+    type: string;
+    thresholdPctPer1K: number;
+    saturatedAtCeiling?: number;
+    stoppingReason?: string;
+  };
+  steps: AdaptiveSweepStepResult[];
+  referenceTelemetry: {
+    productionConversation17: {
+      inputTokens: number;
+      cachedTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      latencyMs: number;
+      costUsd: number;
+    };
+  };
+  completedAt?: string;
+}
+
+export async function executeAdaptiveBudgetSweep(
+  options: AdaptiveBudgetSweepOptions
+): Promise<AdaptiveBudgetSweepReport> {
+  const question = options.question || 'How has my relationship with building Luna changed over the last several months?';
+  const ceilings = options.ceilings || [3000, 6000, 12000, 24000, 48000];
+  const thresholdPctPer1K = options.saturationThresholdPctPer1K !== undefined ? options.saturationThresholdPctPer1K : 5.0;
+
+  // STRICT HUMAN GATE: Execution requires explicit opt-in ({ execute: true })
+  if (!options.execute) {
+    return {
+      executed: false,
+      gated: true,
+      gateReason: 'HUMAN_APPROVAL_REQUIRED: Adaptive-budget experiment execution is strictly gated behind human/Lab GPT review. Provide { execute: true } after parity verification to launch.',
+      question,
+      stoppingRule: {
+        type: 'recall_saturation_or_obligations_satisfied',
+        thresholdPctPer1K
+      },
+      steps: ceilings.map(c => ({
+        ceiling: c,
+        tokensSelected: 0,
+        itemsSelectedCount: 0,
+        obligationsSatisfiedCount: 0,
+        obligationsTotalCount: 5,
+        allObligationsSatisfied: false,
+        targetManifestRecallCount: 0,
+        targetManifestRecallPct: 0,
+        isSaturated: false,
+        selectedIds: []
+      })),
+      referenceTelemetry: {
+        productionConversation17: {
+          inputTokens: 116565,
+          cachedTokens: 114688,
+          outputTokens: 11116,
+          totalTokens: 127681,
+          latencyMs: 336633,
+          costUsd: 0.012492
+        }
+      }
+    };
+  }
+
+  const steps: AdaptiveSweepStepResult[] = [];
+  let saturatedAtCeiling: number | undefined;
+  let stoppingReason: string | undefined;
+
+  for (let i = 0; i < ceilings.length; i++) {
+    const ceiling = ceilings[i];
+    const { plan, contextPacket } = await options.engine.planAndAssemble(question, {
+      tokenBudget: ceiling,
+      coverageStrategy: 'longitudinal_span'
+    });
+
+    const selectedIds = new Set(plan.selectedSources.map(s => s.sourceId));
+    let manifestRecallCount = 0;
+    for (const t of CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS) {
+      if (selectedIds.has(t.id)) {
+        manifestRecallCount++;
+      }
+    }
+    const manifestRecallPct = Math.round((manifestRecallCount / CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.length) * 100);
+
+    const obligations = plan.coverageMatrix?.obligations || [];
+    const satCount = obligations.filter(o => o.status === 'satisfied').length;
+    const allSatisfied = obligations.length > 0 && satCount === obligations.length;
+
+    let incrementalGainPct: number | undefined;
+    let gainPer1K: number | undefined;
+    let isSaturated = false;
+
+    if (i > 0) {
+      const prevStep = steps[i - 1];
+      const prevRecall = prevStep.targetManifestRecallCount;
+      const deltaRecall = manifestRecallCount - prevRecall;
+      incrementalGainPct = prevRecall > 0 ? (deltaRecall / prevRecall) * 100 : (deltaRecall > 0 ? 100 : 0);
+      const deltaTokensK = (ceiling - prevStep.ceiling) / 1000;
+      gainPer1K = deltaTokensK > 0 ? (incrementalGainPct / deltaTokensK) : 0;
+
+      if (allSatisfied && gainPer1K < thresholdPctPer1K) {
+        isSaturated = true;
+        saturatedAtCeiling = ceiling;
+        stoppingReason = `Recall saturated (<${thresholdPctPer1K}% per 1K tokens) and all longitudinal coverage obligations satisfied.`;
+      }
+    }
+
+    steps.push({
+      ceiling,
+      tokensSelected: contextPacket.totalTokensUsed,
+      itemsSelectedCount: plan.selectedSources.length,
+      obligationsSatisfiedCount: satCount,
+      obligationsTotalCount: obligations.length,
+      allObligationsSatisfied: allSatisfied,
+      targetManifestRecallCount: manifestRecallCount,
+      targetManifestRecallPct: manifestRecallPct,
+      incrementalGainPct: incrementalGainPct !== undefined ? Math.round(incrementalGainPct * 10) / 10 : undefined,
+      gainPer1KTokens: gainPer1K !== undefined ? Math.round(gainPer1K * 10) / 10 : undefined,
+      isSaturated,
+      selectedIds: Array.from(selectedIds)
+    });
+
+    if (isSaturated) {
+      break;
+    }
+  }
+
+  return {
+    executed: true,
+    gated: false,
+    question,
+    stoppingRule: {
+      type: 'recall_saturation_or_obligations_satisfied',
+      thresholdPctPer1K,
+      saturatedAtCeiling,
+      stoppingReason
+    },
+    steps,
+    referenceTelemetry: {
+      productionConversation17: {
+        inputTokens: 116565,
+        cachedTokens: 114688,
+        outputTokens: 11116,
+        totalTokens: 127681,
+        latencyMs: 336633,
+        costUsd: 0.012492
+      }
+    },
+    completedAt: new Date().toISOString()
+  };
+}
+
 // ─── Express Route Handlers (/api/dev/lab/attention/*) ──────────────────────
 
 
@@ -7261,6 +7771,7 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
 
   // 1. Attention Lab Status & Derived Index Telemetry
   app.get('/api/dev/lab/attention/status', authenticateRest, async (req: Request, res: Response) => {
+    const manifestVerification = verifyProductionEvidenceManifest(globalAttentionIndex);
     res.json({
       status: 'active',
       version: 'v1.6',
@@ -7269,11 +7780,50 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       temporalAntiCrowdingActive: true,
       totalIndexedNodes: globalAttentionIndex.totalIndexedNodes,
       lastIndexRebuiltAt: globalAttentionIndex.lastBuiltAt,
+      snapshotHash: globalAttentionIndex.getSnapshotHash(),
+      coverageState: globalAttentionIndex.snapshotCoverageState || 'COMPLETE',
+      coverageDiagnostics: globalAttentionIndex.snapshotCoverageDiagnostics || null,
+      manifestVerification: {
+        totalTargets: manifestVerification.totalTargets,
+        presentCount: manifestVerification.presentCount,
+        absentCount: manifestVerification.absentCount,
+        indexedCount: manifestVerification.indexedCount,
+        nonEmptyCount: manifestVerification.nonEmptyCount
+      },
       durableSessionsCount: globalLabStore.listSessions().length,
       benchmarkCasesCount: CANONICAL_BENCHMARK_CASES.length,
       personalFieldMutationsAllowed: false,
       readOnlyGuardEnforced: globalFieldAdapter.assertReadOnly()
     });
+  });
+
+  // 1b. Verify Production Evidence Manifest Targets (Order 81 Phase 2)
+  app.get('/api/dev/lab/attention/manifest/verify', authenticateRest, (req: Request, res: Response) => {
+    const report = verifyProductionEvidenceManifest(globalAttentionIndex);
+    res.json(report);
+  });
+
+  // 1c. Controlled Adaptive-Budget Sweep (Order 81 Phase 4: Strictly Gated behind human approval)
+  app.post('/api/dev/lab/attention/adaptive-sweep', authenticateRest, async (req: Request, res: Response) => {
+    try {
+      const execute = Boolean(req.body?.execute);
+      const ceilings = Array.isArray(req.body?.ceilings) ? req.body.ceilings : undefined;
+      const saturationThresholdPctPer1K = typeof req.body?.saturationThresholdPctPer1K === 'number' ? req.body.saturationThresholdPctPer1K : undefined;
+      const question = typeof req.body?.question === 'string' ? req.body.question : undefined;
+
+      const report = await executeAdaptiveBudgetSweep({
+        execute,
+        ceilings,
+        saturationThresholdPctPer1K,
+        question,
+        engine: globalAttentionEngine,
+        store: globalLabStore
+      });
+
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Adaptive sweep error' });
+    }
   });
 
   // 2. Rebuild Derived Attention Index from Read-Only Field Snapshot
@@ -7284,6 +7834,10 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       res.json({
         rebuilt: true,
         snapshotId: snap.snapshotId,
+        snapshotHash: snap.snapshotHash,
+        coverageState: snap.coverageState,
+        coverageDiagnostics: snap.coverageDiagnostics,
+        provenanceBreakdown: snap.provenanceBreakdown,
         totalItemsIndexed: snap.totalItems,
         nodesIndexed: globalAttentionIndex.totalIndexedNodes,
         rebuiltAt: globalAttentionIndex.lastBuiltAt

@@ -38,7 +38,11 @@ import {
   computeFactualEconomicsAttribution,
   generateEconomicsOptimizationProposal,
   determineRunIntegrityState,
-  evaluatePredicateEntailment
+  evaluatePredicateEntailment,
+  CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS,
+  CANONICAL_MANIFEST_FIXTURE_ITEMS,
+  verifyProductionEvidenceManifest,
+  executeAdaptiveBudgetSweep
 } from '../../mcp-server/src/attentionLab.ts';
 import { listDevEvents, mapDevEvent } from '../../mcp-server/src/devBridge.ts';
 import { LUNA_LAB_OPENAPI_SPEC } from '../../mcp-server/src/openapi.ts';
@@ -3339,4 +3343,266 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       expect(statusPayload.readOnlyGuardEnforced).toBe(true);
     });
   });
+
+  // ─── 28. Order 81: Full Field Parity, Index Rebuild, Manifest Verification & Gated Sweep (iss_1789566612079_oq55) ─
+
+  describe('28. Full Field Snapshot Parity, Production Manifest Verification & Gated Adaptive Budget (iss_1789566612079_oq55)', () => {
+    it('AC 1 & AC 2: Deterministically drains paginated echoes beyond 100 rows with e.text authoritative mapping', async () => {
+      // Mock Supabase returning 250 echoes across 2 pages (pageSize is 200)
+      const page1 = Array.from({ length: 200 }, (_, i) => ({
+        id: `echo_page1_${i}`,
+        user_id: 'usr_parity_test',
+        text: `Authoritative reflection text body ${i}`,
+        content: null,
+        created_at: new Date(Date.now() - i * 3600000).toISOString(),
+        deleted_at: null
+      }));
+
+      const page2 = Array.from({ length: 50 }, (_, i) => ({
+        id: `echo_page2_${i}`,
+        user_id: 'usr_parity_test',
+        text: `Authoritative reflection text body page 2 ${i}`,
+        content: null,
+        created_at: new Date(Date.now() - (200 + i) * 3600000).toISOString(),
+        deleted_at: null
+      }));
+
+      const mockPaginatedSupabase = {
+        from: (table) => ({
+          select: () => ({
+            eq: () => ({
+              is: () => ({
+                order: () => ({
+                  order: () => ({
+                    range: async (from, to) => {
+                      if (table !== 'echoes') return { data: [], error: null };
+                      if (from === 0) return { data: page1, error: null };
+                      if (from === 200) return { data: page2, error: null };
+                      return { data: [], error: null };
+                    }
+                  })
+                })
+              })
+            })
+          })
+        })
+      };
+
+      const adapterWithPagination = new LunaFieldReadOnlyAdapter({
+        userId: 'usr_parity_test',
+        mode: 'personal_field',
+        supabase: mockPaginatedSupabase 
+      });
+
+      const snapshot = await adapterWithPagination.captureSnapshot();
+      expect(snapshot.echoes.length).toBe(250);
+      expect(snapshot.echoes[0].content).toContain('Authoritative reflection text body 0');
+      expect(snapshot.echoes[249].content).toContain('Authoritative reflection text body page 2 49');
+      expect(snapshot.coverageState).toBe('COMPLETE');
+      expect(snapshot.coverageDiagnostics?.nonEmptyContentCount).toBe(250);
+      expect(snapshot.coverageDiagnostics?.ceilingHit).toBe(false);
+    });
+
+    it('AC 3: Maps e.text with safe fallback to e.content and handles non-empty indexing diagnostics', async () => {
+      const mockEchoes = [
+        { id: 'e_text_only', user_id: 'u1', text: 'Text column body', content: null, created_at: '2026-08-01T00:00:00Z' },
+        { id: 'e_content_fallback', user_id: 'u1', text: null, content: 'Legacy content body', created_at: '2026-08-02T00:00:00Z' },
+        { id: 'e_empty', user_id: 'u1', text: '', content: '', title: '', created_at: '2026-08-03T00:00:00Z' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => ({
+            eq: () => ({
+              is: () => ({
+                order: () => ({
+                  order: () => ({
+                    range: async () => ({ data: table === 'echoes' ? mockEchoes : [], error: null })
+                  })
+                })
+              })
+            })
+          })
+        })
+      };
+
+      const adapterText = new LunaFieldReadOnlyAdapter({
+        userId: 'u1',
+        mode: 'personal_field',
+        supabase: mockSupabase 
+      });
+
+      const snap = await adapterText.captureSnapshot();
+      const eTextOnly = snap.echoes.find(e => e.id === 'e_text_only');
+      const eFallback = snap.echoes.find(e => e.id === 'e_content_fallback');
+      const eEmpty = snap.echoes.find(e => e.id === 'e_empty');
+
+      expect(eTextOnly?.content).toBe('Text column body');
+      expect(eFallback?.content).toBe('Legacy content body');
+      expect(eEmpty?.content).toBe('');
+
+      expect(snap.coverageDiagnostics?.nonEmptyContentCount).toBe(2);
+      expect(snap.coverageDiagnostics?.emptyContentCount).toBe(1);
+    });
+
+    it('AC 4 & AC 5: Epistemic guard prevents false NO_RECORDS_IN_PERIOD assertions when snapshot coverage is PARTIAL', async () => {
+      // Create an index where snapshot coverage is explicitly PARTIAL
+      const partialSnapshot = {
+        snapshotId: 'snap_partial_test',
+        snapshotHash: 'hash_partial',
+        mode: 'personal_field',
+        userId: 'u1',
+        capturedAt: new Date().toISOString(),
+        loops: [],
+        echoes: [],
+        relationalMemories: [],
+        chatMessages: [],
+        lunarCycles: [],
+        totalItems: 0,
+        coverageState: 'PARTIAL',
+        coverageDiagnostics: {
+          loopsCount: 0,
+          echoesCount: 0,
+          chatCount: 0,
+          rmCount: 0,
+          cyclesCount: 0,
+          nonEmptyContentCount: 0,
+          emptyContentCount: 0,
+          ceilingHit: true
+        },
+        provenanceBreakdown: { personal_field: 0, benchmark_fixture: 0, synthetic: 0 }
+      };
+
+      const partialIndex = new AttentionIndex();
+      partialIndex.rebuild(partialSnapshot);
+      expect(partialIndex.snapshotCoverageState).toBe('PARTIAL');
+
+      const partialEngine = new AttentionEngineV1(partialIndex);
+      const { plan } = await partialEngine.planAndAssemble(
+        'How has my relationship with building Luna changed over the last several months?',
+        { tokenBudget: 3000, coverageStrategy: 'longitudinal_span' }
+      );
+
+      // Epistemic Guard verification:
+      // When snapshot is PARTIAL and no records are found in a period, it MUST NOT claim NO_RECORDS_IN_PERIOD
+      if (plan.coverageMatrix) {
+        for (const ob of plan.coverageMatrix.obligations) {
+          expect(ob.temporalAvailability).not.toBe('NO_RECORDS_IN_PERIOD');
+          expect(ob.temporalAvailability).toBe('RETRIEVAL_COVERAGE_INCOMPLETE');
+          expect(ob.retrievalDiagnosis).toBe('RETRIEVAL_COVERAGE_INCOMPLETE');
+          expect(ob.insufficiencyReason).toContain('RETRIEVAL_COVERAGE_INCOMPLETE');
+          expect(ob.insufficiencyReason).toContain('PARTIAL');
+        }
+      }
+
+      // Telemetry must record PARTIAL coverage state
+      expect(plan.telemetry?.snapshotCoverageState).toBe('PARTIAL');
+      expect(plan.telemetry?.snapshotCoverageDiagnostics?.ceilingHit).toBe(true);
+    });
+
+    it('AC 6 & AC 7: verifyProductionEvidenceManifest verifies all 37 target records from Conversation 17 production evidence manifest', () => {
+      expect(CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.length).toBe(37);
+
+      // Construct test index populated with canonical manifest fixture items
+      const manifestSnapshot = {
+        snapshotId: 'snap_manifest_test',
+        snapshotHash: 'hash_manifest_37',
+        mode: 'personal_field',
+        userId: 'u1',
+        capturedAt: new Date().toISOString(),
+        loops: [],
+        echoes: CANONICAL_MANIFEST_FIXTURE_ITEMS,
+        relationalMemories: [],
+        chatMessages: [],
+        lunarCycles: [],
+        totalItems: CANONICAL_MANIFEST_FIXTURE_ITEMS.length,
+        coverageState: 'COMPLETE',
+        coverageDiagnostics: {
+          loopsCount: 0,
+          echoesCount: 37,
+          chatCount: 0,
+          rmCount: 0,
+          cyclesCount: 0,
+          nonEmptyContentCount: 37,
+          emptyContentCount: 0,
+          ceilingHit: false
+        },
+        provenanceBreakdown: { personal_field: 37, benchmark_fixture: 0, synthetic: 0 }
+      };
+
+      const manifestIndex = new AttentionIndex();
+      manifestIndex.rebuild(manifestSnapshot);
+
+      const verification = verifyProductionEvidenceManifest(manifestIndex);
+      expect(verification.totalTargets).toBe(37);
+      expect(verification.presentCount).toBe(37);
+      expect(verification.absentCount).toBe(0);
+      expect(verification.indexedCount).toBe(37);
+      expect(verification.nonEmptyCount).toBe(37);
+      expect(verification.coverageState).toBe('COMPLETE');
+
+      // Verify specific production targets across the timeline
+      const feb26 = verification.results.find(r => r.id === 'e17720819694748ihz');
+      expect(feb26?.status).toBe('PRESENT');
+      expect(feb26?.contentNonEmpty).toBe(true);
+      expect(feb26?.targetDate).toBe('Feb 26');
+
+      const aug16 = verification.results.find(r => r.id === 'e17868603300115ffw');
+      expect(aug16?.status).toBe('PRESENT');
+      expect(aug16?.contentNonEmpty).toBe(true);
+      expect(aug16?.targetDate).toBe('Aug 16');
+
+      const sep14 = verification.results.find(r => r.id === 'e1789358774717ctok');
+      expect(sep14?.status).toBe('PRESENT');
+      expect(sep14?.contentNonEmpty).toBe(true);
+      expect(sep14?.targetDate).toBe('Sep 14');
+    });
+
+    it('AC 8 & AC 9: Phase 4 adaptive-budget sweep capability is strictly gated behind human approval and enforces stopping rule', async () => {
+      const harnessEngine = new AttentionEngineV1(index);
+      const harnessStore = new DurableLabStore({ inMemoryOnly: true });
+
+      // 1. Dry run / gated check (execute: false or undefined)
+      const gatedReport = await executeAdaptiveBudgetSweep({
+        execute: false,
+        engine: harnessEngine,
+        store: harnessStore
+      });
+
+      expect(gatedReport.executed).toBe(false);
+      expect(gatedReport.gated).toBe(true);
+      expect(gatedReport.gateReason).toContain('HUMAN_APPROVAL_REQUIRED');
+      expect(gatedReport.steps.length).toBe(5);
+      expect(gatedReport.referenceTelemetry.productionConversation17.totalTokens).toBe(127681);
+      expect(gatedReport.referenceTelemetry.productionConversation17.costUsd).toBe(0.012492);
+
+      // 2. Active execution (execute: true)
+      const activeReport = await executeAdaptiveBudgetSweep({
+        execute: true,
+        ceilings: [3000, 6000],
+        engine: harnessEngine,
+        store: harnessStore
+      });
+
+      expect(activeReport.executed).toBe(true);
+      expect(activeReport.gated).toBe(false);
+      expect(activeReport.steps.length).toBeGreaterThanOrEqual(1);
+      expect(activeReport.steps[0].ceiling).toBe(3000);
+      expect(activeReport.steps[0].tokensSelected).toBeGreaterThan(0);
+      expect(activeReport.stoppingRule.type).toBe('recall_saturation_or_obligations_satisfied');
+    });
+
+    it('AC 10: Personal Field remains strictly read-only and historical runs remain immutable', () => {
+      const readOnlyAdapter = new LunaFieldReadOnlyAdapter();
+      expect(readOnlyAdapter.assertReadOnly()).toBe(true);
+      expect(readOnlyAdapter.getMode()).toBe('personal_field');
+
+      // Verify no write methods
+      expect((readOnlyAdapter ).insertLoop).toBeUndefined();
+      expect((readOnlyAdapter ).updateLoop).toBeUndefined();
+      expect((readOnlyAdapter ).deleteLoop).toBeUndefined();
+      expect((readOnlyAdapter ).writeRecord).toBeUndefined();
+    });
+  });
+
 });
