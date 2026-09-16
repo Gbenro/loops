@@ -32,6 +32,104 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     return CHAT_ACTIVITY_PHASES[0];
   }
 
+  /**
+   * Strips internal IDs, telemetry, tool/DSML syntax, system tags, and normalizes
+   * line breaks while preserving paragraph separation and list formatting.
+   */
+  export function cleanMessageForCopy(rawContent) {
+    if (rawContent == null) return '';
+    let text = typeof rawContent === 'string' ? rawContent : String(rawContent);
+
+    // Strip system/internal tags if present (e.g. <tool_call>, <thought>, <metadata>, [tool_result], etc.)
+    text = text.replace(/<tool_call[\s\S]*?<\/tool_call>/gi, '');
+    text = text.replace(/<thought[\s\S]*?<\/thought>/gi, '');
+    text = text.replace(/<metadata[\s\S]*?<\/metadata>/gi, '');
+    text = text.replace(/\[tool_result[\s\S]*?\[\/tool_result\]/gi, '');
+    text = text.replace(/<!--\s*telemetry[\s\S]*?-->/gi, '');
+    text = text.replace(/<system_instructions[\s\S]*?<\/system_instructions>/gi, '');
+    text = text.replace(/\[(?:telemetry|internal_id|trace_id):[^\]]+\]/gi, '');
+
+    // Convert HTML breaks and paragraph/list tags if any rich HTML exists
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<\/p>/gi, '\n\n');
+    text = text.replace(/<\/li>/gi, '\n');
+    text = text.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/gi, '');
+
+    // Decode common HTML entities
+    text = text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+
+    // Normalize Windows / Mac line breaks
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Collapse 3 or more consecutive linebreaks to 2 so paragraphs stay clean
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    // Trim trailing whitespace per line
+    text = text
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .join('\n');
+
+    return text.trim();
+  }
+
+  /**
+   * Copies clean text to clipboard with modern navigator.clipboard and fallback to document.execCommand.
+   * Returns true if copied successfully, false otherwise.
+   */
+  export async function copyMessageText(rawText) {
+    const cleanText = cleanMessageForCopy(rawText);
+    if (!cleanText) return false;
+
+    // 1. Try modern navigator.clipboard.writeText
+    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(cleanText);
+        return true;
+      } catch (clipErr) {
+        console.warn('navigator.clipboard.writeText failed, falling back:', clipErr);
+      }
+    }
+
+    // 2. Fallback using temporary textarea & document.execCommand('copy')
+    if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = cleanText;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '0';
+        textarea.style.left = '0';
+        textarea.style.width = '2em';
+        textarea.style.height = '2em';
+        textarea.style.padding = '0';
+        textarea.style.border = 'none';
+        textarea.style.outline = 'none';
+        textarea.style.boxShadow = 'none';
+        textarea.style.background = 'transparent';
+        textarea.style.opacity = '0';
+        textarea.style.zIndex = '-9999';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, cleanText.length);
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (success) return true;
+      } catch (execErr) {
+        console.warn('execCommand copy fallback failed:', execErr);
+      }
+    }
+
+    return false;
+  }
+
   export function Chat({ userId, lunarData }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -52,6 +150,42 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     const [failedTurnState, setFailedTurnState] = useState(null);
     const [requestElapsedMs, setRequestElapsedMs] = useState(0);
     const requestStartTimeRef = useRef(null);
+
+    // Individual message copy feedback state
+    const [copiedMessageId, setCopiedMessageId] = useState(null);
+    const [copyErrorId, setCopyErrorId] = useState(null);
+    const copyTimeoutRef = useRef(null);
+
+    const handleCopyMessage = useCallback(async (msg) => {
+      if (!msg || !msg.content) return;
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = null;
+      }
+
+      const ok = await copyMessageText(msg.content);
+      if (ok) {
+        setCopiedMessageId(msg.id);
+        setCopyErrorId(null);
+        copyTimeoutRef.current = setTimeout(() => {
+          setCopiedMessageId((curr) => (curr === msg.id ? null : curr));
+        }, 2000);
+      } else {
+        setCopyErrorId(msg.id);
+        setCopiedMessageId(null);
+        copyTimeoutRef.current = setTimeout(() => {
+          setCopyErrorId((curr) => (curr === msg.id ? null : curr));
+        }, 3000);
+      }
+    }, []);
+
+    useEffect(() => {
+      return () => {
+        if (copyTimeoutRef.current) {
+          clearTimeout(copyTimeoutRef.current);
+        }
+      };
+    }, []);
 
     // Derived session views for active and archived conversations
     const activeSessions = sessions.filter(isSessionActive);
@@ -1845,6 +1979,30 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           gap: '14px'
         }}
       >
+        {/* Screen reader announcement for copy actions */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: 0,
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0
+          }}
+        >
+          {copiedMessageId
+            ? 'Message copied to clipboard'
+            : copyErrorId
+            ? 'Failed to copy message to clipboard'
+            : ''}
+        </div>
+
         {messages.length === 0 && !loading && (
           <div
             style={{
@@ -1867,6 +2025,9 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
 
           if (isUser) {
             // User Message Bubble (Right Aligned)
+            const isCopied = copiedMessageId === msg.id;
+            const isCopyFailed = copyErrorId === msg.id;
+
             return (
               <div
                 key={msg.id}
@@ -1879,21 +2040,76 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                   gap: '4px'
                 }}
               >
-                <span
+                <div
                   style={{
-                    fontSize: '9px',
-                    color: 'var(--color-text-faint)',
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.05em',
-                    textTransform: 'uppercase',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    justifyContent: 'flex-end',
+                    gap: '6px'
                   }}
                 >
-                  {isVoice && <span title="Recorded via voice" style={{ fontSize: '10px' }}>🎙</span>}
-                  You
-                </span>
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      color: 'var(--color-text-faint)',
+                      fontFamily: 'monospace',
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isVoice && <span title="Recorded via voice" style={{ fontSize: '10px' }}>🎙</span>}
+                    You
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyMessage(msg)}
+                    data-testid={`copy-message-btn-${msg.id}`}
+                    data-copy-role="user"
+                    aria-label={
+                      isCopied
+                        ? 'Copied user message to clipboard'
+                        : isCopyFailed
+                        ? 'Failed to copy message'
+                        : 'Copy user message'
+                    }
+                    title={isCopied ? 'Copied!' : isCopyFailed ? 'Copy failed' : 'Copy message'}
+                    style={{
+                      background: isCopied ? 'rgba(52, 211, 153, 0.15)' : 'none',
+                      border: isCopied ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid transparent',
+                      borderRadius: '8px',
+                      color: isCopied ? '#a7f3d0' : isCopyFailed ? '#f87171' : 'var(--color-text-faint)',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      minHeight: '24px',
+                      minWidth: '24px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease',
+                      touchAction: 'manipulation'
+                    }}
+                  >
+                    {isCopied ? (
+                      <>
+                        <span style={{ color: '#34d399', fontSize: '11px' }}>✓</span> Copied
+                      </>
+                    ) : isCopyFailed ? (
+                      <>
+                        <span style={{ color: '#f87171', fontSize: '11px' }}>⚠</span> Failed
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ opacity: 0.75, fontSize: '12px' }}>⎘</span> Copy
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 <div
                   style={{
@@ -1905,7 +2121,9 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                     fontSize: '14px',
                     lineHeight: '1.55',
                     whiteSpace: 'pre-wrap',
-                    fontFamily: 'sans-serif'
+                    fontFamily: 'sans-serif',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text'
                   }}
                 >
                   {msg.content}
@@ -1979,6 +2197,9 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           }
 
           // Luna Editorial Full-Width Layout (Non-Bubbled)
+          const isCopied = copiedMessageId === msg.id;
+          const isCopyFailed = copyErrorId === msg.id;
+
           return (
             <div
               key={msg.id}
@@ -2007,6 +2228,63 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                 >
                   ✦ Luna
                 </span>
+
+                <button
+                  type="button"
+                  onClick={() => handleCopyMessage(msg)}
+                  data-testid={`copy-message-btn-${msg.id}`}
+                  data-copy-role="assistant"
+                  aria-label={
+                    isCopied
+                      ? 'Copied Luna response to clipboard'
+                      : isCopyFailed
+                      ? 'Failed to copy message'
+                      : 'Copy Luna message'
+                  }
+                  title={isCopied ? 'Copied!' : isCopyFailed ? 'Copy failed' : 'Copy message'}
+                  style={{
+                    background:
+                      isCopied
+                        ? 'rgba(52, 211, 153, 0.15)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    border:
+                      isCopied
+                        ? '1px solid rgba(52, 211, 153, 0.4)'
+                        : '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    color:
+                      isCopied
+                        ? '#a7f3d0'
+                        : isCopyFailed
+                        ? '#f87171'
+                        : '#c4b5fd',
+                    fontSize: '11px',
+                    fontFamily: 'monospace',
+                    cursor: 'pointer',
+                    padding: '2px 8px',
+                    minHeight: '24px',
+                    minWidth: '24px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease',
+                    touchAction: 'manipulation'
+                  }}
+                >
+                  {isCopied ? (
+                    <>
+                      <span style={{ color: '#34d399', fontSize: '11px' }}>✓</span> Copied
+                    </>
+                  ) : isCopyFailed ? (
+                    <>
+                      <span style={{ color: '#f87171', fontSize: '11px' }}>⚠</span> Failed
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ opacity: 0.8, fontSize: '12px' }}>⎘</span> Copy
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Editorial Full-width text */}
@@ -2017,7 +2295,9 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
                   lineHeight: '1.7',
                   whiteSpace: 'pre-wrap',
                   fontFamily: "'Playfair Display', Georgia, serif",
-                  letterSpacing: '0.01em'
+                  letterSpacing: '0.01em',
+                  userSelect: 'text',
+                  WebkitUserSelect: 'text'
                 }}
               >
                 {msg.content}
