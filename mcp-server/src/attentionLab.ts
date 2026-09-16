@@ -30,6 +30,60 @@ export interface NodeProvenance {
   originalId: string;
   snapshotId: string;
   contentHash: string; // SHA-256
+  authorRole?: 'user' | 'assistant' | 'system';
+  isMetaExperiment?: boolean;
+}
+
+export function isMetaExperimentText(text: string, title?: string): boolean {
+  const combined = `${title || ''} ${text || ''}`.toLowerCase();
+  if (
+    combined.includes('benchmark_') ||
+    combined.includes('sess_lab_') ||
+    combined.includes('run_178') ||
+    combined.includes('iss_178') ||
+    combined.includes('attention engine') ||
+    combined.includes('attention lab') ||
+    combined.includes('benchmark harness') ||
+    combined.includes('order 81') ||
+    combined.includes('order 82') ||
+    combined.includes('token ceiling') ||
+    combined.includes('adaptive-budget') ||
+    combined.includes('adaptive budget') ||
+    combined.includes('coverage matrix') ||
+    combined.includes('longitudinal span') ||
+    combined.includes('evaluator calibration') ||
+    combined.includes('preserve outputs only in lab artifacts')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export interface ManifestRecallTelemetry {
+  targetUniverse: 'canonical_37_record_production_manifest';
+  totalTargets: number;
+  discoveredCount: number;
+  discoveredIds: string[];
+  qualifiedCount: number;
+  qualifiedIds: string[];
+  selectedCount: number;
+  selectedIds: string[];
+  suppliedCount: number;
+  suppliedIds: string[];
+  usedInClaimsCount: number;
+  usedInClaimsIds: string[];
+  manifestRecallPct: number;
+  targetStageMatrix: Array<{
+    id: string;
+    targetDate: string;
+    targetTitle: string;
+    discovered: boolean;
+    qualified: boolean;
+    selected: boolean;
+    supplied: boolean;
+    usedInClaims: boolean;
+    dropReason?: string;
+  }>;
 }
 
 export function computeNodeContentHash(table: string, id: string, content: string, title?: string, timestamp?: string): string {
@@ -183,6 +237,8 @@ export interface LunaFieldItem {
   relatedIds?: string[];
   metadata?: Record<string, any>;
   provenance: NodeProvenance;
+  authorRole?: 'user' | 'assistant' | 'system';
+  isMetaExperiment?: boolean;
 }
 
 export interface SnapshotCoverageDiagnostics {
@@ -787,6 +843,15 @@ export interface BaselineResult {
   costAttribution?: ConditionCostAttribution;
   searchRagTelemetry?: SearchRagTelemetry;
   claimsTrace?: ClaimEvidenceTrace[];
+  budgetRequested?: number;
+  budgetEffective?: number;
+  packetTokensUsed?: number;
+  budgetUtilization?: number;
+  manifestRecall?: ManifestRecallTelemetry;
+  status?: 'VALID' | 'INVALID' | 'ERROR';
+  invalidReason?: string | null;
+  isValidBenchmarkBaseline?: boolean;
+  stopReasons?: string[];
 }
 
 export interface ComparisonRun {
@@ -850,6 +915,13 @@ export interface ComparisonRun {
   };
   economics?: ComparativeEconomicsSummary;
   scorecard?: ComparativeScorecard;
+  budgetRequested?: number;
+  budgetEffective?: number;
+  packetTokensUsed?: number;
+  budgetUtilization?: number;
+  manifestRecall?: ManifestRecallTelemetry;
+  telemetry?: Record<string, any>;
+  evictionReasons?: string[];
 }
 
 export interface EvidenceAuditItem {
@@ -1625,27 +1697,36 @@ export class LunaFieldReadOnlyAdapter {
             this.fetchTableRowsPaginated(sb, 'lunar_cycles', this.userId, { pageSize: 50, maxCeiling: 100, orderCol: 'started_at' })
           ]);
 
-          const loops: LunaFieldItem[] = (loopsFetch.data || []).map((l: any) => ({
-            id: l.id,
-            sourceType: 'loop',
-            title: l.title,
-            content: l.content || l.description || l.title || '',
-            createdAt: l.created_at || new Date().toISOString(),
-            cycleNumber: l.cycle_number,
-            tags: Array.isArray(l.tags) ? l.tags : [],
-            provenance: {
-              source: 'personal_field',
-              sourceTable: 'loops',
-              originalId: l.id,
-              snapshotId: snapId,
-              contentHash: computeNodeContentHash('loops', l.id, l.content || l.description || l.title || '', l.title, l.created_at)
-            }
-          }));
+          const loops: LunaFieldItem[] = (loopsFetch.data || []).map((l: any) => {
+            const content = l.content || l.description || l.title || '';
+            const isMeta = isMetaExperimentText(content, l.title);
+            return {
+              id: l.id,
+              sourceType: 'loop',
+              title: l.title,
+              content,
+              createdAt: l.created_at || new Date().toISOString(),
+              cycleNumber: l.cycle_number,
+              tags: Array.isArray(l.tags) ? l.tags : [],
+              authorRole: 'user',
+              isMetaExperiment: isMeta,
+              provenance: {
+                source: 'personal_field',
+                sourceTable: 'loops',
+                originalId: l.id,
+                snapshotId: snapId,
+                contentHash: computeNodeContentHash('loops', l.id, content, l.title, l.created_at),
+                authorRole: 'user',
+                isMetaExperiment: isMeta
+              }
+            };
+          });
 
           // Attention V1.6 / Order 81 Parity: Map authoritative reflection text from e.text
           const echoes: LunaFieldItem[] = (echoesFetch.data || []).map((e: any) => {
             const textContent = e.text || e.content || e.title || '';
             const title = e.title || (textContent ? (textContent.length > 60 ? textContent.substring(0, 60) + '...' : textContent) : 'Echo');
+            const isMeta = isMetaExperimentText(textContent, title);
             return {
               id: e.id,
               sourceType: 'echo',
@@ -1654,12 +1735,16 @@ export class LunaFieldReadOnlyAdapter {
               createdAt: e.created_at || new Date().toISOString(),
               relatedIds: e.loop_id ? [e.loop_id] : [],
               tags: Array.isArray(e.tags) ? e.tags : [],
+              authorRole: 'user',
+              isMetaExperiment: isMeta,
               provenance: {
                 source: 'personal_field',
                 sourceTable: 'echoes',
                 originalId: e.id,
                 snapshotId: snapId,
-                contentHash: computeNodeContentHash('echoes', e.id, textContent, title, e.created_at)
+                contentHash: computeNodeContentHash('echoes', e.id, textContent, title, e.created_at),
+                authorRole: 'user',
+                isMetaExperiment: isMeta
               }
             };
           });
@@ -1680,19 +1765,38 @@ export class LunaFieldReadOnlyAdapter {
             }
           }));
 
-          const messages: LunaFieldItem[] = (chatFetch.data || []).map((c: any) => ({
-            id: c.id,
-            sourceType: 'chat_message',
-            content: c.content || '',
-            createdAt: c.created_at || new Date().toISOString(),
-            provenance: {
-              source: 'personal_field',
-              sourceTable: 'chat_messages',
-              originalId: c.id,
-              snapshotId: snapId,
-              contentHash: computeNodeContentHash('chat_messages', c.id, c.content || '', undefined, c.created_at)
-            }
-          }));
+          const messages: LunaFieldItem[] = (chatFetch.data || []).map((c: any) => {
+            const rawContent = c.content || '';
+            const authorRole: 'user' | 'assistant' | 'system' =
+              c.role === 'assistant' || c.sender_type === 'assistant' ? 'assistant' :
+              c.role === 'system' || c.sender_type === 'system' ? 'system' :
+              'user';
+            const isMeta = authorRole !== 'user' || isMetaExperimentText(rawContent);
+
+            return {
+              id: c.id,
+              sourceType: 'chat_message',
+              title: c.role ? `Chat (${c.role})` : (authorRole !== 'user' ? `Chat (${authorRole})` : 'Chat Message'),
+              content: rawContent,
+              createdAt: c.created_at || new Date().toISOString(),
+              authorRole,
+              isMetaExperiment: isMeta,
+              metadata: {
+                role: c.role || authorRole,
+                sessionId: c.session_id,
+                isMetaExperiment: isMeta
+              },
+              provenance: {
+                source: 'personal_field',
+                sourceTable: 'chat_messages',
+                originalId: c.id,
+                snapshotId: snapId,
+                contentHash: computeNodeContentHash('chat_messages', c.id, rawContent, undefined, c.created_at),
+                authorRole,
+                isMetaExperiment: isMeta
+              }
+            };
+          });
 
           const cycles: LunaFieldItem[] = (cycleFetch.data || []).map((cy: any) => ({
             id: cy.id || `cy_${cy.cycle_number}`,
@@ -3183,6 +3287,10 @@ export class AttentionEngineV1 {
     for (const cand of candidatesMap.values()) {
       const item = this.index.itemsMap.get(cand.sourceId);
       if (!item) continue;
+      // Order 82 Workstream C: Never boost assistant/system or meta-experiment commentary as counterevidence
+      if (item.authorRole === 'assistant' || item.authorRole === 'system' || item.isMetaExperiment || isMetaExperimentText(item.content, item.title)) {
+        continue;
+      }
       const lower = item.content.toLowerCase();
       for (const cw of counterwords) {
         if (lower.includes(cw)) {
@@ -3259,8 +3367,29 @@ export class AttentionEngineV1 {
       const entailRes = evaluatePredicateEntailment(item, decomp, domainRes.primaryDomain);
       cand.predicateEntailmentResult = entailRes.result;
 
-      // Conjunctive decision logic with V1.5 Evidence Roles:
-      if (!domainGatePass) {
+      // Source-Role & Meta-Experiment Gating (Order 82 Workstream C)
+      const isAssistantOrSystem = item.authorRole === 'assistant' || item.authorRole === 'system';
+      const isMetaRecord = item.isMetaExperiment || isMetaExperimentText(item.content, item.title);
+
+      // Conjunctive decision logic with V1.5 Evidence Roles & Source Provenance:
+      if (isMetaRecord) {
+        cand.qualificationDecision = 'DISQUALIFIED';
+        cand.finalQualification = 'DISQUALIFIED';
+        cand.isClaimSupporting = false;
+        cand.finalSelectionScore = 0;
+        cand.demotionRationale = 'meta_experiment_discussion: Meta-analysis, benchmark discussion, or experiment conversation is not primary Field evidence.';
+        cand.selectionRationale = cand.demotionRationale;
+        cand.evidenceRole = 'CONTEXT';
+      } else if (isAssistantOrSystem) {
+        // Assistant commentary can orient background context, but CANNOT be substantive or claim-supporting for personal lived experience
+        cand.qualificationDecision = 'QUALIFIED';
+        cand.finalQualification = 'QUALIFIED';
+        cand.isClaimSupporting = false;
+        cand.evidenceRole = 'CONTEXT';
+        cand.finalSelectionScore = Math.min(3.0, cand.score * 0.3);
+        cand.demotionRationale = 'assistant_commentary_not_primary_evidence: Assistant-authored chat commentary cannot independently ground personal/experiential claims.';
+        cand.selectionRationale = cand.demotionRationale;
+      } else if (!domainGatePass) {
         // Incompatible domain (e.g. DEV / system engineering records on personal reflection)
         cand.qualificationDecision = 'DISQUALIFIED';
         cand.finalQualification = 'DISQUALIFIED';
@@ -5075,6 +5204,7 @@ export class BenchmarkHarness {
       category?: string;
       model?: string;
       benchmarkCase?: BenchmarkCase;
+      tokenBudget?: number;
       cumulativeLabCost?: number;
       baselineA?: 'search_rag' | 'control';
     } = {}
@@ -5187,18 +5317,39 @@ export class BenchmarkHarness {
     broadResult.snapshotHashUsed = snapshotHash;
     broadResult.provenanceIntegrityValid = true;
 
-    const t1_model = Date.now();
-    const resB = await executeConditionCompletion({
-      condition: 'broad_context',
-      question,
-      evidenceContext: broadResult.formattedSnippet,
-      modelConfig,
-      requestedModelKey,
-      maxTokens: 2500
-    });
-    const modelMsB = Date.now() - t1_model;
-    if (!resB.success || !resB.verbatimAnswer || !resB.verbatimAnswer.trim()) {
-      throw new Error(`Output capture failure for Condition B (broad_context): ${resB.fallbackReason || 'Verbatim generated answer was empty or missing'}`);
+    let resB: any;
+    let modelMsB = 0;
+    if (broadResult.itemsIncludedCount === 0) {
+      // If broad context produced 0 records despite records existing in snapshot,
+      // mark condition explicitly INVALID; do not call model or score as normal baseline
+      broadResult.status = 'INVALID';
+      broadResult.invalidReason = 'Broad baseline selected 0 records from non-empty snapshot';
+      broadResult.isValidBenchmarkBaseline = false;
+      resB = {
+        success: true,
+        verbatimAnswer: 'CONDITION_INVALID: Broad baseline selected 0 records from non-empty snapshot. Condition invalidated.',
+        rawPromptSent: '',
+        requestedModel: modelConfig.key,
+        actualModel: modelConfig.key,
+        provider: 'none',
+        providerModelId: '',
+        parameters: { temperature: 0.2, maxTokens: 1000 },
+        latencyMs: 0
+      };
+    } else {
+      const t1_model = Date.now();
+      resB = await executeConditionCompletion({
+        condition: 'broad_context',
+        question,
+        evidenceContext: broadResult.formattedSnippet,
+        modelConfig,
+        requestedModelKey,
+        maxTokens: 2500
+      });
+      modelMsB = Date.now() - t1_model;
+      if (!resB.success || !resB.verbatimAnswer || !resB.verbatimAnswer.trim()) {
+        throw new Error(`Output capture failure for Condition B (broad_context): ${resB.fallbackReason || 'Verbatim generated answer was empty or missing'}`);
+      }
     }
     broadResult.requestedModel = resB.requestedModel;
     broadResult.actualModel = resB.actualModel;
@@ -5262,14 +5413,21 @@ export class BenchmarkHarness {
     };
     broadResult.costAttribution = computeConditionCostAttribution('broad_context', broadResult, modelConfig.key);
 
-    // 5. Condition C: Attention Engine V1
+    // 5. Condition C: Attention Engine V1 (Adaptive Budget Ceiling Parameterized)
     const t2_plan = Date.now();
-    const { plan, contextPacket } = await this.engine.planAndAssemble(question, { tokenBudget: 3000 });
+    const budgetRequested = options.tokenBudget !== undefined ? Math.round(options.tokenBudget) : 3000;
+    const budgetEffective = budgetRequested;
+    const { plan, contextPacket } = await this.engine.planAndAssemble(question, { tokenBudget: budgetEffective });
     const planningMsC = Date.now() - t2_plan;
 
     const attentionV1Result = this.evaluateAttentionEngineV1(question, plan, contextPacket, bCase);
     attentionV1Result.snapshotHashUsed = snapshotHash;
     attentionV1Result.provenanceIntegrityValid = true;
+    attentionV1Result.budgetRequested = budgetRequested;
+    attentionV1Result.budgetEffective = budgetEffective;
+    attentionV1Result.packetTokensUsed = contextPacket.totalTokensUsed;
+    attentionV1Result.budgetUtilization = Number((contextPacket.totalTokensUsed / budgetEffective).toFixed(4));
+    attentionV1Result.stopReasons = plan.omissionsAndDeduplications.map(o => `${o.sourceId}:${o.reason}`);
 
     const t2_model = Date.now();
     const resC = await executeConditionCompletion({
@@ -5428,6 +5586,83 @@ export class BenchmarkHarness {
       evaluatorNotes
     };
 
+    // Diagnostic Manifest Recall Telemetry (Order 82 Workstream D)
+    const isBuildingLuna = (question.toLowerCase().includes('relationship') || question.toLowerCase().includes('building')) && question.toLowerCase().includes('luna');
+    let manifestRecallTelemetry: ManifestRecallTelemetry | undefined = undefined;
+
+    if (isBuildingLuna) {
+      const candidateIds = new Set(plan.candidates.map(c => c.sourceId));
+      const qualifiedIds = new Set(plan.candidates.filter(c => c.qualificationDecision === 'QUALIFIED' && c.isClaimSupporting !== false).map(c => c.sourceId));
+      const selectedIds = new Set(plan.selectedSources.map(s => s.sourceId));
+      const suppliedIds = new Set(contextPacket.evidenceItems.map(e => e.sourceId));
+
+      const verbatimAns = attentionV1Result.verbatimGeneratedAnswer || '';
+      const usedInClaimsIds = new Set<string>();
+
+      const targetStageMatrix = CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.map(target => {
+        const discovered = candidateIds.has(target.id);
+        const qualified = qualifiedIds.has(target.id);
+        const selected = selectedIds.has(target.id);
+        const supplied = suppliedIds.has(target.id);
+
+        const titleWords = target.targetTitle.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+        const citedInAnswer = supplied && (verbatimAns.includes(target.id) || (titleWords.length > 0 && titleWords.some(tw => verbatimAns.toLowerCase().includes(tw))));
+        if (citedInAnswer) usedInClaimsIds.add(target.id);
+
+        let dropReason: string | undefined = undefined;
+        if (!discovered) {
+          dropReason = 'not_discovered_in_candidate_channels';
+        } else if (!qualified) {
+          const cand = plan.candidates.find(c => c.sourceId === target.id);
+          dropReason = cand?.demotionRationale || 'disqualified_or_demoted_in_qualification_gate';
+        } else if (!selected) {
+          const sup = plan.omissionsAndDeduplications.find(s => s.sourceId === target.id);
+          dropReason = sup?.reason ? `suppressed_during_packet_budgeting:${sup.reason}` : 'evicted_by_token_budget_ceiling';
+        } else if (!supplied) {
+          dropReason = 'omitted_from_context_packet_assembly';
+        }
+
+        return {
+          id: target.id,
+          targetDate: target.targetDate,
+          targetTitle: target.targetTitle,
+          discovered,
+          qualified,
+          selected,
+          supplied,
+          usedInClaims: citedInAnswer,
+          dropReason
+        };
+      });
+
+      const discoveredCount = targetStageMatrix.filter(t => t.discovered).length;
+      const qualifiedCount = targetStageMatrix.filter(t => t.qualified).length;
+      const selectedCount = targetStageMatrix.filter(t => t.selected).length;
+      const suppliedCount = targetStageMatrix.filter(t => t.supplied).length;
+      const usedInClaimsCount = usedInClaimsIds.size;
+      const totalTargets = CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.length;
+      const manifestRecallPct = Math.round((selectedCount / totalTargets) * 100);
+
+      manifestRecallTelemetry = {
+        targetUniverse: 'canonical_37_record_production_manifest',
+        totalTargets,
+        discoveredCount,
+        discoveredIds: targetStageMatrix.filter(t => t.discovered).map(t => t.id),
+        qualifiedCount,
+        qualifiedIds: targetStageMatrix.filter(t => t.qualified).map(t => t.id),
+        selectedCount,
+        selectedIds: targetStageMatrix.filter(t => t.selected).map(t => t.id),
+        suppliedCount,
+        suppliedIds: targetStageMatrix.filter(t => t.supplied).map(t => t.id),
+        usedInClaimsCount,
+        usedInClaimsIds: Array.from(usedInClaimsIds),
+        manifestRecallPct,
+        targetStageMatrix
+      };
+
+      attentionV1Result.manifestRecall = manifestRecallTelemetry;
+    }
+
     const delta = {
       groundingDelta: attentionV1Result.groundingScore - broadResult.groundingScore,
       falseConnectionReduction: broadResult.falseConnectionRisk - attentionV1Result.falseConnectionRisk,
@@ -5468,7 +5703,21 @@ export class BenchmarkHarness {
       attentionPlanId: plan.planId,
       contextPacketId: contextPacket.packetId,
       attentionPlan: plan,
-      contextPacket: contextPacket
+      contextPacket: contextPacket,
+      budgetRequested,
+      budgetEffective,
+      packetTokensUsed: contextPacket.totalTokensUsed,
+      budgetUtilization: Number((contextPacket.totalTokensUsed / budgetEffective).toFixed(4)),
+      manifestRecall: manifestRecallTelemetry,
+      telemetry: {
+        budgetRequested,
+        budgetEffective,
+        packetTokensUsed: contextPacket.totalTokensUsed,
+        budgetUtilization: Number((contextPacket.totalTokensUsed / budgetEffective).toFixed(4)),
+        manifestRecall: manifestRecallTelemetry,
+        evictionReasons: plan.omissionsAndDeduplications.map(o => `${o.sourceId}:${o.reason}`)
+      },
+      evictionReasons: plan.omissionsAndDeduplications.map(o => `${o.sourceId}:${o.reason}`)
     };
   }
 
@@ -5531,51 +5780,78 @@ export class BenchmarkHarness {
       ...this.snapshot.echoes,
       ...this.snapshot.relationalMemories,
       ...this.snapshot.chatMessages
-    ];
+    ].filter(it => it && it.content && it.content.trim().length > 0);
 
-    // Sort descending by date and take latest records up to 4000 tokens
-    all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Robust descending chronological sort (guard against invalid/missing timestamps)
+    all.sort((a, b) => {
+      const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      const validA = !isNaN(tA) ? tA : 0;
+      const validB = !isNaN(tB) ? tB : 0;
+      return validB - validA;
+    });
 
     const selected: LunaFieldItem[] = [];
     let tokens = 0;
+    const maxBroadBudget = 4000;
+
     for (const item of all) {
-      const est = Math.round(item.content.split(/\s+/).length * 1.3);
-      if (tokens + est > 4000) break;
-      selected.push(item);
-      tokens += est;
+      const words = item.content.split(/\s+/).filter(Boolean);
+      const est = Math.round(words.length * 1.3);
+      if (tokens + est <= maxBroadBudget) {
+        selected.push(item);
+        tokens += est;
+      } else if (tokens < maxBroadBudget && selected.length === 0) {
+        // If a single record exceeds maxBroadBudget and we have not selected anything yet,
+        // pack a truncated slice up to maxBroadBudget so the baseline is not empty
+        const allowedWords = Math.max(50, Math.floor((maxBroadBudget - tokens) / 1.3));
+        const truncatedContent = words.slice(0, allowedWords).join(' ') + '... [truncated to fit broad ceiling]';
+        selected.push({
+          ...item,
+          content: truncatedContent
+        });
+        tokens += Math.round(allowedWords * 1.3);
+        break;
+      }
+      if (tokens >= maxBroadBudget) break;
     }
 
+    const isEmptyWhileSnapshotHasRecords = selected.length === 0 && all.length > 0;
     const isNegative = bCase?.isNegativeControl || false;
-    // Broad context provides high token volume but creates needle-in-a-haystack noise and false connections
-    const grounding = isNegative ? 40 : 68;
-    const missedEvidence = isNegative ? 0 : 25;
-    const falseConnections = isNegative ? 60 : 45; // high risk of distractor false correlation
+    const grounding = isEmptyWhileSnapshotHasRecords ? 0 : (isNegative ? 40 : 68);
+    const missedEvidence = isEmptyWhileSnapshotHasRecords ? 100 : (isNegative ? 0 : 25);
+    const falseConnections = isEmptyWhileSnapshotHasRecords ? 100 : (isNegative ? 60 : 45);
 
     return {
       baseline: 'broad_context_baseline',
       displayName: 'Broad-Context Baseline (Naive Chronological Dump)',
       contextTokenCount: tokens,
       itemsIncludedCount: selected.length,
-      temporalSpanDays: 75,
-      cyclesCoveredCount: 4,
+      temporalSpanDays: selected.length > 0 ? 75 : 0,
+      cyclesCoveredCount: selected.length > 0 ? 4 : 0,
       groundingScore: grounding,
       falseConnectionRisk: falseConnections,
       missedEvidenceRisk: missedEvidence,
       insufficientEvidenceRecognized: false,
       latencyMs: 35,
-      summary: `Naive dump of ${selected.length} records (${tokens} tokens). Contains high noise and distraction risk.`,
+      summary: isEmptyWhileSnapshotHasRecords
+        ? 'INVALID: Naive dump failed to select records from non-empty snapshot.'
+        : `Naive dump of ${selected.length} records (${tokens} tokens). Contains high noise and distraction risk.`,
       formattedSnippet: selected.map(it => `[${it.sourceType} | ${it.createdAt || ''}] ${it.title ? it.title + ': ' : ''}${it.content}`).join('\n\n'),
       requestedModel: '',
       actualModel: '',
       provider: 'none',
       providerModelId: '',
       parameters: { temperature: 0.2, maxTokens: 1000 },
-      fallbackReason: null,
+      fallbackReason: isEmptyWhileSnapshotHasRecords ? 'Broad baseline selected 0 records from non-empty snapshot' : null,
       verbatimGeneratedAnswer: '',
       rawPromptSent: '',
       snapshotHashUsed: '',
       provenanceIntegrityValid: true,
-    };
+      status: isEmptyWhileSnapshotHasRecords ? 'INVALID' : 'VALID',
+      invalidReason: isEmptyWhileSnapshotHasRecords ? 'Broad baseline selected 0 records from non-empty snapshot' : null,
+      isValidBenchmarkBaseline: !isEmptyWhileSnapshotHasRecords
+    } as any;
   }
 
   /**
@@ -5590,10 +5866,25 @@ export class BenchmarkHarness {
   ): BaselineResult {
     const isNegative = bCase?.isNegativeControl || false;
 
+    const qLower = question.toLowerCase();
+    const isBuildingLuna = (qLower.includes('relationship') || qLower.includes('building')) && qLower.includes('luna');
+
     let grounding = 88;
     let falseConnections = 5;
     let missedEvidence = 6;
     let insufficientRecognized = false;
+
+    if (isBuildingLuna) {
+      // Evaluator Calibration Diagnosis (Order 82 Workstream D):
+      // Calibrate missed evidence against the known 37-record production manifest targets
+      const selectedIds = new Set(plan.selectedSources.map(s => s.sourceId));
+      let manifestHits = 0;
+      for (const t of CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS) {
+        if (selectedIds.has(t.id)) manifestHits++;
+      }
+      const totalTargets = CANONICAL_PRODUCTION_EVIDENCE_MANIFEST_TARGETS.length;
+      missedEvidence = Math.round(((totalTargets - manifestHits) / totalTargets) * 100);
+    }
 
     if (isNegative) {
       if (packet.evidenceItems.length === 0) {
@@ -7717,7 +8008,14 @@ export function toLightweightComparisonRun(run: ComparisonRun): any {
     contextPacket: lightweightContextPacket,
     delta: run.delta,
     economics: run.economics,
-    scorecard: run.scorecard
+    scorecard: run.scorecard,
+    budgetRequested: run.budgetRequested,
+    budgetEffective: run.budgetEffective,
+    packetTokensUsed: run.packetTokensUsed,
+    budgetUtilization: run.budgetUtilization,
+    manifestRecall: run.manifestRecall,
+    telemetry: run.telemetry,
+    evictionReasons: run.evictionReasons
   };
 }
 
@@ -7992,6 +8290,17 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
         });
       }
 
+      const { tokenBudget } = req.body || {};
+      let validatedBudget: number | undefined = undefined;
+      if (tokenBudget !== undefined && tokenBudget !== null) {
+        if (typeof tokenBudget !== 'number' || isNaN(tokenBudget) || tokenBudget <= 0) {
+          return res.status(400).json({
+            error: `Invalid tokenBudget: '${tokenBudget}'. Must be a positive integer ceiling (e.g. 3000, 6000, 12000, 24000, 48000).`
+          });
+        }
+        validatedBudget = Math.round(tokenBudget);
+      }
+
       let effectiveQuestion = question;
       let bCase: BenchmarkCase | undefined;
 
@@ -8013,6 +8322,7 @@ export function registerAttentionLabRoutes(app: any, authenticateRest: any): voi
       const comparisonRun = await harness.compareQuestion(effectiveQuestion, {
         benchmarkCase: bCase,
         model,
+        tokenBudget: validatedBudget,
         cumulativeLabCost: globalLabStore.getCumulativeLabCost()
       });
 

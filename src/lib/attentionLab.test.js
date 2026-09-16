@@ -3605,4 +3605,197 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
     });
   });
 
+  // ─── Suite 29: Order 82 Adaptive-Budget Sweep, Broad Baseline Repair & Source-Role Gating (iss_1789568924278_domg) ───
+  describe('Suite 29: Order 82 Adaptive-Budget Sweep, Broad Baseline Repair & Source-Role Gating (iss_1789568924278_domg)', () => {
+    it('AC 1, 2, 3: Supports explicit per-run tokenBudget parameterization and telemetry without altering candidate discovery', async () => {
+      const q = 'How has my relationship with building Luna changed over the last several months?';
+
+      // 1. Run plan at 3000 tokens
+      const { plan: plan3k, contextPacket: packet3k } = await engine.planAndAssemble(q, { tokenBudget: 3000 });
+      expect(packet3k.totalTokensUsed).toBeLessThanOrEqual(3000);
+      const candidatesCount3k = plan3k.candidatesConsideredCount;
+      expect(candidatesCount3k).toBeGreaterThan(0);
+
+      // 2. Run plan at 6000 tokens
+      const { plan: plan6k, contextPacket: packet6k } = await engine.planAndAssemble(q, { tokenBudget: 6000 });
+      expect(packet6k.totalTokensUsed).toBeLessThanOrEqual(6000);
+      const candidatesCount6k = plan6k.candidatesConsideredCount;
+
+      // Candidate discovery must NOT narrow when packet budget expands
+      expect(candidatesCount6k).toBeGreaterThanOrEqual(candidatesCount3k);
+
+      // 3. Harness compareQuestion budget telemetry tracking
+      const harness = new BenchmarkHarness(engine, index, snapshot);
+      const comparison3k = await harness.compareQuestion(q, {
+        tokenBudget: 3000,
+        model: 'openrouter-deepseek-v4-flash'
+      });
+      expect(comparison3k.budgetRequested).toBe(3000);
+      expect(comparison3k.budgetEffective).toBe(3000);
+      expect(comparison3k.packetTokensUsed).toBe(comparison3k.contextPacket.totalTokensUsed);
+      expect(comparison3k.budgetUtilization).toBeGreaterThan(0);
+      expect(comparison3k.budgetUtilization).toBeLessThanOrEqual(1.0);
+      expect(comparison3k.baselines.attentionEngineV1.budgetRequested).toBe(3000);
+      expect(comparison3k.baselines.attentionEngineV1.budgetEffective).toBe(3000);
+    });
+
+    it('AC 4: Broad-Context baseline does not collapse to zero records on populated snapshot with large records', () => {
+      const hugeContent = Array(4500).fill('reflection word cadence practice').join(' ');
+      const testSnap = {
+        ...snapshot,
+        loops: [
+          {
+            id: 'loop_large_01',
+            sourceType: 'loop',
+            title: 'Large Loop',
+            content: hugeContent,
+            createdAt: '2026-09-16T12:00:00Z',
+            provenance: {
+              source: 'personal_field',
+              sourceTable: 'loops',
+              originalId: 'loop_large_01',
+              snapshotId: 'snap_test_large',
+              contentHash: 'hash_large'
+            }
+          },
+          ...snapshot.loops
+        ]
+      };
+
+      const harness = new BenchmarkHarness(engine, index, testSnap);
+      const broad = harness['evaluateBroadContextBaseline']('How has my relationship with building Luna changed over the last several months?');
+      expect(broad.itemsIncludedCount).toBeGreaterThan(0);
+      expect(broad.contextTokenCount).toBeGreaterThan(0);
+      expect(broad.contextTokenCount).toBeLessThanOrEqual(4000);
+      expect(broad.status).toBe('VALID');
+      expect(broad.isValidBenchmarkBaseline).toBe(true);
+    });
+
+    it('AC 5 & 6: Source-role discrimination demotes assistant commentary and meta-experiment conversation from primary evidence', async () => {
+      const customSnap = {
+        ...snapshot,
+        chatMessages: [
+          {
+            id: 'msg_assistant_commentary',
+            sourceType: 'chat_message',
+            title: 'Chat (assistant)',
+            content: '### Observations on loops: The user encountered significant friction and exhaustion when building the feature.',
+            createdAt: '2026-09-01T20:30:00Z',
+            authorRole: 'assistant',
+            isMetaExperiment: false,
+            provenance: {
+              source: 'personal_field',
+              sourceTable: 'chat_messages',
+              originalId: 'msg_assistant_commentary',
+              snapshotId: 'snap_meta_test',
+              contentHash: 'hash_assistant',
+              authorRole: 'assistant'
+            }
+          },
+          {
+            id: 'turn_meta_experiment_prompt',
+            sourceType: 'chat_message',
+            title: 'Chat (user)',
+            content: 'Attention engine benchmark run: How has my relationship with building Luna changed over the last several months? Order 81 test harness.',
+            createdAt: '2026-09-15T23:30:00Z',
+            authorRole: 'user',
+            isMetaExperiment: true,
+            provenance: {
+              source: 'personal_field',
+              sourceTable: 'chat_messages',
+              originalId: 'turn_meta_experiment_prompt',
+              snapshotId: 'snap_meta_test',
+              contentHash: 'hash_meta',
+              isMetaExperiment: true
+            }
+          },
+          {
+            id: 'msg_authentic_user_reflection',
+            sourceType: 'chat_message',
+            title: 'Chat (user)',
+            content: 'My relationship with building Luna has shifted from an engineering tool to a daily living presence that reshapes how I rest and reflect.',
+            createdAt: '2026-08-15T14:00:00Z',
+            authorRole: 'user',
+            isMetaExperiment: false,
+            provenance: {
+              source: 'personal_field',
+              sourceTable: 'chat_messages',
+              originalId: 'msg_authentic_user_reflection',
+              snapshotId: 'snap_meta_test',
+              contentHash: 'hash_user'
+            }
+          }
+        ]
+      };
+
+      const customIndex = new AttentionIndex();
+      customIndex.rebuild(customSnap);
+      const customEngine = new AttentionEngineV1(customIndex);
+
+      const q = 'How has my relationship with building Luna changed over the last several months?';
+      const { plan, contextPacket } = await customEngine.planAndAssemble(q, { tokenBudget: 6000 });
+
+      // 1. Assistant message must NOT be claim-supporting
+      const assistantCand = plan.candidates.find(c => c.sourceId === 'msg_assistant_commentary');
+      if (assistantCand) {
+        expect(assistantCand.evidenceRole).toBe('CONTEXT');
+        expect(assistantCand.isClaimSupporting).toBe(false);
+        expect(assistantCand.demotionRationale).toContain('assistant_commentary_not_primary_evidence');
+      }
+
+      // 2. Meta-experiment record must be DISQUALIFIED
+      const metaCand = plan.candidates.find(c => c.sourceId === 'turn_meta_experiment_prompt');
+      if (metaCand) {
+        expect(metaCand.qualificationDecision).toBe('DISQUALIFIED');
+        expect(metaCand.demotionRationale).toContain('meta_experiment_discussion');
+      }
+
+      // 3. Authentic user reflection should be admitted and qualified
+      const userCand = plan.candidates.find(c => c.sourceId === 'msg_authentic_user_reflection');
+      expect(userCand).toBeDefined();
+      expect(userCand.qualificationDecision).toBe('QUALIFIED');
+      expect(userCand.isClaimSupporting).toBe(true);
+    });
+
+    it('AC 7 & 8: Reports diagnostic manifest-based recall telemetry and diagnoses evaluator calibration', async () => {
+      const q = 'How has my relationship with building Luna changed over the last several months?';
+
+      // Index populated with canonical manifest fixture items
+      const manifestSnapshot = {
+        ...snapshot,
+        echoes: [...snapshot.echoes, ...CANONICAL_MANIFEST_FIXTURE_ITEMS],
+        totalItems: snapshot.totalItems + CANONICAL_MANIFEST_FIXTURE_ITEMS.length
+      };
+      const manifestIndex = new AttentionIndex();
+      manifestIndex.rebuild(manifestSnapshot);
+      const manifestEngine = new AttentionEngineV1(manifestIndex);
+
+      const harness = new BenchmarkHarness(manifestEngine, manifestIndex, manifestSnapshot);
+      const run = await harness.compareQuestion(q, {
+        tokenBudget: 3000,
+        model: 'openrouter-deepseek-v4-flash'
+      });
+
+      // Manifest recall telemetry must be present on run and Condition C
+      expect(run.manifestRecall).toBeDefined();
+      expect(run.manifestRecall.targetUniverse).toBe('canonical_37_record_production_manifest');
+      expect(run.manifestRecall.totalTargets).toBe(37);
+      expect(run.manifestRecall.targetStageMatrix.length).toBe(37);
+      expect(run.manifestRecall.discoveredCount).toBeGreaterThan(0);
+
+      // Verify each stage is tracked
+      const sampleTarget = run.manifestRecall.targetStageMatrix[0];
+      expect(sampleTarget.id).toBeDefined();
+      expect(typeof sampleTarget.discovered).toBe('boolean');
+      expect(typeof sampleTarget.qualified).toBe('boolean');
+      expect(typeof sampleTarget.selected).toBe('boolean');
+      expect(typeof sampleTarget.supplied).toBe('boolean');
+
+      // Evaluator calibration: missedEvidenceRisk should reflect actual manifest misses for this question
+      const v1Result = run.baselines.attentionEngineV1;
+      expect(v1Result.manifestRecall).toBeDefined();
+      expect(v1Result.missedEvidenceRisk).toBeGreaterThan(50); // Since only a fraction of 37 fits in 3K budget
+    });
+  });
+
 });
