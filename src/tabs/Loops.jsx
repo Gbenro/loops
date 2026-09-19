@@ -1755,7 +1755,7 @@ function LoopCard({
 
 // ─── Detail Panel ────────────────────────────────────────────────────────────
 
-function DetailPanel({
+export function DetailPanel({
   loop,
   pct,
   userId,
@@ -1779,6 +1779,7 @@ function DetailPanel({
   const [newEchoText, setNewEchoText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [echoAudioBlob, setEchoAudioBlob] = useState(null);
+  const [isSavingEcho, setIsSavingEcho] = useState(false);
   const [echoModal, setEchoModal] = useState(null);
   const [modalAudioUrl, setModalAudioUrl] = useState(null);
   const mediaRecorderRef = useRef(null);
@@ -1795,22 +1796,29 @@ function DetailPanel({
   const computedLunarData = useMemo(() => getLunarData(), []);
   const lunarData = lunarDataProp || computedLunarData;
 
-  // Load echoes linked to this loop
+  // Load echoes linked to this loop (bidirectional: linkedLoopId or loopIds)
   useEffect(() => {
     getEchoes(userId)
       .then((all) => {
-        setLinkedEchoes(all.filter((e) => e.linkedLoopId === loop.id));
+        setLinkedEchoes(
+          all.filter(
+            (e) =>
+              e.linkedLoopId === loop.id ||
+              (Array.isArray(e.loopIds) && e.loopIds.includes(loop.id))
+          )
+        );
       })
       .catch(() => {});
   }, [loop.id, userId]);
 
   // Get signed URL when echo modal opens
   useEffect(() => {
-    if (!echoModal?.audio_path) {
+    const path = echoModal?.audio_path || echoModal?.audioPath;
+    if (!path) {
       setModalAudioUrl(null);
       return;
     }
-    getAudioUrl(echoModal.audio_path)
+    getAudioUrl(path)
       .then((url) => setModalAudioUrl(url))
       .catch(() => {});
   }, [echoModal]);
@@ -1847,31 +1855,68 @@ function DetailPanel({
   };
 
   const submitEcho = async () => {
-    if (!newEchoText.trim() && !echoAudioBlob) return;
-    const echoId = generateId('e');
-    const echo = {
-      id: echoId,
-      text: newEchoText.trim(),
-      source: echoAudioBlob ? 'voice' : 'text',
-      phase: lunarData.phase.key,
-      phaseName: lunarData.phase.name,
-      phaseType: null,
-      lunarMonth: lunarData.lunarMonth,
-      dayOfCycle: lunarData.dayOfCycle,
-      zodiac: lunarData.zodiac.sign,
-      illumination: lunarData.illumination,
-      linkedLoopId: loop.id,
-      createdAt: new Date().toISOString(),
-    };
-    await saveEcho(echo, userId);
-    if (echoAudioBlob) {
-      const path = await saveAudio(echoId, echoAudioBlob, userId);
-      if (path && path !== 'TOO_LARGE') echo.audio_path = path;
+    if (isSavingEcho) return;
+    const trimmedText = newEchoText.trim();
+    if (!trimmedText && !echoAudioBlob) return;
+
+    setIsSavingEcho(true);
+    try {
+      let audioPath = null;
+      const echoId = generateId('e');
+
+      // 1. If audio blob exists, upload audio FIRST so audio_path is guaranteed in initial insert
+      if (echoAudioBlob) {
+        const path = await saveAudio(echoId, echoAudioBlob, userId);
+        if (path && path !== 'TOO_LARGE') {
+          audioPath = path;
+        }
+      }
+
+      // 2. Resolve text: if empty but audio exists, transcribe or fallback to 'Voice reflection'
+      let textToSave = trimmedText;
+      if (!textToSave && echoAudioBlob) {
+        try {
+          const transcribed = await transcribeAudio(echoAudioBlob);
+          textToSave = transcribed?.trim() || 'Voice reflection';
+        } catch (transcribeErr) {
+          console.warn('Transcription failed in loop echo, falling back to label:', transcribeErr);
+          textToSave = 'Voice reflection';
+        }
+      }
+
+      if (!textToSave && !audioPath) {
+        throw new Error('Please enter text or record audio for your reflection.');
+      }
+
+      const echo = {
+        id: echoId,
+        text: textToSave,
+        source: echoAudioBlob ? 'voice' : 'text',
+        phase: lunarData.phase.key,
+        phaseName: lunarData.phase.name,
+        phaseType: null,
+        lunarMonth: lunarData.lunarMonth,
+        dayOfCycle: lunarData.dayOfCycle,
+        zodiac: lunarData.zodiac.sign,
+        illumination: lunarData.illumination,
+        linkedLoopId: loop.id,
+        loopIds: [loop.id],
+        audio_path: audioPath,
+        audioPath: audioPath,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveEcho(echo, userId);
+      setLinkedEchoes((prev) => [echo, ...prev]);
+      setNewEchoText('');
+      setEchoAudioBlob(null);
+      setShowEchoInput(false);
+    } catch (err) {
+      console.error('Failed to save loop echo:', err);
+      alert(`Could not save echo: ${err.message || 'Unknown error'}. Your reflection has been preserved in the form.`);
+    } finally {
+      setIsSavingEcho(false);
     }
-    setLinkedEchoes((prev) => [echo, ...prev]);
-    setNewEchoText('');
-    setEchoAudioBlob(null);
-    setShowEchoInput(false);
   };
 
   return (
@@ -2356,24 +2401,24 @@ function DetailPanel({
                   </div>
                   <button
                     onClick={submitEcho}
-                    disabled={!newEchoText.trim() && !echoAudioBlob}
+                    disabled={(!newEchoText.trim() && !echoAudioBlob) || isSavingEcho}
                     style={{
                       padding: '8px 16px',
                       borderRadius: 8,
                       border: 'none',
                       background:
-                        newEchoText.trim() || echoAudioBlob
+                        (newEchoText.trim() || echoAudioBlob) && !isSavingEcho
                           ? 'var(--color-border-light)'
                           : 'var(--color-input-bg)',
                       color:
-                        newEchoText.trim() || echoAudioBlob
+                        (newEchoText.trim() || echoAudioBlob) && !isSavingEcho
                           ? 'var(--color-text)'
                           : 'var(--color-text-muted)',
                       fontSize: 12,
-                      cursor: newEchoText.trim() || echoAudioBlob ? 'pointer' : 'default',
+                      cursor: (newEchoText.trim() || echoAudioBlob) && !isSavingEcho ? 'pointer' : 'default',
                     }}
                   >
-                    Save Echo
+                    {isSavingEcho ? 'Saving...' : 'Save Echo'}
                   </button>
                 </div>
               </div>
@@ -2405,7 +2450,7 @@ function DetailPanel({
                         overflow: 'hidden',
                       }}
                     >
-                      {echo.text || (echo.audio_path ? '🎙 voice echo' : '')}
+                      {echo.text || ((echo.audio_path || echo.audioPath) ? '🎙 voice echo' : '')}
                     </div>
                     <div
                       style={{
@@ -2426,7 +2471,7 @@ function DetailPanel({
                         />{' '}
                         {echo.phaseName}
                       </span>
-                      {echo.audio_path && <span>· 🎙</span>}
+                      {(echo.audio_path || echo.audioPath) && <span>· 🎙</span>}
                     </div>
                   </div>
                 ))
@@ -2641,7 +2686,7 @@ function DetailPanel({
             {modalAudioUrl && (
               <audio controls src={modalAudioUrl} style={{ width: '100%', marginTop: 12 }} />
             )}
-            {echoModal.audio_path && !modalAudioUrl && (
+            {(echoModal.audio_path || echoModal.audioPath) && !modalAudioUrl && (
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                 Loading audio...
               </div>
