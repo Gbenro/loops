@@ -1,4 +1,4 @@
-import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC } from './mcp-server/dist/openapi.js';
+import { LUNA_OPENAPI_SPEC, LUNA_CORE_OPENAPI_SPEC, LUNA_DEV_OPENAPI_SPEC, LUNA_COMMAND_CENTER_OPENAPI_SPEC } from './mcp-server/dist/openapi.js';
 import fs from 'fs';
 
 fs.mkdirSync('./public', { recursive: true });
@@ -18,3 +18,7 @@ fs.writeFileSync('/mnt/c/Users/Ben/.gemini/antigravity/brain/d17495c6-118d-4194-
 console.log('✓ Unified paths:', Object.keys(LUNA_OPENAPI_SPEC.paths).length);
 console.log('✓ Core Field paths:', Object.keys(LUNA_CORE_OPENAPI_SPEC.paths).length);
 console.log('✓ Dev Bridge & Observability paths:', Object.keys(LUNA_DEV_OPENAPI_SPEC.paths).length);
+
+// Command Center Gateway (6 operations)
+fs.writeFileSync('./public/openapi-command-center.json', JSON.stringify(LUNA_COMMAND_CENTER_OPENAPI_SPEC, null, 2));
+console.log('✓ Command Center Gateway paths:', Object.keys(LUNA_COMMAND_CENTER_OPENAPI_SPEC.paths).length);
