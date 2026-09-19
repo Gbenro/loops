@@ -1228,6 +1228,33 @@ export async function claimPendingDevSession(
 /**
  * Append-oriented, auditable event stream
  */
+
+// ─── Secret Redaction & Security Helpers ─────────────────────────────────────
+export function sanitizeSecretContent(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/dsc_[a-zA-Z0-9_-]{16,}/g, '[REDACTED_DISCOVERY_TOKEN]')
+    .replace(/dtk_[a-zA-Z0-9_-]{16,}/g, '[REDACTED_SESSION_TOKEN]')
+    .replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, 'Bearer [REDACTED_TOKEN]');
+}
+
+export function sanitizeSecretMetadata(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeSecretMetadata);
+  const result: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'string') {
+      result[k] = sanitizeSecretContent(v);
+    } else if (typeof v === 'object' && v !== null) {
+      result[k] = sanitizeSecretMetadata(v);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+
 export async function appendDevEvent(
   supabase: SupabaseClient,
   userId: string,
@@ -1250,8 +1277,8 @@ export async function appendDevEvent(
     user_id: userId,
     type: params.type,
     author: params.author,
-    content: params.content,
-    metadata: params.metadata || {},
+    content: sanitizeSecretContent(params.content),
+    metadata: sanitizeSecretMetadata(params.metadata || {}),
     created_at: now
   };
 
