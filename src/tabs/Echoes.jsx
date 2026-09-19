@@ -17,7 +17,7 @@ import { getLunarMonthInfo } from '../data/lunarMonths.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
-import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, updateDraftAudio, deleteDraftAudio, getAllDraftAudio } from '../lib/audioStorage.js';
+import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, updateDraftAudio, deleteDraftAudio, getAllDraftAudio, normalizeAudioBlob } from '../lib/audioStorage.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -473,25 +473,27 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
     let audioTooLarge = false;
     if (blob && userId && !audioPath) {
       setSaveStatusMessage('SAVING AUDIO (1/2)...');
-      const uploadRes = await saveAudio(targetEchoId, blob, userId, { timeoutMs: 30000 });
-      if (uploadRes === 'TOO_LARGE') {
+      const uploadRes = await saveAudio(targetEchoId, blob, userId, { timeoutMs: 30000, detailed: true });
+      if (uploadRes?.category === 'PAYLOAD_TOO_LARGE') {
         audioTooLarge = true;
-      } else if (uploadRes) {
-        audioPath = uploadRes;
+      } else if (uploadRes?.success && uploadRes.path) {
+        audioPath = uploadRes.path;
         if (draftId) {
           await updateDraftAudio(draftId, { audioPath });
         }
       } else {
-        // Upload failed or timed out — preserve local draft safely
+        // Upload failed — preserve local draft safely with granular error categorization
+        const errCategory = uploadRes?.category || 'UNKNOWN_ERROR';
+        const userAlert = uploadRes?.userMessage || 'Could not upload audio to cloud storage. Your voice recording and text draft remain saved safely on this device. You can retry save at any time.';
         if (draftId) {
           await updateDraftAudio(draftId, {
             status: 'failed',
-            lastError: 'Audio upload timed out or failed to connect'
+            lastError: `${errCategory}: ${uploadRes?.originalError?.message || userAlert}`
           });
         }
         setIsSaving(false);
         setSaveStatusMessage(null);
-        alert('Could not upload audio to cloud storage (network timeout or connection error). Your voice recording and text draft remain saved safely on this device. You can retry save at any time.');
+        alert(userAlert);
         await refreshRecoveredDrafts();
         return false;
       }
@@ -891,10 +893,12 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
   };
 
   const retrySyncRecoveredDraft = async (draft) => {
+    const rawBlob = draft.blob || draft.audioBlob;
+    const normalized = normalizeAudioBlob(rawBlob);
     await performSafeSave({
       draftId: draft.id,
       targetEchoId: draft.echoId || draft.id,
-      audioBlob: draft.blob,
+      audioBlob: normalized,
       textToSave: draft.text || 'Voice reflection',
       audioPath: draft.audioPath || null,
       createdAt: draft.createdAt

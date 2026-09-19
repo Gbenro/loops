@@ -111,6 +111,7 @@ export async function getLoops(userId) {
       tags: row.tags || [],
       focus: row.focus || null,
       autoClosedReason: row.auto_closed_reason || null,
+      relatedEchoIds: row.related_echo_ids || row.relatedEchoIds || [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -176,6 +177,7 @@ export async function saveLoop(loop, userId) {
         tags: loop.tags || [],
         focus: loop.focus || null,
         auto_closed_reason: loop.autoClosedReason || null,
+        related_echo_ids: loop.relatedEchoIds || [],
         updated_at: new Date().toISOString(),
       })
       .select();
@@ -379,6 +381,32 @@ export async function saveEcho(echo, userId) {
     echoes.unshift(echoToStore);
   }
   setLocal(ECHOES_KEY, echoes);
+
+  // Bidirectionally update relatedEchoIds on linked Loops in local storage
+  if (loopIds.length > 0) {
+    try {
+      const loops = getLocal(LOOPS_KEY) || [];
+      let loopUpdated = false;
+      const updatedLoops = loops.map((l) => {
+        if (l && loopIds.includes(l.id)) {
+          const currentRelated = Array.isArray(l.relatedEchoIds) ? l.relatedEchoIds : [];
+          if (!currentRelated.includes(echoToStore.id)) {
+            loopUpdated = true;
+            return {
+              ...l,
+              relatedEchoIds: [echoToStore.id, ...currentRelated],
+            };
+          }
+        }
+        return l;
+      });
+      if (loopUpdated) {
+        setLocal(LOOPS_KEY, updatedLoops);
+      }
+    } catch (_loopErr) {
+      /* ignore */
+    }
+  }
 
   if (!userId) return echoToStore;
 

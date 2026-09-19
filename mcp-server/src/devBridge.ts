@@ -2652,3 +2652,29 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
 /**
  * Watcher Lifecycle State Machine
  */
+
+export interface WatcherState {
+  mode: 'single-shot' | 'daemon';
+  activeSessionId: string | null;
+  pollIntervalMs: number;
+  [key: string]: any;
+}
+
+export function handleWatcherDiscoveryEvent(state: WatcherState, sessionId: string): { shouldExit: boolean; nextState: WatcherState } {
+  const nextState: WatcherState = {
+    ...state,
+    activeSessionId: sessionId,
+  };
+  return {
+    shouldExit: state.mode === 'single-shot',
+    nextState,
+  };
+}
+
+export function handleWatcherSessionEndedEvent(state: WatcherState): WatcherState {
+  return {
+    ...state,
+    activeSessionId: null,
+    pollIntervalMs: 4000,
+  };
+}
