@@ -72,6 +72,32 @@ export interface DevEvent {
   createdAt: string;
 }
 
+
+export interface DevAsset {
+  id: string;
+  userId: string;
+  projectId: string;
+  videoId?: string | null;
+  shotId: string;
+  batch?: number | null;
+  kind: 'image' | 'video' | 'audio' | string;
+  role: 'source' | 'preview' | 'final' | string;
+  generatedBy: 'luna' | 'gemini' | 'other' | string;
+  status: 'draft' | 'review' | 'approved' | 'rejected' | string;
+  mimeType: string;
+  width: number;
+  height: number;
+  aspectRatio: string;
+  filename: string;
+  checksum?: string | null;
+  prompt?: string | null;
+  motionIntent?: string | null;
+  dataBase64?: string | null;
+  ingestedLocally: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DevCompletionSummary {
   reported: boolean;
   author?: string;
@@ -163,7 +189,7 @@ export interface DevIssueDetail {
   queueTelemetry?: any;
 }
 
-// ─── ID & Model Mappings ──────────────────────────────────────────────────────
+// â”€â”€â”€ ID & Model Mappings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function generateId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -377,7 +403,7 @@ export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
   return summary;
 }
 
-// ─── Intent-Aware Event Classification & Task Dispatch ───────────────────────
+// â”€â”€â”€ Intent-Aware Event Classification & Task Dispatch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface EventIntent {
   intent: 'read_only_investigation' | 'read_only_scope_request' | 'clarification' | 'implementation_directive' | 'session_action' | 'general_decision';
@@ -454,7 +480,7 @@ export function classifyEventIntent(event: Partial<DevEvent>): EventIntent {
   }
 
   // 5. Authorized implementation directives
-  if (metadata.status === 'approved_for_implementation' || /APPROVED — Implement|PROCEED WITH IMPLEMENTATION|EXECUTE IMPLEMENTATION/i.test(content)) {
+  if (metadata.status === 'approved_for_implementation' || /APPROVED â€” Implement|PROCEED WITH IMPLEMENTATION|EXECUTE IMPLEMENTATION/i.test(content)) {
     return {
       intent: 'implementation_directive',
       isReadOnly: false,
@@ -475,7 +501,7 @@ export function classifyEventIntent(event: Partial<DevEvent>): EventIntent {
   };
 }
 
-// ─── Ephemeral Dev Session Token Validation ──────────────────────────────────
+// â”€â”€â”€ Ephemeral Dev Session Token Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function validateDevSessionToken(
   token: string
@@ -523,7 +549,7 @@ export async function validateDevDiscoveryToken(
   return null;
 }
 
-// ─── Core Service Operations ──────────────────────────────────────────────────
+// â”€â”€â”€ Core Service Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listDevIssues(
   supabase: SupabaseClient,
@@ -1397,7 +1423,7 @@ export async function answerDevQuestion(
   });
 }
 
-// ─── Hybrid Development Queue & Progressive Telemetry Orchestration ─────────
+// â”€â”€â”€ Hybrid Development Queue & Progressive Telemetry Orchestration â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type DevQueueStatus =
   | 'queued'
@@ -1842,7 +1868,7 @@ export async function getDevTelemetry(
   };
 }
 
-// ─── REST Route Registrations & Scoped Security Boundary ──────────────────────
+// â”€â”€â”€ REST Route Registrations & Scoped Security Boundary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean; isDiscoverySession: boolean }> {
   if ((req as any).isDiscoverySession) {
@@ -1858,6 +1884,129 @@ async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promi
     return { userId: null, isAgentSession: false, isDiscoverySession: false };
   }
 }
+
+
+export async function createDevAsset(
+  supabase: SupabaseClient,
+  userId: string,
+  data: Partial<DevAsset>
+): Promise<DevAsset> {
+  const assetId = `ast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const now = new Date().toISOString();
+  
+  const record = {
+    id: assetId,
+    user_id: userId,
+    project_id: data.projectId || 'projects/creating_with_the_cycles/video_1_what_does_that_mean',
+    video_id: data.videoId || null,
+    shot_id: data.shotId || 'shot_01',
+    batch: data.batch || 1,
+    kind: data.kind || 'image',
+    role: data.role || 'source',
+    generated_by: data.generatedBy || 'gemini',
+    status: data.status || 'approved',
+    mime_type: data.mimeType || 'image/jpeg',
+    width: data.width || 1080,
+    height: data.height || 1920,
+    aspect_ratio: data.aspectRatio || '9:16',
+    filename: data.filename || 'asset.jpg',
+    checksum: data.checksum || null,
+    prompt: data.prompt || null,
+    motion_intent: data.motionIntent || null,
+    data_base64: data.dataBase64 || null,
+    ingested_locally: data.ingestedLocally || false,
+    created_at: now,
+    updated_at: now
+  };
+
+  const { data: inserted, error } = await supabase
+    .from('dev_assets')
+    .insert(record)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return formatDevAsset(inserted);
+}
+
+export async function listDevAssets(
+  supabase: SupabaseClient,
+  userId: string,
+  filters: { projectId?: string; shotId?: string; batch?: number; status?: string; generatedBy?: string } = {}
+): Promise<DevAsset[]> {
+  let query = supabase.from('dev_assets').select('*').eq('user_id', userId);
+
+  if (filters.projectId) query = query.eq('project_id', filters.projectId);
+  if (filters.shotId) query = query.eq('shot_id', filters.shotId);
+  if (filters.batch) query = query.eq('batch', filters.batch);
+  if (filters.status) query = query.eq('status', filters.status);
+  if (filters.generatedBy) query = query.eq('generated_by', filters.generatedBy);
+
+  query = query.order('created_at', { ascending: false });
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(formatDevAsset);
+}
+
+export async function getDevAssetById(
+  supabase: SupabaseClient,
+  userId: string,
+  assetId: string
+): Promise<DevAsset | null> {
+  const { data, error } = await supabase
+    .from('dev_assets')
+    .select('*')
+    .eq('id', assetId)
+    .single();
+
+  if (error || !data) return null;
+  return formatDevAsset(data);
+}
+
+export async function ackDevAsset(
+  supabase: SupabaseClient,
+  userId: string,
+  assetId: string
+): Promise<DevAsset> {
+  const { data, error } = await supabase
+    .from('dev_assets')
+    .update({ ingested_locally: true, updated_at: new Date().toISOString() })
+    .eq('id', assetId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return formatDevAsset(data);
+}
+
+function formatDevAsset(row: any): DevAsset {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    projectId: row.project_id,
+    videoId: row.video_id,
+    shotId: row.shot_id,
+    batch: row.batch,
+    kind: row.kind,
+    role: row.role,
+    generatedBy: row.generated_by,
+    status: row.status,
+    mimeType: row.mime_type,
+    width: row.width,
+    height: row.height,
+    aspectRatio: row.aspect_ratio,
+    filename: row.filename,
+    checksum: row.checksum,
+    prompt: row.prompt,
+    motionIntent: row.motion_intent,
+    dataBase64: row.data_base64,
+    ingestedLocally: row.ingested_locally,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 
 export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   // 1. Issues CRUD & Filtering
@@ -2310,6 +2459,93 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
     try {
       const { userId } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  // 5. Creative Asset Bridge Endpoints
+  app.post('/api/dev/assets', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await createDevAsset(supabase, userId, req.body || {});
+      const downloadUrl = `/api/dev/assets/${asset.id}/download`;
+      res.json({ asset, downloadUrl });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { projectId, shotId, batch, status, generatedBy } = req.query;
+      const filters: any = {};
+      if (typeof projectId === 'string') filters.projectId = projectId;
+      if (typeof shotId === 'string') filters.shotId = shotId;
+      if (batch) filters.batch = parseInt(batch as string, 10);
+      if (typeof status === 'string') filters.status = status;
+      if (typeof generatedBy === 'string') filters.generatedBy = generatedBy;
+
+      const assets = await listDevAssets(supabase, userId, filters);
+      res.json({ items: assets, count: assets.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await getDevAssetById(supabase, userId, req.params.id);
+      if (!asset) return res.status(404).json({ error: 'Asset not found' });
+      res.json(asset);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets/:id/download', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await getDevAssetById(supabase, userId, req.params.id);
+      if (!asset) return res.status(404).json({ error: 'Asset not found' });
+
+      if (!asset.dataBase64) {
+        return res.status(404).json({ error: 'Asset binary data not available' });
+      }
+
+      const buffer = Buffer.from(asset.dataBase64, 'base64');
+      res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
+      res.setHeader('Content-Disposition', `inline; filename="${asset.filename || 'asset.jpg'}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/assets/:id/ack', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await ackDevAsset(supabase, userId, req.params.id);
+      res.json(asset);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
 
       const telemetry = await getDevTelemetry(supabase, userId);
       res.json(telemetry);
