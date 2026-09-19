@@ -16,6 +16,7 @@ import {
   reconcileCycleLoops,
 } from '../lib/storage.js';
 import { saveAudio, getAudioUrl } from '../lib/audioStorage.js';
+import { transcribeAudio } from '../lib/whisper.js';
 import { getLunarData } from '../lib/lunar.js';
 import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText } from '../lib/phaseText.js';

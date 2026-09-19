@@ -1012,8 +1012,19 @@ function decodeCursor(cursor: string): string {
 
 // ─── Schema Mappers ─────────────────────────────────────────────────────────
 
-function mapEcho(row: any): any {
+export function mapEcho(row: any): any {
   if (!row) return null;
+  const loopIdSet = new Set<string>();
+  if (Array.isArray(row.loop_ids)) {
+    for (const id of row.loop_ids) {
+      if (id && typeof id === 'string') loopIdSet.add(id);
+    }
+  }
+  if (row.linked_loop_id && typeof row.linked_loop_id === 'string') {
+    loopIdSet.add(row.linked_loop_id);
+  }
+  const loopIds = Array.from(loopIdSet);
+
   return {
     id: row.id,
     text: row.text,
@@ -1025,7 +1036,7 @@ function mapEcho(row: any): any {
     phaseEnergy: row.energy_state,
     illumination: row.illumination,
     zodiacSign: row.zodiac,
-    loopIds: Array.isArray(row.loop_ids) ? row.loop_ids : (row.linked_loop_id ? [row.linked_loop_id] : []),
+    loopIds,
     status: row.deleted_at ? 'archived' : 'active',
     metadata: row.metadata || {},
     provenanceAuthor: row.provenance_author || 'user',
@@ -1296,12 +1307,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'create_echo': {
+      if (!args.text || typeof args.text !== 'string' || !args.text.trim()) {
+        throw new Error('Echo text cannot be empty');
+      }
       const id = generateServerId('e');
-      const loopIds = args.loopIds || [];
+      const rawLoopIds = Array.isArray(args.loopIds) ? args.loopIds.filter(Boolean) : [];
+      const loopIds = Array.from(new Set(rawLoopIds));
       const insertData = {
         id,
         user_id: userId,
-        text: args.text,
+        text: args.text.trim(),
         source: args.source || 'direct_entry',
         tags: args.tags || [],
         linked_loop_id: loopIds[0] || null,
@@ -1364,12 +1379,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'create_conversation_reflection': {
+      if (!args.text || typeof args.text !== 'string' || !args.text.trim()) {
+        throw new Error('Reflection text cannot be empty');
+      }
       const id = generateServerId('e');
-      const loopIds = args.loopIds || [];
+      const rawLoopIds = Array.isArray(args.loopIds) ? args.loopIds.filter(Boolean) : [];
+      const loopIds = Array.from(new Set(rawLoopIds));
       const insertData = {
         id,
         user_id: userId,
-        text: args.text,
+        text: args.text.trim(),
         source: 'luna_conversation',
         tags: args.tags || ['conversation-reflection'],
         linked_loop_id: loopIds[0] || null,

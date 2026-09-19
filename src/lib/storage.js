@@ -211,11 +211,29 @@ export async function getEchoes(userId) {
     const local = Array.isArray(rawLocal)
       ? rawLocal.filter((e) => e && typeof e === 'object')
       : [];
-    return local.filter(
-      (e) =>
-        (e.provenanceAuthor || 'user') === 'user' &&
-        (e.provenanceKind || 'original_echo') === 'original_echo'
-    );
+    return local
+      .filter(
+        (e) =>
+          (e.provenanceAuthor || 'user') === 'user' &&
+          (e.provenanceKind || 'original_echo') === 'original_echo'
+      )
+      .map((e) => {
+        const loopIds = Array.from(
+          new Set(
+            [
+              ...(Array.isArray(e.loopIds) ? e.loopIds : []),
+              ...(e.linkedLoopId ? [e.linkedLoopId] : []),
+            ].filter(Boolean)
+          )
+        );
+        return {
+          ...e,
+          audio_path: e.audio_path || e.audioPath || null,
+          audioPath: e.audioPath || e.audio_path || null,
+          linkedLoopId: e.linkedLoopId || (loopIds.length > 0 ? loopIds[0] : null),
+          loopIds,
+        };
+      });
   }
 
   try {
@@ -232,26 +250,40 @@ export async function getEchoes(userId) {
 
     const echoes = (data || [])
       .filter((row) => row && typeof row === 'object')
-      .map((row) => ({
-        id: row.id,
-        text: row.text || '',
-        source: row.source || 'text',
-        phase: row.phase,
-        phaseName: row.phase_name,
-        phaseType: row.phase_type || null,
-        lunarMonth: row.lunar_month,
-        dayOfCycle: row.day_of_cycle,
-        zodiac: row.zodiac,
-        illumination: row.illumination,
-        isEncrypted: row.is_encrypted || false,
-        audio_path: row.audio_path || null,
-        tags: row.tags || [],
-        linkedLoopId: row.linked_loop_id || null,
-        createdAt: row.created_at,
-        provenanceAuthor: row.provenance_author || 'user',
-        provenanceKind: row.provenance_kind || 'original_echo',
-        parentId: row.parent_id || null,
-      }));
+      .map((row) => {
+        const loopIds = Array.from(
+          new Set(
+            [
+              ...(Array.isArray(row.loop_ids) ? row.loop_ids : []),
+              ...(row.linked_loop_id ? [row.linked_loop_id] : []),
+            ].filter(Boolean)
+          )
+        );
+        const linkedLoopId = row.linked_loop_id || (loopIds.length > 0 ? loopIds[0] : null);
+
+        return {
+          id: row.id,
+          text: row.text || '',
+          source: row.source || 'text',
+          phase: row.phase,
+          phaseName: row.phase_name,
+          phaseType: row.phase_type || null,
+          lunarMonth: row.lunar_month,
+          dayOfCycle: row.day_of_cycle,
+          zodiac: row.zodiac,
+          illumination: row.illumination,
+          isEncrypted: row.is_encrypted || false,
+          audio_path: row.audio_path || null,
+          audioPath: row.audio_path || null,
+          tags: row.tags || [],
+          linkedLoopId,
+          loopIds,
+          createdAt: row.created_at,
+          provenanceAuthor: row.provenance_author || 'user',
+          provenanceKind: row.provenance_kind || 'original_echo',
+          parentId: row.parent_id || null,
+        };
+      });
 
     // Merge: keep local echoes not on server
     const serverIds = new Set(echoes.filter((e) => e && e.id).map((e) => e.id));
@@ -282,73 +314,131 @@ export async function getEchoes(userId) {
     const local = Array.isArray(rawLocal)
       ? rawLocal.filter((e) => e && typeof e === 'object')
       : [];
-    return local.filter(
-      (e) =>
-        e &&
-        (e.provenanceAuthor || 'user') === 'user' &&
-        (e.provenanceKind || 'original_echo') === 'original_echo'
-    );
+    return local
+      .filter(
+        (e) =>
+          e &&
+          (e.provenanceAuthor || 'user') === 'user' &&
+          (e.provenanceKind || 'original_echo') === 'original_echo'
+      )
+      .map((e) => {
+        const loopIds = Array.from(
+          new Set(
+            [
+              ...(Array.isArray(e.loopIds) ? e.loopIds : []),
+              ...(e.linkedLoopId ? [e.linkedLoopId] : []),
+            ].filter(Boolean)
+          )
+        );
+        return {
+          ...e,
+          audio_path: e.audio_path || e.audioPath || null,
+          audioPath: e.audioPath || e.audio_path || null,
+          linkedLoopId: e.linkedLoopId || (loopIds.length > 0 ? loopIds[0] : null),
+          loopIds,
+        };
+      });
   }
 }
 
 export async function saveEcho(echo, userId) {
+  if (!echo || typeof echo !== 'object') {
+    throw new Error('Invalid echo data: echo object is required');
+  }
+
+  const textContent = typeof echo.text === 'string' ? echo.text.trim() : '';
+  const audioContent = echo.audio_path || echo.audioPath || null;
+
+  if (!textContent && !audioContent) {
+    throw new Error('Cannot save empty echo: text or audio reflection is required');
+  }
+
+  // Derive symmetric loop relationships
+  const rawLoopIds = Array.isArray(echo.loopIds) ? echo.loopIds : [];
+  const loopIdSet = new Set(rawLoopIds.filter(Boolean));
+  if (echo.linkedLoopId) {
+    loopIdSet.add(echo.linkedLoopId);
+  }
+  const loopIds = Array.from(loopIdSet);
+  const linkedLoopId = echo.linkedLoopId || (loopIds.length > 0 ? loopIds[0] : null);
+
+  const echoToStore = {
+    ...echo,
+    text: echo.text || '',
+    audio_path: audioContent,
+    audioPath: audioContent,
+    linkedLoopId,
+    loopIds,
+  };
+
   const echoes = getLocal(ECHOES_KEY) || [];
-  const existingIdx = echoes.findIndex((e) => e.id === echo.id);
+  const existingIdx = echoes.findIndex((e) => e.id === echoToStore.id);
   if (existingIdx >= 0) {
-    echoes[existingIdx] = { ...echoes[existingIdx], ...echo };
+    echoes[existingIdx] = { ...echoes[existingIdx], ...echoToStore };
   } else {
-    echoes.unshift(echo);
+    echoes.unshift(echoToStore);
   }
   setLocal(ECHOES_KEY, echoes);
 
-  if (!userId) return echo;
+  if (!userId) return echoToStore;
 
   // Server idempotency check: check if this echo ID is already recorded
   try {
     const { data: existingServer } = await supabase
       .from('echoes')
       .select('id')
-      .eq('id', echo.id)
+      .eq('id', echoToStore.id)
       .maybeSingle();
 
     if (existingServer) {
       // Already successfully recorded on server — return without creating duplicate
-      return echo;
+      return echoToStore;
     }
   } catch (_checkErr) {
     // If check fails due to offline/network, proceed to insert attempt
   }
 
-  const { error } = await supabase.from('echoes').insert({
-    id: echo.id,
+  const insertPayload = {
+    id: echoToStore.id,
     user_id: userId,
-    text: echo.text,
-    source: echo.source || 'text',
-    phase: echo.phase,
-    phase_name: echo.phaseName,
-    phase_type: echo.phaseType,
-    lunar_month: echo.lunarMonth,
-    day_of_cycle: echo.dayOfCycle,
-    zodiac: echo.zodiac,
-    illumination: echo.illumination,
-    is_encrypted: echo.isEncrypted || false,
-    audio_path: echo.audio_path || null,
-    linked_loop_id: echo.linkedLoopId || null,
-    created_at: echo.createdAt,
-    provenance_author: echo.provenanceAuthor || 'user',
-    provenance_kind: echo.provenanceKind || 'original_echo',
-    parent_id: echo.parentId || null
-  });
+    text: echoToStore.text,
+    source: echoToStore.source || 'text',
+    phase: echoToStore.phase,
+    phase_name: echoToStore.phaseName,
+    phase_type: echoToStore.phaseType,
+    lunar_month: echoToStore.lunarMonth,
+    day_of_cycle: echoToStore.dayOfCycle,
+    zodiac: echoToStore.zodiac,
+    illumination: echoToStore.illumination,
+    is_encrypted: echoToStore.isEncrypted || false,
+    audio_path: echoToStore.audio_path || null,
+    linked_loop_id: linkedLoopId,
+    loop_ids: loopIds,
+    created_at: echoToStore.createdAt,
+    provenance_author: echoToStore.provenanceAuthor || 'user',
+    provenance_kind: echoToStore.provenanceKind || 'original_echo',
+    parent_id: echoToStore.parentId || null,
+  };
+
+  let { error } = await supabase.from('echoes').insert(insertPayload);
+
+  // Undefined column fallback (if loop_ids does not exist in schema)
+  if (error && error.code === '42703') {
+    const fallbackPayload = { ...insertPayload };
+    delete fallbackPayload.loop_ids;
+    const retry = await supabase.from('echoes').insert(fallbackPayload);
+    error = retry.error;
+  }
 
   if (error) {
     // If unique violation (already inserted by concurrent or prior request), treat as success
     if (error.code === '23505') {
-      return echo;
+      return echoToStore;
     }
     throw new Error(`Failed to save echo to server: ${error.message}`);
   }
 
-  return echo;
+  return echoToStore;
 }
 
 export async function updateEchoAudioPath(echoId, audioPath, userId) {
@@ -357,10 +447,10 @@ export async function updateEchoAudioPath(echoId, audioPath, userId) {
   if (idx !== -1) {
     const target = echoes[idx];
     const isPersonal = (target.provenanceAuthor || 'user') === 'user' && (target.provenanceKind || 'original_echo') === 'original_echo';
-    if (isPersonal && target.audio_path) {
+    if (isPersonal && (target.audio_path || target.audioPath)) {
       throw new Error('Personal Echo audio reference is immutable and cannot be updated.');
     }
-    echoes[idx] = { ...echoes[idx], audio_path: audioPath };
+    echoes[idx] = { ...echoes[idx], audio_path: audioPath, audioPath };
     setLocal(ECHOES_KEY, echoes);
   }
 

@@ -2542,6 +2542,93 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
     }
   });
 
+  // 5. Creative Asset Bridge Endpoints
+  app.post('/api/dev/assets', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await createDevAsset(supabase, userId, req.body || {});
+      const downloadUrl = `/api/dev/assets/${asset.id}/download`;
+      res.json({ asset, downloadUrl });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { projectId, shotId, batch, status, generatedBy } = req.query;
+      const filters: any = {};
+      if (typeof projectId === 'string') filters.projectId = projectId;
+      if (typeof shotId === 'string') filters.shotId = shotId;
+      if (batch) filters.batch = parseInt(batch as string, 10);
+      if (typeof status === 'string') filters.status = status;
+      if (typeof generatedBy === 'string') filters.generatedBy = generatedBy;
+
+      const assets = await listDevAssets(supabase, userId, filters);
+      res.json({ items: assets, count: assets.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await getDevAssetById(supabase, userId, req.params.id);
+      if (!asset) return res.status(404).json({ error: 'Asset not found' });
+      res.json(asset);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/dev/assets/:id/download', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await getDevAssetById(supabase, userId, req.params.id);
+      if (!asset) return res.status(404).json({ error: 'Asset not found' });
+
+      if (!asset.dataBase64) {
+        return res.status(404).json({ error: 'Asset binary data not available' });
+      }
+
+      const buffer = Buffer.from(asset.dataBase64, 'base64');
+      res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
+      res.setHeader('Content-Disposition', `inline; filename="${asset.filename || 'asset.jpg'}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/dev/assets/:id/ack', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const asset = await ackDevAsset(supabase, userId, req.params.id);
+      res.json(asset);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+
   app.get('/api/dev/assets', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     try {
