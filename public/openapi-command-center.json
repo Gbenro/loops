@@ -2,13 +2,18 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Luna Command Center Gateway API",
-    "description": "Consolidated 6-operation Command Center Gateway for Luna GPT Custom Actions, unifying Core Field, Dev Bridge, Attention Lab, Creative Studio, and Asset Bridge within OpenAI's 30-operation ceiling.",
+    "description": "Consolidated 6-operation Command Center Gateway for Luna GPT Custom Actions, unifying Core Personal Field, Development Bridge, Attention Lab V1.1.0, Creative Studio, and Asset Bridge within OpenAI's 30-operation ceiling.",
     "version": "1.0.0"
   },
   "servers": [
     {
       "url": "https://loops-production-e1d5.up.railway.app",
-      "description": "Railway Production"
+      "description": "Production Railway Server"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
     }
   ],
   "paths": {
@@ -17,13 +22,14 @@
         "operationId": "command_center_capabilities",
         "summary": "Discover Command Center Capabilities & Domain Hubs",
         "description": "Returns dynamic registry of available hubs (core, dev, lab, creative, assets), sub-actions, parameters, and permission scopes.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "Command center capabilities registry",
+            "description": "Dynamic registry of capabilities and domain hubs",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
                 }
               }
             }
@@ -35,26 +41,13 @@
       "post": {
         "operationId": "command_center_core",
         "summary": "Execute Core Personal Field Sub-Action",
-        "description": "Executes sub-actions across lunar context, echoes, reflections, loops, threads, and chat sessions.",
+        "description": "Executes operations across Personal Field: Lunar context, Echoes (immutable reflections), Loops (intentions), Threads, Relational Memory, and Chat history.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "action"
-                ],
-                "properties": {
-                  "action": {
-                    "type": "string",
-                    "description": "Sub-action identifier (e.g. lunar.get_context, field.search, loops.list, echoes.create)"
-                  },
-                  "payload": {
-                    "type": "object",
-                    "description": "Action-specific payload"
-                  }
-                }
+                "$ref": "#/components/schemas/CoreRequest"
               }
             }
           }
@@ -65,7 +58,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GatewayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sub-action or payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Discovery credentials have zero Personal Field access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
                 }
               }
             }
@@ -76,27 +89,14 @@
     "/api/luna/command-center/dev": {
       "post": {
         "operationId": "command_center_dev",
-        "summary": "Execute Dev Bridge Sub-Action",
-        "description": "Executes Development Bridge sub-actions for issues, sessions, events, and telemetry.",
+        "summary": "Execute Development Bridge Sub-Action",
+        "description": "Executes Development Bridge sub-actions for tracking dev issues, orchestrating agent sessions, posting durable events (with automatic secret redaction), and queue telemetry.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "action"
-                ],
-                "properties": {
-                  "action": {
-                    "type": "string",
-                    "description": "Sub-action identifier (e.g. dev.issues.list, dev.events.post, dev.sessions.claim)"
-                  },
-                  "payload": {
-                    "type": "object",
-                    "description": "Action-specific payload"
-                  }
-                }
+                "$ref": "#/components/schemas/DevRequest"
               }
             }
           }
@@ -107,7 +107,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GatewayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sub-action or payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
                 }
               }
             }
@@ -119,26 +129,13 @@
       "post": {
         "operationId": "command_center_lab",
         "summary": "Execute Attention Lab Sub-Action",
-        "description": "Executes Attention Lab V1.1.0 and Model Routing Lab experimental operations.",
+        "description": "Drives and inspects Attention Lab V1.1.0 experiments, benchmark evaluations, and Model Routing without wasting unnecessary inference tokens.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "action"
-                ],
-                "properties": {
-                  "action": {
-                    "type": "string",
-                    "description": "Sub-action identifier (e.g. lab.status, lab.attention.plan, lab.attention.run)"
-                  },
-                  "payload": {
-                    "type": "object",
-                    "description": "Action-specific payload"
-                  }
-                }
+                "$ref": "#/components/schemas/LabRequest"
               }
             }
           }
@@ -149,7 +146,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GatewayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sub-action or payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
                 }
               }
             }
@@ -161,26 +168,13 @@
       "post": {
         "operationId": "command_center_creative",
         "summary": "Execute Creative Studio Sub-Action",
-        "description": "Executes Creative Studio sub-actions for manifests, shot directions, and render lock status.",
+        "description": "Scene manifests, shot directions, visual pacing, and strict render lock enforcement for Video 1 (Creating With the Cycles V1).",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "action"
-                ],
-                "properties": {
-                  "action": {
-                    "type": "string",
-                    "description": "Sub-action identifier (e.g. creative.manifest.get, creative.shots.list, creative.status, creative.render_lock.status)"
-                  },
-                  "payload": {
-                    "type": "object",
-                    "description": "Action-specific payload"
-                  }
-                }
+                "$ref": "#/components/schemas/CreativeRequest"
               }
             }
           }
@@ -191,7 +185,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GatewayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sub-action or payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
                 }
               }
             }
@@ -203,26 +207,13 @@
       "post": {
         "operationId": "command_center_assets",
         "summary": "Execute Asset Bridge Sub-Action",
-        "description": "Executes Asset Bridge operations: list review-state previews, upload binary data, get download URLs, and acknowledge ingestion.",
+        "description": "Creative Asset Bridge operations: retrieve review-state previews (all 21 visual assets), get binary download URLs, upload binary data via base64 (e.g. Shot 08 round-trip), and acknowledge ingestion.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "action"
-                ],
-                "properties": {
-                  "action": {
-                    "type": "string",
-                    "description": "Sub-action identifier (e.g. assets.list, assets.get, assets.upload, assets.ack)"
-                  },
-                  "payload": {
-                    "type": "object",
-                    "description": "Action-specific payload"
-                  }
-                }
+                "$ref": "#/components/schemas/AssetRequest"
               }
             }
           }
@@ -233,10 +224,240 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GatewayResponse"
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid sub-action or payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Authentication token provided via Authorization: Bearer <token>. Configure credentials in the GPT Action setup dialog."
+      }
+    },
+    "schemas": {
+      "GatewayResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "GatewayError": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "targetGptOperationCount": {
+            "type": "integer",
+            "example": 6
+          },
+          "baselineMigrationCount": {
+            "type": "integer",
+            "example": 29
+          },
+          "hubs": {
+            "type": "object"
+          }
+        }
+      },
+      "CoreRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "lunar.get_context",
+              "field.search",
+              "echoes.search",
+              "echoes.list",
+              "echoes.get",
+              "echoes.create",
+              "echoes.update",
+              "echoes.archive",
+              "echoes.restore",
+              "reflections.create",
+              "reflections.attach",
+              "loops.list",
+              "loops.get",
+              "loops.create",
+              "loops.update",
+              "loops.close",
+              "loops.reopen",
+              "loops.archive",
+              "loops.restore",
+              "loops.carry_forward",
+              "threads.list",
+              "threads.get",
+              "threads.create",
+              "threads.update",
+              "threads.connect_echo",
+              "threads.disconnect_echo",
+              "chat.list_sessions",
+              "chat.rename_session",
+              "chat.archive_session",
+              "chat.preserve_to_field"
+            ],
+            "description": "Core sub-action identifier"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Payload parameters specific to the sub-action"
+          }
+        }
+      },
+      "DevRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "dev.issues.list",
+              "dev.issues.get",
+              "dev.issues.create",
+              "dev.issues.update_status",
+              "dev.events.list",
+              "dev.events.post",
+              "dev.sessions.create",
+              "dev.sessions.claim",
+              "dev.sessions.end",
+              "dev.sessions.pending",
+              "dev.queue.get_state"
+            ],
+            "description": "Dev Bridge sub-action identifier"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Payload parameters specific to the sub-action"
+          }
+        }
+      },
+      "LabRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "lab.status",
+              "lab.attention.plan",
+              "lab.attention.run",
+              "lab.attention.create_session",
+              "lab.attention.inspect_session",
+              "lab.attention.list_benchmarks",
+              "lab.attention.evaluate_benchmark"
+            ],
+            "description": "Attention Lab sub-action identifier"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Payload parameters specific to the sub-action"
+          }
+        }
+      },
+      "CreativeRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "creative.manifest.get",
+              "creative.shots.list",
+              "creative.shots.get",
+              "creative.status",
+              "creative.render_lock.status"
+            ],
+            "description": "Creative Studio sub-action identifier"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Payload parameters specific to the sub-action"
+          }
+        }
+      },
+      "AssetRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "assets.list",
+              "assets.get",
+              "assets.upload",
+              "assets.ack"
+            ],
+            "description": "Asset Bridge sub-action identifier"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Payload parameters specific to the sub-action"
           }
         }
       }
