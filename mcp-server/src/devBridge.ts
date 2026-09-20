@@ -1950,14 +1950,26 @@ export function verifyAssetTicket(assetId: string, ticket: string, exp: number |
   }
 }
 
-export function buildAssetPreviewUrls(req: Request, assetId: string) {
+export function buildAssetPreviewUrls(req: Request, assetId: string, filename?: string) {
   const host = req.get('host') || 'loops-production-e1d5.up.railway.app';
   const protocol = (host.includes('localhost') || host.includes('127.0.0.1')) ? 'http' : 'https';
-  const exp = Date.now() + 24 * 60 * 60 * 1000; // 24-hour preview ticket
+  const exp = Date.now() + 48 * 60 * 60 * 1000; // 48-hour preview window
   const ticket = generateAssetTicket(assetId, exp);
+  const fname = filename || 'image.jpg';
+  
+  // Clean path-based URL (no query strings, ends in .jpg - optimal for ChatGPT markdown & anti-exfiltration proxies)
+  const pathUrl = `${protocol}://${host}/api/dev/assets/${assetId}/view/${ticket}/${exp}/${fname}`;
+  const queryPreviewUrl = `${protocol}://${host}/api/dev/assets/${assetId}/preview?ticket=${ticket}&exp=${exp}`;
   const downloadUrl = `${protocol}://${host}/api/dev/assets/${assetId}/download?ticket=${ticket}&exp=${exp}`;
-  const previewUrl = `${protocol}://${host}/api/dev/assets/${assetId}/preview?ticket=${ticket}&exp=${exp}`;
-  return { downloadUrl, previewUrl, ticket, expiresAt: new Date(exp).toISOString() };
+  
+  return {
+    downloadUrl,
+    previewUrl: pathUrl, // default previewUrl uses clean path ending in .jpg
+    pathUrl,
+    queryPreviewUrl,
+    ticket,
+    expiresAt: new Date(exp).toISOString(),
+  };
 }
 
 export const VIDEO_1_SEED_MANIFEST = [
@@ -2745,15 +2757,18 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  app.get(['/api/dev/assets/:id/download', '/api/dev/assets/:id/preview'], async (req: Request, res: Response) => {
+  const previewRouteHandler = async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body?.supabaseClient || (app.locals as any)?.supabaseClient;
-    const { ticket, exp } = req.query;
+    
+    // Extract ticket & expiration from either path parameters or query parameters
+    const ticket = (req.params.ticket as string) || (req.query.ticket as string) || (req.query.sig as string) || (req.query.token as string);
+    const expRaw = req.params.exp || req.query.exp || (req.query as any)['amp;exp'] || (req.query as any)['amp;amp;exp'];
 
     let isAuthorized = false;
 
     // 1. Check ticket authentication (short-lived HMAC signed URL for Luna GPT / ChatGPT Actions)
-    if (typeof ticket === 'string' && (typeof exp === 'string' || typeof exp === 'number')) {
-      if (verifyAssetTicket(req.params.id, ticket, exp)) {
+    if (typeof ticket === 'string' && (typeof expRaw === 'string' || typeof expRaw === 'number')) {
+      if (verifyAssetTicket(req.params.id, ticket, expRaw)) {
         isAuthorized = true;
       }
     }
@@ -2812,11 +2827,57 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       return res.status(404).json({ error: 'Asset binary data not available' });
     }
 
+    // Full CORS and modern security headers for ChatGPT markdown image renderers
     res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
     res.setHeader('Content-Disposition', `inline; filename="${asset.filename || 'asset.jpg'}"`);
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.setHeader('Timing-Allow-Origin', '*');
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // Handle range requests if sent by media fetchers
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : buffer.length - 1;
+      const chunksize = (end - start) + 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${buffer.length}`);
+      res.setHeader('Content-Length', chunksize);
+      if (req.method === 'HEAD') return res.end();
+      return res.end(buffer.subarray(start, end + 1));
+    }
+
     res.setHeader('Content-Length', buffer.length);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.send(buffer);
+    if (req.method === 'HEAD') {
+      return res.status(200).end();
+    }
+    return res.end(buffer);
+  };
+
+  const previewRoutes = [
+    '/api/dev/assets/:id/view/:ticket/:exp/:filename',
+    '/api/dev/assets/:id/view/:ticket/:exp',
+    '/api/dev/assets/:id/preview/:filename',
+    '/api/dev/assets/:id/download/:filename',
+    '/api/dev/assets/:id/preview',
+    '/api/dev/assets/:id/download',
+    '/api/dev/assets/:id/:filename',
+  ];
+
+  app.get(previewRoutes, previewRouteHandler);
+  app.head(previewRoutes, previewRouteHandler);
+  app.options(previewRoutes, (req: Request, res: Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.status(204).end();
   });
 
   app.post('/api/dev/assets/:id/ack', authenticateRest, async (req: Request, res: Response) => {

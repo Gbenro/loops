@@ -238,9 +238,11 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
     };
 
     const assetId = 'ast_test_123';
-    const urls = buildAssetPreviewUrls(mockReq, assetId);
-    expect(urls.previewUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/preview?ticket=');
-    expect(urls.previewUrl).toContain('&exp=');
+    const urls = buildAssetPreviewUrls(mockReq, assetId, 'shot_01.jpg');
+    expect(urls.pathUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/view/');
+    expect(urls.pathUrl).toContain('/shot_01.jpg');
+    expect(urls.previewUrl).toBe(urls.pathUrl);
+    expect(urls.queryPreviewUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/preview?ticket=');
     expect(urls.downloadUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/download?ticket=');
   });
 

@@ -791,14 +791,19 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           if (payload.batch) filterObj.batch = Number(payload.batch);
           const assets = await listDevAssets(supabase, userId, filterObj);
           result = assets.map((a) => {
-            const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, a.id);
+            const { downloadUrl, previewUrl, pathUrl, queryPreviewUrl } = buildAssetPreviewUrls(req, a.id, a.filename);
             return {
               id: a.id,
               filename: a.filename,
               mimeType: a.mimeType,
               status: a.status,
               downloadUrl,
-              previewUrl,
+              previewUrl: pathUrl,
+              pathUrl,
+              queryPreviewUrl,
+              imageUrl: pathUrl,
+              image_url: pathUrl,
+              displayMarkdown: `![${a.filename || 'Visual Asset'}](${pathUrl})`,
               checksum: a.checksum,
               projectId: a.projectId,
               shotId: a.shotId,
@@ -821,14 +826,20 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           if (!asset) {
             return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } });
           }
-          const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, asset.id);
+          const { downloadUrl, previewUrl, pathUrl, queryPreviewUrl } = buildAssetPreviewUrls(req, asset.id, asset.filename);
           result = {
             id: asset.id,
             filename: asset.filename,
             mimeType: asset.mimeType,
             status: asset.status,
             downloadUrl,
-            previewUrl,
+            previewUrl: pathUrl,
+            pathUrl,
+            queryPreviewUrl,
+            imageUrl: pathUrl,
+            image_url: pathUrl,
+            displayMarkdown: `![${asset.filename || 'Visual Asset'}](${pathUrl})`,
+            noteForAssistant: `To visually inspect or display this image in chat, render: ![${asset.filename || 'Visual Asset'}](${pathUrl})`,
             checksum: asset.checksum,
             projectId: asset.projectId,
             shotId: asset.shotId,
