@@ -99,6 +99,10 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'threads.connect_echo',
         'threads.disconnect_echo',
         'chat.list_sessions',
+        'chat.get_session',
+        'chat.search_messages',
+        'chat.evaluations',
+        'chat.inference_summary',
         'chat.rename_session',
         'chat.archive_session',
         'chat.preserve_to_field',
@@ -366,6 +370,78 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         case 'chat.list_sessions': {
           const execRes = await executeTool(supabase, 'list_chat_sessions', payload, userId);
           result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'chat.get_session': {
+          const sessionId = payload.id || payload.sessionId;
+          const { data: session, error: sError } = await supabase
+            .from('chat_sessions')
+            .select('*')
+            .eq('id', sessionId)
+            .eq('user_id', userId)
+            .single();
+          if (sError || !session) throw new Error('Session not found');
+          const { data: messages } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: true });
+          result = { session, messages: messages || [] };
+          break;
+        }
+        case 'chat.search_messages': {
+          let q = supabase
+            .from('chat_messages')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(Math.min(Number(payload.limit) || 50, 200));
+          if (payload.sessionId) q = q.eq('session_id', payload.sessionId);
+          if (payload.query) q = q.ilike('content', `%${payload.query}%`);
+          const { data: messages, error } = await q;
+          if (error) throw error;
+          result = { messages: messages || [] };
+          break;
+        }
+        case 'chat.evaluations': {
+          const { data, error } = await supabase
+            .from('chat_evaluations')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(Math.min(Number(payload.limit) || 50, 200));
+          if (error) throw error;
+          result = { evaluations: data || [] };
+          break;
+        }
+        case 'chat.inference_summary': {
+          let query = supabase
+            .from('chat_telemetry')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+          if (payload.sessionId) query = query.eq('session_id', payload.sessionId);
+          if (payload.date) query = query.gte('created_at', `${payload.date}T00:00:00.000Z`).lte('created_at', `${payload.date}T23:59:59.999Z`);
+          const { data: traces, error } = await query.limit(200);
+          if (error) throw error;
+          const items = traces || [];
+          let totalInputTokens = 0;
+          let totalOutputTokens = 0;
+          let totalLatency = 0;
+          let totalCost = 0;
+          items.forEach((t: any) => {
+            const usage = t.token_usage || {};
+            totalInputTokens += usage.input || 0;
+            totalOutputTokens += usage.output || 0;
+            totalLatency += t.latency_ms || 0;
+            totalCost += Number(t.inference_cost) || 0;
+          });
+          result = {
+            totalTurns: items.length,
+            totalInputTokens,
+            totalOutputTokens,
+            totalTokens: totalInputTokens + totalOutputTokens,
+            avgLatencyMs: items.length ? Math.round(totalLatency / items.length) : 0,
+            estimatedTotalCostUsd: Number(totalCost.toFixed(4)),
+          };
           break;
         }
         case 'chat.rename_session': {

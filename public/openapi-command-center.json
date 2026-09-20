@@ -350,6 +350,10 @@
               "threads.connect_echo",
               "threads.disconnect_echo",
               "chat.list_sessions",
+              "chat.get_session",
+              "chat.search_messages",
+              "chat.evaluations",
+              "chat.inference_summary",
               "chat.rename_session",
               "chat.archive_session",
               "chat.preserve_to_field"

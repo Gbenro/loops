@@ -71,7 +71,12 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
     expect(coreSubActions).toContain('threads.list');
     expect(coreSubActions).toContain('threads.create');
     expect(coreSubActions).toContain('threads.get');
+    expect(coreSubActions).toContain('threads.update');
     expect(coreSubActions).toContain('chat.list_sessions');
+    expect(coreSubActions).toContain('chat.get_session');
+    expect(coreSubActions).toContain('chat.search_messages');
+    expect(coreSubActions).toContain('chat.evaluations');
+    expect(coreSubActions).toContain('chat.inference_summary');
 
     // Check Dev mapping
     expect(devSubActions).toContain('dev.issues.list');
