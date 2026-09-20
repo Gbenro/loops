@@ -26,6 +26,24 @@ import {
 /**
  * Creative Studio Manifest — Video 1: "Creating With the Cycles V1"
  */
+
+/**
+ * Normalizes request payload across Command Center endpoints:
+ * merges raw body properties and nested body.payload object, giving
+ * precedence to explicit nested payload properties while stripping
+ * system keys (action, payload, supabaseClient).
+ */
+export function extractCommandCenterPayload(body: any): Record<string, any> {
+  const rawPayload = (body && body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload))
+    ? body.payload
+    : {};
+  const flatBody = (body && typeof body === 'object' && !Array.isArray(body)) ? body : {};
+  const merged = { ...flatBody, ...rawPayload };
+  delete (merged as any).action;
+  delete (merged as any).payload;
+  delete (merged as any).supabaseClient;
+  return merged;
+}
 export const CREATIVE_VIDEO_1_MANIFEST = {
   title: 'Creating With the Cycles V1',
   version: '1.0.0',
@@ -224,7 +242,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       });
     }
 
-    const { action, payload = {} } = req.body;
+    const action = req.body?.action;
+    const payload = extractCommandCenterPayload(req.body);
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -486,7 +505,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       });
     }
 
-    const { action, payload = {} } = req.body;
+    const action = req.body?.action;
+    const payload = extractCommandCenterPayload(req.body);
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -502,48 +522,79 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           break;
         }
         case 'dev.issues.get': {
-          result = await getDevIssue(supabase, userId, payload.id);
+          result = await getDevIssue(supabase, userId, payload.id || payload.issueId || payload.issue_id);
           break;
         }
         case 'dev.issues.create': {
-          result = await createDevIssue(supabase, userId, payload);
+          result = await createDevIssue(supabase, userId, payload as any);
           break;
         }
         case 'dev.issues.update_status': {
-          result = await updateDevIssueStatus(supabase, userId, payload.id, payload.status);
+          result = await updateDevIssueStatus(supabase, userId, payload.id || payload.issueId || payload.issue_id, payload.status);
           break;
         }
         case 'dev.events.list': {
-          result = await listDevEvents(supabase, userId, payload.issueId, payload.sessionId);
+          result = await listDevEvents(supabase, userId, payload.issueId || payload.issue_id || payload.id, payload.sessionId || payload.session_id);
           break;
         }
         case 'dev.events.post': {
+          const issueId = payload.issueId || payload.issue_id || payload.id;
+          if (!issueId) {
+            return res.status(400).json({
+              success: false,
+              error: { code: 'MISSING_ISSUE_ID', message: 'issueId is required for dev.events.post' },
+            });
+          }
+          let sessionId = payload.sessionId || payload.session_id;
+          if (!sessionId) {
+            const { data: activeSession } = await supabase
+              .from('dev_sessions')
+              .select('id')
+              .eq('issue_id', issueId)
+              .eq('user_id', userId)
+              .order('started_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (activeSession?.id) {
+              sessionId = activeSession.id;
+            } else {
+              const autoSession = await createDevSession(supabase, userId, {
+                issueId,
+                agent: (payload.author as string) || (payload.agent as string) || 'luna',
+              } as any);
+              sessionId = autoSession.id;
+            }
+          }
           const sanitizedContent = sanitizeSecretContent(payload.content || '');
           const sanitizedMeta = sanitizeSecretMetadata(payload.metadata || {});
           result = await appendDevEvent(supabase, userId, {
-            issueId: payload.issueId,
-            sessionId: payload.sessionId,
-            type: payload.type as DevEventType,
-            author: payload.author || 'luna',
+            issueId,
+            sessionId,
+            type: (payload.type as DevEventType) || 'verification.reported',
+            author: (payload.author as 'gemini' | 'luna' | 'user') || 'luna',
             content: sanitizedContent,
             metadata: sanitizedMeta,
           });
           break;
         }
         case 'dev.sessions.create': {
-          result = await createDevSession(supabase, userId, payload);
+          result = await createDevSession(supabase, userId, {
+            ...payload,
+            issueId: payload.issueId || payload.issue_id,
+          } as any);
           break;
         }
         case 'dev.sessions.claim': {
-          result = await claimPendingDevSession(supabase, userId, payload.sessionId || payload.id);
+          result = await claimPendingDevSession(supabase, userId, payload.sessionId || payload.session_id || payload.id);
           break;
         }
         case 'dev.sessions.end': {
-          result = await endDevSession(supabase, userId, payload.sessionId || payload.id);
+          result = await endDevSession(supabase, userId, payload.sessionId || payload.session_id || payload.id);
           break;
         }
         case 'dev.sessions.pending': {
-          result = await listPendingDevSessions(supabase, userId, payload);
+          result = await listPendingDevSessions(supabase, userId, payload.since);
           break;
         }
         case 'dev.queue.get_state': {
@@ -577,7 +628,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       });
     }
 
-    const { action, payload = {} } = req.body;
+    const action = req.body?.action;
+    const payload = extractCommandCenterPayload(req.body);
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -644,7 +696,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
   // 5. command_center_creative
   app.post('/api/luna/command-center/creative', authenticateRest, async (req: Request, res: Response) => {
-    const { action, payload = {} } = req.body;
+    const action = req.body?.action;
+    const payload = extractCommandCenterPayload(req.body);
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -717,7 +770,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       });
     }
 
-    const { action, payload = {} } = req.body;
+    const action = req.body?.action;
+    const payload = extractCommandCenterPayload(req.body);
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -743,7 +797,7 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           break;
         }
         case 'assets.get': {
-          const asset = await getDevAssetById(supabase, userId, payload.id);
+          const asset = await getDevAssetById(supabase, userId, payload.id || payload.assetId || payload.asset_id);
           if (!asset) {
             return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } });
           }
@@ -760,11 +814,11 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           break;
         }
         case 'assets.upload': {
-          result = await createDevAsset(supabase, userId, payload);
+          result = await createDevAsset(supabase, userId, payload as any);
           break;
         }
         case 'assets.ack': {
-          result = await ackDevAsset(supabase, userId, payload.id);
+          result = await ackDevAsset(supabase, userId, payload.id || payload.assetId || payload.asset_id);
           break;
         }
         default:

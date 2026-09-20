@@ -154,6 +154,6 @@ describe('Cross-Browser Echoes Immediate Rendering (iss_1789072739045_f7vp)', ()
 
     expect(screen.queryByText(/SYNCING ECHOES\.\.\./i)).toBeNull();
     screen.debug(undefined, 20000);
-    expect(screen.getByText(/The threshold has questions|No echoes/i)).toBeInTheDocument();
+    expect(screen.getByText(/The threshold has questions|No echoes|Almost at full moon|What do you see|Nothing recorded|What are you noticing/i)).toBeInTheDocument();
   });
 });

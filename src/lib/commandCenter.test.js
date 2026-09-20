@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   COMMAND_CENTER_CAPABILITIES,
-  CREATIVE_VIDEO_1_MANIFEST
+  CREATIVE_VIDEO_1_MANIFEST,
+  extractCommandCenterPayload
 } from '../../mcp-server/dist/commandCenter.js';
+import { LUNA_COMMAND_CENTER_OPENAPI_SPEC } from '../../mcp-server/dist/openapi.js';
 
 describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
   it('COMMAND_CENTER_CAPABILITIES contains exactly 6 gateway operations below the 30-operation ceiling', () => {
@@ -103,5 +105,94 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
     expect(COMMAND_CENTER_CAPABILITIES.hubs.dev.allowDiscoveryToken).toBe(true);
     expect(COMMAND_CENTER_CAPABILITIES.hubs.creative.allowDiscoveryToken).toBe(true);
     expect(COMMAND_CENTER_CAPABILITIES.hubs.assets.allowDiscoveryToken).toBe(true);
+  });
+
+  it('extractCommandCenterPayload seamlessly extracts both nested and flat arguments', () => {
+    // 1. Nested payload object
+    const nested = {
+      action: 'assets.list',
+      payload: { status: 'review' }
+    };
+    expect(extractCommandCenterPayload(nested)).toEqual({ status: 'review' });
+
+    // 2. Flat arguments (fallback if a client passes arguments at root)
+    const flat = {
+      action: 'assets.list',
+      status: 'review'
+    };
+    expect(extractCommandCenterPayload(flat)).toEqual({ status: 'review' });
+
+    // 3. Merged (nested overrides root, system fields removed)
+    const mixed = {
+      action: 'dev.events.post',
+      supabaseClient: {},
+      issueId: 'iss_root',
+      payload: {
+        issueId: 'iss_nested',
+        sessionId: 'sess_123',
+        type: 'verification.reported',
+        author: 'luna',
+        content: 'test',
+        metadata: { ok: true }
+      }
+    };
+    const extracted = extractCommandCenterPayload(mixed);
+    expect(extracted.issueId).toBe('iss_nested');
+    expect(extracted.sessionId).toBe('sess_123');
+    expect(extracted.type).toBe('verification.reported');
+    expect(extracted.author).toBe('luna');
+    expect(extracted.content).toBe('test');
+    expect(extracted.metadata).toEqual({ ok: true });
+    expect(extracted.action).toBeUndefined();
+    expect(extracted.payload).toBeUndefined();
+    expect(extracted.supabaseClient).toBeUndefined();
+  });
+
+  it('Verifies OpenAPI schema exposes action and explicit payload properties for all 5 POST hubs', () => {
+    const schemas = LUNA_COMMAND_CENTER_OPENAPI_SPEC.components.schemas;
+
+    // DevRequest verification
+    const devPayloadProps = schemas.DevRequest.properties.payload.properties;
+    expect(devPayloadProps).toBeDefined();
+    expect(devPayloadProps.issueId).toBeDefined();
+    expect(devPayloadProps.sessionId).toBeDefined();
+    expect(devPayloadProps.type).toBeDefined();
+    expect(devPayloadProps.author).toBeDefined();
+    expect(devPayloadProps.content).toBeDefined();
+    expect(devPayloadProps.metadata).toBeDefined();
+
+    // AssetRequest verification
+    const assetPayloadProps = schemas.AssetRequest.properties.payload.properties;
+    expect(assetPayloadProps).toBeDefined();
+    expect(assetPayloadProps.status).toBeDefined();
+    expect(assetPayloadProps.id).toBeDefined();
+    expect(assetPayloadProps.filename).toBeDefined();
+    expect(assetPayloadProps.mimeType).toBeDefined();
+    expect(assetPayloadProps.dataBase64).toBeDefined();
+
+    // CoreRequest verification
+    const corePayloadProps = schemas.CoreRequest.properties.payload.properties;
+    expect(corePayloadProps).toBeDefined();
+    expect(corePayloadProps.query).toBeDefined();
+    expect(corePayloadProps.limit).toBeDefined();
+    expect(corePayloadProps.id).toBeDefined();
+    expect(corePayloadProps.text).toBeDefined();
+
+    // LabRequest verification
+    const labPayloadProps = schemas.LabRequest.properties.payload.properties;
+    expect(labPayloadProps).toBeDefined();
+    expect(labPayloadProps.query).toBeDefined();
+    expect(labPayloadProps.tokenBudget).toBeDefined();
+
+    // CreativeRequest verification
+    const creativePayloadProps = schemas.CreativeRequest.properties.payload.properties;
+    expect(creativePayloadProps).toBeDefined();
+    expect(creativePayloadProps.shotId).toBeDefined();
+
+    // Zero secret exposure
+    const specStr = JSON.stringify(LUNA_COMMAND_CENTER_OPENAPI_SPEC);
+    expect(specStr).not.toContain('dsc_');
+    expect(specStr).not.toContain('dtk_');
+    expect(specStr).not.toContain('Bearer dsc_');
   });
 });

@@ -362,7 +362,82 @@
           },
           "payload": {
             "type": "object",
-            "description": "Payload parameters specific to the sub-action"
+            "description": "Payload parameters specific to the sub-action",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Target ID for echo, loop, thread, or chat session"
+              },
+              "query": {
+                "type": "string",
+                "description": "Search query text for field, echo, or chat search"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of items to return"
+              },
+              "text": {
+                "type": "string",
+                "description": "Text content for echoes or reflections"
+              },
+              "title": {
+                "type": "string",
+                "description": "Title for loops, threads, or chat sessions"
+              },
+              "focus": {
+                "type": "string",
+                "description": "Focus description for loops"
+              },
+              "status": {
+                "type": "string",
+                "description": "Status filter (e.g. active, closed, archived)"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Tags associated with the record"
+              },
+              "relatedEchoIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Echo IDs to link"
+              },
+              "loopIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Loop IDs to link"
+              },
+              "echoId": {
+                "type": "string",
+                "description": "Target echo ID for thread connection or reflection attachment"
+              },
+              "threadId": {
+                "type": "string",
+                "description": "Target thread ID for echo connection"
+              },
+              "sessionId": {
+                "type": "string",
+                "description": "Chat session ID"
+              },
+              "date": {
+                "type": "string",
+                "description": "Date filter (YYYY-MM-DD) for telemetry inference summary"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for closure or carry-forward"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Optional metadata object"
+              }
+            }
           }
         }
       },
@@ -391,7 +466,73 @@
           },
           "payload": {
             "type": "object",
-            "description": "Payload parameters specific to the sub-action"
+            "description": "Payload parameters specific to the Dev sub-action",
+            "properties": {
+              "issueId": {
+                "type": "string",
+                "description": "Issue ID (e.g. iss_1789850839764_0rbv)"
+              },
+              "sessionId": {
+                "type": "string",
+                "description": "Dev session ID (e.g. sess_1789850842760_1kkv)"
+              },
+              "type": {
+                "type": "string",
+                "description": "Dev event type (e.g. verification.reported, completion.summary, investigation.started, task.planned, code.modified, test.executed)"
+              },
+              "author": {
+                "type": "string",
+                "description": "Event author (luna, gemini, user)",
+                "default": "luna"
+              },
+              "content": {
+                "type": "string",
+                "description": "Event message or report content"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Structured event metadata"
+              },
+              "id": {
+                "type": "string",
+                "description": "Issue ID or Session ID"
+              },
+              "title": {
+                "type": "string",
+                "description": "Title for creating an issue"
+              },
+              "description": {
+                "type": "string",
+                "description": "Detailed description of an issue"
+              },
+              "status": {
+                "type": "string",
+                "description": "Issue status (open, in_progress, resolved, closed)"
+              },
+              "priority": {
+                "type": "string",
+                "description": "Issue priority (low, medium, high, critical)"
+              },
+              "agentName": {
+                "type": "string",
+                "description": "Agent name for session orchestration (e.g. luna, gemini)"
+              },
+              "focus": {
+                "type": "string",
+                "description": "Session focus or objective"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum records to return"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Issue tags"
+              }
+            }
           }
         }
       },
@@ -416,7 +557,40 @@
           },
           "payload": {
             "type": "object",
-            "description": "Payload parameters specific to the sub-action"
+            "description": "Payload parameters specific to the Attention Lab sub-action",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Task query or evaluation prompt"
+              },
+              "tokenBudget": {
+                "type": "integer",
+                "description": "Maximum token budget for attention routing"
+              },
+              "condition": {
+                "type": "string",
+                "description": "Experimental condition or configuration"
+              },
+              "sessionId": {
+                "type": "string",
+                "description": "Attention Lab session ID"
+              },
+              "benchmarkId": {
+                "type": "string",
+                "description": "Benchmark suite ID to run or inspect"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Models to compare or route"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Optional lab run metadata"
+              }
+            }
           }
         }
       },
@@ -439,7 +613,25 @@
           },
           "payload": {
             "type": "object",
-            "description": "Payload parameters specific to the sub-action"
+            "description": "Payload parameters specific to the Creative sub-action",
+            "properties": {
+              "shotId": {
+                "type": "string",
+                "description": "Shot identifier (e.g. shot_01, shot_08)"
+              },
+              "batch": {
+                "type": "integer",
+                "description": "Batch number filter or selector"
+              },
+              "status": {
+                "type": "string",
+                "description": "Shot status filter"
+              },
+              "renderLocked": {
+                "type": "boolean",
+                "description": "Render lock state check"
+              }
+            }
           }
         }
       },
@@ -461,7 +653,57 @@
           },
           "payload": {
             "type": "object",
-            "description": "Payload parameters specific to the sub-action"
+            "description": "Payload parameters specific to the Asset Bridge sub-action",
+            "properties": {
+              "status": {
+                "type": "string",
+                "description": "Filter assets by status (e.g. review, approved, pending)"
+              },
+              "id": {
+                "type": "string",
+                "description": "Asset ID to fetch or acknowledge"
+              },
+              "filename": {
+                "type": "string",
+                "description": "Filename of the asset"
+              },
+              "mimeType": {
+                "type": "string",
+                "description": "MIME type (e.g. image/png, video/mp4)"
+              },
+              "dataBase64": {
+                "type": "string",
+                "description": "Base64-encoded binary asset content"
+              },
+              "projectId": {
+                "type": "string",
+                "description": "Project ID (e.g. creating_with_the_cycles_v1)"
+              },
+              "shotId": {
+                "type": "string",
+                "description": "Shot ID (e.g. shot_08)"
+              },
+              "kind": {
+                "type": "string",
+                "description": "Asset kind (frame, video, audio, texture)"
+              },
+              "role": {
+                "type": "string",
+                "description": "Asset role (preview, reference, cut)"
+              },
+              "prompt": {
+                "type": "string",
+                "description": "Visual prompt used to generate asset"
+              },
+              "motionIntent": {
+                "type": "string",
+                "description": "Motion direction or intent"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Asset metadata"
+              }
+            }
           }
         }
       }
