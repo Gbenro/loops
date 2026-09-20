@@ -2505,14 +2505,14 @@ export async function claimNextExecution(
 
   // 2. Query Dev Queue to find next eligible issue
   const queueState = await getDevQueueState(supabase, userId);
-  let targetIssueId = params.targetIssueId;
+  let targetIssueId: string | null = params.targetIssueId || null;
   if (!targetIssueId) {
     targetIssueId = queueState.nextEligibleIssueId;
   }
 
   if (!targetIssueId) {
     const eligibleItem = queueState.items.find(i => i.isEligible && i.status !== 'accepted' && i.status !== 'completed' && i.status !== 'awaiting_acceptance');
-    targetIssueId = eligibleItem?.issueId || null;
+    targetIssueId = eligibleItem ? eligibleItem.issueId : null;
   }
 
   if (!targetIssueId) {
@@ -2593,7 +2593,7 @@ export async function claimNextExecution(
     .eq('id', issue.id)
     .eq('user_id', userId);
 
-  await recordDevEvent(supabase, userId, {
+  await appendDevEvent(supabase, userId, {
     issueId: issue.id,
     sessionId: executionId,
     type: 'session.started',
@@ -2608,7 +2608,7 @@ export async function claimNextExecution(
     }
   });
 
-  await recordDevEvent(supabase, userId, {
+  await appendDevEvent(supabase, userId, {
     issueId: issue.id,
     sessionId: executionId,
     type: 'execution.claimed' as DevEventType,
@@ -2786,11 +2786,11 @@ export async function appendExecutionEvents(
       fencingToken: params.fencingToken
     };
 
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: evt.type as DevEventType,
-      author: evt.author || 'luna',
+      author: (evt.author as any) || 'luna',
       content: evt.content,
       metadata: eventMetadata
     });
@@ -2841,7 +2841,7 @@ export async function finalizeExecution(
   const isSuccess = res.success === true && (!res.deniedActions || res.deniedActions.length === 0);
 
   if (isSuccess) {
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'implementation.reported',
@@ -2850,7 +2850,7 @@ export async function finalizeExecution(
       metadata: { changes: res.changes || [], patchLength: res.patch ? res.patch.length : 0 }
     });
 
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'tests.reported',
@@ -2859,7 +2859,7 @@ export async function finalizeExecution(
       metadata: res.testResults || { status: 'passed' }
     });
 
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'verification.reported',
@@ -2868,7 +2868,7 @@ export async function finalizeExecution(
       metadata: { verified: true }
     });
 
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'completion.summary',
@@ -2882,7 +2882,7 @@ export async function finalizeExecution(
       }
     });
 
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'session.completed',
@@ -2912,7 +2912,7 @@ export async function finalizeExecution(
 
     return { success: true, issueStatus: 'awaiting_acceptance' };
   } else {
-    await recordDevEvent(supabase, userId, {
+    await appendDevEvent(supabase, userId, {
       issueId: sessionRow.issue_id,
       sessionId: executionId,
       type: 'session.failed',
@@ -2971,7 +2971,7 @@ export async function cancelExecution(
     .eq('id', executionId)
     .eq('user_id', userId);
 
-  await recordDevEvent(supabase, userId, {
+  await appendDevEvent(supabase, userId, {
     issueId: sessionRow.issue_id,
     sessionId: executionId,
     type: 'session.ended',
@@ -3011,11 +3011,11 @@ export async function reconcileCloudExpiredLeases(
         })
         .eq('id', sess.id);
 
-      await recordDevEvent(supabase, sess.user_id, {
+      await appendDevEvent(supabase, sess.user_id, {
         issueId: sess.issue_id,
         sessionId: sess.id,
         type: 'execution.lease_expired' as DevEventType,
-        author: 'cloud_recovery',
+        author: 'luna',
         content: `Execution lease expired without valid heartbeat; freed execution slot`,
         metadata: {
           expiredSessionId: sess.id,

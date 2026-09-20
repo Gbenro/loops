@@ -806,7 +806,7 @@ async function runBridge() {
           console.log('================================================================\n');
 
           let claimResult = null;
-          if (autoClaim) {
+          if (autoClaim && !isDaemon) {
             console.log(`✦ [Pending Watcher] Auto-claiming session ${target.id}...`);
             try {
               claimResult = await apiCall(`/api/dev/sessions/${target.id}/claim`, 'POST', { agent: 'gemini' }, activeToken);
@@ -814,6 +814,8 @@ async function runBridge() {
             } catch (claimErr) {
               console.warn(`  [Notice] Claim error: ${claimErr.message}`);
             }
+          } else if (isDaemon) {
+            console.log(`✦ [Pending Watcher] Observer mode: task discovered. Automatic execution delegated to luna-dev-worker.`);
           }
 
           console.log(JSON.stringify({

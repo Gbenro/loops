@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-09-20T22:55:02.026Z",
+  "dryRun": false,
+  "auditedCount": 7,
+  "records": [
+    {
+      "issueId": "iss_1788495564231_yinz",
+      "title": "DEV BUG — Surface AGY failure diagnostics through bridge and Development Service",
+      "priority": "critical",
+      "status": "working",
+      "sessionId": "sess_1788495568996_jzuw",
+      "startedAt": "2026-09-04T04:24:36.745+00:00",
+      "ageHours": 403,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_1788499291380_bq3s",
+      "title": "DEV BUG — Diagnose and remove AGY ~300-second execution cutoff",
+      "priority": "critical",
+      "status": "working",
+      "sessionId": "sess_1788499294762_qeno",
+      "startedAt": "2026-09-04T05:23:04.161+00:00",
+      "ageHours": 402,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_1789072739045_f7vp",
+      "title": "CRITICAL CROSS-BROWSER REGRESSION — Chrome becomes non-interactive then renders partial cosmic canvas after refresh; DuckDuckGo works",
+      "priority": "critical",
+      "status": "working",
+      "sessionId": "sess_1789133226681_jxfa",
+      "startedAt": "2026-09-11T13:39:50.589+00:00",
+      "ageHours": 225,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_1788141494154_76ot",
+      "title": "Fix Saved Original Voice Echo audio persistence and playback",
+      "priority": "high",
+      "status": "working",
+      "sessionId": "sess_1788141497025_y4fc",
+      "startedAt": "2026-08-31T02:47:59.65+00:00",
+      "ageHours": 500,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_1788172505248_da7a",
+      "title": "Investigate feasibility of Luna Experiment 001 — Same Moment, Different Engine",
+      "priority": "high",
+      "status": "working",
+      "sessionId": "sess_1788469146254_gs5e",
+      "startedAt": "2026-09-04T06:39:23.219+00:00",
+      "ageHours": 400,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_1789348496466_4rrr",
+      "title": "Build Voice Coach V1 — audio-native delivery analysis for Creating With the Cycles",
+      "priority": "high",
+      "status": "working",
+      "sessionId": "sess_1789350686594_op54",
+      "startedAt": "2026-09-14T01:54:47.081+00:00",
+      "ageHours": 165,
+      "action": "reconcile_end_session"
+    },
+    {
+      "issueId": "iss_lab_results_attention_v1",
+      "title": "LAB RESULTS — Attention Intelligence Experiments",
+      "priority": "medium",
+      "status": "working",
+      "sessionId": "sess_lab_results_bridge",
+      "startedAt": "2026-09-16T14:20:15.505+00:00",
+      "ageHours": 105,
+      "action": "reconcile_end_session"
+    }
+  ]
+}

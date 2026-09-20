@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 /**
- * Luna Development Service → Multi-Harness Local Dev Worker
- * Supports AGY (Antigravity Headless) and DSH (DeepSeek Harness) behind a stable activation contract.
- * Strictly respects assignedAgent routing, recovers stale/orphaned sessions, and enforces verification gating.
+ * Luna Development Service → Supervised Execution Worker (V2)
+ * Sole authoritative owner of automatic task execution.
+ * Enforces:
+ * - Local singleton process lock
+ * - Durable attempt journaling & outbox
+ * - Isolated Git worktrees per task
+ * - 15-second lease heartbeats & monotonic safety deadlines
+ * - Independent verification gating
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
+import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import {
-  getHarnessAdapter,
-  HarnessRegistry,
-  SUPPORTED_RUNTIMES,
-  LOCAL_RUNTIMES,
+  AgyHarnessAdapter,
   resolveWorkspaceForWindows,
   verifyExecutionOutcome,
   formatElapsed,
@@ -22,10 +27,52 @@ import {
 
 const API_BASE = process.env.LUNA_API_URL || 'https://loops-production-e1d5.up.railway.app';
 const AUTH_FILE = path.join(process.env.HOME || '/home/ben', '.luna/auth.json');
-const MAPPING_FILE = path.join(process.env.HOME || '/home/ben', '.luna/agy-sessions.json');
+const JOURNAL_FILE = path.join(process.env.HOME || '/home/ben', '.luna/worker-journal.json');
+const OUTBOX_FILE = path.join(process.env.HOME || '/home/ben', '.luna/worker-outbox.json');
+const LOCK_FILE = '/tmp/luna-dev-worker.lock';
 const POLL_INTERVAL_MS = parseInt(process.env.LUNA_POLL_INTERVAL_MS || '5000', 10);
-const STALE_SESSION_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// ─── Identity & Process Lock ──────────────────────────────────────────────────
+export const WORKER_ID = process.env.LUNA_WORKER_ID || `wrk_${os.hostname()}`;
+export const WORKER_INSTANCE_ID = `inst_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+export function acquireSingletonLock() {
+  if (fs.existsSync(LOCK_FILE)) {
+    try {
+      const existingPid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+      if (existingPid && existingPid !== process.pid) {
+        // Test if existing process is running
+        process.kill(existingPid, 0);
+        console.error(`[Luna Dev Worker] Another worker instance is already running (PID: ${existingPid}). Exiting to maintain single owner.`);
+        process.exit(0);
+      }
+    } catch {
+      // Process is not running; stale lock file can be overwritten
+    }
+  }
+
+  try {
+    fs.writeFileSync(LOCK_FILE, String(process.pid));
+  } catch (err) {
+    console.warn(`[Luna Dev Worker] Could not write lock file: ${err.message}`);
+  }
+
+  const cleanup = () => {
+    try {
+      if (fs.existsSync(LOCK_FILE)) {
+        const p = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+        if (p === process.pid) fs.unlinkSync(LOCK_FILE);
+      }
+    } catch {}
+  };
+
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => { cleanup(); process.exit(0); });
+  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+}
+
+// ─── Authentication & Durable State ──────────────────────────────────────────
 export function getAuthToken() {
   if (process.env.LUNA_DEV_TOKEN) return process.env.LUNA_DEV_TOKEN;
   if (fs.existsSync(AUTH_FILE)) {
@@ -33,24 +80,66 @@ export function getAuthToken() {
       const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
       const token = auth.discoveryToken || auth.token;
       if (token) return token;
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
   throw new Error(`Authentication token not found in ${AUTH_FILE} or LUNA_DEV_TOKEN env.`);
 }
 
-export function getConversationMapping() {
-  if (fs.existsSync(MAPPING_FILE)) {
-    try { return JSON.parse(fs.readFileSync(MAPPING_FILE, 'utf8')); } catch { return {}; }
+export function readJournal() {
+  if (fs.existsSync(JOURNAL_FILE)) {
+    try { return JSON.parse(fs.readFileSync(JOURNAL_FILE, 'utf8')); } catch {}
   }
-  return {};
+  return { workerId: WORKER_ID, activeAttempt: null, lastReconciledAt: null };
 }
 
-export function saveConversationMapping(mapping) {
-  const dir = path.dirname(MAPPING_FILE);
+export function writeJournal(data) {
+  const dir = path.dirname(JOURNAL_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(MAPPING_FILE, JSON.stringify(mapping, null, 2));
+  fs.writeFileSync(JOURNAL_FILE, JSON.stringify(data, null, 2));
+}
+
+// ─── Git Worktree Isolation Helpers ───────────────────────────────────────────
+export function createIsolatedWorktree(issueId, attemptId) {
+  const worktreeParent = '/tmp/luna-worktrees';
+  if (!fs.existsSync(worktreeParent)) {
+    fs.mkdirSync(worktreeParent, { recursive: true });
+  }
+
+  const worktreeDir = path.join(worktreeParent, issueId);
+  const branchName = `task-${issueId}-${attemptId}`;
+
+  // Prune dead worktrees first
+  try {
+    execSync('git worktree prune', { cwd: REPO_ROOT, stdio: 'ignore' });
+  } catch {}
+
+  // Remove existing worktree for this issue if leftover from crash
+  if (fs.existsSync(worktreeDir)) {
+    try {
+      execSync(`git worktree remove --force ${worktreeDir}`, { cwd: REPO_ROOT, stdio: 'ignore' });
+    } catch {}
+  }
+
+  // Create new isolated branch and worktree from HEAD
+  execSync(`git worktree add -b ${branchName} ${worktreeDir} HEAD`, { cwd: REPO_ROOT, stdio: 'pipe' });
+  console.log(`[Luna Dev Worker] Created isolated Git worktree at: ${worktreeDir} (branch: ${branchName})`);
+
+  return { worktreeDir, branchName };
+}
+
+export function cleanupWorktree(worktreeDir, branchName) {
+  try {
+    if (fs.existsSync(worktreeDir)) {
+      execSync(`git worktree remove --force ${worktreeDir}`, { cwd: REPO_ROOT, stdio: 'ignore' });
+    }
+    if (branchName) {
+      execSync(`git branch -D ${branchName}`, { cwd: REPO_ROOT, stdio: 'ignore' });
+    }
+    execSync('git worktree prune', { cwd: REPO_ROOT, stdio: 'ignore' });
+    console.log(`[Luna Dev Worker] Cleaned up worktree at: ${worktreeDir}`);
+  } catch (err) {
+    console.warn(`[Luna Dev Worker] Warning cleaning up worktree: ${err.message}`);
+  }
 }
 
 export function getGitChangedFiles(workspaceDir) {
@@ -62,439 +151,299 @@ export function getGitChangedFiles(workspaceDir) {
   }
 }
 
-/**
- * Checks for orphaned or dead sessions that remain 'connected' without an active process,
- * and recovers them safely to prevent permanent WORKING stalls.
- */
-export async function recoverStaleSessions(token) {
+export function getGitPatch(workspaceDir) {
   try {
-    const pendRes = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!pendRes.ok) return;
-    const pendData = await pendRes.json();
-    const now = Date.now();
-
-    for (const session of pendData.items || []) {
-      if (session.status === 'connected' && session.startedAt) {
-        const elapsed = now - new Date(session.startedAt).getTime();
-        if (elapsed > STALE_SESSION_THRESHOLD_MS) {
-          console.log(`[Luna Dev Worker] Recovering orphaned stale session ${session.id} (idle for ${formatElapsed(elapsed)})...`);
-          await fetch(`${API_BASE}/api/dev/sessions/${session.id}/end`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ reason: 'stale_worker_recovery' })
-          });
-        }
-      }
-    }
+    return execSync('git diff HEAD', { cwd: workspaceDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch {
-    // Graceful recovery attempt
+    return '';
   }
 }
 
-/**
- * Polls for the next eligible queue item or pending session, resolves target harness runtime, claims session,
- * executes task through the appropriate adapter, and posts comprehensive evidence.
- */
-export async function pollAndExecuteNext({
-  workspaceDir = process.cwd(),
-  defaultAgent = 'agy',
-  forceAgent = null,
-  targetIssue = null
-} = {}) {
-  const token = getAuthToken();
-
-  // Recover any dead/orphaned sessions before claiming new work
-  await recoverStaleSessions(token);
-
-  // 1. Check pending-sessions first (covers sessions started by Development Service)
-  const pendRes = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  let sessionItem = null;
-  let targetIssueId = targetIssue;
-
-  if (pendRes.ok) {
-    const pendData = await pendRes.json();
-    const items = pendData.items || [];
-    
-    if (targetIssue) {
-      sessionItem = items.find(s => s.issueId === targetIssue && s.status === 'pending');
-    } else {
-      // Find sessions explicitly matching local runtimes (agy, dsh). Do NOT claim 'gemini' tasks!
-      sessionItem = items.find(s => {
-        if (s.status !== 'pending') return false;
-        // Never claim gemini tasks with the local headless worker!
-        if (s.agent === 'gemini') return false;
-        if (forceAgent) return s.agent === forceAgent;
-        return LOCAL_RUNTIMES.includes(s.agent) || s.agent === defaultAgent;
-      });
-    }
-    
-    if (sessionItem) {
-      targetIssueId = sessionItem.issueId;
-    }
-  }
-
-  // 2. If no pending session found directly, check dev queue for next eligible item
-  let nextItem = null;
-  if (!sessionItem && !targetIssue) {
-    const queueRes = await fetch(`${API_BASE}/api/dev/queue`, {
-      headers: { Authorization: `Bearer ${token}` }
+// ─── API Clients ─────────────────────────────────────────────────────────────
+export async function sendWorkerHeartbeat(token) {
+  try {
+    const res = await fetch(`${API_BASE}/api/dev/workers/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        workerId: WORKER_ID,
+        workerInstanceId: WORKER_INSTANCE_ID,
+        hostname: os.hostname(),
+        platform: os.platform(),
+        runtimeProfiles: ['agy-headless'],
+        availableCapacity: 1,
+        health: { status: 'healthy', pid: process.pid, uptime: process.uptime() }
+      })
     });
-    if (queueRes.ok) {
-      const queueData = await queueRes.json();
-      nextItem = (queueData.items || []).find(i => {
-        if (!i.isEligible || (i.status !== 'queued' && i.status !== 'discovered')) return false;
-        // Never claim gemini tasks with the local headless worker!
-        if (i.assignedAgent === 'gemini') return false;
-        if (forceAgent) return i.assignedAgent === forceAgent;
-        return true;
-      });
-      if (nextItem) {
-        targetIssueId = nextItem.issueId;
-      }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Execution Lifecycle Handler ─────────────────────────────────────────────
+export async function executeClaimedTask(token, execution) {
+  const { id: executionId, attemptId, issue, fencingToken, leaseExpiresAt } = execution;
+  const adapter = new AgyHarnessAdapter();
+
+  console.log(`\n================================================================`);
+  console.log(`✦ [Luna Dev Worker] STARTING EXECUTION: ${issue.id}`);
+  console.log(`  Title: ${issue.title}`);
+  console.log(`  Attempt ID: ${attemptId} (Fencing Token: ${fencingToken})`);
+  console.log(`  Initial Lease Expiry: ${leaseExpiresAt}`);
+  console.log(`================================================================\n`);
+
+  // 1. Create isolated worktree
+  const { worktreeDir, branchName } = createIsolatedWorktree(issue.id, attemptId);
+
+  // 2. Journal launch intent
+  writeJournal({
+    workerId: WORKER_ID,
+    workerInstanceId: WORKER_INSTANCE_ID,
+    activeAttempt: {
+      executionId,
+      attemptId,
+      issueId: issue.id,
+      fencingToken,
+      worktreeDir,
+      branchName,
+      startedAt: new Date().toISOString()
     }
-  }
-
-  if (!targetIssueId && !sessionItem) {
-    return { status: 'idle', message: 'No eligible items or pending sessions in queue' };
-  }
-
-  // 3. Fetch issue details
-  const issueRes = await fetch(`${API_BASE}/api/dev/issues/${targetIssueId}`, {
-    headers: { Authorization: `Bearer ${token}` }
   });
-  let issueData = {};
-  if (issueRes.ok) {
-    const raw = await issueRes.json();
-    issueData = raw.issue || raw;
-  }
 
-  // STRICT AGENT ROUTING: If issue is assigned to 'gemini', local worker must NOT claim it!
-  const authoritativeAgent = issueData.assignedAgent || (sessionItem ? sessionItem.agent : null) || defaultAgent;
-  if (authoritativeAgent === 'gemini') {
-    console.log(`[Luna Dev Worker] Skipping issue ${targetIssueId} assigned to [GEMINI] (interactive cloud agent).`);
-    return { status: 'skipped_gemini_task', issueId: targetIssueId };
-  }
-
-  // Determine target runtime adapter
-  const targetAgent = forceAgent || authoritativeAgent;
-  const adapter = getHarnessAdapter(targetAgent);
-
-  if (!adapter) {
-    console.warn(`[Luna Dev Worker] No local harness adapter found for target agent: '${targetAgent}'. Skipping.`);
-    return { status: 'unsupported_agent', agent: targetAgent, issueId: targetIssueId };
-  }
-
-  // If sessionItem wasn't found from pending-sessions directly, find it now
-  if (!sessionItem) {
-    const pendRes2 = await fetch(`${API_BASE}/api/dev/agent/pending-sessions`, {
-      headers: { Authorization: `Bearer ${token}` }
+  // 3. Post process started event
+  try {
+    await fetch(`${API_BASE}/api/dev/executions/${executionId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        workerId: WORKER_ID,
+        workerInstanceId: WORKER_INSTANCE_ID,
+        fencingToken,
+        events: [{
+          type: 'implementation.started',
+          author: 'agy',
+          content: `Isolated execution started for issue ${issue.id} in worktree ${worktreeDir}`,
+          metadata: { worktreeDir, branchName, startedAt: new Date().toISOString() }
+        }]
+      })
     });
-    if (pendRes2.ok) {
-      const pendData2 = await pendRes2.json();
-      sessionItem = (pendData2.items || []).find(s => s.issueId === targetIssueId);
-    }
+  } catch (e) {
+    console.warn('[Luna Dev Worker] Could not append started event:', e.message);
   }
 
-  if (!sessionItem) {
-    return { status: 'waiting_for_session', issueId: targetIssueId };
-  }
+  // 4. Set up lease watchdog & monotonic safety deadline
+  let currentLeaseExpiresAt = new Date(leaseExpiresAt).getTime();
+  let cancelledByServer = false;
+  let heartbeatFailedCount = 0;
 
-  // 4. Claim session with explicit adapter name
-  const claimRes = await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/claim`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ agent: adapter.name })
-  });
-  if (!claimRes.ok) {
-    return { status: 'claim_failed', issueId: targetIssueId, error: await claimRes.text() };
-  }
-  const claimData = await claimRes.json();
-  const sessionToken = claimData.token;
+  const heartbeatTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/dev/executions/${executionId}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          workerId: WORKER_ID,
+          workerInstanceId: WORKER_INSTANCE_ID,
+          fencingToken,
+          stage: 'running'
+        })
+      });
 
-  console.log(`[Luna Dev Worker] Claimed session ${sessionItem.id} for issue ${targetIssueId} (${issueData.title || targetIssueId}) using [${adapter.name.toUpperCase()}] adapter`);
-
-  // 5. Resolve conversation mapping if supported
-  const mappings = getConversationMapping();
-  const existingConvId = mappings[targetIssueId] || null;
-
-  // 6. Post implementation.started event
-  await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-    body: JSON.stringify({
-      issueId: targetIssueId,
-      type: 'implementation.started',
-      author: adapter.name,
-      content: `AUTONOMOUS ${adapter.name.toUpperCase()} EXECUTION STARTED: Discovered and claimed issue ${targetIssueId}. Runtime: ${adapter.runtimeIdentity}. Target workspace: ${workspaceDir}.`,
-      metadata: {
-        agent: adapter.name,
-        runtimeIdentity: adapter.runtimeIdentity,
-        conversationId: existingConvId,
-        startedAt: new Date().toISOString()
+      if (res.ok) {
+        const data = await res.json();
+        currentLeaseExpiresAt = new Date(data.leaseExpiresAt).getTime();
+        heartbeatFailedCount = 0;
+      } else {
+        heartbeatFailedCount++;
+        if (res.status === 409 || res.status === 410) {
+          console.warn('[Luna Dev Worker] Server rejected lease renewal (cancelled/conflict). Terminating child.');
+          cancelledByServer = true;
+        }
       }
-    })
-  });
+    } catch {
+      heartbeatFailedCount++;
+    }
+  }, 15000);
 
-  // 7. Execute task via adapter with heartbeat logging
-  console.log(`[Luna Dev Worker] Invoking ${adapter.name.toUpperCase()} adapter in ${workspaceDir}...`);
-  const prompt = `You are executing an autonomous development task for Luna Development Service issue ${targetIssueId}: ${issueData.title || targetIssueId}.
+  // 5. Construct prompt and launch child agent
+  const winWorktreeDir = resolveWorkspaceForWindows(worktreeDir);
+  const prompt = `You are executing an autonomous development task for Luna Development Service.
+Issue ID: ${issue.id}
+Title: ${issue.title}
+Description:
+${issue.description}
 
-Description & Instructions:
-${issueData.description || issueData.title || targetIssueId}
+Acceptance Criteria:
+${(issue.acceptanceCriteria || []).map(c => '- ' + c).join('\n')}
 
-Please fulfill this request directly and output your final result clearly.`;
+CRITICAL INSTRUCTIONS:
+1. All changes must be made strictly in the workspace directory (${winWorktreeDir}).
+2. Implement the fix or feature directly.
+3. Run tests or verification commands to confirm correctness.
+4. Output a concise summary of changes.`;
+
+  console.log(`[Luna Dev Worker] Launching AGY in isolated worktree: ${winWorktreeDir}...`);
 
   const executionResult = await adapter.executeTask({
     prompt,
-    workspaceDir,
-    conversationId: existingConvId
-  });
-
-  console.log(`[Luna Dev Worker] ${adapter.name.toUpperCase()} finished with exit code ${executionResult.exitCode} in ${executionResult.durationMs}ms`);
-
-  // Record conversation mapping if agy generated a conversation_id
-  if (executionResult.structuredOutput?.conversation_id) {
-    mappings[targetIssueId] = executionResult.structuredOutput.conversation_id;
-    saveConversationMapping(mappings);
-  }
-
-  // 8. Check changed files
-  const changedFiles = getGitChangedFiles(workspaceDir);
-
-  // 9. Post substantive evidence
-  const substantiveContent = `${adapter.name.toUpperCase()} EXECUTION RESULT:
-Status: ${executionResult.terminationReason} (Exit code ${executionResult.exitCode} in ${executionResult.durationMs}ms)
-
-Assistant Response:
-${executionResult.finalResponse || '(No response text)'}
-
-Changed Files: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'None'}`;
-
-  await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-    body: JSON.stringify({
-      issueId: targetIssueId,
-      type: 'implementation.reported',
-      author: adapter.name,
-      content: substantiveContent,
-      metadata: {
-        agent: adapter.name,
-        exitCode: executionResult.exitCode,
-        durationMs: executionResult.durationMs,
-        success: executionResult.success,
-        model: executionResult.model,
-        finalResponse: executionResult.finalResponse,
-        changedFiles,
-        deniedActions: executionResult.deniedActions,
-        terminationReason: executionResult.terminationReason
+    workspaceDir: worktreeDir,
+    timeoutMs: 600000,
+    onHeartbeat: (hb) => {
+      // Check monotonic deadline safety margin (must not run past lease)
+      const remainingLeaseMs = currentLeaseExpiresAt - Date.now();
+      if (remainingLeaseMs < 15000 || cancelledByServer) {
+        console.error(`[Luna Dev Worker] SAFETY ABORT: Lease expiring in ${remainingLeaseMs}ms without server renewal. Halting execution.`);
+        clearInterval(heartbeatTimer);
+        adapter.cancel?.();
       }
-    })
+    }
   });
 
-  // 10. Strict verification gating
+  clearInterval(heartbeatTimer);
+
+  console.log(`[Luna Dev Worker] AGY finished with exit code ${executionResult.exitCode} (${executionResult.durationMs}ms)`);
+
+  // 6. Independent Verification Gate
+  const changedFiles = getGitChangedFiles(worktreeDir);
+  const patch = getGitPatch(worktreeDir);
+
   const verification = verifyExecutionOutcome({
     executionResult,
-    issue: issueData,
+    issue,
     changedFiles
   });
 
-  if (verification.verified) {
-    console.log(`[Luna Dev Worker] Verification PASSED for ${targetIssueId}.`);
-    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-      body: JSON.stringify({
-        issueId: targetIssueId,
-        type: 'verification.reported',
-        author: adapter.name,
-        content: `VERIFICATION CONFIRMED: ${adapter.name.toUpperCase()} executed successfully and satisfied all verification gates.`,
-        metadata: {
-          verified: true,
-          agent: adapter.name,
-          durationMs: executionResult.durationMs
-        }
-      })
-    });
-
-    const completionSummary = formatCompletionSummary({
-      agent: adapter.name,
-      summary: executionResult.finalResponse || `${adapter.name.toUpperCase()} executed successfully and satisfied all verification gates.`,
-      changes: changedFiles,
-      testResults: { passed: true },
-      buildResults: { passed: true },
-      commit: null,
-      deployment: { environment: 'local', url: null },
-      caveats: [],
-      acceptanceStatus: 'awaiting_user_acceptance',
-      nextStep: 'Review changes and complete acceptance testing.'
-    });
-
-    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-      body: JSON.stringify({
-        issueId: targetIssueId,
-        type: 'completion.summary',
-        author: adapter.name,
-        content: JSON.stringify(completionSummary),
-        metadata: {
-          completionSummary
-        }
-      })
-    });
-
-    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/end`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-      body: JSON.stringify({ reason: 'completed' })
-    });
-  } else {
-    console.warn(`[Luna Dev Worker] Verification REJECTED for ${targetIssueId}: ${verification.reasons.join(' ')}`);
-    await fetch(`${API_BASE}/api/dev/sessions/${sessionItem.id}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-      body: JSON.stringify({
-        issueId: targetIssueId,
-        type: 'verification.reported',
-        author: adapter.name,
-        content: `VERIFICATION FAILED / INCOMPLETE: ${verification.reasons.join(' ')}`,
-        metadata: {
-          verified: false,
-          reasons: verification.reasons,
-          agent: adapter.name
-        }
-      })
-    });
+  const verified = verification.verified && !cancelledByServer;
+  console.log(`[Luna Dev Worker] Verification Outcome: ${verified ? 'PASSED ✅' : 'FAILED ❌'}`);
+  if (!verified) {
+    console.warn(`[Luna Dev Worker] Verification Failure Reasons:`, verification.reasons);
   }
 
-  return {
-    status: 'executed',
-    issueId: targetIssueId,
-    sessionId: sessionItem.id,
-    agent: adapter.name,
-    executionResult,
-    verified: verification.verified
-  };
+  // 7. Finalize on Server
+  const finalSummary = executionResult.finalResponse || `Task execution finished with exit code ${executionResult.exitCode}`;
+
+  try {
+    await fetch(`${API_BASE}/api/dev/executions/${executionId}/finalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        workerId: WORKER_ID,
+        workerInstanceId: WORKER_INSTANCE_ID,
+        fencingToken,
+        result: {
+          success: verified,
+          summary: finalSummary,
+          changes: changedFiles,
+          patch,
+          testResults: { passed: verified, reasons: verification.reasons },
+          deniedActions: executionResult.deniedActions,
+          caveats: verification.reasons
+        }
+      })
+    });
+    console.log(`[Luna Dev Worker] Successfully finalized execution ${executionId} on server.`);
+  } catch (err) {
+    console.error(`[Luna Dev Worker] Error finalizing execution on server: ${err.message}`);
+  }
+
+  // 8. Cleanup worktree & journal
+  cleanupWorktree(worktreeDir, branchName);
+  writeJournal({ workerId: WORKER_ID, workerInstanceId: WORKER_INSTANCE_ID, activeAttempt: null, lastReconciledAt: new Date().toISOString() });
+
+  console.log(`[Luna Dev Worker] Finished cycle for ${issue.id}. Ready for next task.\n`);
+  return { success: verified, issueId: issue.id };
 }
 
-/**
- * Starts continuous daemon worker loop
- */
-export async function startDaemonWorker({
-  workspaceDir = process.cwd(),
-  intervalMs = POLL_INTERVAL_MS,
-  defaultAgent = 'agy',
-  forceAgent = null
-} = {}) {
-  let isRunning = true;
-  let activePoll = false;
+// ─── Main Worker Loop ────────────────────────────────────────────────────────
+export async function startDaemonWorker({ forceOnce = false, targetIssue = null } = {}) {
+  acquireSingletonLock();
+  const token = getAuthToken();
 
-  console.log('===============================================================');
-  console.log('  LUNA DEVELOPMENT SERVICE → MULTI-HARNESS DEV WORKER');
-  console.log('===============================================================');
-  console.log(`[Luna Dev Worker] Target API:      ${API_BASE}`);
-  console.log(`[Luna Dev Worker] Workspace:       ${workspaceDir}`);
-  console.log(`[Luna Dev Worker] Default Agent:   ${forceAgent || defaultAgent}`);
-  console.log(`[Luna Dev Worker] Local Runtimes:  ${LOCAL_RUNTIMES.join(', ')}`);
-  console.log(`[Luna Dev Worker] Poll Interval:   ${intervalMs}ms`);
+  console.log(`✦ [Luna Dev Worker V2] Initialized`);
+  console.log(`  Worker ID: ${WORKER_ID}`);
+  console.log(`  Instance: ${WORKER_INSTANCE_ID}`);
+  console.log(`  API Base: ${API_BASE}`);
+  console.log(`  PID: ${process.pid}`);
 
-  // Verify auth immediately on startup
-  try {
-    const token = getAuthToken();
-    console.log(`[Luna Dev Worker] Auth:            Verified (${token.substring(0, 8)}...)`);
-  } catch (err) {
-    console.error(`[Luna Dev Worker] FATAL ERROR: ${err.message}`);
-    process.exit(1);
+  // Reconcile journal on startup
+  const journal = readJournal();
+  if (journal.activeAttempt) {
+    console.log(`[Luna Dev Worker] Found incomplete attempt from prior run in journal: ${journal.activeAttempt.issueId}`);
+    if (journal.activeAttempt.worktreeDir) {
+      cleanupWorktree(journal.activeAttempt.worktreeDir, journal.activeAttempt.branchName);
+    }
+    writeJournal({ workerId: WORKER_ID, workerInstanceId: WORKER_INSTANCE_ID, activeAttempt: null, lastReconciledAt: new Date().toISOString() });
   }
 
-  console.log(`[Luna Dev Worker] Status:          ACTIVE (Polling for eligible tasks & pending sessions)`);
-  console.log('---------------------------------------------------------------');
+  // Initial presence heartbeat
+  await sendWorkerHeartbeat(token);
 
-  const shutdown = () => {
-    if (!isRunning) return;
-    isRunning = false;
-    console.log('\n[Luna Dev Worker] Shutting down dev worker cleanly...');
-    process.exit(0);
-  };
+  let consecutiveErrors = 0;
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-
-  const tick = async () => {
-    if (!isRunning || activePoll) return;
-    activePoll = true;
+  while (true) {
     try {
-      const result = await pollAndExecuteNext({
-        workspaceDir,
-        defaultAgent,
-        forceAgent
+      // 1. Send periodic presence heartbeat
+      await sendWorkerHeartbeat(token);
+
+      // 2. Poll for next eligible execution
+      const claimRes = await fetch(`${API_BASE}/api/dev/executions/claim-next`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          workerId: WORKER_ID,
+          workerInstanceId: WORKER_INSTANCE_ID,
+          runtimeProfiles: ['agy-headless'],
+          repository: 'loops-app',
+          idempotencyKey: `claim_${WORKER_INSTANCE_ID}_${Date.now()}`,
+          targetIssueId: targetIssue
+        })
       });
-      if (result.status === 'executed') {
-        console.log(`[Luna Dev Worker] Task ${result.issueId} executed by ${result.agent} (verified: ${result.verified}).`);
+
+      if (!claimRes.ok) {
+        console.warn(`[Luna Dev Worker] Claim-next HTTP ${claimRes.status}: ${await claimRes.text()}`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+
+      const claimData = await claimRes.json();
+      consecutiveErrors = 0;
+
+      if (claimData.status === 'claimed' && claimData.execution) {
+        await executeClaimedTask(token, claimData.execution);
+        if (forceOnce) break;
+      } else if (claimData.status === 'slot_busy') {
+        // Slot is busy, wait before re-polling
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+      } else {
+        // Idle
+        if (forceOnce) {
+          console.log('[Luna Dev Worker] No eligible tasks found (single-run mode). Exiting.');
+          break;
+        }
+        // Jittered sleep (4.5s - 5.5s)
+        const jitter = Math.floor(Math.random() * 1000) - 500;
+        await new Promise(r => setTimeout(r, Math.max(2000, POLL_INTERVAL_MS + jitter)));
       }
     } catch (err) {
-      console.warn(`[Luna Dev Worker] Poll warning: ${err.message}`);
-    } finally {
-      activePoll = false;
+      consecutiveErrors++;
+      const backoff = Math.min(30000, 2000 * Math.pow(1.5, consecutiveErrors));
+      console.error(`[Luna Dev Worker] Error in worker loop: ${err.message} (retrying in ${Math.round(backoff / 1000)}s)...`);
+      await new Promise(r => setTimeout(r, backoff));
     }
-  };
-
-  // Initial tick
-  await tick();
-
-  // Recurring loop
-  const timer = setInterval(tick, intervalMs);
-
-  return {
-    stop: () => {
-      clearInterval(timer);
-      isRunning = false;
-    }
-  };
+  }
 }
 
 // ─── Direct CLI Entrypoint ────────────────────────────────────────────────────
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
-  const args = process.argv.slice(2);
-  let forceAgent = null;
-  let workspaceDir = process.cwd();
-  let singleShot = false;
-  let targetIssue = null;
+  const once = process.argv.includes('--once');
+  const targetIdx = process.argv.indexOf('--issue');
+  const targetIssue = targetIdx !== -1 ? process.argv[targetIdx + 1] : null;
 
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--agent' && args[i + 1]) {
-      forceAgent = args[i + 1];
-      i++;
-    } else if (args[i] === '--workspace' && args[i + 1]) {
-      workspaceDir = args[i + 1];
-      i++;
-    } else if (args[i] === '--issue' && args[i + 1]) {
-      targetIssue = args[i + 1];
-      i++;
-    } else if (args[i] === '--once') {
-      singleShot = true;
-    }
-  }
-
-  if (singleShot) {
-    pollAndExecuteNext({ workspaceDir, forceAgent, targetIssue }).then(res => {
-      console.log(JSON.stringify(res, null, 2));
-      process.exit(0);
-    }).catch(err => {
-      console.error(`[Luna Dev Worker] Error: ${err.message}`);
-      process.exit(1);
-    });
-  } else {
-    startDaemonWorker({ workspaceDir, forceAgent }).catch(err => {
-      console.error(`[Luna Dev Worker] Fatal error: ${err.message}`);
-      process.exit(1);
-    });
-  }
+  startDaemonWorker({ forceOnce: once, targetIssue }).catch(err => {
+    console.error(`[Luna Dev Worker] Fatal worker error: ${err.message}`);
+    process.exit(1);
+  });
 }

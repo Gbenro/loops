@@ -1,0 +1,36 @@
+{
+  "gate": "Gate 1: Real Runtime Execution Proof",
+  "timestamp": "2026-09-20T22:48:00.653Z",
+  "status": "PASSED",
+  "runtime": {
+    "executable": "/usr/local/bin/agy",
+    "version": "1.1.26",
+    "osUser": "ben",
+    "platform": "linux",
+    "modelSelection": "gemini-3.8-flash-high (default in CLI)",
+    "authMethod": "Google OAuth / Antigravity token (local machine credentials)"
+  },
+  "primaryChallenge": {
+    "challengeToken": "LUNA_GATE1_CHALLENGE_1789944407832_020c0ea405af2f0c",
+    "launchStart": "2026-09-20T22:46:47.833Z",
+    "launchEnd": "2026-09-20T22:47:12.314Z",
+    "durationMs": 24481,
+    "exitCode": 0,
+    "conversationId": "c07da305-7123-4acf-9b4e-2992014a7c00",
+    "runtimeStatus": "SUCCESS",
+    "fileCreated": true,
+    "challengeMatched": true,
+    "deniedActions": [],
+    "stdout": "{\"conversation_id\":\"c07da305-7123-4acf-9b4e-2992014a7c00\",\"status\":\"SUCCESS\",\"response\":\"VERIFIED\\n\",\"duration_seconds\":14.966145000000001,\"num_turns\":1,\"usage\":{\"input_tokens\":24024,\"output_tokens\":882,\"thinking_tokens\":664,\"cache_read_tokens\":32565,\"total_tokens\":24906}}",
+    "stderr": ""
+  },
+  "cancellationTest": {
+    "pid": 1480,
+    "durationMs": 2011,
+    "processTerminated": true
+  },
+  "repeatabilityTest": {
+    "repeatPassed": true,
+    "exitCode": 0
+  }
+}

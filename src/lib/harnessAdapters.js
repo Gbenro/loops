@@ -19,6 +19,10 @@ export function resolveWorkspaceForWindows(wslPath) {
   if (os.platform() === 'win32') return wslPath;
   if (!wslPath) return '\\\\wsl.localhost\\Ubuntu\\home\\ben\\.openclaw\\workspace\\loops-app';
   
+  if (wslPath.startsWith('/tmp/')) {
+    const relative = wslPath.replace(/^\//, '').replace(/\//g, '\\');
+    return `\\\\wsl.localhost\\Ubuntu\\${relative}`;
+  }
   if (wslPath.startsWith('/home/')) {
     const relative = wslPath.replace(/^\//, '').replace(/\//g, '\\');
     return `\\\\wsl.localhost\\Ubuntu\\${relative}`;
@@ -50,6 +54,27 @@ export class BaseHarnessAdapter {
   constructor(name, runtimeIdentity) {
     this.name = name;
     this.runtimeIdentity = runtimeIdentity;
+  }
+
+  async probe() {
+    try {
+      const { execSync } = await import('node:child_process');
+      const version = execSync('agy --version', { encoding: 'utf8' }).trim();
+      return {
+        ready: true,
+        runtime: 'agy',
+        version,
+        executable: '/usr/local/bin/agy',
+        probeTime: new Date().toISOString()
+      };
+    } catch (err) {
+      return {
+        ready: false,
+        runtime: 'agy',
+        reason: err.message,
+        probeTime: new Date().toISOString()
+      };
+    }
   }
 
   get capabilities() {
@@ -92,12 +117,16 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
     timeoutMs = 600000,
     onHeartbeat = null
   }) {
+    const winWorkspace = resolveWorkspaceForWindows(workspaceDir);
     const args = [
       '-p', prompt,
       '--output-format', 'json',
       '--mode', 'accept-edits',
       '--print-timeout', '10m'
     ];
+    if (winWorkspace) {
+      args.push('--add-dir', winWorkspace);
+    }
     if (conversationId) {
       args.push('--conversation', conversationId);
     }
