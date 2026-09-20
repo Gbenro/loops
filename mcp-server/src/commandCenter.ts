@@ -18,6 +18,7 @@ import {
   listDevAssets,
   getDevAssetById,
   ackDevAsset,
+  buildAssetPreviewUrls,
   sanitizeSecretContent,
   sanitizeSecretMetadata,
   DevEventType,
@@ -783,42 +784,98 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       let result: any = null;
       switch (action) {
         case 'assets.list': {
-          const assets = await listDevAssets(supabase, userId, payload.status);
-          result = assets.map((a) => ({
-            id: a.id,
-            filename: a.filename,
-            mimeType: a.mimeType,
-            status: a.status,
-            downloadUrl: `/api/dev/assets/${a.id}/download`,
-            createdAt: a.createdAt,
-            prompt: a.prompt,
-            motionIntent: a.motionIntent,
-          }));
+          const filterObj: any = {};
+          if (payload.status) filterObj.status = payload.status;
+          if (payload.projectId) filterObj.projectId = payload.projectId;
+          if (payload.shotId) filterObj.shotId = payload.shotId;
+          if (payload.batch) filterObj.batch = Number(payload.batch);
+          const assets = await listDevAssets(supabase, userId, filterObj);
+          result = assets.map((a) => {
+            const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, a.id);
+            return {
+              id: a.id,
+              filename: a.filename,
+              mimeType: a.mimeType,
+              status: a.status,
+              downloadUrl,
+              previewUrl,
+              checksum: a.checksum,
+              projectId: a.projectId,
+              shotId: a.shotId,
+              role: a.role,
+              kind: a.kind,
+              createdAt: a.createdAt,
+              prompt: a.prompt,
+              motionIntent: a.motionIntent,
+              metadata: (a as any).metadata || {},
+            };
+          });
           break;
         }
         case 'assets.get': {
-          const asset = await getDevAssetById(supabase, userId, payload.id || payload.assetId || payload.asset_id);
+          const assetId = payload.id || payload.assetId || payload.asset_id;
+          if (!assetId) {
+            return res.status(400).json({ success: false, error: { code: 'MISSING_ASSET_ID', message: 'Asset id is required.' } });
+          }
+          const asset = await getDevAssetById(supabase, userId, assetId);
           if (!asset) {
             return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } });
           }
+          const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, asset.id);
           result = {
             id: asset.id,
             filename: asset.filename,
             mimeType: asset.mimeType,
             status: asset.status,
-            downloadUrl: `/api/dev/assets/${asset.id}/download`,
+            downloadUrl,
+            previewUrl,
+            checksum: asset.checksum,
+            projectId: asset.projectId,
+            shotId: asset.shotId,
+            role: asset.role,
+            kind: asset.kind,
             createdAt: asset.createdAt,
             prompt: asset.prompt,
             motionIntent: asset.motionIntent,
+            metadata: (asset as any).metadata || {},
+            dataBase64: payload.includeBase64 ? asset.dataBase64 : undefined,
           };
           break;
         }
         case 'assets.upload': {
-          result = await createDevAsset(supabase, userId, payload as any);
+          const created = await createDevAsset(supabase, userId, payload as any);
+          const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, created.id);
+          result = {
+            id: created.id,
+            filename: created.filename,
+            mimeType: created.mimeType,
+            status: created.status,
+            downloadUrl,
+            previewUrl,
+            checksum: created.checksum,
+            projectId: created.projectId,
+            shotId: created.shotId,
+            role: created.role,
+            kind: created.kind,
+            createdAt: created.createdAt,
+            prompt: created.prompt,
+            motionIntent: created.motionIntent,
+            metadata: (created as any).metadata || {},
+          };
           break;
         }
         case 'assets.ack': {
-          result = await ackDevAsset(supabase, userId, payload.id || payload.assetId || payload.asset_id);
+          const assetId = payload.id || payload.assetId || payload.asset_id;
+          if (!assetId) {
+            return res.status(400).json({ success: false, error: { code: 'MISSING_ASSET_ID', message: 'Asset id is required.' } });
+          }
+          const asset = await ackDevAsset(supabase, userId, assetId);
+          result = {
+            id: asset.id,
+            ingestedLocally: asset.ingestedLocally,
+            status: asset.status,
+            updatedAt: asset.updatedAt,
+          };
           break;
         }
         default:

@@ -1,3 +1,10 @@
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAnon } from './db.js';
@@ -1914,8 +1921,129 @@ async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promi
 
 
 
+
 // Resilient in-memory asset store as primary/fallback
-const localDevAssetStore = new Map<string, DevAsset>();
+export const localDevAssetStore = new Map<string, DevAsset>();
+
+const TICKET_SECRET = process.env.LUNA_ASSET_TICKET_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'luna_creative_asset_bridge_ticket_key_v1';
+
+export function generateAssetTicket(assetId: string, exp: number): string {
+  return crypto
+    .createHmac('sha256', TICKET_SECRET)
+    .update(`${assetId}:${exp}`)
+    .digest('hex');
+}
+
+export function verifyAssetTicket(assetId: string, ticket: string, exp: number | string): boolean {
+  try {
+    const expNum = typeof exp === 'string' ? parseInt(exp, 10) : exp;
+    const now = Date.now();
+    const expMs = expNum < 10000000000 ? expNum * 1000 : expNum;
+    if (isNaN(expNum) || expMs <= now) return false;
+    const expected = generateAssetTicket(assetId, expNum);
+    const bufTicket = Buffer.from(ticket, 'hex');
+    const bufExpected = Buffer.from(expected, 'hex');
+    if (bufTicket.length !== bufExpected.length) return false;
+    return crypto.timingSafeEqual(bufTicket, bufExpected);
+  } catch {
+    return false;
+  }
+}
+
+export function buildAssetPreviewUrls(req: Request, assetId: string) {
+  const host = req.get('host') || 'loops-production-e1d5.up.railway.app';
+  const protocol = (host.includes('localhost') || host.includes('127.0.0.1')) ? 'http' : 'https';
+  const exp = Date.now() + 24 * 60 * 60 * 1000; // 24-hour preview ticket
+  const ticket = generateAssetTicket(assetId, exp);
+  const downloadUrl = `${protocol}://${host}/api/dev/assets/${assetId}/download?ticket=${ticket}&exp=${exp}`;
+  const previewUrl = `${protocol}://${host}/api/dev/assets/${assetId}/preview?ticket=${ticket}&exp=${exp}`;
+  return { downloadUrl, previewUrl, ticket, expiresAt: new Date(exp).toISOString() };
+}
+
+export const VIDEO_1_SEED_MANIFEST = [
+  { shotId: '01', filename: 'shot_01_seedling_source.jpg', batch: 1, role: 'source', prompt: 'Seedling macro emergence in dawn light' },
+  { shotId: '02', filename: 'shot_02_forest_source.jpg', batch: 1, role: 'source', prompt: 'Towering canopy looking up toward morning light' },
+  { shotId: '03', filename: 'shot_03_season_1_emergence.jpg', batch: 1, role: 'preview', prompt: 'Season 1 Emergence (Spring oak buds)' },
+  { shotId: '03', filename: 'shot_03_season_2_growth.jpg', batch: 1, role: 'preview', prompt: 'Season 2 Growth (Expanding canopy)' },
+  { shotId: '03', filename: 'shot_03_season_3_maturity.jpg', batch: 1, role: 'preview', prompt: 'Season 3 Maturity (Full summer canopy)' },
+  { shotId: '03', filename: 'shot_03_season_4_release.jpg', batch: 1, role: 'preview', prompt: 'Season 4 Release (Amber autumn drop)' },
+  { shotId: '03', filename: 'shot_03_season_5_rest.jpg', batch: 1, role: 'preview', prompt: 'Season 5 Rest (Bare winter tree in frost)' },
+  { shotId: '03', filename: 'shot_03_season_6_renewal.jpg', batch: 1, role: 'preview', prompt: 'Season 6 Renewal (Early spring renewal)' },
+  { shotId: '04', filename: 'shot_04_moon_source.jpg', batch: 1, role: 'source', prompt: 'Celestial Moon reveal through forest canopy' },
+  { shotId: '05', filename: 'shot_05_calendar_source.jpg', batch: 2, role: 'source', prompt: 'Calendar grid in cool daylight' },
+  { shotId: '06', filename: 'shot_06_ripple_source.jpg', batch: 2, role: 'source', prompt: 'Water ripple expanding overhead view' },
+  { shotId: '07', filename: 'shot_07_monday_a.jpg', batch: 2, role: 'preview', prompt: 'Monday A workspace matched pair' },
+  { shotId: '07', filename: 'shot_07_monday_b.jpg', batch: 2, role: 'preview', prompt: 'Monday B workspace matched pair' },
+  { shotId: '08', filename: 'shot_08_waxing.jpg', batch: 2, role: 'preview', prompt: 'Shot 08 Waxing workspace (Bright morning daylight)' },
+  { shotId: '08', filename: 'shot_08_waning.jpg', batch: 2, role: 'preview', prompt: 'Shot 08 Waning workspace (Soft twilight illumination)' },
+  { shotId: '09', filename: 'shot_09_human_entry_source.jpg', batch: 3, role: 'source', prompt: 'Human creator entry at natural workspace' },
+  { shotId: '10', filename: 'shot_10_begin.jpg', batch: 3, role: 'preview', prompt: 'Shot 10 Begin (First deliberate mark)' },
+  { shotId: '10', filename: 'shot_10_build.jpg', batch: 3, role: 'preview', prompt: 'Shot 10 Build (Developing layers and structure)' },
+  { shotId: '11', filename: 'shot_11_full_expression_source.jpg', batch: 3, role: 'source', prompt: 'Shot 11 Full Expression (Work brought into window light)' },
+  { shotId: '12', filename: 'shot_12_release.jpg', batch: 3, role: 'preview', prompt: 'Shot 12 Release (Hands setting down creation)' },
+  { shotId: '12', filename: 'shot_12_rest.jpg', batch: 3, role: 'preview', prompt: 'Shot 12 Rest (Empty chair, quiet late-day stillness)' },
+];
+
+export function seedVideo1Assets(): void {
+  const seedUserId = 'user_dev_discovery';
+  const now = new Date().toISOString();
+
+  for (const item of VIDEO_1_SEED_MANIFEST) {
+    const assetId = `ast_v1_${item.shotId}_${item.filename.replace(/[^a-z0-9]/gi, '_')}`;
+    if (localDevAssetStore.has(assetId)) continue;
+
+    let b64: string | null = null;
+    let checksum: string | null = null;
+    const possiblePaths = [
+      path.join(__dirname, '..', 'previews', item.filename),
+      path.join(process.cwd(), 'mcp-server', 'previews', item.filename),
+      path.join(process.cwd(), 'previews', item.filename),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const buf = fs.readFileSync(p);
+          b64 = buf.toString('base64');
+          checksum = crypto.createHash('sha256').update(buf).digest('hex');
+          break;
+        } catch {}
+      }
+    }
+
+    const asset: DevAsset = {
+      id: assetId,
+      userId: seedUserId,
+      projectId: 'projects/creating_with_the_cycles/video_1_what_does_that_mean',
+      videoId: null,
+      shotId: item.shotId,
+      batch: item.batch,
+      kind: 'image',
+      role: item.role,
+      generatedBy: 'gemini',
+      status: 'review',
+      mimeType: 'image/jpeg',
+      width: 1080,
+      height: 1920,
+      aspectRatio: '9:16',
+      filename: item.filename,
+      checksum,
+      prompt: item.prompt,
+      motionIntent: null,
+      dataBase64: b64,
+      ingestedLocally: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    localDevAssetStore.set(assetId, asset);
+  }
+}
+
+try {
+  seedVideo1Assets();
+} catch (e) {
+  console.warn('[devBridge] Failed to seed Video 1 assets:', e);
+}
+
 
 export async function createDevAsset(
   supabase: SupabaseClient,
@@ -1925,6 +2053,8 @@ export async function createDevAsset(
   const assetId = `ast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
   
+  const checksum = data.checksum || (data.dataBase64 ? crypto.createHash('sha256').update(Buffer.from(data.dataBase64, 'base64')).digest('hex') : null);
+
   const asset: DevAsset = {
     id: assetId,
     userId: userId,
@@ -1935,19 +2065,20 @@ export async function createDevAsset(
     kind: data.kind || 'image',
     role: data.role || 'source',
     generatedBy: data.generatedBy || 'gemini',
-    status: data.status || 'approved',
+    status: data.status || 'review',
     mimeType: data.mimeType || 'image/jpeg',
     width: data.width || 1080,
     height: data.height || 1920,
     aspectRatio: data.aspectRatio || '9:16',
     filename: data.filename || 'asset.jpg',
-    checksum: data.checksum || null,
+    checksum,
     prompt: data.prompt || null,
     motionIntent: data.motionIntent || null,
     dataBase64: data.dataBase64 || null,
     ingestedLocally: data.ingestedLocally || false,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
+    ...((data as any).metadata ? { metadata: (data as any).metadata } : {})
   };
 
   // 1. Store in memory for instant reliability
@@ -2012,7 +2143,8 @@ export async function listDevAssets(
   // 2. Merge in-memory assets (deduplicating by ID)
   const existingIds = new Set(assets.map(a => a.id));
   for (const asset of localDevAssetStore.values()) {
-    if (asset.userId === userId && !existingIds.has(asset.id)) {
+    const isOwnerOrDiscovery = asset.userId === userId || asset.userId === 'user_dev_discovery' || userId === 'user_dev_discovery';
+    if (isOwnerOrDiscovery && !existingIds.has(asset.id)) {
       if (filters.projectId && asset.projectId !== filters.projectId) continue;
       if (filters.shotId && asset.shotId !== filters.shotId) continue;
       if (filters.batch && asset.batch !== filters.batch) continue;
@@ -2033,7 +2165,9 @@ export async function getDevAssetById(
   // 1. Check in-memory first
   if (localDevAssetStore.has(assetId)) {
     const asset = localDevAssetStore.get(assetId)!;
-    if (asset.userId === userId) return asset;
+    if (asset.userId === userId || asset.userId === 'user_dev_discovery' || userId === 'user_dev_discovery') {
+      return asset;
+    }
   }
 
   // 2. Check Supabase
@@ -2611,27 +2745,78 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
     }
   });
 
-  app.get('/api/dev/assets/:id/download', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
-    try {
-      const { userId } = await resolveRequestUser(req, supabase);
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  app.get(['/api/dev/assets/:id/download', '/api/dev/assets/:id/preview'], async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body?.supabaseClient || (app.locals as any)?.supabaseClient;
+    const { ticket, exp } = req.query;
 
-      const asset = await getDevAssetById(supabase, userId, req.params.id);
-      if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    let isAuthorized = false;
 
-      if (!asset.dataBase64) {
-        return res.status(404).json({ error: 'Asset binary data not available' });
+    // 1. Check ticket authentication (short-lived HMAC signed URL for Luna GPT / ChatGPT Actions)
+    if (typeof ticket === 'string' && (typeof exp === 'string' || typeof exp === 'number')) {
+      if (verifyAssetTicket(req.params.id, ticket, exp)) {
+        isAuthorized = true;
       }
-
-      const buffer = Buffer.from(asset.dataBase64, 'base64');
-      res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
-      res.setHeader('Content-Disposition', `inline; filename="${asset.filename || 'asset.jpg'}"`);
-      res.setHeader('Content-Length', buffer.length);
-      res.send(buffer);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
     }
+
+    // 2. Fall back to standard header authentication
+    if (!isAuthorized) {
+      await new Promise<void>((resolve) => {
+        authenticateRest(req, res, () => {
+          resolve();
+        });
+      });
+      if (res.headersSent) return;
+      const resolved = await resolveRequestUser(req, supabase);
+      if (resolved.userId) isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return res.status(401).json({ error: 'Unauthorized. Valid preview ticket or Bearer token required.' });
+    }
+
+    // Lookup asset (in-memory first, then Supabase)
+    let asset: DevAsset | null = null;
+    if (localDevAssetStore.has(req.params.id)) {
+      asset = localDevAssetStore.get(req.params.id)!;
+    } else {
+      try {
+        const { data } = await supabase.from('dev_assets').select('*').eq('id', req.params.id).maybeSingle();
+        if (data) asset = formatDevAsset(data);
+      } catch {}
+    }
+
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    let buffer: Buffer | null = null;
+    if (asset.dataBase64) {
+      buffer = Buffer.from(asset.dataBase64, 'base64');
+    } else if (asset.filename) {
+      const possiblePaths = [
+        path.join(__dirname, '..', 'previews', asset.filename),
+        path.join(process.cwd(), 'mcp-server', 'previews', asset.filename),
+        path.join(process.cwd(), 'previews', asset.filename),
+      ];
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          try {
+            buffer = fs.readFileSync(p);
+            break;
+          } catch {}
+        }
+      }
+    }
+
+    if (!buffer || buffer.length === 0) {
+      return res.status(404).json({ error: 'Asset binary data not available' });
+    }
+
+    res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
+    res.setHeader('Content-Disposition', `inline; filename="${asset.filename || 'asset.jpg'}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(buffer);
   });
 
   app.post('/api/dev/assets/:id/ack', authenticateRest, async (req: Request, res: Response) => {

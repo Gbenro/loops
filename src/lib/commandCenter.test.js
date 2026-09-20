@@ -5,6 +5,12 @@ import {
   extractCommandCenterPayload
 } from '../../mcp-server/dist/commandCenter.js';
 import { LUNA_COMMAND_CENTER_OPENAPI_SPEC } from '../../mcp-server/dist/openapi.js';
+import {
+  generateAssetTicket,
+  verifyAssetTicket,
+  buildAssetPreviewUrls,
+  VIDEO_1_SEED_MANIFEST,
+} from '../../mcp-server/dist/devBridge.js';
 
 describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
   it('COMMAND_CENTER_CAPABILITIES contains exactly 6 gateway operations below the 30-operation ceiling', () => {
@@ -194,5 +200,57 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
     expect(specStr).not.toContain('dsc_');
     expect(specStr).not.toContain('dtk_');
     expect(specStr).not.toContain('Bearer dsc_');
+  });
+
+  it('Verifies HMAC asset preview tickets grant secure, unauthenticated, time-bounded access', () => {
+    const assetId = 'ast_v1_shot_08_shot_08_waxing_jpg';
+    const nowSec = Math.floor(Date.now() / 1000);
+    const validExp = nowSec + 86400; // 24 hours
+    const expiredExp = nowSec - 10; // expired 10s ago
+
+    const validTicket = generateAssetTicket(assetId, validExp);
+    expect(validTicket).toBeDefined();
+    expect(typeof validTicket).toBe('string');
+    expect(validTicket.length).toBe(64); // SHA-256 hex length
+
+    // Valid ticket verification
+    expect(verifyAssetTicket(assetId, validTicket, validExp)).toBe(true);
+
+    // Expired ticket verification fails
+    const expiredTicket = generateAssetTicket(assetId, expiredExp);
+    expect(verifyAssetTicket(assetId, expiredTicket, expiredExp)).toBe(false);
+
+    // Tampered ticket verification fails
+    const tamperedTicket = validTicket.slice(0, -2) + 'aa';
+    expect(verifyAssetTicket(assetId, tamperedTicket, validExp)).toBe(false);
+
+    // Mismatched assetId fails
+    expect(verifyAssetTicket('different_asset_id', validTicket, validExp)).toBe(false);
+  });
+
+  it('Verifies buildAssetPreviewUrls generates absolute HTTPS ticketed URLs', () => {
+    const mockReq = {
+      protocol: 'http',
+      get: (h) => (h === 'host' ? 'loops-production-e1d5.up.railway.app' : undefined),
+      headers: {
+        'x-forwarded-proto': 'https',
+      },
+    };
+
+    const assetId = 'ast_test_123';
+    const urls = buildAssetPreviewUrls(mockReq, assetId);
+    expect(urls.previewUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/preview?ticket=');
+    expect(urls.previewUrl).toContain('&exp=');
+    expect(urls.downloadUrl).toContain('https://loops-production-e1d5.up.railway.app/api/dev/assets/ast_test_123/download?ticket=');
+  });
+
+  it('Verifies VIDEO_1_SEED_MANIFEST contains all 21 production shots and variations', () => {
+    expect(VIDEO_1_SEED_MANIFEST).toHaveLength(21);
+    const filenames = VIDEO_1_SEED_MANIFEST.map(m => m.filename);
+    expect(filenames).toContain('shot_08_waxing.jpg');
+    expect(filenames).toContain('shot_08_waning.jpg');
+    expect(filenames).toContain('shot_01_seedling_source.jpg');
+    expect(filenames).toContain('shot_12_release.jpg');
+    expect(filenames).toContain('shot_12_rest.jpg');
   });
 });
