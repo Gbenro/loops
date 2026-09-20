@@ -2181,12 +2181,30 @@ try {
 export async function createDevAsset(
   supabase: SupabaseClient,
   userId: string,
-  data: Partial<DevAsset>
+  data: Partial<DevAsset> & { sourceUrl?: string; source_url?: string; url?: string }
 ): Promise<DevAsset> {
   const assetId = `ast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
-  
-  const checksum = data.checksum || (data.dataBase64 ? crypto.createHash('sha256').update(Buffer.from(data.dataBase64, 'base64')).digest('hex') : null);
+
+  let b64 = data.dataBase64 || null;
+  const sourceUrl = data.sourceUrl || data.source_url || (data as any).url || (data as any).metadata?.sourceUrl || (data as any).metadata?.source_url;
+
+  if (!b64 && sourceUrl && typeof sourceUrl === 'string' && (sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://'))) {
+    try {
+      const resp = await fetch(sourceUrl);
+      if (resp.ok) {
+        const arrayBuf = await resp.arrayBuffer();
+        const buf = Buffer.from(arrayBuf);
+        b64 = buf.toString('base64');
+      } else {
+        console.warn('[devBridge] Failed to fetch sourceUrl:', sourceUrl, resp.status);
+      }
+    } catch (fetchErr) {
+      console.warn('[devBridge] Error fetching sourceUrl:', sourceUrl, fetchErr);
+    }
+  }
+
+  const checksum = data.checksum || (b64 ? crypto.createHash('sha256').update(Buffer.from(b64, 'base64')).digest('hex') : null);
 
   const asset: DevAsset = {
     id: assetId,
@@ -2207,7 +2225,7 @@ export async function createDevAsset(
     checksum,
     prompt: data.prompt || null,
     motionIntent: data.motionIntent || null,
-    dataBase64: data.dataBase64 || null,
+    dataBase64: b64,
     ingestedLocally: data.ingestedLocally || false,
     createdAt: now,
     updatedAt: now,
@@ -2338,6 +2356,20 @@ export async function getDevAssetById(
   } catch {}
 
   return null;
+}
+
+export async function archiveDevAsset(
+  supabase: SupabaseClient,
+  userId: string,
+  assetId: string
+): Promise<boolean> {
+  if (localDevAssetStore.has(assetId)) {
+    localDevAssetStore.delete(assetId);
+  }
+  try {
+    await supabase.from('dev_assets').delete().eq('id', assetId);
+  } catch {}
+  return true;
 }
 
 export async function ackDevAsset(

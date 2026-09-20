@@ -19,6 +19,7 @@ import {
   listDevAssets,
   getDevAssetById,
   ackDevAsset,
+  archiveDevAsset,
   buildAssetPreviewUrls,
   getStorageSignedUrl,
   sanitizeSecretContent,
@@ -194,6 +195,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'assets.get',
         'assets.upload',
         'assets.ack',
+        'assets.archive',
       ],
     },
   },
@@ -870,14 +872,22 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'assets.upload': {
           const created = await createDevAsset(supabase, userId, payload as any);
-          const { downloadUrl, previewUrl } = buildAssetPreviewUrls(req, created.id);
+          let storageSupabase = supabase;
+          try {
+            storageSupabase = getSupabaseService();
+          } catch {}
+          const storageUrl = await getStorageSignedUrl(storageSupabase, created);
+          const { downloadUrl, previewUrl, pathUrl } = buildAssetPreviewUrls(req, created.id, created.filename);
+          const effectiveUrl = storageUrl || pathUrl;
           result = {
             id: created.id,
             filename: created.filename,
             mimeType: created.mimeType,
             status: created.status,
-            downloadUrl,
-            previewUrl,
+            downloadUrl: storageUrl || downloadUrl,
+            previewUrl: effectiveUrl,
+            directStorageUrl: storageUrl || null,
+            railwayUrl: pathUrl,
             checksum: created.checksum,
             projectId: created.projectId,
             shotId: created.shotId,
@@ -888,6 +898,16 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
             motionIntent: created.motionIntent,
             metadata: (created as any).metadata || {},
           };
+          break;
+        }
+        case 'assets.archive':
+        case 'assets.delete': {
+          const assetId = payload.id || payload.assetId || payload.asset_id;
+          if (!assetId) {
+            return res.status(400).json({ success: false, error: { code: 'MISSING_ASSET_ID', message: 'Asset id is required.' } });
+          }
+          await archiveDevAsset(supabase, userId, assetId);
+          result = { id: assetId, archived: true, message: `Asset ${assetId} archived/cleaned successfully.` };
           break;
         }
         case 'assets.ack': {

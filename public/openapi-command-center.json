@@ -647,7 +647,8 @@
               "assets.list",
               "assets.get",
               "assets.upload",
-              "assets.ack"
+              "assets.ack",
+              "assets.archive"
             ],
             "description": "Asset Bridge sub-action identifier"
           },
@@ -674,6 +675,10 @@
               "dataBase64": {
                 "type": "string",
                 "description": "Base64-encoded binary asset content"
+              },
+              "sourceUrl": {
+                "type": "string",
+                "description": "Public or temporary HTTPS URL of an image/file to fetch and ingest into the bridge"
               },
               "projectId": {
                 "type": "string",

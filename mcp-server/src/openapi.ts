@@ -3999,7 +3999,8 @@ export const LUNA_COMMAND_CENTER_OPENAPI_SPEC = {
               "assets.list",
               "assets.get",
               "assets.upload",
-              "assets.ack"
+              "assets.ack",
+              "assets.archive"
             ],
             "description": "Asset Bridge sub-action identifier"
           },
@@ -4012,6 +4013,7 @@ export const LUNA_COMMAND_CENTER_OPENAPI_SPEC = {
               "filename": { "type": "string", "description": "Filename of the asset" },
               "mimeType": { "type": "string", "description": "MIME type (e.g. image/png, video/mp4)" },
               "dataBase64": { "type": "string", "description": "Base64-encoded binary asset content" },
+              "sourceUrl": { "type": "string", "description": "Public or temporary HTTPS URL of an image/file to fetch and ingest into the bridge" },
               "projectId": { "type": "string", "description": "Project ID (e.g. creating_with_the_cycles_v1)" },
               "shotId": { "type": "string", "description": "Shot ID (e.g. shot_08)" },
               "kind": { "type": "string", "description": "Asset kind (frame, video, audio, texture)" },
