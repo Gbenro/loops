@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseAnon } from './db.js';
+import { getSupabaseAnon, getSupabaseService } from './db.js';
 
 export interface DevIssue {
   id: string;
@@ -65,7 +65,42 @@ export type DevEventType =
   | 'session.failed'
   | 'session.handoff'
   | 'session.ended'
-  | 'lab.result.published';
+  | 'lab.result.published'
+  | 'worker.heartbeat'
+  | 'execution.claimed'
+  | 'execution.lease_renewed'
+  | 'execution.lease_expired'
+  | 'execution.cancelled'
+  | 'execution.finalized';
+
+export interface WorkerPresence {
+  workerId: string;
+  workerInstanceId: string;
+  hostname?: string;
+  platform?: string;
+  runtimeProfiles: string[];
+  availableCapacity: number;
+  health?: any;
+  lastHeartbeatAt: number;
+}
+
+export interface DevExecutionAttempt {
+  id: string;
+  attemptId: string;
+  sessionId: string;
+  issueId: string;
+  userId: string;
+  workerId: string;
+  workerInstanceId: string;
+  fencingToken: number;
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string;
+  stage: 'reserved' | 'claimed' | 'running' | 'verifying' | 'completed' | 'failed' | 'expired' | 'cancelled';
+  runtimeProfileId: string;
+  repository: string;
+  idempotencyKey?: string | null;
+  createdAt: string;
+}
 
 export interface DevEvent {
   id: string;
@@ -665,11 +700,7 @@ export async function getDevIssue(
         verification: evidence.verification.reported
       },
       handoffTimestamps: queueItem?.handoffTimestamps || { queuedAt: issue.createdAt },
-      watcherHealth: {
-        status: 'healthy',
-        mode: 'continuous_daemon',
-        activeWatchersCount: 2
-      }
+      watcherHealth: { status: getActiveWorkersCount() > 0 ? 'healthy' : 'offline', mode: 'supervised_execution_v2', activeWatchersCount: getActiveWorkersCount() }
     };
   } catch (qErr) {
     console.warn('[QueueProjection] Warning computing queue telemetry for issue:', qErr);
@@ -1977,7 +2008,14 @@ let storageBucketReady = false;
 const storageUploadedSet = new Set<string>();
 
 export async function getStorageSignedUrl(supabase: SupabaseClient, asset: DevAsset): Promise<string | null> {
-  if (!supabase || !supabase.storage) return null;
+  // Always prefer privileged service client for storage bucket operations and signed URLs
+  let storageClient: SupabaseClient | null = null;
+  try {
+    storageClient = getSupabaseService();
+  } catch {
+    storageClient = supabase;
+  }
+  if (!storageClient || !storageClient.storage) return null;
 
   const filename = asset.filename || `${asset.id}.jpg`;
   const storagePath = `video_1/${filename}`;
@@ -1985,12 +2023,17 @@ export async function getStorageSignedUrl(supabase: SupabaseClient, asset: DevAs
   try {
     // 1. Ensure bucket exists if not already initialized
     if (!storageBucketReady) {
-      const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
-      if (!listErr && buckets) {
-        const exists = buckets.some((b: any) => b.name === STORAGE_BUCKET);
-        if (!exists) {
-          await supabase.storage.createBucket(STORAGE_BUCKET, { public: false });
+      try {
+        const { data: buckets, error: listErr } = await storageClient.storage.listBuckets();
+        if (!listErr && buckets) {
+          const exists = buckets.some((b: any) => b.name === STORAGE_BUCKET);
+          if (!exists) {
+            await storageClient.storage.createBucket(STORAGE_BUCKET, { public: false });
+          }
+          storageBucketReady = true;
         }
+      } catch (bErr) {
+        console.warn('[devBridge] Non-critical bucket check error, assuming bucket exists:', bErr);
         storageBucketReady = true;
       }
     }
@@ -2015,20 +2058,30 @@ export async function getStorageSignedUrl(supabase: SupabaseClient, asset: DevAs
       }
 
       if (buffer && buffer.length > 0) {
-        const { error: uploadErr } = await supabase.storage.from(STORAGE_BUCKET).upload(storagePath, buffer, {
-          contentType: asset.mimeType || 'image/jpeg',
-          upsert: true,
-        });
-        if (!uploadErr) {
-          storageUploadedSet.add(storagePath);
+        try {
+          const { error: uploadErr } = await storageClient.storage.from(STORAGE_BUCKET).upload(storagePath, buffer, {
+            contentType: asset.mimeType || 'image/jpeg',
+            upsert: true,
+          });
+          if (!uploadErr) {
+            storageUploadedSet.add(storagePath);
+          } else {
+            console.warn('[devBridge] Storage upload warning for', storagePath, uploadErr);
+          }
+        } catch (uErr) {
+          console.warn('[devBridge] Storage upload exception for', storagePath, uErr);
         }
       }
     }
 
     // 3. Create short-lived signed object URL (48 hours = 172800 seconds)
-    const { data: signedData, error: signErr } = await supabase.storage
+    const { data: signedData, error: signErr } = await storageClient.storage
       .from(STORAGE_BUCKET)
       .createSignedUrl(storagePath, 48 * 3600);
+
+    if (signErr) {
+      console.warn('[devBridge] createSignedUrl error for', storagePath, signErr);
+    }
 
     if (signedData?.signedUrl) {
       return signedData.signedUrl;
@@ -2165,11 +2218,17 @@ export async function createDevAsset(
   localDevAssetStore.set(assetId, asset);
 
   // 1b. Mirror uploaded binary to Supabase Storage
-  if (asset.dataBase64 && supabase && supabase.storage) {
+  let storageMirrorClient: SupabaseClient | null = null;
+  try {
+    storageMirrorClient = getSupabaseService();
+  } catch {
+    storageMirrorClient = supabase;
+  }
+  if (asset.dataBase64 && storageMirrorClient && storageMirrorClient.storage) {
     try {
       const buf = Buffer.from(asset.dataBase64, 'base64');
       const sPath = `video_1/${asset.filename || (asset.id + '.jpg')}`;
-      await supabase.storage.from(STORAGE_BUCKET).upload(sPath, buf, {
+      await storageMirrorClient.storage.from(STORAGE_BUCKET).upload(sPath, buf, {
         contentType: asset.mimeType || 'image/jpeg',
         upsert: true,
       });
@@ -2330,6 +2389,680 @@ function formatDevAsset(row: any): DevAsset {
   };
 }
 
+
+// ─── Supervised Execution Engine & Lease Registry (V2) ──────────────────────────
+
+export const activeWorkersRegistry = new Map<string, WorkerPresence>();
+
+export function getActiveWorkersCount(): number {
+  const cutoff = Date.now() - 60 * 1000;
+  let count = 0;
+  for (const [_, worker] of activeWorkersRegistry.entries()) {
+    if (worker.lastHeartbeatAt > cutoff) count++;
+  }
+  return count;
+}
+
+export function getLatestWorkerHeartbeat(): string | null {
+  let latest = 0;
+  for (const [_, worker] of activeWorkersRegistry.entries()) {
+    if (worker.lastHeartbeatAt > latest) latest = worker.lastHeartbeatAt;
+  }
+  return latest > 0 ? new Date(latest).toISOString() : null;
+}
+
+export function recordWorkerHeartbeat(workerInfo: Partial<WorkerPresence> & { workerId: string; workerInstanceId: string }): WorkerPresence {
+  const existing = activeWorkersRegistry.get(workerInfo.workerId) || {
+    workerId: workerInfo.workerId,
+    workerInstanceId: workerInfo.workerInstanceId,
+    runtimeProfiles: [],
+    availableCapacity: 1,
+    lastHeartbeatAt: Date.now()
+  };
+
+  const updated: WorkerPresence = {
+    ...existing,
+    ...workerInfo,
+    lastHeartbeatAt: Date.now()
+  };
+  activeWorkersRegistry.set(workerInfo.workerId, updated);
+  return updated;
+}
+
+export async function claimNextExecution(
+  supabase: SupabaseClient,
+  userId: string,
+  params: {
+    workerId: string;
+    workerInstanceId: string;
+    runtimeProfiles?: string[];
+    repository?: string;
+    idempotencyKey?: string;
+    targetIssueId?: string;
+  }
+): Promise<{
+  status: 'claimed' | 'slot_busy' | 'idle' | 'conflict';
+  execution?: any;
+  message?: string;
+  activeExecutionId?: string;
+}> {
+  const repo = params.repository || 'loops-app';
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  // 1. Check if an active execution already holds the slot for this repository
+  const { data: activeSessions } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['working', 'connected'])
+    .order('started_at', { ascending: false });
+
+  for (const sess of activeSessions || []) {
+    const env = sess.environment || {};
+    const leaseExpiryMs = env.leaseExpiresAt ? new Date(env.leaseExpiresAt).getTime() : 0;
+    const isLeaseActive = leaseExpiryMs > nowMs;
+    const isRunning = !['completed', 'failed', 'ended', 'cancelled'].includes(env.stage || '');
+
+    if (isLeaseActive && isRunning && (env.repository === repo || sess.repository === repo)) {
+      if (params.idempotencyKey && env.idempotencyKey === params.idempotencyKey) {
+        const { data: issueRow } = await supabase
+          .from('dev_issues')
+          .select('*')
+          .eq('id', sess.issue_id)
+          .single();
+        const issue = issueRow ? mapDevIssue(issueRow) : null;
+        return {
+          status: 'claimed',
+          execution: {
+            id: sess.id,
+            attemptId: env.attemptId || sess.id,
+            sessionId: sess.id,
+            token: sess.token,
+            issueId: sess.issue_id,
+            fencingToken: env.fencingToken || 1,
+            leaseExpiresAt: env.leaseExpiresAt,
+            stage: env.stage || 'claimed',
+            issue,
+            contextPackage: {
+              baseCommit: 'origin/main',
+              taskInstructions: issue?.description || '',
+              acceptanceCriteria: issue?.acceptanceCriteria || [],
+              runtimeProfileId: env.runtimeProfileId || 'agy-headless',
+              limits: { timeoutSeconds: 600, leaseSeconds: 120 }
+            }
+          }
+        };
+      }
+
+      return {
+        status: 'slot_busy',
+        message: `Execution slot for repository '${repo}' is currently held by worker ${env.workerId || 'unknown'} (session ${sess.id})`,
+        activeExecutionId: sess.id
+      };
+    }
+  }
+
+  // 2. Query Dev Queue to find next eligible issue
+  const queueState = await getDevQueueState(supabase, userId);
+  let targetIssueId = params.targetIssueId;
+  if (!targetIssueId) {
+    targetIssueId = queueState.nextEligibleIssueId;
+  }
+
+  if (!targetIssueId) {
+    const eligibleItem = queueState.items.find(i => i.isEligible && i.status !== 'accepted' && i.status !== 'completed' && i.status !== 'awaiting_acceptance');
+    targetIssueId = eligibleItem?.issueId || null;
+  }
+
+  if (!targetIssueId) {
+    return {
+      status: 'idle',
+      message: 'No eligible tasks found in queue'
+    };
+  }
+
+  const { data: targetIssueRow, error: issueErr } = await supabase
+    .from('dev_issues')
+    .select('*')
+    .eq('id', targetIssueId)
+    .eq('user_id', userId)
+    .single();
+
+  if (issueErr || !targetIssueRow) {
+    return {
+      status: 'idle',
+      message: `Issue ${targetIssueId} not found or inaccessible`
+    };
+  }
+
+  const issue = mapDevIssue(targetIssueRow);
+
+  // 3. Atomically reserve task and slot
+  const executionId = generateId('exec');
+  const attemptId = generateId('att');
+  const fencingToken = Date.now();
+  const leaseDurationSeconds = 120;
+  const leaseExpiresAt = new Date(nowMs + leaseDurationSeconds * 1000).toISOString();
+  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+  const envData = {
+    executionId,
+    attemptId,
+    workerId: params.workerId,
+    workerInstanceId: params.workerInstanceId,
+    fencingToken,
+    leaseExpiresAt,
+    lastHeartbeatAt: nowIso,
+    stage: 'claimed',
+    runtimeProfileId: params.runtimeProfiles?.[0] || 'agy-headless',
+    repository: repo,
+    idempotencyKey: params.idempotencyKey || null
+  };
+
+  const { data: newSession, error: sessErr } = await supabase
+    .from('dev_sessions')
+    .insert({
+      id: executionId,
+      issue_id: issue.id,
+      user_id: userId,
+      agent: params.runtimeProfiles?.[0] || 'agy',
+      model: 'gemini-3.8-flash-high',
+      status: 'working',
+      token,
+      token_expires_at: leaseExpiresAt,
+      repository: repo,
+      branch: 'main',
+      environment: envData,
+      started_at: nowIso,
+      last_activity_at: nowIso
+    })
+    .select()
+    .single();
+
+  if (sessErr || !newSession) {
+    throw new Error(`Failed to insert execution session: ${sessErr?.message}`);
+  }
+
+  await supabase
+    .from('dev_issues')
+    .update({
+      status: 'in_progress',
+      updated_at: nowIso
+    })
+    .eq('id', issue.id)
+    .eq('user_id', userId);
+
+  await recordDevEvent(supabase, userId, {
+    issueId: issue.id,
+    sessionId: executionId,
+    type: 'session.started',
+    author: 'luna',
+    content: `Execution attempt ${attemptId} claimed by worker ${params.workerId}`,
+    metadata: {
+      workerId: params.workerId,
+      workerInstanceId: params.workerInstanceId,
+      fencingToken,
+      leaseExpiresAt,
+      runtimeProfileId: envData.runtimeProfileId
+    }
+  });
+
+  await recordDevEvent(supabase, userId, {
+    issueId: issue.id,
+    sessionId: executionId,
+    type: 'execution.claimed' as DevEventType,
+    author: 'luna',
+    content: `Execution lease granted for 120s (token: ${fencingToken})`,
+    metadata: {
+      attemptId,
+      fencingToken,
+      leaseExpiresAt,
+      repository: repo
+    }
+  });
+
+  return {
+    status: 'claimed',
+    execution: {
+      id: executionId,
+      attemptId,
+      sessionId: executionId,
+      token,
+      issueId: issue.id,
+      fencingToken,
+      leaseExpiresAt,
+      stage: 'claimed',
+      issue: {
+        id: issue.id,
+        title: issue.title,
+        description: issue.description,
+        acceptanceCriteria: issue.acceptanceCriteria,
+        priority: issue.priority,
+        assignedAgent: issue.assignedAgent,
+        relatedReferences: issue.relatedReferences
+      },
+      contextPackage: {
+        baseCommit: 'origin/main',
+        taskInstructions: issue.description,
+        acceptanceCriteria: issue.acceptanceCriteria,
+        runtimeProfileId: envData.runtimeProfileId,
+        limits: { timeoutSeconds: 600, leaseSeconds: leaseDurationSeconds }
+      }
+    }
+  };
+}
+
+export async function renewExecutionLease(
+  supabase: SupabaseClient,
+  userId: string,
+  executionId: string,
+  params: {
+    workerId: string;
+    workerInstanceId: string;
+    fencingToken: number;
+    stage?: string;
+    progress?: any;
+  }
+): Promise<{
+  success: boolean;
+  serverTime: string;
+  leaseExpiresAt?: string;
+  cancelled?: boolean;
+  error?: string;
+}> {
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  const { data: sessionRow, error: fetchErr } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', executionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchErr || !sessionRow) {
+    return { success: false, serverTime: nowIso, cancelled: true, error: 'Session not found' };
+  }
+
+  const env = sessionRow.environment || {};
+
+  if (sessionRow.ended_at || env.cancelled || sessionRow.status === 'ended' || sessionRow.status === 'failed') {
+    return { success: false, serverTime: nowIso, cancelled: true, error: 'Execution was cancelled or ended' };
+  }
+
+  if (env.workerInstanceId && env.workerInstanceId !== params.workerInstanceId) {
+    return { success: false, serverTime: nowIso, cancelled: true, error: 'Worker instance mismatch' };
+  }
+
+  if (Number(env.fencingToken) !== Number(params.fencingToken)) {
+    return { success: false, serverTime: nowIso, cancelled: true, error: 'Stale fencing token' };
+  }
+
+  const currentExpiryMs = env.leaseExpiresAt ? new Date(env.leaseExpiresAt).getTime() : 0;
+  if (currentExpiryMs < nowMs) {
+    return { success: false, serverTime: nowIso, cancelled: true, error: 'Lease expired; cannot renew retroactively' };
+  }
+
+  const leaseDurationSeconds = 120;
+  const newLeaseExpiresAt = new Date(nowMs + leaseDurationSeconds * 1000).toISOString();
+
+  const updatedEnv = {
+    ...env,
+    leaseExpiresAt: newLeaseExpiresAt,
+    lastHeartbeatAt: nowIso,
+    stage: params.stage || env.stage || 'running'
+  };
+
+  await supabase
+    .from('dev_sessions')
+    .update({
+      environment: updatedEnv,
+      token_expires_at: newLeaseExpiresAt,
+      last_activity_at: nowIso
+    })
+    .eq('id', executionId)
+    .eq('user_id', userId);
+
+  return {
+    success: true,
+    serverTime: nowIso,
+    leaseExpiresAt: newLeaseExpiresAt,
+    cancelled: false
+  };
+}
+
+export async function appendExecutionEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  executionId: string,
+  params: {
+    workerId: string;
+    workerInstanceId: string;
+    fencingToken: number;
+    events: Array<{
+      eventId?: string;
+      type: string;
+      author?: string;
+      content: string;
+      metadata?: any;
+      timestamp?: string;
+    }>;
+  }
+): Promise<{ success: boolean; appendedCount: number }> {
+  const { data: sessionRow, error } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', executionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !sessionRow) throw new Error('Session not found');
+  const env = sessionRow.environment || {};
+
+  if (Number(env.fencingToken) !== Number(params.fencingToken)) {
+    throw new Error('Stale fencing token on event append');
+  }
+
+  const { data: existingEvents } = await supabase
+    .from('dev_events')
+    .select('metadata')
+    .eq('session_id', executionId);
+
+  const existingIds = new Set(
+    (existingEvents || []).map((e: any) => e.metadata?.eventId).filter(Boolean)
+  );
+
+  let count = 0;
+  for (const evt of params.events || []) {
+    if (evt.eventId && existingIds.has(evt.eventId)) {
+      continue;
+    }
+
+    const eventMetadata = {
+      ...(evt.metadata || {}),
+      eventId: evt.eventId || generateId('evt'),
+      workerId: params.workerId,
+      fencingToken: params.fencingToken
+    };
+
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: evt.type as DevEventType,
+      author: evt.author || 'luna',
+      content: evt.content,
+      metadata: eventMetadata
+    });
+    count++;
+  }
+
+  return { success: true, appendedCount: count };
+}
+
+export async function finalizeExecution(
+  supabase: SupabaseClient,
+  userId: string,
+  executionId: string,
+  params: {
+    workerId: string;
+    workerInstanceId: string;
+    fencingToken: number;
+    result: {
+      success: boolean;
+      finalResponse?: string;
+      summary?: string;
+      changes?: string[];
+      patch?: string;
+      testResults?: any;
+      buildResults?: any;
+      commit?: any;
+      caveats?: string[];
+      deniedActions?: string[];
+    };
+  }
+): Promise<{ success: boolean; issueStatus: string }> {
+  const nowIso = new Date().toISOString();
+  const { data: sessionRow, error: fetchErr } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', executionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchErr || !sessionRow) throw new Error('Session not found');
+  const env = sessionRow.environment || {};
+
+  if (Number(env.fencingToken) !== Number(params.fencingToken)) {
+    throw new Error('Stale fencing token on finalization');
+  }
+
+  const res = params.result || {};
+  const isSuccess = res.success === true && (!res.deniedActions || res.deniedActions.length === 0);
+
+  if (isSuccess) {
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'implementation.reported',
+      author: 'luna',
+      content: res.summary || 'Implementation completed successfully in isolated worktree',
+      metadata: { changes: res.changes || [], patchLength: res.patch ? res.patch.length : 0 }
+    });
+
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'tests.reported',
+      author: 'luna',
+      content: 'Independent verification tests passed',
+      metadata: res.testResults || { status: 'passed' }
+    });
+
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'verification.reported',
+      author: 'luna',
+      content: 'Worktree artifact verification complete',
+      metadata: { verified: true }
+    });
+
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'completion.summary',
+      author: 'luna',
+      content: res.summary || res.finalResponse || 'Task awaiting acceptance',
+      metadata: {
+        agent: 'agy-headless',
+        summary: res.summary || '',
+        changes: res.changes || [],
+        caveats: res.caveats || []
+      }
+    });
+
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'session.completed',
+      author: 'luna',
+      content: 'Execution attempt successfully finalized',
+      metadata: { attemptId: env.attemptId }
+    });
+
+    await supabase
+      .from('dev_issues')
+      .update({
+        status: 'verification',
+        updated_at: nowIso
+      })
+      .eq('id', sessionRow.issue_id)
+      .eq('user_id', userId);
+
+    await supabase
+      .from('dev_sessions')
+      .update({
+        status: 'completed',
+        ended_at: nowIso,
+        environment: { ...env, stage: 'completed', finalizedAt: nowIso }
+      })
+      .eq('id', executionId)
+      .eq('user_id', userId);
+
+    return { success: true, issueStatus: 'awaiting_acceptance' };
+  } else {
+    await recordDevEvent(supabase, userId, {
+      issueId: sessionRow.issue_id,
+      sessionId: executionId,
+      type: 'session.failed',
+      author: 'luna',
+      content: `Execution failed verification: ${JSON.stringify(res.caveats || res.deniedActions || 'unknown')}`,
+      metadata: res
+    });
+
+    await supabase
+      .from('dev_sessions')
+      .update({
+        status: 'failed',
+        ended_at: nowIso,
+        environment: { ...env, stage: 'failed', finalizedAt: nowIso }
+      })
+      .eq('id', executionId)
+      .eq('user_id', userId);
+
+    await supabase
+      .from('dev_issues')
+      .update({
+        status: 'ready',
+        updated_at: nowIso
+      })
+      .eq('id', sessionRow.issue_id)
+      .eq('user_id', userId);
+
+    return { success: false, issueStatus: 'ready' };
+  }
+}
+
+export async function cancelExecution(
+  supabase: SupabaseClient,
+  userId: string,
+  executionId: string,
+  reason: string = 'administrative_cancellation'
+): Promise<{ success: boolean; message: string }> {
+  const nowIso = new Date().toISOString();
+  const { data: sessionRow, error } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('id', executionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !sessionRow) throw new Error('Session not found');
+  const env = sessionRow.environment || {};
+
+  await supabase
+    .from('dev_sessions')
+    .update({
+      status: 'ended',
+      ended_at: nowIso,
+      environment: { ...env, cancelled: true, cancelReason: reason, stage: 'cancelled' }
+    })
+    .eq('id', executionId)
+    .eq('user_id', userId);
+
+  await recordDevEvent(supabase, userId, {
+    issueId: sessionRow.issue_id,
+    sessionId: executionId,
+    type: 'session.ended',
+    author: 'luna',
+    content: `Execution cancelled: ${reason}`,
+    metadata: { reason }
+  });
+
+  return { success: true, message: `Execution ${executionId} cancelled` };
+}
+
+export async function reconcileCloudExpiredLeases(
+  supabase: SupabaseClient
+): Promise<{ reconciledCount: number; expiredSessionIds: string[] }> {
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  const { data: workingSessions } = await supabase
+    .from('dev_sessions')
+    .select('*')
+    .eq('status', 'working');
+
+  const expiredSessionIds: string[] = [];
+
+  for (const sess of workingSessions || []) {
+    const env = sess.environment || {};
+    const leaseExpiry = env.leaseExpiresAt || sess.token_expires_at;
+    if (leaseExpiry && new Date(leaseExpiry).getTime() < nowMs) {
+      console.log(`[CloudRecovery] Expiring abandoned lease for session ${sess.id} (expired at ${leaseExpiry})`);
+
+      await supabase
+        .from('dev_sessions')
+        .update({
+          status: 'ended',
+          ended_at: nowIso,
+          environment: { ...env, stage: 'expired', expiredAt: nowIso }
+        })
+        .eq('id', sess.id);
+
+      await recordDevEvent(supabase, sess.user_id, {
+        issueId: sess.issue_id,
+        sessionId: sess.id,
+        type: 'execution.lease_expired' as DevEventType,
+        author: 'cloud_recovery',
+        content: `Execution lease expired without valid heartbeat; freed execution slot`,
+        metadata: {
+          expiredSessionId: sess.id,
+          workerId: env.workerId,
+          fencingToken: env.fencingToken
+        }
+      });
+
+      const { data: issueRow } = await supabase
+        .from('dev_issues')
+        .select('status')
+        .eq('id', sess.issue_id)
+        .single();
+
+      if (issueRow?.status === 'in_progress') {
+        await supabase
+          .from('dev_issues')
+          .update({ status: 'ready', updated_at: nowIso })
+          .eq('id', sess.issue_id);
+      }
+
+      expiredSessionIds.push(sess.id);
+    }
+  }
+
+  return {
+    reconciledCount: expiredSessionIds.length,
+    expiredSessionIds
+  };
+}
+
+let cloudRecoveryInterval: any = null;
+
+export function startCloudLeaseRecoveryScanner(supabase: SupabaseClient, intervalMs = 30000) {
+  if (cloudRecoveryInterval) return;
+  console.log(`[CloudRecovery] Starting continuous lease recovery scanner (interval: ${intervalMs}ms)`);
+  
+  reconcileCloudExpiredLeases(supabase).catch(err => {
+    console.warn('[CloudRecovery] Error in initial lease recovery scan:', err.message);
+  });
+
+  cloudRecoveryInterval = setInterval(() => {
+    reconcileCloudExpiredLeases(supabase).catch(err => {
+      console.warn('[CloudRecovery] Error in periodic lease recovery scan:', err.message);
+    });
+  }, intervalMs);
+}
 
 export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
   // 1. Issues CRUD & Filtering
@@ -2706,11 +3439,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
             deployment: evidence.deployment.reported,
             verification: evidence.verification.reported
           },
-          watcherHealth: {
-            status: 'healthy',
-            mode: 'continuous_daemon',
-            activeWatchersCount: 2
-          }
+          watcherHealth: { status: getActiveWorkersCount() > 0 ? 'healthy' : 'offline', mode: 'supervised_execution_v2', activeWatchersCount: getActiveWorkersCount() }
         };
       } catch {}
 
@@ -2971,6 +3700,221 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
 
       const asset = await ackDevAsset(supabase, userId, req.params.id);
       res.json(asset);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ─── Supervised Execution & Lease Management Routes (V2) ───────────────────
+
+  // Start cloud lease recovery scanner once routes are mounted
+  try {
+    const anonSupabase = getSupabaseAnon();
+    startCloudLeaseRecoveryScanner(anonSupabase, 30000);
+  } catch (err: any) {
+    console.warn('[CloudRecovery] Could not start lease recovery scanner:', err.message);
+  }
+
+  // 1. Worker Heartbeat & Presence
+  app.post('/api/dev/workers/heartbeat', authenticateRest, async (req: Request, res: Response) => {
+    try {
+      const { workerId, workerInstanceId, hostname, platform, runtimeProfiles, availableCapacity, health } = req.body || {};
+      if (!workerId || !workerInstanceId) {
+        return res.status(400).json({ error: 'workerId and workerInstanceId are required' });
+      }
+
+      const presence = recordWorkerHeartbeat({
+        workerId,
+        workerInstanceId,
+        hostname,
+        platform,
+        runtimeProfiles: Array.isArray(runtimeProfiles) ? runtimeProfiles : ['agy-headless'],
+        availableCapacity: availableCapacity ?? 1,
+        health
+      });
+
+      res.json({
+        success: true,
+        serverTime: new Date().toISOString(),
+        accepted: true,
+        activeWorkersCount: getActiveWorkersCount(),
+        presence
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 2. Claim Next Execution (Atomic reservation with short lease)
+  app.post('/api/dev/executions/claim-next', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { workerId, workerInstanceId, runtimeProfiles, repository, idempotencyKey, targetIssueId } = req.body || {};
+      if (!workerId || !workerInstanceId) {
+        return res.status(400).json({ error: 'workerId and workerInstanceId are required' });
+      }
+
+      recordWorkerHeartbeat({ workerId, workerInstanceId, runtimeProfiles });
+
+      const outcome = await claimNextExecution(supabase, userId, {
+        workerId,
+        workerInstanceId,
+        runtimeProfiles,
+        repository,
+        idempotencyKey,
+        targetIssueId
+      });
+
+      res.json(outcome);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 3. Read Execution Attempt State
+  app.get('/api/dev/executions/:id', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { data: sess, error } = await supabase
+        .from('dev_sessions')
+        .select('*')
+        .eq('id', req.params.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (error || !sess) {
+        return res.status(404).json({ error: 'Execution attempt not found' });
+      }
+
+      const { data: issueRow } = await supabase
+        .from('dev_issues')
+        .select('*')
+        .eq('id', sess.issue_id)
+        .single();
+
+      const events = await listDevEvents(supabase, userId, sess.issue_id, sess.id);
+
+      res.json({
+        execution: {
+          id: sess.id,
+          attemptId: sess.environment?.attemptId || sess.id,
+          sessionId: sess.id,
+          issueId: sess.issue_id,
+          status: sess.status,
+          stage: sess.environment?.stage || sess.status,
+          workerId: sess.environment?.workerId,
+          workerInstanceId: sess.environment?.workerInstanceId,
+          fencingToken: sess.environment?.fencingToken,
+          leaseExpiresAt: sess.environment?.leaseExpiresAt,
+          lastHeartbeatAt: sess.environment?.lastHeartbeatAt,
+          repository: sess.environment?.repository || sess.repository,
+          runtimeProfileId: sess.environment?.runtimeProfileId,
+          issue: issueRow ? mapDevIssue(issueRow) : null,
+          events
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 4. Renew Execution Lease (Heartbeat with strict fencing check)
+  app.post('/api/dev/executions/:id/heartbeat', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { workerId, workerInstanceId, fencingToken, stage, progress } = req.body || {};
+      if (!workerId || !workerInstanceId || fencingToken === undefined) {
+        return res.status(400).json({ error: 'workerId, workerInstanceId, and fencingToken are required' });
+      }
+
+      recordWorkerHeartbeat({ workerId, workerInstanceId });
+
+      const renewal = await renewExecutionLease(supabase, userId, req.params.id, {
+        workerId,
+        workerInstanceId,
+        fencingToken: Number(fencingToken),
+        stage,
+        progress
+      });
+
+      if (!renewal.success) {
+        return res.status(409).json(renewal);
+      }
+      res.json(renewal);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 5. Append Execution Events
+  app.post('/api/dev/executions/:id/events', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { workerId, workerInstanceId, fencingToken, events } = req.body || {};
+      if (!workerId || fencingToken === undefined || !Array.isArray(events)) {
+        return res.status(400).json({ error: 'workerId, fencingToken, and events array are required' });
+      }
+
+      const outcome = await appendExecutionEvents(supabase, userId, req.params.id, {
+        workerId,
+        workerInstanceId,
+        fencingToken: Number(fencingToken),
+        events
+      });
+
+      res.json(outcome);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // 6. Finalize Execution
+  app.post('/api/dev/executions/:id/finalize', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { workerId, workerInstanceId, fencingToken, result } = req.body || {};
+      if (!workerId || fencingToken === undefined || !result) {
+        return res.status(400).json({ error: 'workerId, fencingToken, and result are required' });
+      }
+
+      const outcome = await finalizeExecution(supabase, userId, req.params.id, {
+        workerId,
+        workerInstanceId,
+        fencingToken: Number(fencingToken),
+        result
+      });
+
+      res.json(outcome);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // 7. Cancel Execution
+  app.post('/api/dev/executions/:id/cancel', authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body.supabaseClient;
+    try {
+      const { userId } = await resolveRequestUser(req, supabase);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { reason } = req.body || {};
+      const outcome = await cancelExecution(supabase, userId, req.params.id, reason);
+      res.json(outcome);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }

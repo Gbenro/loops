@@ -1,4 +1,5 @@
 import { Express, Request, Response } from 'express';
+import { getSupabaseService } from './db.js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool } from './tools.js';
 import { getLunarData } from './lunar.js';
@@ -765,6 +766,11 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { userId } = await resolveUser(req, supabase);
 
+    let storageSupabase = supabase;
+    try {
+      storageSupabase = getSupabaseService();
+    } catch {}
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -792,7 +798,7 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           if (payload.batch) filterObj.batch = Number(payload.batch);
           const assets = await listDevAssets(supabase, userId, filterObj);
           result = await Promise.all(assets.map(async (a) => {
-            const storageUrl = await getStorageSignedUrl(supabase, a);
+            const storageUrl = await getStorageSignedUrl(storageSupabase, a);
             const { downloadUrl, previewUrl, pathUrl, queryPreviewUrl } = buildAssetPreviewUrls(req, a.id, a.filename);
             const effectiveUrl = storageUrl || pathUrl;
             return {
@@ -831,7 +837,7 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           if (!asset) {
             return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Asset not found.' } });
           }
-          const storageUrl = await getStorageSignedUrl(supabase, asset);
+          const storageUrl = await getStorageSignedUrl(storageSupabase, asset);
           const { downloadUrl, previewUrl, pathUrl, queryPreviewUrl } = buildAssetPreviewUrls(req, asset.id, asset.filename);
           const effectiveUrl = storageUrl || pathUrl;
           result = {
