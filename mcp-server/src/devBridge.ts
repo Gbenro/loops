@@ -1972,6 +1972,74 @@ export function buildAssetPreviewUrls(req: Request, assetId: string, filename?: 
   };
 }
 
+const STORAGE_BUCKET = 'creative-previews';
+let storageBucketReady = false;
+const storageUploadedSet = new Set<string>();
+
+export async function getStorageSignedUrl(supabase: SupabaseClient, asset: DevAsset): Promise<string | null> {
+  if (!supabase || !supabase.storage) return null;
+
+  const filename = asset.filename || `${asset.id}.jpg`;
+  const storagePath = `video_1/${filename}`;
+
+  try {
+    // 1. Ensure bucket exists if not already initialized
+    if (!storageBucketReady) {
+      const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
+      if (!listErr && buckets) {
+        const exists = buckets.some((b: any) => b.name === STORAGE_BUCKET);
+        if (!exists) {
+          await supabase.storage.createBucket(STORAGE_BUCKET, { public: false });
+        }
+        storageBucketReady = true;
+      }
+    }
+
+    // 2. Upload asset binary to Supabase Storage if not yet uploaded in this process
+    if (!storageUploadedSet.has(storagePath)) {
+      let buffer: Buffer | null = null;
+      if (asset.dataBase64) {
+        buffer = Buffer.from(asset.dataBase64, 'base64');
+      } else if (asset.filename) {
+        const possiblePaths = [
+          path.join(__dirname, '..', 'previews', asset.filename),
+          path.join(process.cwd(), 'mcp-server', 'previews', asset.filename),
+          path.join(process.cwd(), 'previews', asset.filename),
+        ];
+        for (const p of possiblePaths) {
+          if (fs.existsSync(p)) {
+            buffer = fs.readFileSync(p);
+            break;
+          }
+        }
+      }
+
+      if (buffer && buffer.length > 0) {
+        const { error: uploadErr } = await supabase.storage.from(STORAGE_BUCKET).upload(storagePath, buffer, {
+          contentType: asset.mimeType || 'image/jpeg',
+          upsert: true,
+        });
+        if (!uploadErr) {
+          storageUploadedSet.add(storagePath);
+        }
+      }
+    }
+
+    // 3. Create short-lived signed object URL (48 hours = 172800 seconds)
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(storagePath, 48 * 3600);
+
+    if (signedData?.signedUrl) {
+      return signedData.signedUrl;
+    }
+  } catch (err) {
+    console.warn('[devBridge] Supabase Storage signed URL generation failed, falling back to gateway URL:', err);
+  }
+
+  return null;
+}
+
 export const VIDEO_1_SEED_MANIFEST = [
   { shotId: '01', filename: 'shot_01_seedling_source.jpg', batch: 1, role: 'source', prompt: 'Seedling macro emergence in dawn light' },
   { shotId: '02', filename: 'shot_02_forest_source.jpg', batch: 1, role: 'source', prompt: 'Towering canopy looking up toward morning light' },
@@ -2095,6 +2163,21 @@ export async function createDevAsset(
 
   // 1. Store in memory for instant reliability
   localDevAssetStore.set(assetId, asset);
+
+  // 1b. Mirror uploaded binary to Supabase Storage
+  if (asset.dataBase64 && supabase && supabase.storage) {
+    try {
+      const buf = Buffer.from(asset.dataBase64, 'base64');
+      const sPath = `video_1/${asset.filename || (asset.id + '.jpg')}`;
+      await supabase.storage.from(STORAGE_BUCKET).upload(sPath, buf, {
+        contentType: asset.mimeType || 'image/jpeg',
+        upsert: true,
+      });
+      storageUploadedSet.add(sPath);
+    } catch (e) {
+      console.warn('[devBridge] Best-effort upload to storage failed:', e);
+    }
+  }
 
   // 2. Best-effort Supabase insert
   try {
