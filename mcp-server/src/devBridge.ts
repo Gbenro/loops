@@ -2181,7 +2181,14 @@ try {
 export async function createDevAsset(
   supabase: SupabaseClient,
   userId: string,
-  data: Partial<DevAsset> & { sourceUrl?: string; source_url?: string; url?: string }
+  data: Partial<DevAsset> & {
+    sourceUrl?: string;
+    source_url?: string;
+    url?: string;
+    openaiFileIdRefs?: any[];
+    fileId?: string;
+    file_id?: string;
+  }
 ): Promise<DevAsset> {
   const assetId = `ast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
@@ -2189,18 +2196,84 @@ export async function createDevAsset(
   let b64 = data.dataBase64 || null;
   const sourceUrl = data.sourceUrl || data.source_url || (data as any).url || (data as any).metadata?.sourceUrl || (data as any).metadata?.source_url;
 
-  if (!b64 && sourceUrl && typeof sourceUrl === 'string' && (sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://'))) {
+  // 1. Resolve candidate URL from sourceUrl or openaiFileIdRefs
+  let downloadTargetUrl: string | null = null;
+  let resolvedName: string | null = null;
+  let resolvedMime: string | null = null;
+
+  if (sourceUrl && typeof sourceUrl === 'string' && (sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://'))) {
+    downloadTargetUrl = sourceUrl;
+  }
+
+  const rawRefs = data.openaiFileIdRefs || (data as any).metadata?.openaiFileIdRefs || (data as any).metadata?.fileRefs || (data as any).fileRefs;
+  if (!downloadTargetUrl && rawRefs) {
+    const refs = Array.isArray(rawRefs) ? rawRefs : [rawRefs];
+    for (const ref of refs) {
+      if (typeof ref === 'object' && ref !== null) {
+        const link = ref.download_link || ref.downloadLink || ref.download_url || ref.downloadUrl || ref.url;
+        if (link && typeof link === 'string' && (link.startsWith('http://') || link.startsWith('https://'))) {
+          downloadTargetUrl = link;
+          if (ref.name && typeof ref.name === 'string') resolvedName = ref.name;
+          if (ref.mime_type && typeof ref.mime_type === 'string') resolvedMime = ref.mime_type;
+          break;
+        }
+      } else if (typeof ref === 'string') {
+        if (ref.startsWith('http://') || ref.startsWith('https://')) {
+          downloadTargetUrl = ref;
+          break;
+        }
+      }
+    }
+  }
+
+  const fileId = data.fileId || (data as any).file_id || (data as any).metadata?.fileId || (data as any).metadata?.file_id;
+  if (!downloadTargetUrl && fileId && typeof fileId === 'string' && (fileId.startsWith('http://') || fileId.startsWith('https://'))) {
+    downloadTargetUrl = fileId;
+  }
+
+  if (!b64 && downloadTargetUrl) {
     try {
-      const resp = await fetch(sourceUrl);
+      const resp = await fetch(downloadTargetUrl);
       if (resp.ok) {
         const arrayBuf = await resp.arrayBuffer();
         const buf = Buffer.from(arrayBuf);
         b64 = buf.toString('base64');
+        if (resolvedName && (!data.filename || data.filename === 'asset.jpg' || data.filename === 'asset.png')) {
+          data.filename = resolvedName;
+        }
+        if (resolvedMime) {
+          data.mimeType = resolvedMime;
+        } else if (resp.headers.get('content-type')) {
+          data.mimeType = resp.headers.get('content-type')!;
+        }
       } else {
-        console.warn('[devBridge] Failed to fetch sourceUrl:', sourceUrl, resp.status);
+        console.warn('[devBridge] Failed to fetch downloadTargetUrl:', downloadTargetUrl, resp.status);
       }
     } catch (fetchErr) {
-      console.warn('[devBridge] Error fetching sourceUrl:', sourceUrl, fetchErr);
+      console.warn('[devBridge] Error fetching downloadTargetUrl:', downloadTargetUrl, fetchErr);
+    }
+  }
+
+  // Fallback: Check OpenAI Files API if candidateFileId exists and OPENAI_API_KEY is configured
+  if (!b64) {
+    const candidateFileId = fileId || (rawRefs && Array.isArray(rawRefs) && typeof rawRefs[0] === 'object' ? rawRefs[0]?.id : (typeof rawRefs === 'string' ? rawRefs : null));
+    const openAiApiKey = process.env.OPENAI_API_KEY || process.env.OPEN_AI_API_KEY;
+    if (candidateFileId && typeof candidateFileId === 'string' && openAiApiKey && (candidateFileId.startsWith('file-') || candidateFileId.startsWith('file_'))) {
+      try {
+        const oaiResp = await fetch(`https://api.openai.com/v1/files/${candidateFileId}/content`, {
+          headers: { 'Authorization': `Bearer ${openAiApiKey}` }
+        });
+        if (oaiResp.ok) {
+          const arrayBuf = await oaiResp.arrayBuffer();
+          const buf = Buffer.from(arrayBuf);
+          b64 = buf.toString('base64');
+          if (oaiResp.headers.get('content-type')) {
+            data.mimeType = oaiResp.headers.get('content-type')!;
+          }
+        }
+      } catch (e) {
+        console.warn('[devBridge] OpenAI Files API fetch error:', e);
+      }
     }
   }
 

@@ -249,6 +249,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
     const action = req.body?.action;
     const payload = extractCommandCenterPayload(req.body);
+    if (req.body?.openaiFileIdRefs && !payload.openaiFileIdRefs) {
+      payload.openaiFileIdRefs = req.body.openaiFileIdRefs;
+    }
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -512,6 +515,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
     const action = req.body?.action;
     const payload = extractCommandCenterPayload(req.body);
+    if (req.body?.openaiFileIdRefs && !payload.openaiFileIdRefs) {
+      payload.openaiFileIdRefs = req.body.openaiFileIdRefs;
+    }
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -635,6 +641,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
     const action = req.body?.action;
     const payload = extractCommandCenterPayload(req.body);
+    if (req.body?.openaiFileIdRefs && !payload.openaiFileIdRefs) {
+      payload.openaiFileIdRefs = req.body.openaiFileIdRefs;
+    }
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -703,6 +712,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
   app.post('/api/luna/command-center/creative', authenticateRest, async (req: Request, res: Response) => {
     const action = req.body?.action;
     const payload = extractCommandCenterPayload(req.body);
+    if (req.body?.openaiFileIdRefs && !payload.openaiFileIdRefs) {
+      payload.openaiFileIdRefs = req.body.openaiFileIdRefs;
+    }
     if (!action) {
       return res.status(400).json({
         success: false,
@@ -782,6 +794,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
     const action = req.body?.action;
     const payload = extractCommandCenterPayload(req.body);
+    if (req.body?.openaiFileIdRefs && !payload.openaiFileIdRefs) {
+      payload.openaiFileIdRefs = req.body.openaiFileIdRefs;
+    }
     if (!action) {
       return res.status(400).json({
         success: false,
