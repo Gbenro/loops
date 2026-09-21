@@ -283,11 +283,13 @@ CRITICAL INSTRUCTIONS:
 3. Run tests or verification commands to confirm correctness.
 4. Output a concise summary of changes.`;
 
-  console.log(`[Luna Dev Worker] Launching AGY in isolated worktree: ${winWorktreeDir}...`);
+  const chosenModel = process.env.LUNA_AGY_MODEL || 'gemini-3.7-flash-medium';
+  console.log(`[Luna Dev Worker] Launching AGY (${chosenModel}) in isolated worktree: ${winWorktreeDir}...`);
 
   const executionResult = await adapter.executeTask({
     prompt,
     workspaceDir: worktreeDir,
+    model: chosenModel,
     timeoutMs: 600000,
     onHeartbeat: (hb) => {
       // Check monotonic deadline safety margin (must not run past lease)
@@ -394,6 +396,7 @@ export async function startDaemonWorker({ forceOnce = false, targetIssue = null 
           workerId: WORKER_ID,
           workerInstanceId: WORKER_INSTANCE_ID,
           runtimeProfiles: ['agy-headless'],
+          model: process.env.LUNA_AGY_MODEL || 'gemini-3.7-flash-medium',
           repository: 'loops-app',
           idempotencyKey: `claim_${WORKER_INSTANCE_ID}_${Date.now()}`,
           targetIssueId: targetIssue

@@ -2541,6 +2541,7 @@ export async function claimNextExecution(
     workerId: string;
     workerInstanceId: string;
     runtimeProfiles?: string[];
+    model?: string;
     repository?: string;
     idempotencyKey?: string;
     targetIssueId?: string;
@@ -2672,7 +2673,7 @@ export async function claimNextExecution(
       issue_id: issue.id,
       user_id: userId,
       agent: params.runtimeProfiles?.[0] || 'agy',
-      model: 'gemini-3.8-flash-high',
+      model: params.model || 'gemini-3.7-flash-medium',
       status: 'working',
       token,
       token_expires_at: leaseExpiresAt,

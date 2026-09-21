@@ -115,11 +115,13 @@ export class AgyHarnessAdapter extends BaseHarnessAdapter {
     workspaceDir = process.cwd(),
     conversationId = null,
     timeoutMs = 600000,
-    onHeartbeat = null
+    onHeartbeat = null,
+    model = process.env.LUNA_AGY_MODEL || 'gemini-3.7-flash-medium'
   }) {
     const winWorkspace = resolveWorkspaceForWindows(workspaceDir);
     const args = [
       '-p', prompt,
+      '--model', model,
       '--output-format', 'json',
       '--mode', 'accept-edits',
       '--print-timeout', '10m'
