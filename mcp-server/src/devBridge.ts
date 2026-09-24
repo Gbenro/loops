@@ -2556,6 +2556,13 @@ export async function claimNextExecution(
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
 
+  // 0. Reconcile any abandoned expired leases first
+  try {
+    await reconcileCloudExpiredLeases(supabase);
+  } catch (err: any) {
+    console.warn('[devBridge] Warning in claimNextExecution lease reconciliation:', err.message);
+  }
+
   // 1. Check if an active execution already holds the slot for this repository
   const { data: activeSessions } = await supabase
     .from('dev_sessions')
@@ -3171,6 +3178,15 @@ export function startCloudLeaseRecoveryScanner(supabase: SupabaseClient, interva
 }
 
 export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
+  try {
+    const serviceClient = getSupabaseService();
+    if (serviceClient) {
+      startCloudLeaseRecoveryScanner(serviceClient);
+    }
+  } catch (e: any) {
+    console.warn('[devBridge] Could not start cloud lease recovery scanner:', e?.message);
+  }
+
   // 1. Issues CRUD & Filtering
   app.get('/api/dev/issues', authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
