@@ -1007,7 +1007,20 @@ function encodeCursor(timestamp: string): string {
 }
 
 function decodeCursor(cursor: string): string {
-  return Buffer.from(cursor, 'base64').toString('ascii');
+  if (!cursor || typeof cursor !== 'string') return cursor;
+  const trimmed = cursor.trim();
+  if (!isNaN(Date.parse(trimmed)) && (trimmed.includes('T') || trimmed.includes('-'))) {
+    return trimmed;
+  }
+  try {
+    const decoded = Buffer.from(trimmed, 'base64').toString('utf8').trim();
+    if (!isNaN(Date.parse(decoded)) && (decoded.includes('T') || decoded.includes('-'))) {
+      return decoded;
+    }
+  } catch (e) {
+    // Ignore decode error
+  }
+  return trimmed;
 }
 
 // ─── Schema Mappers ─────────────────────────────────────────────────────────
@@ -1228,8 +1241,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       if (cycle) {
         dbQuery = dbQuery.eq('lunar_month', cycle);
       }
-      if (tags && Array.isArray(tags) && tags.length > 0) {
-        dbQuery = dbQuery.contains('tags', tags);
+      if (tags) {
+        let tagList: string[] = [];
+        if (Array.isArray(tags)) {
+          tagList = tags.map((t: any) => String(t).trim()).filter(Boolean);
+        } else if (typeof tags === 'string') {
+          tagList = tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+        }
+        if (tagList.length > 0) {
+          dbQuery = dbQuery.contains('tags', JSON.stringify(tagList));
+        }
       }
       const isUntaggedOnly = untaggedOnly === true || untaggedOnly === 'true';
       if (isUntaggedOnly) {
@@ -1250,11 +1271,19 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
       // Pagination Cursor
       if (args.cursor) {
-        const cursorTimestamp = decodeCursor(args.cursor);
-        if (sort === 'newest') {
-          dbQuery = dbQuery.lt('created_at', cursorTimestamp);
-        } else {
-          dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+        let cursorTimestamp = decodeCursor(args.cursor);
+        if (isNaN(Date.parse(cursorTimestamp))) {
+          const { data: refRow } = await supabase.from('echoes').select('created_at').eq('id', args.cursor).maybeSingle();
+          if (refRow?.created_at) {
+            cursorTimestamp = refRow.created_at;
+          }
+        }
+        if (!isNaN(Date.parse(cursorTimestamp))) {
+          if (sort === 'newest') {
+            dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+          } else {
+            dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+          }
         }
       }
 
@@ -1612,19 +1641,29 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         if (query) {
           dbQuery = dbQuery.or(`title.ilike.%${query}%,note.ilike.%${query}%,description.ilike.%${query}%`);
         }
-        if (tags && Array.isArray(tags) && tags.length > 0) {
-          dbQuery = dbQuery.contains('tags', tags);
+        if (tags) {
+          let tagList: string[] = [];
+          if (Array.isArray(tags)) {
+            tagList = tags.map((t: any) => String(t).trim()).filter(Boolean);
+          } else if (typeof tags === 'string') {
+            tagList = tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+          }
+          if (tagList.length > 0) {
+            dbQuery = dbQuery.contains('tags', JSON.stringify(tagList));
+          }
         }
 
         // Pagination Cursor
         if (cursorArg) {
           const cursorTimestamp = decodeCursor(cursorArg);
-          if (sort === 'newest') {
-            dbQuery = dbQuery.lt('created_at', cursorTimestamp);
-          } else if (sort === 'oldest') {
-            dbQuery = dbQuery.gt('created_at', cursorTimestamp);
-          } else {
-            dbQuery = dbQuery.lt('updated_at', cursorTimestamp);
+          if (!isNaN(Date.parse(cursorTimestamp))) {
+            if (sort === 'newest') {
+              dbQuery = dbQuery.lt('created_at', cursorTimestamp);
+            } else if (sort === 'oldest') {
+              dbQuery = dbQuery.gt('created_at', cursorTimestamp);
+            } else {
+              dbQuery = dbQuery.lt('updated_at', cursorTimestamp);
+            }
           }
         }
 
