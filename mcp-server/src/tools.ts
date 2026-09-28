@@ -967,6 +967,29 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   {
+    name: 'lunar_lab_attention_run',
+    description: 'Synonym for lunar_lab_attention_run_comparison.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Durable experiment session ID.' },
+        question: { type: 'string', description: 'Question text to evaluate.' },
+        query: { type: 'string', description: 'Alias for question.' },
+        benchmarkId: { type: 'string', description: 'Optional canonical benchmark case ID.' },
+        model: { type: 'string', description: 'Optional model identifier.' },
+        tokenBudget: { type: 'number', description: 'Optional explicit token budget ceiling (3000, 6000, 12000, 24000, 48000).' }
+      }
+    }
+  },
+  {
+    name: 'lunar_lab_attention_get_research_state',
+    description: 'Attention Lab V1: Retrieve canonical Research Ledger, active session ID, historical adaptive-budget benchmark lineage, and cumulative economics.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
     name: 'lunar_lab_attention_evaluate_benchmark',
     description: 'Attention Lab V1: Run batch benchmark evaluation across specified cases or categories and compute comparative advantage.',
     inputSchema: {
@@ -1183,6 +1206,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
 
   // Standardize aliases
   const activeToolName = name === 'create_entry' ? 'create_echo' :
+                         name === 'lunar_lab_attention_run' ? 'lunar_lab_attention_run_comparison' :
                          name === 'get_entry' ? 'get_echo' :
                          name === 'search_entries' ? 'search_echoes' : name;
 
@@ -3127,10 +3151,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 
+    case 'lunar_lab_attention_get_research_state': {
+      const state = globalLabStore.getResearchState();
+      return { content: [{ type: 'text', text: JSON.stringify(state, null, 2) }] };
+    }
+
     case 'lunar_lab_attention_run_comparison': {
-      const sess = globalLabStore.getSession(args.sessionId);
+      const targetSessionId = args.sessionId || args.id;
+      const sess = globalLabStore.getSession(targetSessionId);
       if (!sess) throw new Error(`Attention Lab Session '${args.sessionId}' not found.`);
-      let q = args.question;
+      let q = args.question || args.query;
       let bCase = undefined;
       if (args.benchmarkId) {
         bCase = CANONICAL_BENCHMARK_CASES.find(c => c.id === args.benchmarkId);

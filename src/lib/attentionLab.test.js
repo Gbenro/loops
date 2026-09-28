@@ -608,8 +608,8 @@ describe('Attention Lab V1 Architecture & Lunar Lab GPT Interface (iss_178920063
       // Dev bridge endpoints are NOT exposed through the Lunar Lab GPT schema
       expect(paths).not.toContain('/api/dev/issues');
       expect(paths).not.toContain('/api/dev/events');
-      // Lab endpoints are purely the 7 dedicated operations
-      expect(paths.length).toBe(12);
+      // Lab endpoints cover dedicated operations and execution/research-state endpoints
+      expect(paths.length).toBe(14);
     });
   });
 

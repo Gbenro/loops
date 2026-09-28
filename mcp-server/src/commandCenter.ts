@@ -177,6 +177,8 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'lab.attention.inspect_session',
         'lab.attention.list_benchmarks',
         'lab.attention.evaluate_benchmark',
+        'lab.attention.research_state',
+        'lab.attention.get_research_ledger',
       ],
     },
     creative: {
@@ -817,6 +819,12 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'lab.attention.list_benchmarks': {
           const execRes = await executeTool(supabase, 'lunar_lab_attention_list_benchmarks', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'lab.attention.research_state':
+        case 'lab.attention.get_research_ledger': {
+          const execRes = await executeTool(supabase, 'lunar_lab_attention_get_research_state', payload, userId);
           result = JSON.parse(execRes.content[0].text);
           break;
         }

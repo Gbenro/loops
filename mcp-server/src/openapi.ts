@@ -3356,6 +3356,50 @@ export const LUNA_LAB_OPENAPI_SPEC = {
         }
       }
     },
+    "/api/dev/lab/attention/run": {
+      post: {
+        operationId: "execute_attention_run",
+        summary: "Execute 3-Way Comparison Run (Direct Execution)",
+        description: "Executes 3-way attention evaluation comparison run for specified session ID, query, and token budget ceiling (3000..48000).",
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  sessionId: { type: "string" },
+                  question: { type: "string" },
+                  query: { type: "string" },
+                  tokenBudget: { type: "number" },
+                  condition: { type: "string" }
+                },
+                required: ["sessionId"]
+              }
+            }
+          }
+        },
+        responses: {
+          "200": { description: "Successful comparison run execution." }
+        }
+      }
+    },
+    "/api/dev/lab/attention/research-state": {
+      get: {
+        operationId: "get_research_state",
+        summary: "Retrieve Attention Lab Research Ledger & State",
+        description: "Retrieves durable Research Ledger, active session ID, canonical benchmark lineage, and cumulative economics.",
+        responses: {
+          "200": { description: "Complete research state ledger." }
+        }
+      },
+      post: {
+        operationId: "get_research_state_post",
+        summary: "Retrieve Attention Lab Research Ledger & State (POST)",
+        responses: {
+          "200": { description: "Complete research state ledger." }
+        }
+      }
+    },
     "/api/dev/lab/attention/sessions/{id}/run": {
       post: {
         operationId: "run_session_comparison",
