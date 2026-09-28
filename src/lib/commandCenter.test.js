@@ -255,4 +255,20 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
     expect(filenames).toContain('shot_12_release.jpg');
     expect(filenames).toContain('shot_12_rest.jpg');
   });
+
+
+  it('Verifies Core hub exposes full Field parity sub-actions including field.get_range and longitudinal context', () => {
+    const coreSubActions = COMMAND_CENTER_CAPABILITIES.hubs.core.subActions;
+    expect(coreSubActions).toContain('field.get_range');
+    expect(coreSubActions).toContain('context.get_snapshot');
+    expect(coreSubActions).toContain('cycle.get_records');
+    expect(coreSubActions).toContain('relational_memory.search');
+    expect(coreSubActions).toContain('relational_memory.propose');
+    expect(coreSubActions).toContain('relational_memory.reinforce');
+    expect(coreSubActions).toContain('relational_memory.update_status');
+    expect(coreSubActions).toContain('echoes.get_reflections');
+    expect(coreSubActions).toContain('reflections.get');
+    expect(coreSubActions).toContain('chat.restore_session');
+    expect(coreSubActions).toContain('chat.delete_session');
+  });
 });

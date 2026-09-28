@@ -97,14 +97,23 @@ export const COMMAND_CENTER_CAPABILITIES = {
       subActions: [
         'lunar.get_context',
         'field.search',
+        'field.get_range',
+        'context.get_snapshot',
+        'cycle.get_records',
         'echoes.search',
         'echoes.get',
         'echoes.create',
         'echoes.update',
         'echoes.archive',
         'echoes.restore',
+        'echoes.get_reflections',
         'reflections.create',
         'reflections.attach',
+        'reflections.get',
+        'relational_memory.search',
+        'relational_memory.propose',
+        'relational_memory.reinforce',
+        'relational_memory.update_status',
         'loops.list',
         'loops.get',
         'loops.create',
@@ -127,6 +136,8 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'chat.inference_summary',
         'chat.rename_session',
         'chat.archive_session',
+        'chat.restore_session',
+        'chat.delete_session',
         'chat.preserve_to_field',
       ],
     },
@@ -278,6 +289,91 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           result = JSON.parse(execRes.content[0].text);
           break;
         }
+        case 'field.get_range': {
+          const from = payload.from;
+          const to = payload.to;
+          const types = Array.isArray(payload.types) && payload.types.length > 0 ? payload.types : ['echo', 'loop'];
+          const status = payload.status || 'active';
+          const sort = payload.sort || 'newest';
+          const limit = Math.min(Number(payload.limit) || 50, 200);
+
+          const fetchTasks: Promise<any>[] = [];
+
+          if (types.includes('echo')) {
+            fetchTasks.push((async () => {
+              let echoQuery = supabase.from('echoes').select('*').eq('user_id', userId);
+              if (status === 'active') echoQuery = echoQuery.is('deleted_at', null);
+              else if (status === 'archived') echoQuery = echoQuery.not('deleted_at', 'is', null);
+              if (from) echoQuery = echoQuery.gte('created_at', from);
+              if (to) echoQuery = echoQuery.lte('created_at', to);
+              echoQuery = echoQuery.order('created_at', { ascending: sort === 'oldest' }).limit(limit);
+              const { data } = await echoQuery;
+              return (data || []).map((e: any) => ({ ...e, entity_type: 'echo' }));
+            })());
+          } else {
+            fetchTasks.push(Promise.resolve([]));
+          }
+
+          if (types.includes('loop')) {
+            fetchTasks.push((async () => {
+              let loopQuery = supabase.from('loops').select('*').eq('user_id', userId);
+              if (status === 'active') loopQuery = loopQuery.in('status', ['open', 'active', 'paused', 'closed', 'completed']).is('deleted_at', null);
+              else if (status === 'archived') loopQuery = loopQuery.not('deleted_at', 'is', null);
+              if (from) loopQuery = loopQuery.gte('created_at', from);
+              if (to) loopQuery = loopQuery.lte('created_at', to);
+              loopQuery = loopQuery.order('created_at', { ascending: sort === 'oldest' }).limit(limit);
+              const { data } = await loopQuery;
+              return (data || []).map((l: any) => ({ ...l, entity_type: 'loop' }));
+            })());
+          } else {
+            fetchTasks.push(Promise.resolve([]));
+          }
+
+          if (types.includes('reflection')) {
+            fetchTasks.push((async () => {
+              let refQuery = supabase.from('echo_reflections').select('*').eq('user_id', userId);
+              if (from) refQuery = refQuery.gte('created_at', from);
+              if (to) refQuery = refQuery.lte('created_at', to);
+              refQuery = refQuery.order('created_at', { ascending: sort === 'oldest' }).limit(limit);
+              const { data } = await refQuery;
+              return (data || []).map((rf: any) => ({ ...rf, entity_type: 'reflection' }));
+            })());
+          } else {
+            fetchTasks.push(Promise.resolve([]));
+          }
+
+          const [echoesData, loopsData, reflectionsData] = await Promise.all(fetchTasks);
+          const allItems = [...echoesData, ...loopsData, ...reflectionsData];
+          allItems.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            return sort === 'oldest' ? timeA - timeB : timeB - timeA;
+          });
+
+          const sliced = allItems.slice(0, limit);
+          result = {
+            from: from || null,
+            to: to || null,
+            totalCount: sliced.length,
+            echoesCount: echoesData.length,
+            loopsCount: loopsData.length,
+            reflectionsCount: reflectionsData.length,
+            items: sliced
+          };
+          break;
+        }
+        case 'context.get_snapshot':
+        case 'field.get_context': {
+          const execRes = await executeTool(supabase, 'get_ai_context', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'cycle.get_records':
+        case 'cycle.synthesis': {
+          const execRes = await executeTool(supabase, 'get_lunar_cycle_records', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
         case 'echoes.search':
         case 'echoes.list': {
           const execRes = await executeTool(supabase, 'search_echoes', payload, userId);
@@ -316,6 +412,32 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'reflections.attach': {
           const execRes = await executeTool(supabase, 'attach_reflection', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'reflections.get':
+        case 'echoes.get_reflections': {
+          const execRes = await executeTool(supabase, 'get_echo_reflections', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'relational_memory.search': {
+          const execRes = await executeTool(supabase, 'search_relational_memories', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'relational_memory.propose': {
+          const execRes = await executeTool(supabase, 'propose_candidate_memory', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'relational_memory.reinforce': {
+          const execRes = await executeTool(supabase, 'reinforce_relational_memory', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'relational_memory.update_status': {
+          const execRes = await executeTool(supabase, 'update_relational_memory_status', payload, userId);
           result = JSON.parse(execRes.content[0].text);
           break;
         }
@@ -478,6 +600,16 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'chat.archive_session': {
           const execRes = await executeTool(supabase, 'archive_chat_session', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'chat.restore_session': {
+          const execRes = await executeTool(supabase, 'restore_chat_session', payload, userId);
+          result = JSON.parse(execRes.content[0].text);
+          break;
+        }
+        case 'chat.delete_session': {
+          const execRes = await executeTool(supabase, 'delete_chat_session', payload, userId);
           result = JSON.parse(execRes.content[0].text);
           break;
         }
