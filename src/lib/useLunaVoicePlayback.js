@@ -1,90 +1,126 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from './supabase';
 
 export const DEFAULT_API_BASE_URL = 'https://loops-production-e1d5.up.railway.app';
-export const DEFAULT_VOICE_ID = 'eleven-nicole';
-export const DEFAULT_VOICE_MODEL = 'eleven_flash_v2_5';
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || DEFAULT_API_BASE_URL;
+const API_BASE_URL = typeof window !== 'undefined' ? (window.location.origin) : DEFAULT_API_BASE_URL;
+const DEFAULT_VOICE_ID = 'eleven-nicole';
+const DEFAULT_VOICE_MODEL = 'eleven_multilingual_v2';
 
 let sharedAudioCtx = null;
 
 export function getSharedAudioContext() {
   if (typeof window === 'undefined') return null;
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return null;
   if (!sharedAudioCtx) {
-    try {
-      sharedAudioCtx = new AudioContextClass();
-    } catch (_) {
-      // ignore context creation error
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      sharedAudioCtx = new AudioCtx();
     }
   }
   return sharedAudioCtx;
 }
 
 export function unlockAudio() {
+  if (typeof window === 'undefined') return;
   try {
     const ctx = getSharedAudioContext();
     if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+      ctx.resume();
     }
-  } catch (_) {
-    // ignore unlock error
+  } catch (e) {
+    console.warn('[Luna Voice AudioContext unlock]:', e);
   }
 }
 
 /**
- * Converts a base64 string to a Uint8Array / ArrayBuffer.
+ * Converts Base64 string to Blob URL
  */
-export function base64ToArrayBuffer(base64Data) {
-  if (typeof window === 'undefined' && typeof Buffer !== 'undefined') {
-    return Buffer.from(base64Data, 'base64').buffer;
-  }
-  const binaryString = atob(base64Data);
-  const len = binaryString.length;
+export function base64ToBlobUrl(base64Data, contentType = 'audio/wav') {
+  const binaryStr = typeof atob === 'function' ? atob(base64Data) : Buffer.from(base64Data, 'base64').toString('binary');
+  const len = binaryStr.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  const blob = new Blob([bytes.buffer], { type: contentType });
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Converts Base64 string to ArrayBuffer for Web Audio API
+ */
+export function base64ToArrayBuffer(base64Data) {
+  const binaryStr = typeof atob === 'function' ? atob(base64Data) : Buffer.from(base64Data, 'base64').toString('binary');
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
   }
   return bytes.buffer;
 }
 
 /**
- * Converts a base64 string to a Blob URL.
- * Defaults to 'audio/wav' to match the OpenRouter / Kokoro TTS production format.
+ * Splits long text into natural sentence/clause chunks for speech synthesis.
+ * Prevents Web Speech API truncation and audio API timeouts on long messages.
  */
-export function base64ToBlobUrl(base64Data, mimeType = 'audio/wav') {
-  if (typeof window === 'undefined') return '';
-  const byteCharacters = atob(base64Data);
-  const byteNumbers = new Uint8Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
+export function segmentTextClient(text, maxChunkLen = 300) {
+  if (!text) return [];
+  const clean = text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^#+\s+/gm, '')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .trim();
+
+  if (!clean) return [];
+  if (clean.length <= maxChunkLen) return [clean];
+
+  const protectedText = clean
+    .replace(/\b(Dr|Mr|Mrs|Ms|Prof|vs|etc|i\.e|e\.g)\./gi, '$1__DOT__')
+    .replace(/(\d+)\.(\d+)/g, '$1__DOT__$2');
+
+  const rawSentences = protectedText.split(/(?<=[.!?…;:])\s+(?=[A-Z0-9"'“‘—])/g);
+  const sentences = rawSentences.map(s => s.replace(/__DOT__/g, '.').trim()).filter(Boolean);
+
+  const chunks = [];
+  let curr = '';
+  for (const s of sentences) {
+    if (!curr) {
+      curr = s;
+    } else if ((curr + ' ' + s).length <= maxChunkLen) {
+      curr += ' ' + s;
+    } else {
+      chunks.push(curr);
+      curr = s;
+    }
   }
-  const blob = new Blob([byteNumbers], { type: mimeType });
-  return URL.createObjectURL(blob);
+  if (curr) chunks.push(curr);
+  return chunks.length > 0 ? chunks : [clean];
 }
 
-/**
- * Hook for Luna Voice Output: Playback assistant responses aloud.
- * Preserves the boundary: "Luna owns continuity. Providers supply vocal capacity."
- */
 export function useLunaVoicePlayback() {
   const [playbackStates, setPlaybackStates] = useState({});
   const [activeMessageId, setActiveMessageId] = useState(null);
+  
   const audioRef = useRef(null);
-  const activeBlobUrlRef = useRef(null);
   const audioCacheRef = useRef(new Map());
+  const activeBlobUrlRef = useRef(null);
 
-  // Cleanup on unmount
+  // Sequential chunk playback state tracking
+  const chunkQueueRef = useRef({ messageId: null, text: '', chunks: [], currentIndex: 0, options: {} });
+  const lastFailedChunkRef = useRef(new Map());
+
+  // Clean up Blob URLs on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
       if (activeBlobUrlRef.current) {
         URL.revokeObjectURL(activeBlobUrlRef.current);
-        activeBlobUrlRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
       }
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -92,91 +128,123 @@ export function useLunaVoicePlayback() {
     };
   }, []);
 
-  const stopPlayback = useCallback((messageId) => {
+  const stopPlayback = useCallback((targetId = null) => {
+    const idToStop = targetId || activeMessageId;
+    
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-    if (activeBlobUrlRef.current) {
-      URL.revokeObjectURL(activeBlobUrlRef.current);
-      activeBlobUrlRef.current = null;
-    }
+    
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    const targetId = messageId || activeMessageId;
-    if (targetId) {
-      setPlaybackStates(prev => ({ ...prev, [targetId]: 'idle' }));
+    
+    if (idToStop) {
+      setPlaybackStates(prev => ({ ...prev, [idToStop]: 'idle' }));
     }
-    setActiveMessageId(null);
+    if (!targetId || targetId === activeMessageId) {
+      setActiveMessageId(null);
+      chunkQueueRef.current = { messageId: null, text: '', chunks: [], currentIndex: 0, options: {} };
+    }
   }, [activeMessageId]);
 
-  const pausePlayback = useCallback((messageId) => {
-    if (audioRef.current) {
+  const pausePlayback = useCallback((targetId = null) => {
+    const idToPause = targetId || activeMessageId;
+    if (audioRef.current && !audioRef.current.paused) {
       audioRef.current.pause();
-    }
-    const targetId = messageId || activeMessageId;
-    if (targetId) {
-      setPlaybackStates(prev => ({ ...prev, [targetId]: 'paused' }));
-    }
-  }, [activeMessageId]);
-
-  const resumePlayback = useCallback((messageId) => {
-    const targetId = messageId || activeMessageId;
-    if (audioRef.current) {
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          if (targetId) {
-            setPlaybackStates(prev => ({ ...prev, [targetId]: 'playing' }));
-          }
-        }).catch(err => {
-          console.warn('[Luna Voice Resume rejected]:', err);
-          if (targetId) {
-            setPlaybackStates(prev => ({ ...prev, [targetId]: 'error' }));
-          }
-        });
+      if (idToPause) {
+        setPlaybackStates(prev => ({ ...prev, [idToPause]: 'paused' }));
+      }
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      if (idToPause) {
+        setPlaybackStates(prev => ({ ...prev, [idToPause]: 'paused' }));
       }
     }
   }, [activeMessageId]);
 
-  const playClientSpeech = useCallback((messageId, text) => {
+  const resumePlayback = useCallback((targetId = null) => {
+    const idToResume = targetId || activeMessageId;
+    if (audioRef.current && audioRef.current.paused && audioRef.current.src) {
+      unlockAudio();
+      audioRef.current.play().then(() => {
+        if (idToResume) {
+          setPlaybackStates(prev => ({ ...prev, [idToResume]: 'playing' }));
+        }
+      }).catch(err => {
+        console.warn('[Luna Voice Resume rejected]:', err);
+        if (idToResume) {
+          setPlaybackStates(prev => ({ ...prev, [idToResume]: 'error' }));
+        }
+      });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      if (idToResume) {
+        setPlaybackStates(prev => ({ ...prev, [idToResume]: 'playing' }));
+      }
+    }
+  }, [activeMessageId]);
+
+  /**
+   * Browser Web SpeechSynthesis Sequential Chunk Playback (Fallback)
+   */
+  const playClientSpeechChunk = useCallback((messageId, chunks, index = 0) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
       setActiveMessageId(null);
       return;
     }
 
+    if (!chunks || index >= chunks.length) {
+      setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      setActiveMessageId(null);
+      chunkQueueRef.current = { messageId: null, text: '', chunks: [], currentIndex: 0, options: {} };
+      return;
+    }
+
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95; // contemplative, grounded pacing
+      const chunkText = chunks[index];
+      const utterance = new SpeechSynthesisUtterance(chunkText);
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
+
+      chunkQueueRef.current = { messageId, text: chunks.join(' '), chunks, currentIndex: index, options: {} };
 
       utterance.onstart = () => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
+        setActiveMessageId(messageId);
       };
 
       utterance.onend = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        setActiveMessageId(null);
+        const nextIdx = index + 1;
+        if (nextIdx < chunks.length) {
+          playClientSpeechChunk(messageId, chunks, nextIdx);
+        } else {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+          setActiveMessageId(null);
+          chunkQueueRef.current = { messageId: null, text: '', chunks: [], currentIndex: 0, options: {} };
+        }
       };
 
       utterance.onerror = (e) => {
-        console.warn('[Luna Voice SpeechSynthesis onerror]:', e);
+        console.warn(`[Luna Voice Client Speech Chunk ${index} error]:`, e);
+        lastFailedChunkRef.current.set(messageId, index);
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
         setActiveMessageId(null);
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
-      console.error('[Luna Voice SpeechSynthesis Error]:', err);
+      console.error('[Luna Voice SpeechSynthesis Exception]:', err);
+      lastFailedChunkRef.current.set(messageId, index);
       setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
       setActiveMessageId(null);
     }
   }, []);
 
-  const playAudioSource = useCallback((messageId, audioSrc, fallbackText) => {
+  const playAudioSourceChunk = useCallback((messageId, audioSrc, chunks, index, fallbackText) => {
     try {
       let audio = audioRef.current;
       if (!audio) {
@@ -188,47 +256,42 @@ export function useLunaVoicePlayback() {
 
       audio.onplay = () => {
         setPlaybackStates(prev => ({ ...prev, [messageId]: 'playing' }));
+        setActiveMessageId(messageId);
       };
 
       audio.onended = () => {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
-        setActiveMessageId(null);
+        const nextIdx = index + 1;
+        if (chunks && nextIdx < chunks.length) {
+          playChunkIndex(messageId, chunks, nextIdx, fallbackText);
+        } else {
+          setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+          setActiveMessageId(null);
+          chunkQueueRef.current = { messageId: null, text: '', chunks: [], currentIndex: 0, options: {} };
+        }
       };
 
       audio.onerror = (e) => {
-        console.warn('[Luna Voice Audio element error, falling back to speech]:', e);
-        if (fallbackText) {
-          playClientSpeech(messageId, fallbackText);
-        } else {
-          setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-          setActiveMessageId(null);
-        }
+        console.warn(`[Luna Voice Audio Chunk ${index} error, falling back to speech]:`, e);
+        lastFailedChunkRef.current.set(messageId, index);
+        playClientSpeechChunk(messageId, chunks, index);
       };
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(err => {
-          console.warn('[Luna Voice Play rejected, falling back to speech]:', err);
-          if (fallbackText) {
-            playClientSpeech(messageId, fallbackText);
-          } else {
-            setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-            setActiveMessageId(null);
-          }
+          console.warn(`[Luna Voice Play Chunk ${index} rejected, falling back to speech]:`, err);
+          lastFailedChunkRef.current.set(messageId, index);
+          playClientSpeechChunk(messageId, chunks, index);
         });
       }
     } catch (err) {
-      console.warn('[Luna Voice Exception, falling back to speech]:', err);
-      if (fallbackText) {
-        playClientSpeech(messageId, fallbackText);
-      } else {
-        setPlaybackStates(prev => ({ ...prev, [messageId]: 'error' }));
-        setActiveMessageId(null);
-      }
+      console.warn(`[Luna Voice Chunk ${index} Exception, falling back to speech]:`, err);
+      lastFailedChunkRef.current.set(messageId, index);
+      playClientSpeechChunk(messageId, chunks, index);
     }
-  }, [playClientSpeech]);
+  }, [playClientSpeechChunk]);
 
-  const playBase64Audio = useCallback((messageId, base64Data, contentType = 'audio/wav', fallbackText) => {
+  const playBase64AudioChunk = useCallback((messageId, base64Data, contentType, chunks, index, fallbackText) => {
     try {
       if (activeBlobUrlRef.current) {
         URL.revokeObjectURL(activeBlobUrlRef.current);
@@ -236,54 +299,42 @@ export function useLunaVoicePlayback() {
       const mime = contentType || 'audio/wav';
       const blobUrl = base64ToBlobUrl(base64Data, mime);
       activeBlobUrlRef.current = blobUrl;
-      playAudioSource(messageId, blobUrl, fallbackText);
+      playAudioSourceChunk(messageId, blobUrl, chunks, index, fallbackText);
     } catch (err) {
-      console.warn('[Luna Voice Blob creation failed, falling back to data URI]:', err);
+      console.warn('[Luna Voice Blob creation failed, using data URI]:', err);
       const mime = contentType || 'audio/wav';
       const audioUrl = `data:${mime};base64,${base64Data}`;
-      playAudioSource(messageId, audioUrl, fallbackText);
+      playAudioSourceChunk(messageId, audioUrl, chunks, index, fallbackText);
     }
-  }, [playAudioSource]);
+  }, [playAudioSourceChunk]);
 
-  const playMessage = useCallback(async (messageId, text, options = {}) => {
-    if (!text || !text.trim()) return;
+  const playChunkIndex = useCallback(async (messageId, chunks, index, fullText, options = {}) => {
+    if (!chunks || index >= chunks.length) {
+      setPlaybackStates(prev => ({ ...prev, [messageId]: 'idle' }));
+      setActiveMessageId(null);
+      return;
+    }
 
+    const chunkText = chunks[index];
     const savedVoice = typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null;
     const savedModel = typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null;
     const requestedVoice = options.voiceId || savedVoice || DEFAULT_VOICE_ID;
     const requestedModel = options.model || savedModel || DEFAULT_VOICE_MODEL;
-    const cacheKey = `${messageId}:${requestedVoice}:${requestedModel}`;
+    const cacheKey = `${messageId}:${index}:${requestedVoice}:${requestedModel}`;
 
-    // If already playing this message, pause/stop toggle
-    if (activeMessageId === messageId && playbackStates[messageId] === 'playing') {
-      stopPlayback(messageId);
+    chunkQueueRef.current = { messageId, text: fullText, chunks, currentIndex: index, options };
+
+    // 1. Check audio cache for this specific chunk
+    if (audioCacheRef.current.has(cacheKey)) {
+      const cached = audioCacheRef.current.get(cacheKey);
+      const cachedBase64 = typeof cached === 'string' ? cached : cached.audioBase64;
+      const cachedType = (typeof cached === 'object' && cached?.contentType) ? cached.contentType : 'audio/wav';
+      playBase64AudioChunk(messageId, cachedBase64, cachedType, chunks, index, chunkText);
       return;
     }
 
-    // Stop any other active playback
-    stopPlayback();
-
-    // Prime audio instance and AudioContext synchronously inside user gesture!
-    unlockAudio();
-    if (!audioRef.current && typeof Audio !== 'undefined') {
-      audioRef.current = new Audio();
-      try { audioRef.current.load(); } catch (_) {}
-    }
-
-    setActiveMessageId(messageId);
-    setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
-
+    // 2. Fetch TTS audio for current chunk
     try {
-      // 1. Check client audio cache (voice-aware)
-      if (audioCacheRef.current.has(cacheKey)) {
-        const cached = audioCacheRef.current.get(cacheKey);
-        const cachedBase64 = typeof cached === 'string' ? cached : cached.audioBase64;
-        const cachedType = (typeof cached === 'object' && cached?.contentType) ? cached.contentType : 'audio/wav';
-        playBase64Audio(messageId, cachedBase64, cachedType, text);
-        return;
-      }
-
-      // 2. Request synthesized speech from backend
       let token = null;
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -297,12 +348,12 @@ export function useLunaVoicePlayback() {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          text: text.trim(),
-          messageId,
+          text: chunkText.trim(),
+          messageId: `${messageId}_chunk_${index}`,
           voiceId: requestedVoice,
           provider: options.provider || (requestedVoice.startsWith('eleven-') ? 'elevenlabs' : undefined),
           model: requestedModel,
-          segmentationMode: options.segmentationMode || 'sentence'
+          segmentationMode: 'none'
         })
       });
 
@@ -318,19 +369,54 @@ export function useLunaVoicePlayback() {
           audioBase64: result.audioBase64,
           contentType
         });
-        playBase64Audio(messageId, result.audioBase64, contentType, text);
+        playBase64AudioChunk(messageId, result.audioBase64, contentType, chunks, index, chunkText);
       } else if (result.useClientFallback && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        playClientSpeech(messageId, text);
+        playClientSpeechChunk(messageId, chunks, index);
       } else {
-        throw new Error(result.error || 'Unable to generate audio');
+        throw new Error(result.error || 'Unable to generate audio chunk');
       }
     } catch (err) {
-      console.warn('[Luna Voice Playback] Server TTS failed, attempting browser speech fallback:', err);
-      playClientSpeech(messageId, text);
+      console.warn(`[Luna Voice Chunk ${index}] Server TTS failed, using browser speech fallback:`, err);
+      playClientSpeechChunk(messageId, chunks, index);
     }
-  }, [activeMessageId, playbackStates, stopPlayback, playBase64Audio, playClientSpeech]);
+  }, [playBase64AudioChunk, playClientSpeechChunk]);
+
+  const playMessage = useCallback(async (messageId, text, options = {}) => {
+    if (!text || !text.trim()) return;
+
+    // Toggle pause/stop if clicking active playing message
+    if (activeMessageId === messageId && playbackStates[messageId] === 'playing') {
+      stopPlayback(messageId);
+      return;
+    }
+
+    // Stop any other playing message
+    stopPlayback();
+
+    // Unlock audio context synchronously inside click handler
+    unlockAudio();
+    if (!audioRef.current && typeof Audio !== 'undefined') {
+      audioRef.current = new Audio();
+      try { audioRef.current.load(); } catch (_) {}
+    }
+
+    setActiveMessageId(messageId);
+    setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
+
+    // Segment long text into sentence chunks
+    const chunks = segmentTextClient(text.trim(), 300);
+
+    // Resume from last failed chunk index if retrying
+    const startIdx = (playbackStates[messageId] === 'error' && lastFailedChunkRef.current.has(messageId))
+      ? lastFailedChunkRef.current.get(messageId)
+      : 0;
+
+    lastFailedChunkRef.current.delete(messageId);
+    playChunkIndex(messageId, chunks, startIdx, text.trim(), options);
+  }, [activeMessageId, playbackStates, stopPlayback, playChunkIndex]);
 
   const replayPlayback = useCallback((messageId, text, options = {}) => {
+    lastFailedChunkRef.current.delete(messageId);
     if (audioRef.current && audioRef.current.src) {
       audioRef.current.currentTime = 0;
       const playPromise = audioRef.current.play();
