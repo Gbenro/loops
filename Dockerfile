@@ -12,6 +12,4 @@ COPY . .
 
 RUN cd mcp-server && npm run build
 
-ENV PORT=3001
-
 CMD ["node", "mcp-server/dist/server.js"]
