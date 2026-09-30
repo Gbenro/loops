@@ -912,6 +912,18 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['question']
     }
   },
+  {
+    name: 'execute_attention_v2_pipeline',
+    description: 'Attention V1 ↔ V2 Seamless Integration Pipeline: Dynamically infers V2 inquiry/evidence geometry, executes V1 bounded-context retrieval, and packages a calibrated evidence bundle with epistemic guidance.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'Inquiry or reflection topic for V2 evidence planning & V1 retrieval.' },
+        tokenBudget: { type: 'number', description: 'Optional token budget (default 3000, max 48000).' }
+      },
+      required: ['question']
+    }
+  },
   // ─── Attention Lab V1 (Lunar Lab GPT) Tools ─────────────────────────────
   {
     name: 'lunar_lab_attention_plan',
@@ -3150,6 +3162,15 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
 
       return { content: [{ type: 'text', text: JSON.stringify({ preservedEcho: newEcho }, null, 2) }] };
+    }
+
+    case 'execute_attention_v2_pipeline': {
+      const snap = await globalFieldAdapter.captureSnapshot();
+      globalAttentionIndex.rebuild(snap);
+      const result = await globalAttentionEngine.planAndAssemble(args.question, {
+        tokenBudget: args.tokenBudget || 3000
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 
     case 'retrieve_bounded_attention': {
