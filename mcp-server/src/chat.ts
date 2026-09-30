@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
 import { parseDsmlToolCalls, sanitizeProse, formatFallbackActionReport } from './dsmlParser.js';
-import { getSupabaseAnon } from './db.js';
+import { getSupabaseAnon, getSupabaseService } from './db.js';
 import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
 import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
@@ -1263,9 +1263,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
   });
 
-  // 5. POST /api/chat - Orchestration endpoint
-  app.post('/api/chat', authenticateRest, async (req: Request, res: Response) => {
-    const supabase: SupabaseClient = req.body.supabaseClient;
+  // 5. POST /api/chat - Orchestration endpoint (Adaptive auth: user token if provided, fallback to service/anon)
+  app.post('/api/chat', authOpt || authenticateRest, async (req: Request, res: Response) => {
+    const supabase: SupabaseClient = req.body?.supabaseClient || getSupabaseService();
     const { message, sessionId: clientSessionId, modelKey, inputType = 'text', metadata = {}, clientTurnId } = req.body;
 
     if (!message || !message.trim()) {
