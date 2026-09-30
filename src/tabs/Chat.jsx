@@ -150,6 +150,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
     const [failedTurnState, setFailedTurnState] = useState(null);
     const [requestElapsedMs, setRequestElapsedMs] = useState(0);
     const requestStartTimeRef = useRef(null);
+  const sendingRef = useRef(false);
 
     // Individual message copy feedback state
     const [copiedMessageId, setCopiedMessageId] = useState(null);
@@ -523,6 +524,7 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
       setError('Failed to switch conversation.');
     } finally {
       setLoading(false);
+      sendingRef.current = false;
     }
   };
 
@@ -984,7 +986,8 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
   const handleSend = async (e, overrideText = null, overrideInputType = null, overrideMeta = null) => {
     if (e && e.preventDefault) e.preventDefault();
     const userText = (overrideText !== null ? overrideText : input).trim();
-    if (!userText || loading || !sessionId) return;
+    if (!userText || loading || sendingRef.current || !sessionId) return;
+    sendingRef.current = true;
 
     const voiceMeta = overrideMeta !== null ? overrideMeta : pendingVoiceMetaRef.current;
     const inputType = overrideInputType !== null ? overrideInputType : (voiceMeta ? 'voice' : 'text');
@@ -1115,7 +1118,17 @@ import { useLunaVoicePlayback } from '../lib/useLunaVoicePlayback.js';
           .order('created_at', { ascending: true });
 
         if (msgs && msgs.length > 0) {
-          setMessages(msgs.filter((m) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__'));
+          const filtered = msgs.filter((m) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__');
+          // Deduplicate consecutive identical assistant messages
+          const deduped = [];
+          for (const m of filtered) {
+            const prevM = deduped[deduped.length - 1];
+            if (prevM && prevM.role === 'assistant' && m.role === 'assistant' && prevM.content.trim() === m.content.trim()) {
+              continue;
+            }
+            deduped.push(m);
+          }
+          setMessages(deduped);
         }
       } catch (syncErr) {
         console.warn('Background sync error (ignored to preserve state):', syncErr);

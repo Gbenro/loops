@@ -11,6 +11,9 @@ import { resolveModel, getUserAllowedModels, MODEL_REGISTRY, DEFAULT_MODEL_KEY }
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
+// Map to track in-flight requests and deduplicate duplicate prompt POSTs
+const inFlightChatRequests = new Map<string, Promise<any>>();
+
 // Map standard MCP schemas to OpenAI tool format
 const getOpenAiTools = () => {
   return TOOL_DEFINITIONS_COMPAT.map(t => ({
@@ -1286,6 +1289,59 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     if (userError || !user) {
       res.status(401).json({ error: 'User session not authenticated' });
       return;
+    }
+
+    const requestDedupeKey = clientTurnId ? `${user.id}:${sessionId}:${clientTurnId}` : null;
+    if (requestDedupeKey && inFlightChatRequests.has(requestDedupeKey)) {
+      console.log(`[API Chat] Deduplicating in-flight request for key: ${requestDedupeKey}`);
+      try {
+        const inFlightResult = await inFlightChatRequests.get(requestDedupeKey);
+        res.json(inFlightResult);
+        return;
+      } catch (inFlightErr: any) {
+        res.status(500).json({ error: inFlightErr.message });
+        return;
+      }
+    }
+
+    if (clientTurnId && sessionId) {
+      const { data: userMsgCheck } = await supabase
+        .from('chat_messages')
+        .select('created_at')
+        .eq('id', clientTurnId)
+        .maybeSingle();
+
+      if (userMsgCheck) {
+        const { data: existingAssistantMessage } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (existingAssistantMessage && existingAssistantMessage.length > 0) {
+          const astMsg = existingAssistantMessage[0];
+          if (new Date(astMsg.created_at) >= new Date(userMsgCheck.created_at)) {
+            console.log(`[API Chat] Existing assistant message found for clientTurnId ${clientTurnId}, returning without re-inference`);
+            res.json({
+              success: true,
+              sessionId,
+              userMessageId: clientTurnId,
+              assistantMessageId: astMsg.id,
+              reply: astMsg.content,
+              message: {
+                id: astMsg.id,
+                content: astMsg.content,
+                createdAt: astMsg.created_at
+              },
+              telemetryId: generateId('trace'),
+              traceId: generateId('trace')
+            });
+            return;
+          }
+        }
+      }
     }
 
     try {
