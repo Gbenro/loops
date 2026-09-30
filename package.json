@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node mcp-server/dist/server.js",
+    "start": "node dist/server.js || node mcp-server/dist/server.js",
     "dev": "vite",
-    "build": "(cd mcp-server && npm run build) && vite build",
+    "build": "tsc || ((cd mcp-server && npm run build) && vite build)",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext .js,.jsx --fix",
