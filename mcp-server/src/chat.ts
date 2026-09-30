@@ -7,6 +7,9 @@ import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
 import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
 import { resolveModel, getUserAllowedModels, MODEL_REGISTRY, DEFAULT_MODEL_KEY } from './models.js';
+import { globalAttentionEngine, globalAttentionIndex, globalFieldAdapter } from './attentionLab.js';
+// @ts-ignore
+import { executeSeamlessAttentionPipeline, inferAttentionV2Plan } from '../../src/lib/attentionV2Orchestrator.js';
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -1453,7 +1456,64 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       // 4. Voice Input Provenance with character length
       const voiceProvenance = formatVoiceInputProvenance({ inputType, ...metadata }, message.length);
 
-      const systemPrompt = getSystemPrompt(lunar, timeContext, memorySelection.memoriesForPrompt);
+      // 5. Attention V2 -> V1 Bounded Retrieval Pipeline (Adaptive & Fail-Safe)
+      let attentionTelemetryData: any = {
+        v2Plan: null,
+        v1Plan: null,
+        evidenceItemsCount: 0,
+        temporalSpanDays: null,
+        insufficiencyStatus: 'SKIPPED',
+        fallbackUsed: false,
+        error: null
+      };
+
+      let attentionContextPrompt = '';
+
+      try {
+        const snap = await globalFieldAdapter.captureSnapshot();
+        if (globalAttentionIndex.totalIndexedNodes === 0 || !globalAttentionIndex.lastSnapshotId) {
+          globalAttentionIndex.rebuild(snap);
+        } else {
+          globalAttentionIndex.rebuild(snap);
+        }
+
+        const attentionPipelineResult = await executeSeamlessAttentionPipeline(
+          message.trim(),
+          { tokenBudget: 3000 },
+          globalAttentionEngine
+        );
+
+        if (attentionPipelineResult) {
+          const { v2Plan, v1AttentionPlan, contextPacket, evidenceItems, synthesisCalibration } = attentionPipelineResult;
+
+          attentionTelemetryData.v2Plan = v2Plan;
+          attentionTelemetryData.v1Plan = v1AttentionPlan;
+          attentionTelemetryData.evidenceItemsCount = evidenceItems?.length || 0;
+          attentionTelemetryData.insufficiencyStatus = synthesisCalibration?.insufficiencyStatus || 'SATISFIED';
+
+          if (contextPacket?.temporalCoverage?.temporalSpanDays !== undefined) {
+            attentionTelemetryData.temporalSpanDays = contextPacket.temporalCoverage.temporalSpanDays;
+          }
+
+          if (contextPacket?.formattedPromptContext) {
+            attentionContextPrompt = `\n\n[FIELD_MEMORY_ATTENTION_LAYER]\nGeometry: ${v2Plan.evidenceGeometry}\nCoverage Strategy: ${v2Plan.coverageStrategy}\nSynthesis Guidance: ${synthesisCalibration.guidance}\n\n${contextPacket.formattedPromptContext}`;
+
+            if (evidenceItems && evidenceItems.length > 0) {
+              const ids = evidenceItems.map((e: any) => e.id).filter(Boolean);
+              retrievedContextIds.push(...ids);
+            }
+          }
+        }
+      } catch (attErr: any) {
+        console.warn('[API Chat] Attention pipeline execution failed open:', attErr);
+        attentionTelemetryData.fallbackUsed = true;
+        attentionTelemetryData.error = attErr.message;
+      }
+
+      let systemPrompt = getSystemPrompt(lunar, timeContext, memorySelection.memoriesForPrompt);
+      if (attentionContextPrompt) {
+        systemPrompt += attentionContextPrompt;
+      }
       let loopCount = 0;
       let finalResponseText = '';
       const agentMessages: any[] = [...conversationMessages];
@@ -1834,6 +1894,21 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       };
 
       // Update the early 'pending' telemetry trace with full observability data
+      if (attentionTelemetryData.v2Plan) {
+        runtimeProtocols.activeProtocols.push(`attention_v2_${attentionTelemetryData.v2Plan.evidenceGeometry}`);
+      }
+
+      fieldCoverageData = {
+        ...fieldCoverageData,
+        attention_v2_plan: attentionTelemetryData.v2Plan,
+        attention_v1_plan: attentionTelemetryData.v1Plan,
+        evidence_items_count: attentionTelemetryData.evidenceItemsCount,
+        temporal_span_days: attentionTelemetryData.temporalSpanDays,
+        insufficiency_status: attentionTelemetryData.insufficiencyStatus,
+        fallback_used: attentionTelemetryData.fallbackUsed,
+        attention_error: attentionTelemetryData.error
+      };
+
       const latency = Date.now() - startTime;
       const operationClass = classifyOperation(toolCallsTracked, message, fieldCoverageData);
 
