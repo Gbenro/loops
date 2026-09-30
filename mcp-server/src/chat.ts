@@ -7,7 +7,7 @@ import { getLunarData } from './lunar.js';
 import { getTimeContext, TimeContext } from './time.js';
 import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
 import { resolveModel, getUserAllowedModels, MODEL_REGISTRY, DEFAULT_MODEL_KEY } from './models.js';
-import { globalAttentionEngine, globalAttentionIndex, globalFieldAdapter } from './attentionLab.js';
+import { globalAttentionEngine, globalAttentionIndex, globalFieldAdapter, LunaFieldReadOnlyAdapter, AttentionIndex, AttentionEngineV1 } from './attentionLab.js';
 // @ts-ignore
 import { executeSeamlessAttentionPipeline, inferAttentionV2Plan } from './attentionV2Orchestrator.js';
 
@@ -1473,17 +1473,17 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       let attentionContextPrompt = '';
 
       try {
-        const snap = await globalFieldAdapter.captureSnapshot();
-        if (globalAttentionIndex.totalIndexedNodes === 0 || !globalAttentionIndex.lastSnapshotId) {
-          globalAttentionIndex.rebuild(snap);
-        } else {
-          globalAttentionIndex.rebuild(snap);
-        }
+        // User-scoped Field extraction for production Attention execution
+        const userAdapter = new LunaFieldReadOnlyAdapter({ userId: user.id, supabase });
+        const snap = await userAdapter.captureSnapshot();
+        const userIndex = new AttentionIndex();
+        userIndex.rebuild(snap);
+        const userEngine = new AttentionEngineV1(userIndex);
 
         const attentionPipelineResult = await executeSeamlessAttentionPipeline(
           message.trim(),
-          { tokenBudget: 3000 },
-          globalAttentionEngine
+          { resourceCeiling: 12000 },
+          userEngine
         );
 
         if (attentionPipelineResult) {
@@ -1493,6 +1493,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           attentionTelemetryData.v1Plan = v1AttentionPlan;
           attentionTelemetryData.evidenceItemsCount = evidenceItems?.length || 0;
           attentionTelemetryData.insufficiencyStatus = synthesisCalibration?.insufficiencyStatus || 'SATISFIED';
+          attentionTelemetryData.telemetry = attentionPipelineResult.telemetry || null;
 
           if (contextPacket?.temporalCoverage?.temporalSpanDays !== undefined) {
             attentionTelemetryData.temporalSpanDays = contextPacket.temporalCoverage.temporalSpanDays;
