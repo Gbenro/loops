@@ -2189,7 +2189,7 @@ export const SUBJECT_CONCEPT_TAXONOMY: Record<string, string[]> = {
 export function decomposeQuery(question: string, category?: string, referenceDate?: Date): QueryDecomposition {
   // 1. Separate core question from testing/harness boilerplate if present
   // Questions often arrive like: "What has unfolded in my Field from the beginning of the current New Moon until now? CONTROL specimen 1/5. Use the frozen Field evidence/context..."
-  let cleanQuestion = question;
+  let cleanQuestion = typeof question === 'string' ? question : String(question || '');
   if (cleanQuestion.includes('?')) {
     cleanQuestion = cleanQuestion.split('?')[0] + '?';
   } else {
@@ -3019,7 +3019,7 @@ export class AttentionEngineV1 {
   }
 
   private inferStrategy(question: string): AttentionPlan['coverageStrategy'] {
-    const q = question.toLowerCase();
+    const q = (typeof question === 'string' ? question : String(question || '')).toLowerCase();
     if (q.includes('pattern') || q.includes('recur') || q.includes('keep surfacing') || q.includes('often')) {
       return 'recurrence_deepening';
     }
@@ -3044,9 +3044,12 @@ export class AttentionEngineV1 {
     strategy: AttentionPlan['coverageStrategy']
   ): AttentionPlan {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const safeQuestion = typeof question === 'string' ? question : String(question || '');
+    question = safeQuestion;
     const qClass = this.classifyQuestion(question);
     const decomp = decomposeQuery(question, qClass);
-    const rawTokens = question.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
+    const safeText = typeof question === 'string' ? question : String(question || '');
+    const rawTokens = safeText.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3);
     
     // Stop-word suppression: generic filler words never materially influence ranking
     const informativeTokens = rawTokens.filter(t => !STOP_WORDS.has(t));
@@ -4214,7 +4217,7 @@ export class AttentionEngineV1 {
   }
 
   private classifyQuestion(q: string): string {
-    const lower = q.toLowerCase();
+    const lower = (typeof q === 'string' ? q : String(q || '')).toLowerCase();
     if (lower.includes('stand on') || lower.includes('active focus') || lower.includes('current')) return 'current_state';
     if (lower.includes('pattern') || lower.includes('recur') || lower.includes('keep surfacing')) return 'recurrence';
     if (lower.includes('shift') || lower.includes('evolv') || lower.includes('change')) return 'longitudinal_change';

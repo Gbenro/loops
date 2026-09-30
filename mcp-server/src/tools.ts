@@ -3188,7 +3188,8 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       if (globalAttentionIndex.totalIndexedNodes === 0) {
         globalAttentionIndex.rebuild(snap);
       }
-      const result = await globalAttentionEngine.planAndAssemble(args.question, {
+      const rawQuestion = args.question || args.query || args.prompt || args.inquiry || args.text || '';
+      const result = await globalAttentionEngine.planAndAssemble(rawQuestion, {
         tokenBudget: args.tokenBudget || 3000,
         coverageStrategy: args.coverageStrategy
       });

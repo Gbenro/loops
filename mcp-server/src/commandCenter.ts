@@ -798,7 +798,11 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           break;
         }
         case 'lab.attention.plan': {
-          const execRes = await executeTool(supabase, 'lunar_lab_attention_plan', payload, userId);
+          const normPayload = {
+            ...payload,
+            question: payload.question || payload.query || payload.prompt || payload.inquiry || payload.text || ''
+          };
+          const execRes = await executeTool(supabase, 'lunar_lab_attention_plan', normPayload, userId);
           result = JSON.parse(execRes.content[0].text);
           break;
         }
