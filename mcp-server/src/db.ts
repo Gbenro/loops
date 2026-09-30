@@ -62,7 +62,8 @@ export function getSupabaseAnon(): SupabaseClient {
 export function getSupabaseService(): SupabaseClient {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
-    throw new Error('Server configuration error: SUPABASE_SERVICE_ROLE_KEY is required for privileged machine discovery and authority minting');
+    console.warn('[DB] SUPABASE_SERVICE_ROLE_KEY is absent; falling back to anonymous client.');
+    return getSupabaseAnon();
   }
   return createClient(SUPABASE_URL, serviceKey, {
     auth: { persistSession: false }
