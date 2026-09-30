@@ -7416,15 +7416,15 @@ export const globalAttentionIndex = new AttentionIndex();
 export const globalAttentionEngine = new AttentionEngineV1(globalAttentionIndex);
 export const globalLabStore = new DurableLabStore();
 
-// Initialize index immediately on module load
-(async () => {
+// Defer initial index setup so module loading and server startup are non-blocking
+setTimeout(async () => {
   try {
     const snap = await globalFieldAdapter.captureSnapshot();
     globalAttentionIndex.rebuild(snap);
   } catch (err) {
     console.warn('[AttentionLab] Initial index setup error:', err);
   }
-})();
+}, 1000);
 
 
 // ─── Order 81: Production Evidence Manifest & Verification (Conversation 17) ──
