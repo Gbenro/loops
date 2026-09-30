@@ -1,0 +1,5 @@
+[build]
+cmds = ["npm install", "cd mcp-server && npm install && npm run build"]
+
+[start]
+cmd = "node mcp-server/dist/server.js"
