@@ -9,7 +9,7 @@ import { formatVoiceInputProvenance, synthesizeLunaVoice } from './voice.js';
 import { resolveModel, getUserAllowedModels, MODEL_REGISTRY, DEFAULT_MODEL_KEY } from './models.js';
 import { globalAttentionEngine, globalAttentionIndex, globalFieldAdapter } from './attentionLab.js';
 // @ts-ignore
-import { executeSeamlessAttentionPipeline, inferAttentionV2Plan } from '../../src/lib/attentionV2Orchestrator.js';
+import { executeSeamlessAttentionPipeline, inferAttentionV2Plan } from './attentionV2Orchestrator.js';
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
