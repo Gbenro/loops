@@ -899,6 +899,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['issueId', 'sessionId', 'finalSummary']
     }
   },
+  {
+    name: 'retrieve_bounded_attention',
+    description: 'Production Attention V1 Bounded Retrieval Engine: Generates an inspectable AttentionPlan and assembled ContextPacket over personal Field evidence under controlled token budget (default 3000, max 48000). Supports strategies: temporal_distribution, longitudinal_span, entity_cluster, recurrence_deepening, balanced.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'Inquiry or topic for bounded context retrieval.' },
+        tokenBudget: { type: 'number', description: 'Optional token budget (default 3000, max 48000).' },
+        coverageStrategy: { type: 'string', description: 'Optional coverage strategy: temporal_distribution, longitudinal_span, entity_cluster, recurrence_deepening, balanced.' }
+      },
+      required: ['question']
+    }
+  },
   // ─── Attention Lab V1 (Lunar Lab GPT) Tools ─────────────────────────────
   {
     name: 'lunar_lab_attention_plan',
@@ -3137,6 +3150,16 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
       }
 
       return { content: [{ type: 'text', text: JSON.stringify({ preservedEcho: newEcho }, null, 2) }] };
+    }
+
+    case 'retrieve_bounded_attention': {
+      const snap = await globalFieldAdapter.captureSnapshot();
+      globalAttentionIndex.rebuild(snap);
+      const result = await globalAttentionEngine.planAndAssemble(args.question, {
+        tokenBudget: args.tokenBudget || 3000,
+        coverageStrategy: args.coverageStrategy
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 
     case 'lunar_lab_attention_plan': {
