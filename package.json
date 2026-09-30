@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "start": "node mcp-server/dist/server.js",
     "dev": "vite",
     "build": "(cd mcp-server && npm run build) && vite build",
     "preview": "vite preview",
