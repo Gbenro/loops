@@ -1817,51 +1817,54 @@ export class LunaFieldReadOnlyAdapter {
 
           // Strict boundary: Only include actual personal records. Never mix fixtures!
           const allLive = [...loops, ...echoes, ...rms, ...messages, ...cycles];
-          const aggregateHash = computeSnapshotAggregateHash(allLive);
 
-          const anyCeilingHit = Boolean(
-            loopsFetch.ceilingHit || echoesFetch.ceilingHit || rmFetch.ceilingHit || chatFetch.ceilingHit || cycleFetch.ceilingHit
-          );
-          const coverageState: 'COMPLETE' | 'PARTIAL' = anyCeilingHit ? 'PARTIAL' : 'COMPLETE';
+          if (allLive.length > 0 || this.supabaseClient !== null) {
+            const aggregateHash = computeSnapshotAggregateHash(allLive);
 
-          let nonEmptyCount = 0;
-          let emptyCount = 0;
-          for (const it of allLive) {
-            if ((it.content || '').trim().length > 0) nonEmptyCount++;
-            else emptyCount++;
-          }
+            const anyCeilingHit = Boolean(
+              loopsFetch.ceilingHit || echoesFetch.ceilingHit || rmFetch.ceilingHit || chatFetch.ceilingHit || cycleFetch.ceilingHit
+            );
+            const coverageState: 'COMPLETE' | 'PARTIAL' = anyCeilingHit ? 'PARTIAL' : 'COMPLETE';
 
-          const coverageDiagnostics: SnapshotCoverageDiagnostics = {
-            loopsCount: loops.length,
-            echoesCount: echoes.length,
-            chatCount: messages.length,
-            rmCount: rms.length,
-            cyclesCount: cycles.length,
-            nonEmptyContentCount: nonEmptyCount,
-            emptyContentCount: emptyCount,
-            ceilingHit: anyCeilingHit
-          };
-
-          return this.freezeSnapshot({
-            snapshotId: snapId,
-            snapshotHash: aggregateHash,
-            mode: 'personal_field',
-            userId: this.userId,
-            capturedAt: new Date().toISOString(),
-            loops,
-            echoes,
-            relationalMemories: rms,
-            chatMessages: messages,
-            lunarCycles: cycles,
-            totalItems: allLive.length,
-            coverageState,
-            coverageDiagnostics,
-            provenanceBreakdown: {
-              personal_field: allLive.length,
-              benchmark_fixture: 0,
-              synthetic: 0
+            let nonEmptyCount = 0;
+            let emptyCount = 0;
+            for (const it of allLive) {
+              if ((it.content || '').trim().length > 0) nonEmptyCount++;
+              else emptyCount++;
             }
-          });
+
+            const coverageDiagnostics: SnapshotCoverageDiagnostics = {
+              loopsCount: loops.length,
+              echoesCount: echoes.length,
+              chatCount: messages.length,
+              rmCount: rms.length,
+              cyclesCount: cycles.length,
+              nonEmptyContentCount: nonEmptyCount,
+              emptyContentCount: emptyCount,
+              ceilingHit: anyCeilingHit
+            };
+
+            return this.freezeSnapshot({
+              snapshotId: snapId,
+              snapshotHash: aggregateHash,
+              mode: 'personal_field',
+              userId: this.userId,
+              capturedAt: new Date().toISOString(),
+              loops,
+              echoes,
+              relationalMemories: rms,
+              chatMessages: messages,
+              lunarCycles: cycles,
+              totalItems: allLive.length,
+              coverageState,
+              coverageDiagnostics,
+              provenanceBreakdown: {
+                personal_field: allLive.length,
+                benchmark_fixture: 0,
+                synthetic: 0
+              }
+            });
+          }
         } catch (dbErr) {
           console.warn('[AttentionLab] Personal Field query note:', dbErr);
         }
