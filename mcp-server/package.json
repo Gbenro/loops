@@ -1,6 +1,6 @@
 {
   "name": "luna-loops-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Remote authenticated Model Context Protocol (MCP) server for Luna Loops",
   "main": "dist/server.js",
   "type": "module",

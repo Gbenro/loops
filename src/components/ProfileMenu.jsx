@@ -1891,7 +1891,7 @@ export function ProfileMenu({ isOpen, onClose, user, isAdmin, onOpenAdmin, onSig
                     color: 'var(--color-text-muted)',
                   }}
                 >
-                  v1.0.0
+                  v1.1.0
                 </div>
               </div>
 
