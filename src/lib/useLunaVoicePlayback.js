@@ -62,7 +62,7 @@ export function base64ToArrayBuffer(base64Data) {
  * Splits long text into natural sentence/clause chunks for speech synthesis.
  * Prevents Web Speech API truncation and audio API timeouts on long messages.
  */
-export function segmentTextClient(text, maxChunkLen = 300) {
+export function segmentTextClient(text, maxChunkLen = 2500) {
   if (!text) return [];
   const strText = typeof text === 'string' ? text : String(text || '');
   const clean = strText
@@ -340,6 +340,51 @@ export function useLunaVoicePlayback() {
 
     chunkQueueRef.current = { messageId, text: fullText, chunks, currentIndex: index, options };
 
+    // Background pre-fetch next chunk if available to ensure zero-latency seamless playback transition
+    const nextIndex = index + 1;
+    if (nextIndex < chunks.length) {
+      const nextChunkText = chunks[nextIndex];
+      const nextCacheKey = `${messageId}:${nextIndex}:${requestedVoice}:${requestedModel}`;
+      if (!audioCacheRef.current.has(nextCacheKey)) {
+        (async () => {
+          try {
+            let token = null;
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              token = session?.access_token;
+            } catch (_) {}
+            const nextRes = await fetch(`${API_BASE_URL}/api/chat/synthesize-speech`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                text: nextChunkText.trim(),
+                messageId: `${messageId}_chunk_${nextIndex}`,
+                voiceId: requestedVoice,
+                provider: options.provider || (requestedVoice.startsWith('eleven-') ? 'elevenlabs' : undefined),
+                model: requestedModel,
+                segmentationMode: 'none'
+              })
+            });
+            if (nextRes.ok) {
+              const nextResult = await nextRes.json();
+              if (nextResult.audioBase64) {
+                const contentType = nextResult.contentType || (nextResult.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
+                audioCacheRef.current.set(nextCacheKey, {
+                  audioBase64: nextResult.audioBase64,
+                  contentType
+                });
+              }
+            }
+          } catch (err) {
+            console.warn(`[Luna Voice Pre-fetch Chunk ${nextIndex} failed]:`, err);
+          }
+        })();
+      }
+    }
+
     // 1. Check audio cache for this specific chunk
     if (audioCacheRef.current.has(cacheKey)) {
       const cached = audioCacheRef.current.get(cacheKey);
@@ -433,7 +478,7 @@ export function useLunaVoicePlayback() {
     setPlaybackStates(prev => ({ ...prev, [messageId]: 'loading' }));
 
     // Segment long text into sentence chunks
-    const chunks = segmentTextClient(strText.trim(), 300);
+    const chunks = segmentTextClient(strText.trim(), 2500);
 
     // Resume from last failed chunk index if retrying
     const startIdx = (playbackStates[messageId] === 'error' && lastFailedChunkRef.current.has(messageId))
