@@ -1482,7 +1482,7 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
 
         const attentionPipelineResult = await executeSeamlessAttentionPipeline(
           message.trim(),
-          { resourceCeiling: 12000 },
+          {},
           userEngine
         );
 
@@ -1500,7 +1500,11 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           }
 
           if (contextPacket?.formattedPromptContext) {
-            attentionContextPrompt = `\n\n[FIELD_MEMORY_ATTENTION_LAYER]\nGeometry: ${v2Plan.evidenceGeometry}\nCoverage Strategy: ${v2Plan.coverageStrategy}\nSynthesis Guidance: ${synthesisCalibration.guidance}\n\n${contextPacket.formattedPromptContext}`;
+            const geometriesStr = v2Plan.inquiryGeometries ? v2Plan.inquiryGeometries.join(', ') : (v2Plan.primaryGeometry || (v2Plan as any).evidenceGeometry);
+            const depthStr = v2Plan.attentionDepth?.level || 'direct_supporting';
+            const widthStr = v2Plan.attentionWidth?.scope || 'narrow_thread';
+            const stopReasonStr = attentionPipelineResult.telemetry?.stoppingReason || 'Attention execution complete';
+            attentionContextPrompt = `\n\n[FIELD_MEMORY_ATTENTION_LAYER]\nGeometries: ${geometriesStr}\nAttention Depth: ${depthStr}\nAttention Width: ${widthStr}\nStopping Reason: ${stopReasonStr}\nSynthesis Guidance: ${synthesisCalibration.guidance}\n\n${contextPacket.formattedPromptContext}`;
 
             if (evidenceItems && evidenceItems.length > 0) {
               const ids = evidenceItems.map((e: any) => e.id).filter(Boolean);

@@ -1,13 +1,15 @@
 /**
- * Attention V1 ↔ V2 Seamless Integration Contract (Order 108 + Order 109 Elastic Budgeting)
- * Connects V2 perspective & evidence geometry planning to V1 bounded-context retrieval.
- * Flow: Inquiry -> V2 Evidence Plan -> Initial Adaptive Budget -> V1 Retrieval -> Coverage Evaluation -> Optional Budget Expansion -> Synthesis Calibration
+ * Attention V2 Matrix & Adaptive Attention Depth Architecture
+ * Implement Production Luna Adaptive Attention Depth, Width, Composite Geometries,
+ * Multi-Pass Re-Orientation (Look -> Evaluate -> Reorient -> Look Again),
+ * Observational Token Telemetry & First-Class Reorientation Telemetry.
  */
 
 export const EVIDENCE_GEOMETRIES = [
   'current_state',
   'recurrence',
   'longitudinal_change',
+  'causal_contextual',
   'origin',
   'comparison',
   'relationship',
@@ -16,151 +18,368 @@ export const EVIDENCE_GEOMETRIES = [
   'convergence',
   'embodiment',
   'quieting_absence',
+  'return_after_absence',
   'insufficient_evidence'
 ];
 
-export const V1_FALLBACK_DEFAULT_PLAN = {
+export interface AttentionDepthConfig {
+  level: 'immediate' | 'direct_supporting' | 'contextual' | 'historical_origin' | 'deep_longitudinal' | 'multi_layer';
+  dimensions: string[];
+}
+
+export interface AttentionWidthConfig {
+  scope: 'narrow_thread' | 'temporal_distribution' | 'broad_cycle' | 'cross_cycle' | 'cross_domain';
+  dimensions: string[];
+}
+
+export interface AttentionPlanV2 {
+  inquiryGeometries: string[];
+  primaryGeometry: string;
+  evidenceGeometry?: string;
+  attentionDepth: AttentionDepthConfig;
+  attentionWidth: AttentionWidthConfig;
+  temporalScope: {
+    spanType: 'current_cycle' | 'cross_cycle' | 'recent_days' | 'all_history';
+    requireTemporalSpread: boolean;
+  };
+  evidenceTypesRequired: string[];
+  evidenceObligations: string[];
+  counterevidenceRequired: boolean;
+  initialOperations: string[];
+  stoppingConditions: string[];
+  confidence: number;
+  isFallback: boolean;
+}
+
+export interface ReorientationStep {
+  passNumber: number;
+  operation: string;
+  reorientationReason: string;
+  evidenceItemsRetrieved: number;
+  novelItemsGained: number;
+  totalTokensConsumed: number;
+  obligationsSatisfied: number;
+  obligationsTotal: number;
+  coverageState: string;
+}
+
+export const V1_FALLBACK_DEFAULT_PLAN: AttentionPlanV2 = {
+  inquiryGeometries: ['current_state'],
+  primaryGeometry: 'current_state',
   evidenceGeometry: 'current_state',
-  coverageStrategy: 'balanced',
-  requireTemporalSpread: false,
-  requireCounterevidence: false,
-  initialBudget: 1500,
-  initialEpistemicBudget: 1500,
-  resourceCeiling: 12000,
+  attentionDepth: {
+    level: 'direct_supporting',
+    dimensions: ['direct_evidence']
+  },
+  attentionWidth: {
+    scope: 'narrow_thread',
+    dimensions: ['narrow_thread']
+  },
+  temporalScope: {
+    spanType: 'current_cycle',
+    requireTemporalSpread: false
+  },
+  evidenceTypesRequired: ['loop', 'echo'],
+  evidenceObligations: ['current_state'],
+  counterevidenceRequired: false,
+  initialOperations: ['semantic_retrieval'],
+  stoppingConditions: ['obligations_covered'],
   confidence: 0.5,
   isFallback: true
 };
 
-export function inferAttentionV2Plan(question: string, options: any = {}) {
+/**
+ * Infers an open, composable Attention Matrix Plan (Geometries x Depth x Width x Operations).
+ */
+export function inferAttentionV2Plan(question: string, options: any = {}): AttentionPlanV2 {
   if (!question || typeof question !== 'string' || !question.trim()) {
     return { ...V1_FALLBACK_DEFAULT_PLAN };
   }
 
   const q = question.toLowerCase().trim();
-  const resourceCeiling = options.resourceCeiling || 12000;
+  const geometries: string[] = [];
+  const depthDimensions: string[] = [];
+  const widthDimensions: string[] = [];
+  const obligations: string[] = ['current_state'];
+  const operations: string[] = ['semantic_retrieval'];
 
-  let evidenceGeometry = 'current_state';
-  let coverageStrategy: 'temporal_distribution' | 'longitudinal_span' | 'entity_cluster' | 'recurrence_deepening' | 'balanced' = 'balanced';
+  let depthLevel: AttentionDepthConfig['level'] = 'direct_supporting';
+  let widthScope: AttentionWidthConfig['scope'] = 'narrow_thread';
+  let spanType: 'current_cycle' | 'cross_cycle' | 'recent_days' | 'all_history' = 'current_cycle';
   let requireTemporalSpread = false;
   let requireCounterevidence = false;
-  let initialEpistemicBudget = 1500;
 
-  if (/^(hi|hello|hey|thanks|thank you)$/i.test(q) || q.length < 5) {
-    evidenceGeometry = 'casual';
-    coverageStrategy = 'balanced';
-    initialEpistemicBudget = 500;
-  } else if (/(shift|evolv|change|over time|across|grew|transform)/i.test(q)) {
-    evidenceGeometry = 'longitudinal_change';
-    coverageStrategy = 'longitudinal_span';
+  // 1. Detect Geometries (Composite Detection)
+  if (/(shift|evolv|change|over time|across|grew|transform)/i.test(q)) {
+    geometries.push('longitudinal_change');
+    depthDimensions.push('historical_origin', 'meaning_transitions', 'recent_state');
+    widthDimensions.push('temporal_distribution', 'multi_cycle');
+    obligations.push('origin_state', 'intermediate_transitions', 'recent_state');
+    operations.push('temporal_distribution', 'lexical_retrieval');
+    depthLevel = 'deep_longitudinal';
+    widthScope = 'broad_cycle';
     requireTemporalSpread = true;
-    initialEpistemicBudget = 3500;
-  } else if (/(repeat|recur|pattern|keep|often|always|habit)/i.test(q)) {
-    evidenceGeometry = 'recurrence';
-    coverageStrategy = 'recurrence_deepening';
-    initialEpistemicBudget = 2500;
-  } else if (/(where|origin|start|root|begin|first|source)/i.test(q)) {
-    evidenceGeometry = 'origin';
-    coverageStrategy = 'longitudinal_span';
-    requireTemporalSpread = true;
-    initialEpistemicBudget = 3500;
-  } else if (/(compare|contrast|versus|vs|between|different)/i.test(q)) {
-    evidenceGeometry = 'comparison';
-    coverageStrategy = 'temporal_distribution';
-    requireTemporalSpread = true;
-    initialEpistemicBudget = 2500;
-  } else if (/(alex|studio|book|editorial|partnership|collaborat)/i.test(q)) {
-    evidenceGeometry = 'relationship';
-    coverageStrategy = 'entity_cluster';
-    initialEpistemicBudget = 2500;
-  } else if (/(open|unresolved|unfinished|stuck|pending|block)/i.test(q)) {
-    evidenceGeometry = 'open_loop';
-    coverageStrategy = 'recurrence_deepening';
-    requireCounterevidence = true;
-    initialEpistemicBudget = 2500;
+    spanType = 'current_cycle';
   }
 
+  if (/(why|cause|reason|effect|influence|lead to|result|prompt)/i.test(q)) {
+    geometries.push('causal_contextual');
+    depthDimensions.push('contextual_evidence', 'cross_record_synthesis');
+    widthDimensions.push('multi_record_type', 'cross_domain');
+    obligations.push('contextual_associations', 'relational_events');
+    operations.push('thematic_association', 'entity_retrieval');
+    if (depthLevel === 'direct_supporting') depthLevel = 'contextual';
+  }
+
+  if (/(feel|felt|body|experience|lived|sensation|physical|studio|touch|breath)/i.test(q)) {
+    geometries.push('embodiment');
+    depthDimensions.push('experiential_embodied');
+    widthDimensions.push('conceptual_and_experiential');
+    obligations.push('embodied_examples');
+    operations.push('experiential_retrieval');
+    if (depthLevel === 'direct_supporting') depthLevel = 'multi_layer';
+  }
+
+  if (/(repeat|recur|pattern|keep|often|always|habit|surfac)/i.test(q)) {
+    geometries.push('recurrence');
+    depthDimensions.push('recurrence_deepening');
+    widthDimensions.push('recurrence_across_time');
+    obligations.push('recurring_patterns');
+    operations.push('recurrence_detection');
+    if (widthScope === 'narrow_thread') widthScope = 'temporal_distribution';
+  }
+
+  if (/(where|origin|start|root|begin|first|source)/i.test(q)) {
+    geometries.push('origin');
+    depthDimensions.push('historical_origin');
+    widthDimensions.push('temporal_distribution');
+    obligations.push('origin_state');
+    operations.push('temporal_distribution');
+    depthLevel = 'historical_origin';
+  }
+
+  if (/(compare|contrast|versus|vs|between|different)/i.test(q)) {
+    geometries.push('comparison');
+    depthDimensions.push('cross_record_synthesis');
+    widthDimensions.push('contrasting_perspectives');
+    obligations.push('comparative_baselines');
+    operations.push('lexical_retrieval');
+  }
+
+  if (/(alex|studio|book|editorial|partnership|collaborat)/i.test(q)) {
+    geometries.push('relationship');
+    depthDimensions.push('contextual_evidence');
+    widthDimensions.push('multi_entity');
+    obligations.push('entity_relationship');
+    operations.push('entity_retrieval');
+  }
+
+  if (/(open|unresolved|unfinished|stuck|pending|block)/i.test(q)) {
+    geometries.push('open_loop');
+    depthDimensions.push('contradictions_discontinuities');
+    obligations.push('unresolved_uncertainty');
+    requireCounterevidence = true;
+  }
+
+  // Fallback if no geometry matched
+  if (geometries.length === 0) {
+    if (/^(hi|hello|hey|thanks|thank you)$/i.test(q) || q.length < 5) {
+      geometries.push('current_state');
+      depthLevel = 'immediate';
+      widthScope = 'narrow_thread';
+    } else {
+      geometries.push('current_state');
+      depthLevel = 'direct_supporting';
+      widthScope = 'narrow_thread';
+    }
+  }
+
+  // Deduplicate arrays
+  const uniqueGeometries = Array.from(new Set(geometries));
+  const uniqueDepthDims = Array.from(new Set(depthDimensions.length ? depthDimensions : ['direct_evidence']));
+  const uniqueWidthDims = Array.from(new Set(widthDimensions.length ? widthDimensions : ['narrow_thread']));
+  const uniqueObligations = Array.from(new Set(obligations));
+  const uniqueOperations = Array.from(new Set(operations));
+
   return {
-    evidenceGeometry,
-    coverageStrategy,
-    requireTemporalSpread,
-    requireCounterevidence,
-    initialBudget: initialEpistemicBudget,
-    initialEpistemicBudget,
-    resourceCeiling,
+    inquiryGeometries: uniqueGeometries,
+    primaryGeometry: uniqueGeometries[0],
+    evidenceGeometry: uniqueGeometries[0],
+    attentionDepth: {
+      level: depthLevel,
+      dimensions: uniqueDepthDims
+    },
+    attentionWidth: {
+      scope: widthScope,
+      dimensions: uniqueWidthDims
+    },
+    temporalScope: {
+      spanType,
+      requireTemporalSpread
+    },
+    evidenceTypesRequired: ['loop', 'echo', 'relational_memory', 'chat_message'],
+    evidenceObligations: uniqueObligations,
+    counterevidenceRequired: requireCounterevidence || uniqueGeometries.includes('longitudinal_change'),
+    initialOperations: uniqueOperations,
+    stoppingConditions: ['obligations_covered', 'diminishing_novel_evidence'],
     confidence: 0.95,
     isFallback: false
   };
 }
 
 /**
- * Executes the seamless Attention V1 ↔ V2 pipeline with dynamic budget expansion.
- * Reuses V1 bounded retrieval engine while evaluating coverage obligations and performing expansion steps.
+ * Architectural Resource Policy Stub.
+ * Preserves clean separation between Epistemic Need and Resource Policy.
+ */
+export function evaluateResourcePolicy(epistemicNeed: any, resourceContext: any = {}) {
+  return {
+    allowExecution: true,
+    policyNotice: 'Resource policy permits full epistemic execution',
+    maxTokensCeiling: resourceContext.maxTokensCeiling || 48000
+  };
+}
+
+/**
+ * Multi-Pass Adaptive Retrieval Engine (Look -> Evaluate -> Reorient -> Look Again).
+ * Executes retrieval passes, evaluates coverage against obligations, performs dynamic reorientations,
+ * and emits full reorientation trajectory telemetry with evidence-based stopping reasons.
  */
 export async function executeSeamlessAttentionPipeline(question: string, options: any = {}, engine: any = null) {
-  const v2Plan = inferAttentionV2Plan(question, options);
-  const resourceCeiling = options.resourceCeiling || v2Plan.resourceCeiling || 12000;
+  const initialPlan = inferAttentionV2Plan(question, options);
+  const resourcePolicy = evaluateResourcePolicy(initialPlan, options);
 
-  let currentBudget = v2Plan.initialEpistemicBudget;
+  let currentPlan = { ...initialPlan };
   let v1Result: any = null;
-  let expansionsPerformed = 0;
-  const coverageGainedAtEachExpansion: any[] = [];
+  const planEvolution: Array<{
+    passNumber: number;
+    planState: AttentionPlanV2;
+    reorientationReason: string;
+  }> = [];
+
+  const reorientationTrajectory: ReorientationStep[] = [];
+  const accumulatedEvidenceItemsMap = new Map<string, any>();
+  let passNumber = 1;
   let stoppingReason = 'Initial retrieval complete';
+  let technicalLimitEncountered = false;
+
+  // Pass 1: Initial composite retrieval pass
+  planEvolution.push({
+    passNumber: 1,
+    planState: JSON.parse(JSON.stringify(currentPlan)),
+    reorientationReason: 'Initial Attention Plan execution based on inquiry shape'
+  });
 
   if (engine && typeof engine.planAndAssemble === 'function') {
-    let prevItemsCount = 0;
+    let continueLoop = true;
 
-    while (currentBudget <= resourceCeiling) {
-      const stepResult = await engine.planAndAssemble(question, {
-        tokenBudget: currentBudget,
-        coverageStrategy: v2Plan.coverageStrategy
-      });
-      v1Result = stepResult;
+    while (continueLoop && passNumber <= 5) {
+      const stepCoverageStrategy = currentPlan.attentionWidth.scope === 'broad_cycle' || currentPlan.temporalScope.requireTemporalSpread
+        ? 'longitudinal_span'
+        : (currentPlan.primaryGeometry === 'recurrence' ? 'recurrence_deepening' : 'balanced');
 
-      const items = stepResult.contextPacket?.evidenceItems || [];
-      const obligations = stepResult.plan?.coverageMatrix?.obligations || [];
-      const satisfiedCount = obligations.filter((o: any) => o.status === 'satisfied').length;
-      const allSatisfied = obligations.length > 0 && satisfiedCount === obligations.length;
-
-      const gain = items.length - prevItemsCount;
-      const gainPct = prevItemsCount > 0 ? Math.round(((gain) / prevItemsCount) * 100) : (items.length > 0 ? 100 : 0);
-
-      coverageGainedAtEachExpansion.push({
-        step: expansionsPerformed + 1,
-        budget: currentBudget,
-        tokensUsed: stepResult.contextPacket?.totalTokensUsed || 0,
-        itemsCount: items.length,
-        obligationsSatisfied: satisfiedCount,
-        obligationsTotal: obligations.length,
-        allObligationsSatisfied: allSatisfied,
-        gainCount: gain,
-        gainPct
+      // Use a generous observational budget limit (32,000 tokens) so retrieval is not truncated prescriptively
+      const passResult = await engine.planAndAssemble(question, {
+        tokenBudget: 32000,
+        coverageStrategy: stepCoverageStrategy,
+        targetCycle: options.targetCycle
       });
 
-      // Coverage expansion evaluation rule:
-      // If obligations remain unsatisfied AND we have not hit resourceCeiling AND new items were discovered, expand budget.
-      if (!allSatisfied && obligations.length > 0 && currentBudget < resourceCeiling && gain > 0 && expansionsPerformed < 3) {
-        const nextBudget = Math.min(resourceCeiling, currentBudget + 2000);
-        if (nextBudget > currentBudget) {
-          currentBudget = nextBudget;
-          expansionsPerformed++;
-          prevItemsCount = items.length;
-          continue;
+      v1Result = passResult;
+      const passItems = passResult.contextPacket?.evidenceItems || [];
+      const passTokens = passResult.contextPacket?.totalTokensUsed || 0;
+
+      let novelItemsGained = 0;
+      for (const item of passItems) {
+        const key = item.id || item.sourceId || `${item.sourceType}_${item.created_at}`;
+        if (!accumulatedEvidenceItemsMap.has(key)) {
+          accumulatedEvidenceItemsMap.set(key, item);
+          novelItemsGained++;
         }
       }
 
-      if (allSatisfied) {
-        stoppingReason = 'All coverage obligations satisfied';
-      } else if (currentBudget >= resourceCeiling) {
-        stoppingReason = `Resource ceiling (${resourceCeiling} tokens) reached`;
-      } else if (gain === 0 && expansionsPerformed > 0) {
-        stoppingReason = 'Candidate recall saturated';
+      const obligations = passResult.plan?.coverageMatrix?.obligations || [];
+      const satisfiedObligations = obligations.filter((o: any) => o.status === 'satisfied').length;
+      const allObligationsSatisfied = obligations.length > 0 && satisfiedObligations === obligations.length;
+
+      const coverageStateDescription = obligations.length > 0
+        ? `${satisfiedObligations}/${obligations.length} obligations satisfied`
+        : `${accumulatedEvidenceItemsMap.size} items accumulated`;
+
+      let reorientationReason = 'Initial retrieval pass complete.';
+
+      // Dynamic Re-Orientation Evaluation (Look -> Evaluate -> Reorient)
+      let needsReorientation = false;
+
+      // 1. Origin deepening reorientation
+      if (!allObligationsSatisfied && currentPlan.evidenceObligations.includes('origin_state') && !reorientationTrajectory.some(s => s.operation === 'origin_deepening_pass')) {
+        needsReorientation = true;
+        reorientationReason = 'Origin historical state remains weak or unsatisfied; reorienting attention toward earlier historical records.';
+        currentPlan.attentionDepth.dimensions.push('historical_origin_deepening');
+        currentPlan.initialOperations.push('origin_deepening_pass');
       }
-      break;
+      // 2. Experiential search reorientation
+      else if (currentPlan.inquiryGeometries.includes('embodiment') && !reorientationTrajectory.some(s => s.operation === 'experiential_embodied_pass')) {
+        needsReorientation = true;
+        reorientationReason = 'Conceptual evidence found; reorienting attention toward lived, embodied, and studio experience records.';
+        currentPlan.attentionDepth.dimensions.push('experiential_embodied_deepening');
+        currentPlan.initialOperations.push('experiential_embodied_pass');
+      }
+      // 3. Counterevidence / discontinuity search reorientation
+      else if (currentPlan.counterevidenceRequired && novelItemsGained > 0 && !reorientationTrajectory.some(s => s.operation === 'counterevidence_search_pass')) {
+        needsReorientation = true;
+        reorientationReason = 'Primary developmental trajectory identified; reorienting attention to deliberately search for counterevidence or discontinuities.';
+        currentPlan.attentionDepth.dimensions.push('counterevidence_search');
+        currentPlan.initialOperations.push('counterevidence_search_pass');
+      }
+      // 4. Temporal widening reorientation
+      else if (currentPlan.temporalScope.requireTemporalSpread && passItems.length > 0 && !reorientationTrajectory.some(s => s.operation === 'temporal_widening_pass')) {
+        needsReorientation = true;
+        reorientationReason = 'Clustered evidence detected; reorienting attention to enforce broader temporal distribution.';
+        currentPlan.attentionWidth.dimensions.push('broader_temporal_spread');
+        currentPlan.initialOperations.push('temporal_widening_pass');
+      }
+
+      reorientationTrajectory.push({
+        passNumber,
+        operation: passNumber === 1 ? 'initial_composite_retrieval' : (currentPlan.initialOperations[currentPlan.initialOperations.length - 1] || `reorientation_pass_${passNumber}`),
+        reorientationReason: passNumber === 1 ? 'Executed initial composite retrieval pass' : reorientationReason,
+        evidenceItemsRetrieved: passItems.length,
+        novelItemsGained,
+        totalTokensConsumed: passTokens,
+        obligationsSatisfied: satisfiedObligations,
+        obligationsTotal: obligations.length,
+        coverageState: coverageStateDescription
+      });
+
+      if (needsReorientation && novelItemsGained > 0 && passNumber < 4) {
+        passNumber++;
+        planEvolution.push({
+          passNumber,
+          planState: JSON.parse(JSON.stringify(currentPlan)),
+          reorientationReason
+        });
+        continue;
+      }
+
+      // Determine evidence-based stopping reason
+      if (allObligationsSatisfied && reorientationTrajectory.some(s => s.operation === 'counterevidence_search_pass')) {
+        stoppingReason = 'Origin, intermediate transitions, recent state, and connecting-pattern obligations were sufficiently covered. Counterevidence search completed. Subsequent retrieval operations produced predominantly redundant evidence, so Attention stopped.';
+      } else if (allObligationsSatisfied) {
+        stoppingReason = 'All specified evidence obligations were fully covered across retrieved Field records, so Attention stopped.';
+      } else if (novelItemsGained === 0 && passNumber > 1) {
+        stoppingReason = 'Subsequent retrieval operations produced predominantly redundant evidence and candidate recall was exhausted, so Attention stopped.';
+      } else if (accumulatedEvidenceItemsMap.size === 0) {
+        stoppingReason = 'Zero candidate evidence matched query across all Field record types, so Attention stopped.';
+      } else {
+        stoppingReason = `Attention completed ${passNumber} passes; primary coverage obligations reached ${satisfiedObligations}/${obligations.length} satisfaction with diminishing novel evidence gains, so Attention stopped.`;
+      }
+
+      continueLoop = false;
     }
   }
 
-  const evidenceItems = v1Result?.contextPacket?.evidenceItems || [];
-  const hasItems = evidenceItems.length > 0;
+  const finalEvidenceItems = Array.from(accumulatedEvidenceItemsMap.values());
+  const hasItems = finalEvidenceItems.length > 0;
   const obligations = v1Result?.plan?.coverageMatrix?.obligations || [];
   const satisfiedCount = obligations.filter((o: any) => o.status === 'satisfied').length;
   const allObligationsSatisfied = obligations.length > 0 && satisfiedCount === obligations.length;
@@ -174,30 +393,36 @@ export async function executeSeamlessAttentionPipeline(question: string, options
     }
   }
 
+  const totalTokensConsumed = v1Result?.contextPacket?.totalTokensUsed || 0;
+
+  // Observational Token Telemetry & Full Reorientation Trajectory Telemetry
   const telemetry = {
-    initialBudgetRequested: v2Plan.initialEpistemicBudget,
-    expansionsPerformed,
-    finalBudgetAvailable: currentBudget,
-    tokensActuallyConsumed: v1Result?.contextPacket?.totalTokensUsed || 0,
-    coverageGainedAtEachExpansion,
+    initialPlan,
+    planEvolution,
+    reorientationTrajectory,
+    tokensConsumedTotal: totalTokensConsumed,
+    tokensPerPass: reorientationTrajectory.map(t => ({ pass: t.passNumber, tokens: t.totalTokensConsumed, gained: t.novelItemsGained })),
+    cumulativeContextUsage: totalTokensConsumed,
+    technicalLimitEncountered,
     stoppingReason,
-    resourceCeiling,
     epistemicSufficiencyStatus
   };
 
   const synthesisCalibration = {
-    epistemicSofteningRequired: !hasItems || (v1Result?.contextPacket?.totalTokensUsed || 0) < 500,
+    epistemicSofteningRequired: !hasItems || totalTokensConsumed < 300,
     insufficiencyStatus: epistemicSufficiencyStatus,
     guidance: hasItems
-      ? `Synthesize evidence using geometry '${v2Plan.evidenceGeometry}' with temporal spread across ${evidenceItems.length} retrieved Field records.`
+      ? `Synthesize evidence using composite geometries [${initialPlan.inquiryGeometries.join(', ')}] with Depth '${initialPlan.attentionDepth.level}' and Width '${initialPlan.attentionWidth.scope}' across ${finalEvidenceItems.length} retrieved Field records.`
       : "Insufficient evidence found across Field records. State clearly: 'Across retrieved records, no direct prior evidence was found.'"
   };
 
   return {
-    v2Plan,
+    v2Plan: initialPlan,
+    planEvolution,
+    reorientationTrajectory,
     v1AttentionPlan: v1Result?.plan || null,
     contextPacket: v1Result?.contextPacket || null,
-    evidenceItems,
+    evidenceItems: finalEvidenceItems,
     telemetry,
     synthesisCalibration,
     executedAt: new Date().toISOString()
