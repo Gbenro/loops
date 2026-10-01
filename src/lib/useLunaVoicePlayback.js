@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from './supabase';
 
 export const DEFAULT_API_BASE_URL = 'https://loops-production-e1d5.up.railway.app';
-const API_BASE_URL = typeof window !== 'undefined' ? (window.location.origin) : DEFAULT_API_BASE_URL;
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? window.location.origin : DEFAULT_API_BASE_URL);
 export const DEFAULT_VOICE_ID = 'eleven-nicole';
 export const DEFAULT_VOICE_MODEL = 'eleven_flash_v2_5';
 
