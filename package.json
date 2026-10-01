@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node mcp-server/dist/server.js",
     "dev": "vite",
-    "build": "tsc || ((cd mcp-server && npm run build) && vite build)",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext .js,.jsx --fix",
