@@ -249,3 +249,46 @@ describe('Telemetry Identity Resolution Invariant Suite', () => {
     expect(trace.session_id).not.toBe('session_1790891317331_2ifh');
   });
 });
+
+
+describe('Dynamic Obligation Coverage & Stale Bleed Prevention Suite', () => {
+  const mockPresentTrace = {
+    id: 'trace_1790951934003_osvx',
+    session_id: 'session_1790891317331_2ifh',
+    message_id: 'msg_1790952032302_bg05',
+    model: 'deepseek:deepseek/deepseek-v4-flash',
+    latency_ms: 98384,
+    created_at: '2026-10-02T14:40:33.590Z',
+    retrieved_context_ids: ['e1789093615062bx2g', 'e1789164063550bnyu'],
+    field_coverage: {
+      insufficiency_status: 'PARTIAL',
+      evidence_items_count: 41,
+      attention_v2_plan: {
+        primaryGeometry: 'longitudinal_change',
+        inquiryGeometries: ['longitudinal_change', 'embodiment'],
+        evidenceObligations: ['current_state', 'origin_state', 'intermediate_transitions', 'recent_state', 'embodied_examples']
+      },
+      telemetry: {
+        stoppingReason: 'Obligations sufficiently satisfied',
+        obligationCoverage: [
+          { obligation: 'current_state', status: 'satisfied', supportingEvidenceIds: ['e1789093615062bx2g'] },
+          { obligation: 'origin_state', status: 'satisfied', supportingEvidenceIds: ['e1789164063550bnyu'] },
+          { obligation: 'intermediate_transitions', status: 'satisfied', supportingEvidenceIds: [] },
+          { obligation: 'recent_state', status: 'satisfied', supportingEvidenceIds: [] },
+          { obligation: 'embodied_examples', status: 'satisfied', supportingEvidenceIds: [] }
+        ]
+      }
+    }
+  };
+
+  it('verifies section="coverage" dynamically maps inquiry obligations without hardcoded Space strings', () => {
+    const res = formatBoundedTelemetryTrace(mockPresentTrace, null, null, { section: 'coverage' });
+
+    expect(res.success).toBe(true);
+    expect(res.coverage.obligations).toHaveLength(5);
+    const obNames = res.coverage.obligations.map(o => o.obligation);
+    expect(obNames).toContain('current_state');
+    expect(obNames).toContain('origin_state');
+    expect(obNames).not.toContain('Document shift in space awareness');
+  });
+});

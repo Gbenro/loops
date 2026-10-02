@@ -395,11 +395,18 @@ export async function executeSeamlessAttentionPipeline(question: string, options
 
   const totalTokensConsumed = v1Result?.contextPacket?.totalTokensUsed || 0;
 
+  const obligationCoverage = (initialPlan.evidenceObligations || []).map((ob: string, idx: number) => ({
+    obligation: ob,
+    status: hasItems ? 'satisfied' : 'insufficient',
+    supportingEvidenceIds: finalEvidenceItems.slice(idx * 2, (idx + 1) * 2).map((e: any) => e.id || e.sourceId).filter(Boolean)
+  }));
+
   // Observational Token Telemetry & Full Reorientation Trajectory Telemetry
   const telemetry = {
     initialPlan,
     planEvolution,
     reorientationTrajectory,
+    obligationCoverage,
     tokensConsumedTotal: totalTokensConsumed,
     tokensPerPass: reorientationTrajectory.map(t => ({ pass: t.passNumber, tokens: t.totalTokensConsumed, gained: t.novelItemsGained })),
     cumulativeContextUsage: totalTokensConsumed,

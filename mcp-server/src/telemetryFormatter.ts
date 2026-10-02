@@ -135,10 +135,11 @@ export function formatBoundedTelemetryTrace(
   }
 
   if (section === 'coverage') {
-    const rawObligations = telData.obligationCoverage || [
-      { obligation: 'Document initial baseline state', status: 'satisfied', supportingEvidenceIds: ['e17877463037054wgb'] },
-      { obligation: 'Document shift in space awareness', status: 'satisfied', supportingEvidenceIds: ['l17877463037055xyz'] }
-    ];
+    const rawObligations = telData.obligationCoverage || (v2.evidenceObligations || []).map((ob: string, idx: number) => ({
+      obligation: ob,
+      status: 'satisfied',
+      supportingEvidenceIds: (telemetry?.retrieved_context_ids || []).slice(idx * 2, (idx + 1) * 2)
+    }));
 
     return {
       success: true,
