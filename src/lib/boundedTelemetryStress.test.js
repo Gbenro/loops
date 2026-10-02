@@ -154,3 +154,98 @@ describe('Bounded Telemetry & ResponseTooLarge Prevention Suite', () => {
     expect(res.counterevidence.rationale).toBeDefined();
   });
 });
+
+
+describe('Telemetry Identity Resolution Invariant Suite', () => {
+
+  // Mock DB table
+  const mockTelemetryDatabase = [
+    {
+      id: 'trace_1790905645726_97ro',
+      message_id: 'msg_1790905680299_shw5',
+      session_id: 'session_1790891317331_2ifh',
+      model: 'anthropic:claude-3-5-sonnet-20241022',
+      created_at: '2026-10-01T22:00:00.000Z'
+    },
+    {
+      id: 'trace_session2_turn1',
+      message_id: 'msg_session2_turn1',
+      session_id: 'session_other_9999',
+      model: 'anthropic:claude-3-5-sonnet-20241022',
+      created_at: '2026-10-01T23:00:00.000Z'
+    }
+  ];
+
+  // Resolver helper mirroring commandCenter.ts / chat.ts resolution rules
+  function resolveTelemetryTrace(params = {}) {
+    const explicitMessageId = params.messageId || params.traceId;
+    const explicitSessionId = params.sessionId;
+    const rawId = params.id;
+
+    let targetMessageOrTraceId = explicitMessageId || null;
+    let targetSessionId = explicitSessionId || null;
+
+    if (!targetMessageOrTraceId && rawId) {
+      if (rawId.startsWith('session_')) {
+        targetSessionId = rawId;
+      } else {
+        targetMessageOrTraceId = rawId;
+      }
+    }
+
+    let matches = [];
+    if (targetMessageOrTraceId) {
+      matches = mockTelemetryDatabase.filter(
+        t => t.id === targetMessageOrTraceId || t.message_id === targetMessageOrTraceId
+      );
+    } else if (targetSessionId) {
+      matches = mockTelemetryDatabase.filter(t => t.session_id === targetSessionId);
+    }
+
+    if (matches.length === 0) {
+      throw new Error(`telemetry_not_found: No telemetry trace for ${targetMessageOrTraceId || targetSessionId}`);
+    }
+
+    const telemetry = matches[0];
+
+    // Identity Invariant Check
+    if (targetMessageOrTraceId && telemetry.id !== targetMessageOrTraceId && telemetry.message_id !== targetMessageOrTraceId) {
+      throw new Error(`telemetry_not_found: Identity mismatch for ${targetMessageOrTraceId}`);
+    }
+
+    if (targetSessionId && !targetMessageOrTraceId && telemetry.session_id !== targetSessionId) {
+      throw new Error(`telemetry_not_found: Session mismatch for ${targetSessionId}`);
+    }
+
+    return telemetry;
+  }
+
+  it('Test A: Historical turn (msg_1790891416706_uq54) without V2 trace fails closed with telemetry_not_found (never returns another turn)', () => {
+    expect(() => resolveTelemetryTrace({ messageId: 'msg_1790891416706_uq54', sessionId: 'session_1790891317331_2ifh' }))
+      .toThrow('telemetry_not_found');
+  });
+
+  it('Test B: Known turn (msg_1790905680299_shw5) resolves exactly to trace_1790905645726_97ro', () => {
+    const trace = resolveTelemetryTrace({ messageId: 'msg_1790905680299_shw5', sessionId: 'session_1790891317331_2ifh' });
+    expect(trace.id).toBe('trace_1790905645726_97ro');
+    expect(trace.message_id).toBe('msg_1790905680299_shw5');
+  });
+
+  it('Test C: Multi-message conversation resolves each message independently regardless of query order', () => {
+    const trace1 = resolveTelemetryTrace({ messageId: 'msg_1790905680299_shw5' });
+    const trace2 = resolveTelemetryTrace({ messageId: 'msg_session2_turn1' });
+    expect(trace1.id).toBe('trace_1790905645726_97ro');
+    expect(trace2.id).toBe('trace_session2_turn1');
+  });
+
+  it('Test D: Nonexistent message fails closed with telemetry_not_found', () => {
+    expect(() => resolveTelemetryTrace({ messageId: 'msg_nonexistent_12345' }))
+      .toThrow('telemetry_not_found');
+  });
+
+  it('Test E: Cross-session isolation prevents Session A message from resolving to Session B telemetry', () => {
+    const trace = resolveTelemetryTrace({ messageId: 'msg_session2_turn1' });
+    expect(trace.session_id).toBe('session_other_9999');
+    expect(trace.session_id).not.toBe('session_1790891317331_2ifh');
+  });
+});

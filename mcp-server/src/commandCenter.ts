@@ -568,11 +568,24 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'chat.get_inference_trace':
         case 'chat.get_trace': {
-          const sessionId = payload.sessionId || payload.id;
-          const traceId = payload.traceId || payload.inferenceId || payload.messageId;
+          const explicitMessageId = payload.messageId || payload.traceId || payload.inferenceId;
+          const explicitSessionId = payload.sessionId;
+          const rawId = payload.id;
+
           const section = payload.section || 'summary';
           const limit = payload.limit || 20;
           const offset = payload.offset || 0;
+
+          let targetMessageOrTraceId: string | null = explicitMessageId || null;
+          let targetSessionId: string | null = explicitSessionId || null;
+
+          if (!targetMessageOrTraceId && rawId) {
+            if (rawId.startsWith('session_')) {
+              targetSessionId = rawId;
+            } else {
+              targetMessageOrTraceId = rawId;
+            }
+          }
 
           let query = supabase
             .from('chat_telemetry')
@@ -580,18 +593,26 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
             .eq('user_id', userId)
             .order('created_at', { ascending: false });
 
-          if (traceId) {
-            query = query.or(`id.eq.${traceId},message_id.eq.${traceId}`);
-          } else if (sessionId) {
-            query = query.eq('session_id', sessionId);
+          if (targetMessageOrTraceId) {
+            query = query.or(`id.eq.${targetMessageOrTraceId},message_id.eq.${targetMessageOrTraceId}`);
+          } else if (targetSessionId) {
+            query = query.eq('session_id', targetSessionId);
+          } else {
+            throw new Error('Telemetry trace request requires a valid messageId, traceId, or sessionId');
           }
 
           const { data: traces, error } = await query.limit(1);
           if (error || !traces || traces.length === 0) {
-            throw new Error(`Telemetry trace not found for ${traceId ? 'traceId ' + traceId : 'sessionId ' + sessionId}`);
+            throw new Error(`Telemetry trace not found for ${targetMessageOrTraceId ? 'messageId ' + targetMessageOrTraceId : 'sessionId ' + targetSessionId}`);
           }
 
           const telemetry = traces[0];
+
+          // Identity invariant assertion
+          if (targetMessageOrTraceId && telemetry.id !== targetMessageOrTraceId && telemetry.message_id !== targetMessageOrTraceId) {
+            throw new Error(`Telemetry trace identity mismatch: requested ${targetMessageOrTraceId}, but returned trace ${telemetry.id} (message_id: ${telemetry.message_id})`);
+          }
+
           const { data: msg } = await supabase.from('chat_messages').select('*').eq('id', telemetry.message_id).single();
           result = formatBoundedTelemetryTrace(telemetry, msg, null, { section, limit, offset });
           break;

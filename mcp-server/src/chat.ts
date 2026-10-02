@@ -2456,19 +2456,39 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
   });
 
   // 7. GET /api/chat/telemetry/:id, /api/chat/turns/:id, /api/chat/traces/:id - Modular turn trace bundle
+  // 7. GET /api/chat/telemetry/:id, /api/chat/turns/:id, /api/chat/traces/:id - Modular turn trace bundle
   app.get(['/api/chat/telemetry/:id', '/api/chat/turns/:id', '/api/chat/traces/:id'], authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { section, limit, offset } = req.query;
+    const reqId = req.params.id;
+
     try {
-      const { data: telemetry, error: telError } = await supabase
+      let query = supabase
         .from('chat_telemetry')
         .select('*')
-        .or(`id.eq.${req.params.id},message_id.eq.${req.params.id},session_id.eq.${req.params.id}`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .order('created_at', { ascending: false });
 
-      if (telError || !telemetry) throw new Error('Telemetry trace not found');
+      const isSessionLookup = reqId.startsWith('session_');
+
+      if (isSessionLookup) {
+        query = query.eq('session_id', reqId);
+      } else {
+        query = query.or(`id.eq.${reqId},message_id.eq.${reqId}`);
+      }
+
+      const { data: traces, error: telError } = await query.limit(1);
+
+      if (telError || !traces || traces.length === 0) {
+        res.status(404).json({ error: `Telemetry trace not found for ${reqId}` });
+        return;
+      }
+
+      const telemetry = traces[0];
+
+      if (!isSessionLookup && telemetry.id !== reqId && telemetry.message_id !== reqId) {
+        res.status(404).json({ error: `Telemetry trace identity mismatch for ${reqId}` });
+        return;
+      }
 
       const { data: msg } = await supabase
         .from('chat_messages')
