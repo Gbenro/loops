@@ -1,3 +1,4 @@
+import { formatBoundedTelemetryTrace } from './telemetryFormatter.js';
 import { Express, Request, Response } from 'express';
 import { getSupabaseService } from './db.js';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -134,6 +135,8 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'chat.search_messages',
         'chat.evaluations',
         'chat.inference_summary',
+        'chat.get_inference_trace',
+        'chat.get_trace',
         'chat.rename_session',
         'chat.archive_session',
         'chat.restore_session',
@@ -561,6 +564,36 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
             .limit(Math.min(Number(payload.limit) || 50, 200));
           if (error) throw error;
           result = { evaluations: data || [] };
+          break;
+        }
+        case 'chat.get_inference_trace':
+        case 'chat.get_trace': {
+          const sessionId = payload.sessionId || payload.id;
+          const traceId = payload.traceId || payload.inferenceId || payload.messageId;
+          const section = payload.section || 'summary';
+          const limit = payload.limit || 20;
+          const offset = payload.offset || 0;
+
+          let query = supabase
+            .from('chat_telemetry')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (traceId) {
+            query = query.or(`id.eq.${traceId},message_id.eq.${traceId}`);
+          } else if (sessionId) {
+            query = query.eq('session_id', sessionId);
+          }
+
+          const { data: traces, error } = await query.limit(1);
+          if (error || !traces || traces.length === 0) {
+            throw new Error(`Telemetry trace not found for ${traceId ? 'traceId ' + traceId : 'sessionId ' + sessionId}`);
+          }
+
+          const telemetry = traces[0];
+          const { data: msg } = await supabase.from('chat_messages').select('*').eq('id', telemetry.message_id).single();
+          result = formatBoundedTelemetryTrace(telemetry, msg, null, { section, limit, offset });
           break;
         }
         case 'chat.inference_summary': {

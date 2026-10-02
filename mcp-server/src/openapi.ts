@@ -3901,6 +3901,8 @@ export const LUNA_COMMAND_CENTER_OPENAPI_SPEC = {
               "chat.search_messages",
               "chat.evaluations",
               "chat.inference_summary",
+              "chat.get_inference_trace",
+              "chat.get_trace",
               "chat.rename_session",
               "chat.archive_session",
               "chat.restore_session",

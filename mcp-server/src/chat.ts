@@ -1,3 +1,4 @@
+import { formatBoundedTelemetryTrace } from './telemetryFormatter.js';
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool, TOOL_DEFINITIONS_COMPAT, mapRelationalMemory } from './tools.js';
@@ -2457,11 +2458,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
   // 7. GET /api/chat/telemetry/:id, /api/chat/turns/:id, /api/chat/traces/:id - Modular turn trace bundle
   app.get(['/api/chat/telemetry/:id', '/api/chat/turns/:id', '/api/chat/traces/:id'], authenticateRest, async (req: Request, res: Response) => {
     const supabase: SupabaseClient = req.body.supabaseClient;
+    const { section, limit, offset } = req.query;
     try {
       const { data: telemetry, error: telError } = await supabase
         .from('chat_telemetry')
         .select('*')
-        .or(`id.eq.${req.params.id},message_id.eq.${req.params.id}`)
+        .or(`id.eq.${req.params.id},message_id.eq.${req.params.id},session_id.eq.${req.params.id}`)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -2484,6 +2486,16 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           .order('created_at', { ascending: false })
           .limit(1);
         if (preceding && preceding.length > 0) userMsg = preceding[0];
+      }
+
+      if (section) {
+        const formatted = formatBoundedTelemetryTrace(telemetry, msg, userMsg, {
+          section: section as string,
+          limit: limit ? Number(limit) : undefined,
+          offset: offset ? Number(offset) : undefined
+        });
+        res.json(formatted);
+        return;
       }
 
       res.json({
