@@ -266,6 +266,8 @@ describe('Dynamic Obligation Coverage & Stale Bleed Prevention Suite', () => {
       attention_v2_plan: {
         primaryGeometry: 'longitudinal_change',
         inquiryGeometries: ['longitudinal_change', 'embodiment'],
+        counterevidenceRequired: true,
+        counterevidenceRequirement: 'Verify whether baseline changed or remained static',
         evidenceObligations: ['current_state', 'origin_state', 'intermediate_transitions', 'recent_state', 'embodied_examples']
       },
       telemetry: {
@@ -286,9 +288,26 @@ describe('Dynamic Obligation Coverage & Stale Bleed Prevention Suite', () => {
 
     expect(res.success).toBe(true);
     expect(res.coverage.obligations).toHaveLength(5);
+    expect(res.coverage.overallStatus).toBe('SUFFICIENT');
     const obNames = res.coverage.obligations.map(o => o.obligation);
     expect(obNames).toContain('current_state');
     expect(obNames).toContain('origin_state');
     expect(obNames).not.toContain('Document shift in space awareness');
+  });
+
+  it('verifies counterevidence reports satisfied_from_existing_evidence when counterevidence is required and evidence is accumulated', () => {
+    const res = formatBoundedTelemetryTrace(mockPresentTrace, null, null, { section: 'counterevidence' });
+
+    expect(res.success).toBe(true);
+    expect(res.counterevidence.status).toBe('satisfied_from_existing_evidence');
+  });
+
+  it('verifies section="provenance" dynamically maps retrieved context IDs without hardcoded Space fallback', () => {
+    const res = formatBoundedTelemetryTrace(mockPresentTrace, null, null, { section: 'provenance' });
+
+    expect(res.success).toBe(true);
+    expect(res.provenance.items.length).toBeGreaterThan(0);
+    expect(res.provenance.items[0].fieldRecordId).toBe('e1789093615062bx2g');
+    expect(res.provenance.items[0].citationText).not.toContain('space awareness');
   });
 });

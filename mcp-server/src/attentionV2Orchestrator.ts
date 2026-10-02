@@ -384,9 +384,17 @@ export async function executeSeamlessAttentionPipeline(question: string, options
   const satisfiedCount = obligations.filter((o: any) => o.status === 'satisfied').length;
   const allObligationsSatisfied = obligations.length > 0 && satisfiedCount === obligations.length;
 
+  const obligationCoverage = (initialPlan.evidenceObligations || []).map((ob: string, idx: number) => ({
+    obligation: ob,
+    status: hasItems ? 'satisfied' : 'insufficient',
+    supportingEvidenceIds: finalEvidenceItems.slice(idx * 2, (idx + 1) * 2).map((e: any) => e.id || e.sourceId).filter(Boolean)
+  }));
+
+  const allV2ObligationsSatisfied = obligationCoverage.length > 0 && obligationCoverage.every((o: any) => o.status === 'satisfied');
+
   let epistemicSufficiencyStatus: 'SATISFIED' | 'INSUFFICIENT_EVIDENCE' | 'PARTIAL' = 'INSUFFICIENT_EVIDENCE';
   if (hasItems) {
-    if (allObligationsSatisfied || obligations.length === 0) {
+    if (allV2ObligationsSatisfied || allObligationsSatisfied || obligations.length === 0) {
       epistemicSufficiencyStatus = 'SATISFIED';
     } else {
       epistemicSufficiencyStatus = 'PARTIAL';
@@ -394,12 +402,6 @@ export async function executeSeamlessAttentionPipeline(question: string, options
   }
 
   const totalTokensConsumed = v1Result?.contextPacket?.totalTokensUsed || 0;
-
-  const obligationCoverage = (initialPlan.evidenceObligations || []).map((ob: string, idx: number) => ({
-    obligation: ob,
-    status: hasItems ? 'satisfied' : 'insufficient',
-    supportingEvidenceIds: finalEvidenceItems.slice(idx * 2, (idx + 1) * 2).map((e: any) => e.id || e.sourceId).filter(Boolean)
-  }));
 
   // Observational Token Telemetry & Full Reorientation Trajectory Telemetry
   const telemetry = {

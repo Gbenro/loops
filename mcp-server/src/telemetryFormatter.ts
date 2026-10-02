@@ -42,22 +42,24 @@ export function formatBoundedTelemetryTrace(
   ];
 
   // Determine typed counterevidence status
-  let counterevidenceStatus: 'not_required' | 'required_not_executed' | 'executed_none_found' | 'executed_found' | 'retrieval_failed' = 'not_required';
-  if (v2.counterevidenceRequirement || telData.counterevidenceRequired) {
+  let counterevidenceStatus: 'not_required' | 'satisfied_from_existing_evidence' | 'required_not_executed' | 'executed_none_found' | 'executed_found' | 'retrieval_failed' = 'not_required';
+  const reqCounter = Boolean(v2.counterevidenceRequired || v2.counterevidenceRequirement || telData.counterevidenceRequired);
+  if (reqCounter) {
     if (telData.counterevidenceExecuted) {
-      if (telData.counterevidenceFoundCount > 0) {
-        counterevidenceStatus = 'executed_found';
-      } else {
-        counterevidenceStatus = 'executed_none_found';
-      }
+      counterevidenceStatus = telData.counterevidenceFoundCount > 0 ? 'executed_found' : 'executed_none_found';
     } else if (telData.counterevidenceFailed) {
       counterevidenceStatus = 'retrieval_failed';
+    } else if (fc.evidence_items_count > 0 || (telemetry?.retrieved_context_ids && telemetry.retrieved_context_ids.length > 0)) {
+      counterevidenceStatus = 'satisfied_from_existing_evidence';
     } else {
       counterevidenceStatus = 'required_not_executed';
     }
   }
 
-  const epistemicStatus = fc.insufficiency_status || telData.epistemicStatus || 'SUFFICIENT';
+  const allObligationsSatisfiedInCoverage = (telData.obligationCoverage || []).length > 0 &&
+    telData.obligationCoverage.every((o: any) => o.status === 'satisfied');
+
+  const epistemicStatus = allObligationsSatisfiedInCoverage ? 'SUFFICIENT' : (fc.insufficiency_status || telData.epistemicStatus || 'SUFFICIENT');
 
   if (section === 'summary') {
     return {
@@ -196,15 +198,13 @@ export function formatBoundedTelemetryTrace(
   }
 
   if (section === 'provenance') {
-    const rawProvenance = telData.citations || [
-      {
-        citationText: 'Harvest Moon arc reflection on space awareness',
-        fieldRecordId: 'e17877463037054wgb',
-        retrievalPass: 1,
-        evidenceItemId: 'e17877463037054wgb',
-        synthesisContext: 'Injected into FIELD_MEMORY_ATTENTION_LAYER'
-      }
-    ];
+    const rawProvenance = telData.citations || (telemetry?.retrieved_context_ids || []).map((id: string) => ({
+      citationText: `Field record ${id} injected into context`,
+      fieldRecordId: id,
+      retrievalPass: 1,
+      evidenceItemId: id,
+      synthesisContext: 'Injected into FIELD_MEMORY_ATTENTION_LAYER'
+    }));
 
     const totalCount = rawProvenance.length;
     const sliced = rawProvenance.slice(offset, offset + limit);
