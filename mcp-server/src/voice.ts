@@ -115,6 +115,9 @@ export const DEFAULT_LUNA_VOICE_POLICY: LunaVoiceExpressionPolicy = {
 export function cleanTextForSpeech(rawText: string): string {
   if (!rawText) return '';
   return rawText
+    .replace(/\[Ref:\s*[^\]]+\]/gi, '')
+    .replace(/\[Field:\s*[^\]]+\]/gi, '')
+    .replace(/\[\d+\]/g, '')
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')

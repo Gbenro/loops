@@ -4,8 +4,10 @@ import {
   base64ToBlobUrl,
   base64ToArrayBuffer,
   getSharedAudioContext,
-  unlockAudio
+  unlockAudio,
+  segmentTextClient
 } from './useLunaVoicePlayback.js';
+import { cleanTextForSpeech } from '../../mcp-server/src/voice';
 
 describe('useLunaVoicePlayback — Audio playback and production reliability', () => {
   beforeEach(() => {
@@ -130,5 +132,32 @@ describe('useLunaVoicePlayback — Audio playback and production reliability', (
 
     expect(spokenText).toBe('Luna speaks softly.');
     expect(mockSpeechSynthesis.speak).toHaveBeenCalled();
+  });
+
+  it('segments long text into bounded 400-char chunks for low-latency streaming speech', () => {
+    const sentence = 'Across this Harvest Moon cycle, your understanding of space underwent a profound shift from physical distance to emotional spaciousness. ';
+    const longText = sentence.repeat(10); // ~1500 chars
+
+    const chunks = segmentTextClient(longText, 400);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it('strips bracketed citations and field references from speech chunks and cleanTextForSpeech', () => {
+    const rawWithCitations = 'In your journal [Ref: e17892a0-43b9-4d2c-9a1f-8898b98f21cd], you noted how silence expanded your awareness [Field: 123] and brought calm [1].';
+
+    const cleanServer = cleanTextForSpeech(rawWithCitations);
+    expect(cleanServer).not.toContain('Ref:');
+    expect(cleanServer).not.toContain('Field:');
+    expect(cleanServer).not.toContain('[1]');
+    expect(cleanServer).toBe('In your journal , you noted how silence expanded your awareness and brought calm .');
+
+    const chunks = segmentTextClient(rawWithCitations);
+    expect(chunks[0]).not.toContain('Ref:');
+    expect(chunks[0]).not.toContain('Field:');
+    expect(chunks[0]).not.toContain('[1]');
   });
 });
