@@ -216,8 +216,8 @@ export async function getEchoes(userId) {
     return local
       .filter(
         (e) =>
-          (e.provenanceAuthor || 'user') === 'user' &&
-          (e.provenanceKind || 'original_echo') === 'original_echo'
+          ((e.provenanceAuthor || 'user') === 'user' || (e.provenanceAuthor || 'user') === 'co-created') &&
+          ((e.provenanceKind || 'original_echo') === 'original_echo' || (e.provenanceKind || 'original_echo') === 'conversation_reflection')
       )
       .map((e) => {
         const loopIds = Array.from(
@@ -244,8 +244,8 @@ export async function getEchoes(userId) {
       .select('*')
       .eq('user_id', userId)
       .is('deleted_at', null)
-      .or('provenance_author.eq.user,provenance_author.is.null')
-      .or('provenance_kind.eq.original_echo,provenance_kind.is.null')
+      .or('provenance_author.eq.user,provenance_author.eq.co-created,provenance_author.is.null')
+      .or('provenance_kind.eq.original_echo,provenance_kind.eq.conversation_reflection,provenance_kind.is.null')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -298,8 +298,8 @@ export async function getEchoes(userId) {
         e &&
         e.id &&
         !serverIds.has(e.id) &&
-        (e.provenanceAuthor || 'user') === 'user' &&
-        (e.provenanceKind || 'original_echo') === 'original_echo'
+        ((e.provenanceAuthor || 'user') === 'user' || (e.provenanceAuthor || 'user') === 'co-created') &&
+        ((e.provenanceKind || 'original_echo') === 'original_echo' || (e.provenanceKind || 'original_echo') === 'conversation_reflection')
     );
     const merged = [...echoes, ...unsyncedLocal];
     setLocal(ECHOES_KEY, merged);

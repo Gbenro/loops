@@ -422,7 +422,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
         }
         case 'reflections.get':
         case 'echoes.get_reflections': {
-          const execRes = await executeTool(supabase, 'get_echo_reflections', payload, userId);
+          const targetId = payload.id || payload.echoId || payload.reflectionId || payload.echo_id;
+          const execRes = await executeTool(supabase, 'get_echo_reflections', { ...payload, echoId: targetId }, userId);
           result = JSON.parse(execRes.content[0].text);
           break;
         }
@@ -718,6 +719,13 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
       switch (action) {
         case 'dev.issues.list': {
           result = await listDevIssues(supabase, userId, payload);
+          break;
+        }
+        case 'dev.inspect.echo': {
+          const inspectId = payload.id || payload.echoId || payload.echo_id;
+          const { data: echoRow } = await supabase.from('echoes').select('*').eq('id', inspectId).maybeSingle();
+          const { data: refRows } = await supabase.from('echo_reflections').select('*').or(`id.eq.${inspectId},echo_id.eq.${inspectId}`);
+          result = { inspectId, echoRow, refRows };
           break;
         }
         case 'dev.issues.get': {

@@ -1505,7 +1505,18 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
         throw new Error(`Failed to confirm creation of Conversation Reflection with ID "${id}"`);
       }
 
-      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(createdRow), null, 2) }] };
+      const { data: readbackRow, error: readbackErr } = await supabase
+        .from('echoes')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (readbackErr || !readbackRow) {
+        throw new Error(`Canonical readback failed for created Conversation Reflection "${id}": ${readbackErr?.message || 'Record unreadable after insert'}`);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(mapEcho(readbackRow), null, 2) }] };
     }
 
     case 'update_echo': {
@@ -2504,14 +2515,35 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'get_echo_reflections': {
-      const { data, error } = await supabase
+      const targetId = args.echoId || args.id || args.reflectionId;
+
+      const { data: subRefs, error: subErr } = await supabase
         .from('echo_reflections')
         .select('*')
-        .eq('echo_id', args.echoId)
+        .or(`echo_id.eq.${targetId},id.eq.${targetId}`)
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
-      if (error) throw error;
-      return { content: [{ type: 'text', text: JSON.stringify((data || []).map(mapReflection), null, 2) }] };
+
+      if (subErr) throw subErr;
+      const results = (subRefs || []).map(mapReflection);
+
+      if (targetId) {
+        const { data: echoRow } = await supabase
+          .from('echoes')
+          .select('*')
+          .eq('id', targetId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (echoRow) {
+          const mappedEchoRef = mapEcho(echoRow);
+          if (!results.some(r => r.id === mappedEchoRef.id)) {
+            results.unshift(mappedEchoRef);
+          }
+        }
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
     }
 
     case 'attach_reflection': {
