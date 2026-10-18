@@ -1,0 +1,13 @@
+{
+  "name": "luna-living-field-exploration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An independent, local-only Luna frontend exploration using synthetic data.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "dev": "python3 -m http.server 4173 --directory dist"
+  },
+  "engines": { "node": ">=24" }
+}

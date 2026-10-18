@@ -1,0 +1,353 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Luna Synthetic Design Dataset",
+  "description": "100% invented, privacy-safe design fixtures for Astra UI/UX redesign. Contains zero production records or personal user content.",
+  "datasetVersion": "1.0.0",
+  "entities": {
+    "echoes": [
+      {
+        "id": "e_synth_voice_001",
+        "type": "echo",
+        "source": "voice",
+        "provenanceAuthor": "user",
+        "provenanceKind": "original_echo",
+        "parentId": null,
+        "isEncrypted": false,
+        "text": "Stepped outside right as twilight settled over the yard. The wind smelled like autumn rain and cedar. I realized how much rush I've been carrying without noticing it.",
+        "audioPath": "users/mock-user/echoes/e_synth_voice_001.webm",
+        "durationSeconds": 18.4,
+        "waveformSample": [
+          0.12,
+          0.25,
+          0.45,
+          0.82,
+          0.95,
+          0.64,
+          0.38,
+          0.15,
+          0.05,
+          0.42,
+          0.77,
+          0.58,
+          0.21,
+          0.08
+        ],
+        "createdAt": "2026-10-14T23:15:00.000Z",
+        "lunarMonth": "Hunter's",
+        "phase": "waxing-crescent",
+        "phaseName": "Waxing Crescent",
+        "phaseType": "flow",
+        "dayOfCycle": 3.4,
+        "zodiac": "Scorpio",
+        "illumination": 14,
+        "tags": [
+          "twilight",
+          "quiet",
+          "grounding"
+        ],
+        "linkedLoopId": "l_synth_loop_active_001",
+        "loopIds": [
+          "l_synth_loop_active_001"
+        ],
+        "threadId": "th_synth_seasonal_unfolding",
+        "reflections": [
+          "ref_synth_001"
+        ]
+      },
+      {
+        "id": "e_synth_text_002",
+        "type": "echo",
+        "source": "text",
+        "provenanceAuthor": "user",
+        "provenanceKind": "original_echo",
+        "parentId": null,
+        "isEncrypted": false,
+        "text": "Commitment isn't a single door you walk through; it's deciding three times a day to keep the window open to the thing you promised yourself.",
+        "audioPath": null,
+        "durationSeconds": 0,
+        "createdAt": "2026-10-18T08:30:00.000Z",
+        "lunarMonth": "Hunter's",
+        "phase": "first-quarter",
+        "phaseName": "First Quarter",
+        "phaseType": "threshold",
+        "dayOfCycle": 7.1,
+        "zodiac": "Capricorn",
+        "illumination": 50,
+        "tags": [
+          "clarity",
+          "decision"
+        ],
+        "linkedLoopId": "l_synth_loop_active_001",
+        "loopIds": [
+          "l_synth_loop_active_001",
+          "l_synth_cycle_001"
+        ],
+        "threadId": "th_synth_seasonal_unfolding",
+        "reflections": []
+      },
+      {
+        "id": "e_synth_raw_003",
+        "type": "echo",
+        "source": "text",
+        "provenanceAuthor": "user",
+        "provenanceKind": "original_echo",
+        "parentId": null,
+        "isEncrypted": false,
+        "text": "Woke up to early frost on the deck. Still thinking about yesterday's phone call.",
+        "audioPath": null,
+        "durationSeconds": 0,
+        "createdAt": "2026-10-10T11:05:00.000Z",
+        "lunarMonth": "Hunter's",
+        "phase": "new",
+        "phaseName": "New Moon",
+        "phaseType": "threshold",
+        "dayOfCycle": 0.5,
+        "zodiac": "Libra",
+        "illumination": 1,
+        "tags": [],
+        "linkedLoopId": null,
+        "loopIds": [],
+        "threadId": null,
+        "reflections": []
+      },
+      {
+        "id": "e_synth_ref_001",
+        "type": "echo",
+        "source": "luna_conversation",
+        "provenanceAuthor": "co-created",
+        "provenanceKind": "conversation_reflection",
+        "parentId": "e_synth_voice_001",
+        "isEncrypted": false,
+        "text": "Across the Sturgeon and Harvest cycles, you frequently returned to twilight pauses as the marker for when self-demand naturally quieted down. This twilight observation mirrors the threshold entry from last month.",
+        "audioPath": null,
+        "durationSeconds": 0,
+        "createdAt": "2026-10-15T02:20:00.000Z",
+        "lunarMonth": "Hunter's",
+        "phase": "waxing-crescent",
+        "phaseName": "Waxing Crescent",
+        "phaseType": "flow",
+        "dayOfCycle": 3.6,
+        "zodiac": "Scorpio",
+        "illumination": 16,
+        "tags": [
+          "continuity",
+          "twilight-pattern",
+          "co-created"
+        ],
+        "linkedLoopId": null,
+        "loopIds": [
+          "l_synth_cycle_001"
+        ],
+        "threadId": "th_synth_seasonal_unfolding",
+        "metadata": {
+          "coCreatedWith": "Luna",
+          "conversationTitle": "Returning to Stillness",
+          "sessionId": "sess_synth_chat_001"
+        }
+      }
+    ],
+    "loops": [
+      {
+        "id": "l_synth_cycle_001",
+        "title": "Planting space for creative solitude",
+        "type": "cycle",
+        "status": "active",
+        "color": "#e6c594",
+        "phaseOpened": "new",
+        "phaseName": "New Moon",
+        "lunarMonthOpened": "Hunter's",
+        "moonAgeOpened": 0.4,
+        "zodiacOpened": "Libra",
+        "openedAt": "2026-10-10T12:00:00.000Z",
+        "closedAt": null,
+        "releasedAt": null,
+        "note": "29.5 day seasonal container. Protect mornings from reactive checking.",
+        "isEncrypted": false,
+        "tags": [
+          "creativity",
+          "rhythm"
+        ],
+        "subtasks": [
+          {
+            "id": "st_1",
+            "text": "New Moon intention named",
+            "completed": true
+          },
+          {
+            "id": "st_2",
+            "text": "Waxing Crescent first studio session",
+            "completed": true
+          },
+          {
+            "id": "st_3",
+            "text": "First Quarter decision on project scope",
+            "completed": false
+          },
+          {
+            "id": "st_4",
+            "text": "Waxing Gibbous refinement run",
+            "completed": false
+          },
+          {
+            "id": "st_5",
+            "text": "Full Moon illumination review",
+            "completed": false
+          },
+          {
+            "id": "st_6",
+            "text": "Waning Gibbous sharing first cut",
+            "completed": false
+          },
+          {
+            "id": "st_7",
+            "text": "Last Quarter clearing what did not work",
+            "completed": false
+          },
+          {
+            "id": "st_8",
+            "text": "Waning Crescent quiet integration",
+            "completed": false
+          }
+        ],
+        "relatedEchoIds": [
+          "e_synth_voice_001",
+          "e_synth_text_002",
+          "e_synth_ref_001"
+        ]
+      },
+      {
+        "id": "l_synth_loop_active_001",
+        "title": "Write studio essay first draft",
+        "type": "phase",
+        "status": "active",
+        "color": "#c4b5fd",
+        "phaseOpened": "waxing-crescent",
+        "phaseName": "Waxing Crescent",
+        "lunarMonthOpened": "Hunter's",
+        "moonAgeOpened": 2.8,
+        "zodiacOpened": "Scorpio",
+        "windowEnd": "2026-10-17T18:00:00.000Z",
+        "openedAt": "2026-10-13T14:00:00.000Z",
+        "closedAt": null,
+        "releasedAt": null,
+        "subtasks": [
+          {
+            "id": "st_10",
+            "text": "Gather notebook quotes",
+            "completed": true
+          },
+          {
+            "id": "st_11",
+            "text": "Draft introduction without editing",
+            "completed": true
+          },
+          {
+            "id": "st_12",
+            "text": "Flesh out three core movements",
+            "completed": false
+          }
+        ],
+        "relatedEchoIds": [
+          "e_synth_voice_001",
+          "e_synth_text_002"
+        ]
+      },
+      {
+        "id": "l_synth_loop_closed_002",
+        "title": "Clear studio worktable and re-oil wood",
+        "type": "phase",
+        "status": "closed",
+        "color": "#93c5fd",
+        "phaseOpened": "new",
+        "phaseName": "New Moon",
+        "lunarMonthOpened": "Hunter's",
+        "phaseClosed": "new",
+        "phaseNameClosed": "New Moon",
+        "lunarMonthClosed": "Hunter's",
+        "openedAt": "2026-10-10T09:00:00.000Z",
+        "closedAt": "2026-10-11T16:30:00.000Z",
+        "subtasks": [
+          {
+            "id": "st_20",
+            "text": "Sort paper scraps",
+            "completed": true
+          },
+          {
+            "id": "st_21",
+            "text": "Linseed oil finish",
+            "completed": true
+          }
+        ],
+        "relatedEchoIds": [
+          "e_synth_raw_003"
+        ]
+      }
+    ],
+    "threads": [
+      {
+        "id": "th_synth_seasonal_unfolding",
+        "title": "The Rhythm of Evening Stillness",
+        "description": "A self-organizing trajectory connecting twilight observations, pauses, and creative momentum.",
+        "echoIds": [
+          "e_synth_voice_001",
+          "e_synth_text_002",
+          "e_synth_ref_001"
+        ],
+        "loopIds": [
+          "l_synth_cycle_001",
+          "l_synth_loop_active_001"
+        ],
+        "createdAt": "2026-10-14T23:15:00.000Z",
+        "updatedAt": "2026-10-18T08:30:00.000Z"
+      }
+    ],
+    "chatSession": {
+      "id": "sess_synth_chat_001",
+      "title": "Returning to Stillness",
+      "isArchived": false,
+      "createdAt": "2026-10-15T02:00:00.000Z",
+      "messages": [
+        {
+          "id": "m_synth_user_01",
+          "role": "user",
+          "content": "I noticed in my recording tonight that every time twilight comes, I feel like exhaling. Has that been happening all cycle?",
+          "createdAt": "2026-10-15T02:01:00.000Z"
+        },
+        {
+          "id": "m_synth_asst_02",
+          "role": "assistant",
+          "content": "Looking across your Harvest and Sturgeon cycles, that evening exhale has been consistent. In Sturgeon Day 14, you recorded almost the exact same thought while stepping onto the porch. It isn't fatigue — it seems to be the moment you give yourself permission to step outside the clock.",
+          "citations": [
+            {
+              "type": "echo",
+              "id": "e_synth_voice_001",
+              "label": "Hunter's Waxing Crescent"
+            }
+          ],
+          "createdAt": "2026-10-15T02:01:25.000Z"
+        }
+      ]
+    },
+    "lunarState": {
+      "currentDate": "2026-10-17T13:45:00.000Z",
+      "synodicDay": 6.8,
+      "lunarMonth": "Hunter's",
+      "phase": "waxing-crescent",
+      "phaseName": "Waxing Crescent",
+      "phaseType": "flow",
+      "phaseProgress": 0.88,
+      "tide": "closing",
+      "illumination": 46,
+      "zodiac": {
+        "sign": "Capricorn",
+        "element": "Earth",
+        "quality": "Cardinal"
+      },
+      "nextPhase": {
+        "key": "first-quarter",
+        "name": "First Quarter",
+        "transitionEstimated": "2026-10-18T04:12:00.000Z"
+      }
+    }
+  }
+}

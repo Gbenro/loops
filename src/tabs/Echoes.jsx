@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MiniMoon } from '../components/MoonFace.jsx';
+import { EchoEntry } from '../components/EchoEntry.jsx';
 import {
   getEchoes,
   saveEcho as saveEchoToDb,
@@ -2001,66 +2002,13 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <button
-              onClick={() => {
-                setIsWriting(true);
-                setSource('text');
-              }}
-              style={{
-                flex: 1,
-                padding: '20px',
-                borderRadius: 12,
-                background: 'var(--color-input-bg)',
-                border: '1px dashed var(--color-border-mid)',
-                color: 'var(--color-text-muted)',
-                fontSize: 14,
-                fontFamily: "'Cormorant Garamond', serif",
-                fontStyle: 'italic',
-                cursor: 'pointer',
-                textAlign: 'left',
-                minHeight: 48,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              &ldquo;{phaseContent.asks}&rdquo;
-            </button>
-            <button
-              onClick={startRecording}
-              aria-label="Start voice recording"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: 'var(--color-input-bg)',
-                border: '1px solid var(--color-border-mid)',
-                color: 'var(--color-focus)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 18,
-                flexShrink: 0,
-                position: 'relative',
-                transition: 'all 0.25s ease',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                animation: 'voiceIdle 3s ease-in-out infinite',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--color-input-hover)';
-                e.currentTarget.style.borderColor = 'var(--color-focus)';
-                e.currentTarget.style.boxShadow = '0 0 12px rgba(167, 139, 250, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--color-input-bg)';
-                e.currentTarget.style.borderColor = 'var(--color-border-mid)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
-              }}
-            >
-              <span style={{ transform: 'scale(1.2)', display: 'inline-block' }}>◎</span>
-            </button>
-          </div>
+          <EchoEntry
+            onRecord={startRecording}
+            onWrite={() => {
+              setIsWriting(true);
+              setSource('text');
+            }}
+          />
         )}
       </div>
 

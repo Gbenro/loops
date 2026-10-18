@@ -3,7 +3,22 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+  },
   plugins: [
+    {
+      name: 'beta-rewrite',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/beta' || req.url === '/beta/') {
+            req.url = '/beta.html';
+          }
+          next();
+        });
+      }
+    },
     react(),
     VitePWA({
       registerType: 'autoUpdate',

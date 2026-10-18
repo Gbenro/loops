@@ -597,6 +597,34 @@ export function ProfileMenu({ isOpen, onClose, user, isAdmin, onOpenAdmin, onSig
           {/* Account Section */}
           {activeSection === 'account' && (
             <div>
+              {/* Luna Beta Card */}
+              <a
+                href="/beta/"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  background: 'rgba(219, 193, 140, 0.1)',
+                  border: '1px solid rgba(219, 193, 140, 0.25)',
+                  color: '#dbc18c',
+                  textDecoration: 'none',
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 20 }}>✦</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Luna Beta Prototype</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      Test the new Living Field, ambient audio & orbits
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 13, color: '#dbc18c' }}>↗</span>
+              </a>
+
               {user ? (
                 <>
                   <div
@@ -1893,6 +1921,29 @@ export function ProfileMenu({ isOpen, onClose, user, isAdmin, onOpenAdmin, onSig
                 >
                   v1.1.0
                 </div>
+              </div>
+
+              {/* Beta Test Link in About */}
+              <div style={{ marginBottom: 20, textAlign: 'center' }}>
+                <a
+                  href="/beta/"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    borderRadius: 20,
+                    background: 'rgba(219, 193, 140, 0.12)',
+                    border: '1px solid rgba(219, 193, 140, 0.3)',
+                    color: '#dbc18c',
+                    fontSize: 12,
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                  }}
+                >
+                  <span>✦ Launch Luna Beta Prototype</span>
+                  <span style={{ fontSize: 10 }}>↗</span>
+                </a>
               </div>
 
               {/* Theme Toggle */}

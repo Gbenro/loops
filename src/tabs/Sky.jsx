@@ -103,15 +103,38 @@ export function Sky({
             flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              fontSize: 'var(--font-xs)',
-              fontFamily: 'monospace',
-              letterSpacing: '0.12em',
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            {timeStr} · {dateStr.toUpperCase()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                fontSize: 'var(--font-xs)',
+                fontFamily: 'monospace',
+                letterSpacing: '0.12em',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              {timeStr} · {dateStr.toUpperCase()}
+            </div>
+            <a
+              href="/beta/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 8px',
+                borderRadius: 12,
+                background: 'rgba(219, 193, 140, 0.15)',
+                border: '1px solid rgba(219, 193, 140, 0.3)',
+                color: '#dbc18c',
+                fontSize: 10,
+                textDecoration: 'none',
+                fontWeight: 500,
+                letterSpacing: '0.04em',
+              }}
+              title="Explore Luna Beta Prototype"
+            >
+              <span>✨ Beta</span>
+              <span style={{ fontSize: 8 }}>↗</span>
+            </a>
           </div>
           <button
             data-tour="sky-profile-menu"

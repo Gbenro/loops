@@ -1,0 +1,65 @@
+/* Quiet Horizon — prototype tokens. No production styles are imported. */
+:root {
+  color-scheme: dark;
+  --canvas: #101b1e;
+  --sidebar: #0c1619;
+  --surface: #162327;
+  --surface-raised: #1c2c30;
+  --surface-hover: #223338;
+  --text: #eeeae1;
+  --muted: #a7b5b6;
+  --quiet: #98a8aa;
+  --line: #33464b;
+  --line-soft: #293b40;
+  --voice: #d8b982;
+  --voice-ink: #192427;
+  --voice-surface: #242c2b;
+  --accent: #a3c2bd;
+  --error: #efb4aa;
+  --error-surface: #3c2928;
+  --focus: #f2d69f;
+  --scene-text: #f4f0e7;
+  --scene-muted: #d2dedb;
+  --ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --editorial: 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --mono: 'Cascadia Mono', Consolas, monospace;
+  --type-xs: .75rem;
+  --type-sm: .8125rem;
+  --type-body: .9375rem;
+  --type-reading: 1.1875rem;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius-sm: 8px;
+  --radius-panel: 16px;
+  --radius-scene: 24px;
+  --sidebar-width: 208px;
+  --motion-quick: 140ms;
+  --motion-view: 240ms;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+}
+[data-appearance='light'] {
+  color-scheme: light;
+  --canvas: #f3f1eb;
+  --sidebar: #e9e8e0;
+  --surface: #faf8f3;
+  --surface-raised: #ffffff;
+  --surface-hover: #e3e8e3;
+  --text: #223336;
+  --muted: #54676b;
+  --quiet: #586c70;
+  --line: #b8c5c3;
+  --line-soft: #d2dad5;
+  --voice: #85602b;
+  --voice-ink: #ffffff;
+  --voice-surface: #eee8dc;
+  --accent: #3b6c67;
+  --error: #923e30;
+  --error-surface: #f9e6df;
+  --focus: #77521d;
+}

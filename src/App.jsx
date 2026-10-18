@@ -1037,6 +1037,61 @@ function App() {
           Skip to main content
         </a>
 
+        {/* Luna Beta Banner */}
+        <div
+          style={{
+            padding: '8px 16px',
+            background: 'rgba(219, 193, 140, 0.08)',
+            borderBottom: '1px solid rgba(219, 193, 140, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 'var(--font-xs)',
+            color: '#dbc18c',
+            flexShrink: 0,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13 }}>✦</span>
+            <span>
+              <strong>Luna Beta</strong>: Living Field prototype
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <a
+              href="/beta/review.html"
+              style={{
+                color: 'var(--color-text-muted)',
+                textDecoration: 'none',
+                padding: '3px 6px',
+                fontSize: 10,
+              }}
+              title="Open responsive mobile/desktop review switcher"
+            >
+              Device View
+            </a>
+            <a
+              href="/beta/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: '#1a1b1c',
+                background: '#dbc18c',
+                fontWeight: 600,
+                textDecoration: 'none',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 'var(--font-xs)',
+              }}
+            >
+              <span>Test Beta</span>
+              <span style={{ fontSize: 10 }}>↗</span>
+            </a>
+          </div>
+        </div>
+
         {/* Tab Content */}
         <div
           id="main-content"
@@ -1155,6 +1210,47 @@ function App() {
               </button>
             );
           })}
+          {/* Direct Beta link in Bottom Navigation */}
+          <a
+            href="/beta/"
+            data-tutorial="tab-beta"
+            aria-label="Luna Beta Prototype"
+            style={{
+              flex: 1,
+              padding: '16px 0 12px',
+              background: 'none',
+              border: 'none',
+              color: '#dbc18c',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              textDecoration: 'none',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 24,
+                filter: 'drop-shadow(0 0 8px rgba(219, 193, 140, 0.4))',
+              }}
+            >
+              ✦
+            </span>
+            <span
+              style={{
+                fontSize: 'var(--font-xs)',
+                fontFamily: 'monospace',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                color: '#dbc18c',
+              }}
+            >
+              Beta
+            </span>
+          </a>
         </nav>
 
         {/* Tutorial — shown once to all users, re-openable from settings */}
