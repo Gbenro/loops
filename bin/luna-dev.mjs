@@ -19,7 +19,7 @@ import path from 'path';
 
 // 1. Config & Environment
 const DEFAULT_PORT = 4888;
-const DEFAULT_IDLE_MINUTES = Number(process.env.LUNA_DEV_IDLE_MINUTES) || 120;
+const DEFAULT_IDLE_MINUTES = process.env.LUNA_DEV_IDLE_MINUTES !== undefined ? Number(process.env.LUNA_DEV_IDLE_MINUTES) : 120;
 const API_BASE_URL = process.env.LUNA_DEV_API_URL || process.env.VITE_API_URL || 'https://loops-production-e1d5.up.railway.app';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
@@ -946,7 +946,7 @@ Commands:
 
   const idleInterval = setInterval(async () => {
     const elapsed = Date.now() - lastActivity;
-    if (elapsed > idleTimeoutMs) {
+    if (DEFAULT_IDLE_MINUTES > 0 && elapsed > idleTimeoutMs) {
       console.log(`\n⏳ Idle timeout (${DEFAULT_IDLE_MINUTES}m with no activity). Closing session...`);
       try {
         await apiCall(`/api/dev/sessions/${session.id}/end`, 'POST', {
