@@ -187,24 +187,30 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
   function getLocalEchoes(lunar: LiveLunarBundle): Echo[] {
     const raw = getStoredJson<any[]>(ECHOES_KEY, []);
-    return raw.filter(e => e && typeof e === 'object').map(e => mapClassicEchoToBeta(e, lunar));
+    return raw
+      .filter(e => e && typeof e === 'object' && e.provenance !== 'synthetic' && !String(e.id || '').startsWith('echo-demo') && e.id !== 'echo-return' && e.id !== 'echo-water')
+      .map(e => mapClassicEchoToBeta(e, lunar));
   }
 
   function getLocalLoops(): Loop[] {
     const raw = getStoredJson<any[]>(LOOPS_KEY, []);
-    return raw.filter(l => l && typeof l === 'object').map(mapClassicLoopToBeta);
+    return raw
+      .filter(l => l && typeof l === 'object' && l.provenance !== 'synthetic' && !String(l.id || '').startsWith('loop-demo'))
+      .map(mapClassicLoopToBeta);
   }
 
   function getLocalReflections(): Reflection[] {
     const raw = getStoredJson<any[]>(REFLECTIONS_KEY, []);
-    return raw.map(r => ({
-      id: r.id || makeId('ref'),
-      echoId: r.echo_id || r.echoId,
-      author: r.author || 'person',
-      body: r.body || '',
-      createdAt: r.created_at || r.createdAt || new Date().toISOString(),
-      provenance: 'local-session' as const
-    }));
+    return raw
+      .filter(r => r && typeof r === 'object' && r.provenance !== 'synthetic')
+      .map(r => ({
+        id: r.id || makeId('ref'),
+        echoId: r.echo_id || r.echoId,
+        author: r.author || 'person',
+        body: r.body || '',
+        createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+        provenance: 'local-session' as const
+      }));
   }
 
   function assembleSnapshot(): FieldSnapshot {

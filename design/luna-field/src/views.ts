@@ -2,45 +2,437 @@ import type { FieldSnapshot, Echo } from './contracts.ts';
 import type { UIState } from './state.ts';
 import { PHASES } from './fixtures.ts';
 import { filterEchoes, LOOP_STATUSES } from './mock-services.ts';
-import { icon, escapeHtml, moonDisc, waveform, oceanScene, formatMoment, timecode, speakEntrance, continuitySymbol } from './visuals.ts';
+import { getLiveLunarData, type LiveLunarBundle } from './lunar-engine.ts';
+import { PHASE_WISDOM, ZODIAC_LORE, LUNAR_MONTH_LORE, getSolarSeason, getWeaveSynthesis, pickForToday } from './sky-data.ts';
+import { icon, escapeHtml, moonDisc, photographicMoon, phaseTideGauge, oceanScene, formatMoment, timecode, speakEntrance, continuitySymbol } from './visuals.ts';
 import { echoRow, miniLoop, contextLink, reflectionBlock, emptyState, phaseIndex, statusLabel, brandMark, voicePlayer, phaseOrbit, continuityTrail } from './components.ts';
 
-export function fieldView(db:FieldSnapshot,isSample=false,isAuthenticated=false){
-  const recent=db.echoes.slice(0,3);const open=db.loops.filter(l=>!['completed','closed'].includes(l.status)).slice(0,3);
-  const pIndex=Math.max(0,phaseIndex(db.current.phaseId));
-  const currentCycle=db.cycles.find(c=>c.id===db.current.cycleId)||db.cycles[0];
-  const dateLabel=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric'}).toUpperCase();
-  return `<section class="hero">${oceanScene(pIndex,'night','hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/cycles" class="hero-context">${moonDisc(pIndex,23)}<span>${escapeHtml(db.current.label)}</span><span>·</span><span>${escapeHtml(currentCycle?.name||'Current cycle')}</span>${icon('arrow',13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>${dateLabel} · LIVE EPHEMERIS</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p=>`<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.id===db.current.phaseId?'active':''}">${moonDisc(p.index,15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>Recent Echoes <span>${db.echoes.length}</span></h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow',14)}</a></div>${recent.length?recent.map(e=>echoRow(e,true)).join(''):emptyState('Your field is open and waiting','Speak a few words or write what’s on your mind. There is nothing to catch up on.','capture-voice','Speak an Echo',!isSample,isAuthenticated)}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow',15)}</a></div>${open.length?open.map(miniLoop).join(''):'<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus',14)}Leave an intention</button></section>${db.echoes.find(e=>e.id==='echo-return')?`<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral',58)}</div><div class="eyebrow">An earlier moment</div><h3>The same path.<br>Another evening.</h3><p>Two walks beside the water, one cycle apart. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow',14)}</span></a>`:''}</div></div>`;
+export function findReturnPair(echoes: Echo[]): Echo[] {
+  if (!echoes || echoes.length < 2) return [];
+  const phaseMap = new Map<string, Echo[]>();
+  for (const e of echoes) {
+    const list = phaseMap.get(e.context.phaseId) || [];
+    list.push(e);
+    phaseMap.set(e.context.phaseId, list);
+  }
+  for (const list of phaseMap.values()) {
+    if (list.length >= 2) {
+      list.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+      return [list[0], list[list.length - 1]];
+    }
+  }
+  const sorted = [...echoes].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  return [sorted[0], sorted[sorted.length - 1]];
 }
-export function echoesView(db:FieldSnapshot,state:UIState){
-  const query=state.route.query;let list=filterEchoes(db.echoes,{search:state.search,cycleId:query.get('cycle')||undefined,phaseId:(query.get('phase')||undefined) as any});if(state.echoKind!=='all')list=list.filter(e=>e.kind===state.echoKind);
-  return `<div class="page-intro"><div><div class="eyebrow">Your expressions, in their own words</div><h1>What you’ve expressed.</h1><p>Moments you can return to. Nothing here needs to become anything else.</p></div><button class="btn primary" data-action="capture-entrance">${icon('plus',17)}New Echo</button></div><div class="filterbar"><div class="segmented" aria-label="Echo format">${[['all','All Echoes'],['voice','Voice'],['text','Written']].map(([v,label])=>`<button data-action="echo-kind" data-value="${v}" aria-pressed="${state.echoKind===v}">${label}</button>`).join('')}</div>${query.size?'<a class="chip" href="#/echoes">Clear cycle / phase filter ×</a>':''}<label class="search-field">${icon('search',16)}<span class="sr-only">Search Echoes</span><input id="echo-search" type="search" placeholder="Find a word or a moment" value="${escapeHtml(state.search)}" autocomplete="off"></label></div><div class="browse-layout"><section class="echo-list" id="echo-results" aria-label="Echoes">${list.length?list.map(e=>echoRow(e)).join(''):emptyState('Nothing here yet',state.search?'No Echoes match those words. Try another search.':'No Echoes in this view. A new expression can begin anywhere.','capture-text','Write an Echo')}</section><aside class="context-aside"><div class="eyebrow">Ways of seeing</div><div class="rule"></div><h3>Following a thread</h3>${db.threads.map(t=>`<a class="thread-link" href="#/thread/${t.id}">${icon('thread',15)}${escapeHtml(t.title)}</a>`).join('')}<div class="rule"></div><h3>Held in lunar time</h3><p>Every Echo belongs to a moment within a phase and a cycle.</p><a href="#/cycles" class="text-link gold">Explore the October field ${icon('arrow',14)}</a></aside></div>`;
+
+export function skyView(db: FieldSnapshot, state: UIState, lunar?: LiveLunarBundle): string {
+  const live = lunar || getLiveLunarData();
+  const wisdom = PHASE_WISDOM[live.phaseId] || PHASE_WISDOM.new;
+  const tideGuidance = pickForToday(wisdom.tides[live.tideKey] || wisdom.tides.opening);
+  const zodiac = ZODIAC_LORE[live.zodiac.sign] || { element: 'Cosmic', polarity: 'Balanced', modality: 'Flow', guidance: '', reflection: '' };
+  const season = getSolarSeason();
+  const weaveText = getWeaveSynthesis(live.phaseId);
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+
+  const daysCountdown = live.phaseId === 'full'
+    ? 'AT FULL MOON'
+    : (live.age > 14.765 ? `${live.daysToNew.toFixed(1)}D TO NEW` : `${live.daysToFull.toFixed(1)}D TO FULL`);
+
+  const activeTab = state.deepSheetTab || 'phase';
+  const isSheetOpen = Boolean(state.deepSheetOpen);
+
+  return `
+    <div class="sky-container" style="max-width:640px;margin:0 auto;padding:14px 18px 60px;">
+      <!-- Celestial Header -->
+      <div class="sky-header" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 18px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:24px;">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-text-muted);">
+          ${timeStr} · ${dateStr}
+        </div>
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.1em;color:var(--color-focus);display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>
+          LIVE EPHEMERIS
+        </div>
+      </div>
+
+      <!-- Photographic Moon Centerpiece -->
+      <div class="sky-moon-stage" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0 28px;">
+        <button data-action="open-deep-sheet" aria-label="${escapeHtml(live.phaseName)}, ${live.illumination}% illuminated. Tap to view cosmic details" style="cursor:pointer;background:none;border:none;padding:0;display:flex;flex-direction:column;align-items:center;outline:none;-webkit-tap-highlight-color:transparent;">
+          ${photographicMoon(live.age / 29.53058867, 210, live.illumination, live.phaseName)}
+          <span style="display:inline-flex;align-items:center;gap:6px;margin-top:20px;font-family:monospace;font-size:11px;letter-spacing:0.14em;color:var(--color-focus);opacity:0.9;">
+            ${icon('down', 13)} TAP TO GO DEEPER
+          </span>
+        </button>
+      </div>
+
+      <!-- Phase Info & Ephemeris Stats -->
+      <div class="sky-title-section" style="text-align:center;margin-bottom:24px;">
+        <h1 style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;margin:0 0 10px;color:var(--color-text);letter-spacing:0.02em;">
+          ${escapeHtml(wisdom.title)}
+        </h1>
+        <div style="font-family:monospace;font-size:12px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:8px;">
+          ${live.illumination}% ILLUMINATED · THE ${escapeHtml(live.lunarMonth.toUpperCase())} FIELD · MOON IN ${escapeHtml(live.zodiac.sign.toUpperCase())} (${live.zodiac.degree}°)
+        </div>
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.08em;color:var(--color-text-muted);">
+          DAY ${live.dayOfCycle} OF 29.5 · ${daysCountdown}
+        </div>
+      </div>
+
+      <!-- Cosmic Energy Card -->
+      <div class="sky-card" style="padding:18px 22px;border-radius:14px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.08);margin-bottom:22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-family:monospace;font-size:12px;letter-spacing:0.12em;color:var(--color-focus);font-weight:600;">
+            ${escapeHtml(wisdom.energy.toUpperCase())}
+          </span>
+          <span style="font-family:monospace;font-size:10px;letter-spacing:0.1em;padding:3px 8px;border-radius:4px;background:rgba(219,193,140,0.12);color:var(--color-focus);border:1px solid rgba(219,193,140,0.25);">
+            ${live.isThreshold ? 'THRESHOLD' : 'FLOW'}
+          </span>
+        </div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:17px;line-height:1.55;color:var(--color-text-dim);margin-bottom:12px;">
+          ${escapeHtml(tideGuidance)}
+        </div>
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;line-height:1.6;color:var(--color-text);border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;">
+          &ldquo;${escapeHtml(wisdom.guidance)}&rdquo;
+        </div>
+      </div>
+
+      <!-- Cosmic Synthesis Weave -->
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;color:var(--color-text-muted);text-align:center;letter-spacing:0.02em;padding:0 16px;margin-bottom:22px;line-height:1.6;">
+        ${escapeHtml(weaveText)}
+      </div>
+
+      <!-- 8-Phase Synodic Timeline -->
+      <div class="synodic-timeline" role="region" aria-label="8-Phase Synodic Timeline" style="display:flex;justify-content:space-between;align-items:center;padding:12px 6px 14px;margin-bottom:20px;border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);">
+        ${live.phases.map(p => {
+          const isActive = p.id === live.phaseId;
+          return `
+            <a href="#/cycles?phase=${p.id}" class="timeline-phase-node ${isActive ? 'active' : ''}" style="display:flex;flex-direction:column;align-items:center;text-decoration:none;gap:4px;opacity:${isActive ? '1' : '0.4'};transform:${isActive ? 'scale(1.15)' : 'scale(1)'};transition:all 0.2s ease;" title="${p.name}">
+              ${moonDisc(p.index, 24)}
+              <span style="font-family:monospace;font-size:9px;color:${isActive ? 'var(--color-focus)' : 'var(--color-text-muted)'};letter-spacing:0.04em;">${p.shortName.split(' ')[0]}</span>
+            </a>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Phase Tide Bar -->
+      ${phaseTideGauge(
+        live.phaseProgress,
+        live.isThreshold,
+        live.dayInPhase,
+        live.phaseDuration,
+        live.phaseRemaining < 1
+          ? `${Math.round(live.phaseRemaining * 24)}h remaining`
+          : `${live.phaseRemaining.toFixed(1)}d remaining`
+      )}
+
+      <!-- Primary Action: Capture in this sky -->
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:18px;">
+        <button class="btn primary" data-action="capture-entrance" style="width:100%;padding:14px 20px;font-family:monospace;letter-spacing:0.1em;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;">
+          ${icon('mic', 16)} CAPTURE IN THIS SKY
+        </button>
+        <button class="text-link gold" data-action="open-deep-sheet" style="font-family:monospace;font-size:11px;letter-spacing:0.1em;text-align:center;padding:8px;">
+          EXPLORE COSMIC WISDOM & DETAILS ↓
+        </button>
+      </div>
+
+      ${isSheetOpen ? deepCosmicSheet(live, activeTab) : ''}
+    </div>
+  `;
 }
-export function echoDetailView(db:FieldSnapshot,id:string){
-  const e=db.echoes.find(e=>e.id===id);if(!e)return emptyState('This Echo is not here','It may have been a draft from an earlier session. Return to the available Echoes.','go-echoes','Browse Echoes');
-  const reflections=db.reflections.filter(r=>r.echoId===e.id);const threads=db.threads.filter(t=>e.threadIds.includes(t.id));const related=db.echoes.filter(x=>x.id!==e.id&&x.threadIds.some(t=>e.threadIds.includes(t))).slice(0,2);
-  return `<a class="text-link detail-back" href="#/echoes">${icon('back',15)}All Echoes</a><div class="detail-banner">${oceanScene(phaseIndex(e.context.phaseId),'night','detail')}<div class="detail-banner-info"><a href="#/cycles?cycle=${e.context.cycleId}">${escapeHtml(db.cycles.find(c=>c.id===e.context.cycleId)?.name||db.cycles[0]?.name||'The lunar field')}</a><span>/</span><a href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">${escapeHtml(e.context.label)}</a><span>· Ocean & horizon</span></div></div><article class="detail-body">${continuityTrail()}<header class="detail-heading"><div class="eyebrow">${e.provenance==='synthetic'?'Synthetic demonstration Echo':'Your session draft'}</div><h1>${escapeHtml(e.title)}</h1><div class="flex"><span class="small muted">${escapeHtml(formatMoment(e.occurredAt))} · Chicago time</span></div></header><div class="detail-columns"><div>${e.kind==='voice'?voicePlayer(e):''}<section class="transcript"><h2>${e.kind==='voice'?'Transcript':'Original expression'}</h2><p>${escapeHtml(e.body||'No transcript yet. You can listen to the recording above. Automatic transcription requires a verified backend capability.')}</p></section><section class="detail-reflections"><div class="section-head"><h2>Another perspective</h2><span class="small muted">You choose what it means</span></div>${reflections.length?reflections.map(reflectionBlock).join(''):'<p class="small muted">Your original expression stands on its own. A reflection is optional.</p>'}<form class="reflection-form" data-form="reflection" data-id="${e.id}"><label class="sr-only" for="reflection-body">Add your own reflection</label><textarea id="reflection-body" name="body" maxlength="6000" placeholder="What do you notice as you return?" required></textarea><button class="btn small" type="submit">${icon('write',14)}Add my reflection</button></form></section></div><aside class="detail-aside"><section class="detail-side-section"><h2>Held in time</h2>${contextLink(e)}<p class="small muted" style="margin-top:12px">${e.context.source==='fixture'?'Illustrative lunar context · not a live calendar':''}</p><a class="text-link" href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">See this phase ${icon('arrow',14)}</a></section><section class="detail-side-section"><h2>Threads through this moment</h2>${threads.map(t=>`<a class="thread-link" href="#/thread/${t.id}">${icon('thread',16)}${escapeHtml(t.title)}</a>`).join('')||'<p class="small muted">No Threads connected yet.</p>'}<button class="text-link" data-action="connect-thread" data-id="${e.id}">${icon('plus',14)}Connect to a Thread</button></section><section class="detail-side-section"><h2>Nearby in your field</h2>${related.map(x=>`<a class="thread-link" href="#/echo/${x.id}">${icon('echo',15)}${escapeHtml(x.title)}</a>`).join('')||'<p class="small muted">Connections can be made when you choose.</p>'}<button class="text-link gold" data-action="chat-about" data-id="${e.id}">${icon('chat',15)}Bring this to Luna</button></section></aside></div></article>`;
+
+export function deepCosmicSheet(lunar: LiveLunarBundle, activeTab = 'phase'): string {
+  const wisdom = PHASE_WISDOM[lunar.phaseId] || PHASE_WISDOM.new;
+  const zodiac = ZODIAC_LORE[lunar.zodiac.sign] || { element: 'Cosmic', polarity: 'Balanced', modality: 'Flow', guidance: '', reflection: '' };
+  const monthLore = LUNAR_MONTH_LORE[lunar.lunarMonth] || { traditionalName: lunar.lunarMonth, theme: 'Reflection', description: '', guidance: '' };
+  const season = getSolarSeason();
+  const weaveText = getWeaveSynthesis(lunar.phaseId);
+
+  const tabs: { id: string; label: string; icon: string }[] = [
+    { id: 'phase', label: 'Phase', icon: '☽' },
+    { id: 'moon', label: 'Moon', icon: '◐' },
+    { id: 'sign', label: 'Sign', icon: '♈' },
+    { id: 'season', label: 'Season', icon: '◯' },
+    { id: 'weave', label: 'Weave', icon: '✧' }
+  ];
+
+  let tabContent = '';
+  if (activeTab === 'phase') {
+    tabContent = `
+      <div class="sheet-section">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:6px;">
+          CURRENT PHASE · ${lunar.isThreshold ? 'THRESHOLD' : 'FLOW'}
+        </div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 10px;">${escapeHtml(wisdom.title)}</h3>
+        <p style="font-family:'Cormorant Garamond',serif;font-size:16px;line-height:1.6;color:var(--color-text-dim);margin-bottom:18px;">
+          ${escapeHtml(wisdom.deep)}
+        </p>
+        <div style="margin-bottom:18px;">
+          <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-text-muted);display:block;margin-bottom:6px;">CORE THEMES</strong>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${wisdom.keywords.map(k => `<span class="chip" style="font-size:11px;">${escapeHtml(k)}</span>`).join('')}
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:18px;">
+          <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-focus);display:block;margin-bottom:6px;">INTENTION ADVICE</strong>
+          <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml(wisdom.loopAdvice)}</p>
+        </div>
+        <div>
+          <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-text-muted);display:block;margin-bottom:8px;">DAILY CONTEMPLATION QUESTIONS</strong>
+          <ul style="margin:0;padding-left:18px;font-family:'Cormorant Garamond',serif;font-size:16px;line-height:1.6;color:var(--color-text-dim);">
+            ${wisdom.questions.map(q => `<li style="margin-bottom:6px;">${escapeHtml(q)}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+    `;
+  } else if (activeTab === 'moon') {
+    tabContent = `
+      <div class="sheet-section">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:6px;">
+          ASTRONOMICAL EPHEMERIS · JEAN MEEUS
+        </div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 16px;">The Lunar Body</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+          <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <div style="font-family:monospace;font-size:10px;letter-spacing:0.08em;color:var(--color-text-muted);">ILLUMINATION</div>
+            <div style="font-family:monospace;font-size:20px;color:var(--color-focus);margin-top:4px;">${lunar.illumination}%</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <div style="font-family:monospace;font-size:10px;letter-spacing:0.08em;color:var(--color-text-muted);">SYNODIC AGE</div>
+            <div style="font-family:monospace;font-size:20px;color:var(--color-text);margin-top:4px;">${lunar.age.toFixed(1)}d <span style="font-size:12px;color:var(--color-text-muted)">/ 29.5d</span></div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <div style="font-family:monospace;font-size:10px;letter-spacing:0.08em;color:var(--color-text-muted);">CYCLE DAY</div>
+            <div style="font-family:monospace;font-size:20px;color:var(--color-text);margin-top:4px;">Day ${lunar.dayOfCycle}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <div style="font-family:monospace;font-size:10px;letter-spacing:0.08em;color:var(--color-text-muted);">NEXT MILESTONE</div>
+            <div style="font-family:monospace;font-size:16px;color:var(--color-text);margin-top:6px;">${lunar.phaseId === 'full' ? 'At Full Moon' : (lunar.age > 14.765 ? `${lunar.daysToNew.toFixed(1)}d to New` : `${lunar.daysToFull.toFixed(1)}d to Full`)}</div>
+          </div>
+        </div>
+        <p style="font-size:12px;line-height:1.6;color:var(--color-text-muted);">
+          Calculated from real-time Julian Day astronomical coordinates. Distinguishes objective celestial mechanics from interpretive contemplation.
+        </p>
+      </div>
+    `;
+  } else if (activeTab === 'sign') {
+    tabContent = `
+      <div class="sheet-section">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:6px;">
+          LUNAR TRANSIT
+        </div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 10px;">Moon in ${escapeHtml(lunar.zodiac.sign)} (${lunar.zodiac.degree}°)</h3>
+        <div style="display:flex;gap:12px;margin-bottom:16px;font-family:monospace;font-size:11px;">
+          <span class="chip">${escapeHtml(zodiac.element)}</span>
+          <span class="chip">${escapeHtml(zodiac.polarity)}</span>
+          <span class="chip">${escapeHtml(zodiac.modality)}</span>
+        </div>
+        <p style="font-family:'Cormorant Garamond',serif;font-size:16px;line-height:1.6;color:var(--color-text-dim);margin-bottom:14px;">
+          ${escapeHtml(zodiac.guidance)}
+        </p>
+        <div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+          <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-focus);display:block;margin-bottom:4px;">TRANSIT INVITATION</strong>
+          <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml(zodiac.reflection)}</p>
+        </div>
+      </div>
+    `;
+  } else if (activeTab === 'season') {
+    tabContent = `
+      <div class="sheet-section">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:6px;">
+          SOLAR CYCLE · ${season.nextEventName.toUpperCase()} IN ${season.daysToNextSolsticeOrEquinox} DAYS
+        </div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 10px;">${escapeHtml(season.name)} Season</h3>
+        <p style="font-family:'Cormorant Garamond',serif;font-size:16px;line-height:1.6;color:var(--color-text-dim);margin-bottom:14px;">
+          ${escapeHtml(season.description)}
+        </p>
+        <div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:16px;">
+          <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-focus);display:block;margin-bottom:4px;">SOLAR GUIDANCE</strong>
+          <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml(season.guidance)}</p>
+        </div>
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.06em;color:var(--color-text-muted);">
+          SYNODIC MONTH: The ${escapeHtml(monthLore.traditionalName)} Moon — ${escapeHtml(monthLore.theme)}
+        </div>
+        <p style="font-size:12px;line-height:1.5;color:var(--color-text-muted);margin-top:6px;">
+          ${escapeHtml(monthLore.description)}
+        </p>
+      </div>
+    `;
+  } else if (activeTab === 'weave') {
+    tabContent = `
+      <div class="sheet-section">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:var(--color-focus);margin-bottom:6px;">
+          COSMIC SYNTHESIS
+        </div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 12px;">The Weave</h3>
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;line-height:1.6;color:var(--color-text);margin-bottom:18px;padding:16px;background:rgba(219,193,140,0.06);border-left:3px solid var(--color-focus);border-radius:0 8px 8px 0;">
+          &ldquo;${escapeHtml(weaveText)}&rdquo;
+        </div>
+        <p style="font-size:13px;line-height:1.6;color:var(--color-text-dim);">
+          The weave combines lunar phase momentum with solar seasonality and zodiacal quality. It offers an overarching synthesis for how the day's cosmic climate interacts with your personal life.
+        </p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="deep-sheet-backdrop" data-action="close-deep-sheet" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:90;display:flex;align-items:flex-end;justify-content:center;">
+      <div class="deep-sheet-dialog" onclick="event.stopPropagation()" style="position:relative;width:100%;max-width:540px;height:78vh;background:var(--color-surface,#14171d);border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -10px 40px rgba(0,0,0,0.5);">
+        <!-- Top drag handle and close -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div style="font-family:monospace;font-size:11px;letter-spacing:0.1em;color:var(--color-focus);">DEEP COSMIC WISDOM</div>
+          <button class="icon-button" data-action="close-deep-sheet" aria-label="Close wisdom sheet">${icon('close', 16)}</button>
+        </div>
+
+        <!-- Section Tabs -->
+        <div class="sheet-tabs" style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.2);">
+          ${tabs.map(t => `
+            <button data-action="deep-sheet-tab" data-value="${t.id}" style="flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid ${activeTab === t.id ? 'var(--color-focus)' : 'transparent'};color:${activeTab === t.id ? 'var(--color-text)' : 'var(--color-text-muted)'};font-family:monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
+              <span>${t.icon}</span>
+              <span>${t.label}</span>
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- Scrollable Tab Body -->
+        <div class="sheet-body" style="flex:1;overflow-y:auto;padding:20px 22px;">
+          ${tabContent}
+        </div>
+      </div>
+    </div>
+  `;
 }
-export function cyclesView(db:FieldSnapshot,state:UIState){
-  const p=PHASES.find(p=>p.id===state.phase)||PHASES[2];const cycle=db.cycles.find(c=>c.id===state.cycleId)||db.cycles[0];const echoes=filterEchoes(db.echoes,{cycleId:cycle.id,phaseId:p.id});const previous=db.echoes.filter(e=>e.context.cycleId!==cycle.id&&e.context.phaseId===p.id);
-  return `<div class="page-intro"><div><div class="eyebrow">A recurring context for a continuing life</div><h1>Same world. Another light.</h1><p>Move through the phases. The landscape stays; its illumination changes.</p></div><label><span class="sr-only">Choose a cycle</span><select class="inline-select" id="cycle-select">${db.cycles.map(c=>`<option value="${c.id}" ${c.id===cycle.id?'selected':''}>${c.name}</option>`).join('')}</select></label></div><div class="cycle-stage"><section class="cycle-world" aria-label="Cycle environment">${oceanScene(p.index,state.time,'cycle')}<div class="time-selector" aria-label="Time of day">${['dawn','day','dusk','night'].map(t=>`<button data-action="time" data-value="${t}" aria-pressed="${t===state.time}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div><div class="world-caption">Ocean & horizon<br><span style="letter-spacing:1px;font-size:8px">One world through eight phases</span></div><div class="world-title"><div class="eyebrow" style="color:#b6c2ce">${cycle.name} · Phase ${p.index+1} of 8</div><h2>${p.name}</h2><p>Illustrative phase · ${state.time} atmosphere</p></div></section>${phaseOrbit(p.id)}</div><div class="phase-story"><section><div class="section-head"><h2>Within this phase <span>${echoes.length} ${echoes.length===1?'Echo':'Echoes'}</span></h2><a class="text-link" href="#/echoes?cycle=${cycle.id}">Whole cycle ${icon('arrow',14)}</a></div>${echoes.length?echoes.map(e=>echoRow(e,true)).join(''):'<p class="empty-inline">No demonstration Echoes in this phase. The space can remain open.</p>'}</section><aside class="phase-note"><h3>A context, not a direction.</h3><p>The phase marks when an experience happened. It does not tell you how to feel or what to do.</p><p style="margin-top:13px">This ocean belongs to the cycle. Its atmosphere changes only with the selected phase and time of day.</p>${previous.length?`<a class="text-link" href="#/echo/${previous[0].id}">${icon('return',15)}A return from another cycle ${icon('arrow',14)}</a>`:`<a class="text-link" href="#/cycles?cycle=${cycle.id==='cycle-09'?'cycle-10':'cycle-09'}&phase=${p.id}">${icon('return',15)}Visit another cycle ${icon('arrow',14)}</a>`}<p class="small" style="margin-top:17px;font-size:10px">${cycle.range}. All lunar values are fixtures.</p></aside></div>`;
+
+export function fieldView(db: FieldSnapshot, isSample = false, isAuthenticated = false) {
+  const recent = db.echoes.slice(0, 3);
+  const open = db.loops.filter(l => !['completed', 'closed'].includes(l.status)).slice(0, 3);
+  const pIndex = Math.max(0, phaseIndex(db.current.phaseId));
+  const currentCycle = db.cycles.find(c => c.id === db.current.cycleId) || db.cycles[0];
+  const dateLabel = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }).toUpperCase();
+  const returnPair = findReturnPair(db.echoes);
+
+  return `<section class="hero">${oceanScene(pIndex, 'night', 'hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/sky" class="hero-context">${moonDisc(pIndex, 23)}<span>${escapeHtml(db.current.label)}</span><span>·</span><span>${escapeHtml(currentCycle?.name || 'Current cycle')}</span>${icon('arrow', 13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>${dateLabel} · LIVE EPHEMERIS</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p => `<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.id === db.current.phaseId ? 'active' : ''}">${moonDisc(p.index, 15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>Recent Echoes <span>${db.echoes.length}</span></h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow', 14)}</a></div>${recent.length ? recent.map(e => echoRow(e, true)).join('') : emptyState('Your field is open and waiting', 'Speak a few words or write what’s on your mind. There is nothing to catch up on.', 'capture-voice', 'Speak an Echo', false, isAuthenticated)}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow', 15)}</a></div>${open.length ? open.map(miniLoop).join('') : '<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus', 14)}Leave an intention</button></section>${returnPair.length >= 2 ? `<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral', 58)}</div><div class="eyebrow">A return across cycles</div><h3>The same path.<br>Another evening.</h3><p>Two moments held in lunar time. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow', 14)}</span></a>` : ''}</div></div>`;
 }
-export function loopsView(db:FieldSnapshot,state:UIState){
-  const loops=db.loops.filter(l=>state.loopFilter==='all'||(state.loopFilter==='unfolding'?!['closed','completed'].includes(l.status):['closed','completed'].includes(l.status)));
-  return `<div class="page-intro"><div><div class="eyebrow">Intentions with room to change</div><h1>Still unfolding.</h1><p>Something you want to follow, return to, or simply leave open.</p></div><button class="btn primary" data-action="new-loop">${icon('plus',16)}Leave an intention</button></div><div class="filterbar"><div class="segmented" aria-label="Intention state">${[['unfolding','Unfolding'],['settled','Settled'],['all','All Loops']].map(([v,label])=>`<button data-action="loop-filter" data-value="${v}" aria-pressed="${state.loopFilter===v}">${label}</button>`).join('')}</div></div><div class="loops-layout"><section class="loops-list">${loops.length?loops.map(l=>`<article class="intent-row"><span class="loop-mark ${l.status}"></span><div class="loop-content"><h3>${escapeHtml(l.title)}</h3><p>${escapeHtml(l.note)}</p><div class="loop-actions"><label><span class="sr-only">State of ${escapeHtml(l.title)}</span><select class="inline-select" data-loop-id="${l.id}">${LOOP_STATUSES.map(s=>`<option value="${s}" ${s===l.status?'selected':''}>${statusLabel(s)}</option>`).join('')}</select></label>${l.echoId?`<a class="text-link" href="#/echo/${l.echoId}">${icon('echo',13)}Return to its Echo</a>`:''}</div>${l.history.length?`<p class="loop-history">${l.history.map(h=>statusLabel(h.status)).join(' → ')} → ${statusLabel(l.status)}</p>`:''}</div></article>`).join(''):emptyState('Room to leave something open','An intention can be a question, a small gesture, or a direction you want to explore.','new-loop','Leave an intention')}</section><aside class="loop-note"><div class="loop-symbol">◌</div><h2>An open loop<br>is an invitation.</h2><p>There is no overdue here. You can follow an intention, let it evolve, carry it forward, or consciously close it.</p><div class="rule"></div><p>Closing something is also a way of continuing.</p></aside></div>`;
+
+export function echoesView(db: FieldSnapshot, state: UIState) {
+  const query = state.route.query;
+  let list = filterEchoes(db.echoes, {
+    search: state.search,
+    cycleId: query.get('cycle') || undefined,
+    phaseId: (query.get('phase') || undefined) as any
+  });
+  if (state.echoKind !== 'all') list = list.filter(e => e.kind === state.echoKind);
+
+  return `<div class="page-intro"><div><div class="eyebrow">Your expressions, in their own words</div><h1>What you’ve expressed.</h1><p>Moments you can return to. Nothing here needs to become anything else.</p></div><button class="btn primary" data-action="capture-entrance">${icon('plus', 17)}New Echo</button></div><div class="filterbar"><div class="segmented" aria-label="Echo format">${[['all', 'All Echoes'], ['voice', 'Voice'], ['text', 'Written']].map(([v, label]) => `<button data-action="echo-kind" data-value="${v}" aria-pressed="${state.echoKind === v}">${label}</button>`).join('')}</div>${query.size ? '<a class="chip" href="#/echoes">Clear cycle / phase filter ×</a>' : ''}<label class="search-field">${icon('search', 16)}<span class="sr-only">Search Echoes</span><input id="echo-search" type="search" placeholder="Find a word or a moment" value="${escapeHtml(state.search)}" autocomplete="off"></label></div><div class="browse-layout"><section class="echo-list" id="echo-results" aria-label="Echoes">${list.length ? list.map(e => echoRow(e)).join('') : emptyState('Nothing here yet', state.search ? 'No Echoes match those words. Try another search.' : 'No Echoes in this view. A new expression can begin anywhere.', 'capture-text', 'Write an Echo')}</section><aside class="context-aside"><div class="eyebrow">Ways of seeing</div><div class="rule"></div><h3>Following a thread</h3>${db.threads.map(t => `<a class="thread-link" href="#/thread/${t.id}">${icon('thread', 15)}${escapeHtml(t.title)}</a>`).join('') || '<p class="small muted">Threads emerge as you connect your moments.</p>'}<div class="rule"></div><h3>Held in lunar time</h3><p>Every Echo belongs to a moment within a phase and a cycle.</p><a href="#/sky" class="text-link gold">View current Sky ${icon('arrow', 14)}</a></aside></div>`;
 }
-export function threadsView(db:FieldSnapshot,id?:string){
-  if(id){const t=db.threads.find(t=>t.id===id);if(!t)return emptyState('This Thread is not here','Return to your connected experiences.','go-threads','Explore Threads');const list=db.echoes.filter(e=>t.echoIds.includes(e.id)).sort((a,b)=>a.occurredAt.localeCompare(b.occurredAt));return `<a class="text-link detail-back" href="#/threads">${icon('back',15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time · person-curated example</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${list.length} Echoes · ${new Set(list.map(e=>e.context.cycleId)).size} cycles</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e=>echoRow(e)).join('')}</div><div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l=>t.loopIds.includes(l.id)).map(miniLoop).join('')||'<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r=>t.echoIds.includes(r.echoId)).map(reflectionBlock).join('')||'<p class="small muted">No reflections added here.</p>'}`;}
-  return `<div class="page-intro"><div><div class="eyebrow">Continuity, without a conclusion</div><h1>What connects.</h1><p>Follow experiences across moments and cycles. You choose the connections.</p></div></div><div class="thread-grid">${db.threads.map(t=>`<a class="thread-card" href="#/thread/${t.id}"><div class="thread-visual">${moonDisc(0,25)}<span class="line"></span>${icon('echo',30)}<span class="line"></span>${moonDisc(2,29)}<span class="line"></span>${icon('loop',25)}</div><h2>${escapeHtml(t.title)}</h2><p>${escapeHtml(t.description)}</p><span class="text-link">${t.echoIds.length} Echoes · ${t.loopIds.length} ${t.loopIds.length===1?'Loop':'Loops'} ${icon('arrow',15)}</span></a>`).join('')||emptyState('Connections can wait','Begin with an Echo. You can connect experiences when a relationship feels relevant.')} </div><p class="small muted" style="margin-top:23px">These demonstration Threads are explicitly curated. No meaning has been inferred from private content.</p>`;
+
+export function echoDetailView(db: FieldSnapshot, id: string) {
+  const e = db.echoes.find(e => e.id === id);
+  if (!e) return emptyState('This Echo is not here', 'Return to the available Echoes.', 'go-echoes', 'Browse Echoes');
+  const reflections = db.reflections.filter(r => r.echoId === e.id);
+  const threads = db.threads.filter(t => e.threadIds.includes(t.id));
+  const related = db.echoes.filter(x => x.id !== e.id && x.threadIds.some(t => e.threadIds.includes(t))).slice(0, 2);
+
+  return `<a class="text-link detail-back" href="#/echoes">${icon('back', 15)}All Echoes</a><div class="detail-banner">${oceanScene(phaseIndex(e.context.phaseId), 'night', 'detail')}<div class="detail-banner-info"><a href="#/cycles?cycle=${e.context.cycleId}">${escapeHtml(db.cycles.find(c => c.id === e.context.cycleId)?.name || db.cycles[0]?.name || 'The lunar field')}</a><span>/</span><a href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">${escapeHtml(e.context.label)}</a><span>· Ocean & horizon</span></div></div><article class="detail-body">${continuityTrail()}<header class="detail-heading"><div class="eyebrow">${e.kind === 'voice' ? 'Spoken moment' : 'Written moment'} · ${escapeHtml(e.context.label)}</div><h1>${escapeHtml(e.title)}</h1><div class="flex"><span class="small muted">${escapeHtml(formatMoment(e.occurredAt))}</span></div></header><div class="detail-columns"><div>${e.kind === 'voice' ? voicePlayer(e) : ''}<section class="transcript"><h2>${e.kind === 'voice' ? 'Transcript' : 'Original expression'}</h2><p>${escapeHtml(e.body || 'No transcript entered. You can listen to the recording above.')}</p></section><section class="detail-reflections"><div class="section-head"><h2>Another perspective</h2><span class="small muted">You choose what it means</span></div>${reflections.length ? reflections.map(reflectionBlock).join('') : '<p class="small muted">Your original expression stands on its own. A reflection is optional.</p>'}<form class="reflection-form" data-form="reflection" data-id="${e.id}"><label class="sr-only" for="reflection-body">Add your own reflection</label><textarea id="reflection-body" name="body" maxlength="6000" placeholder="What do you notice as you return?" required></textarea><button class="btn small" type="submit">${icon('write', 14)}Add my reflection</button></form></section></div><aside class="detail-aside"><section class="detail-side-section"><h2>Held in time</h2>${contextLink(e)}<p class="small muted" style="margin-top:12px">Astronomical ephemeris · ${escapeHtml(e.context.label)}</p><a class="text-link" href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">See this phase ${icon('arrow', 14)}</a></section><section class="detail-side-section"><h2>Threads through this moment</h2>${threads.map(t => `<a class="thread-link" href="#/thread/${t.id}">${icon('thread', 16)}${escapeHtml(t.title)}</a>`).join('') || '<p class="small muted">No Threads connected yet.</p>'}<button class="text-link" data-action="connect-thread" data-id="${e.id}">${icon('plus', 14)}Connect to a Thread</button></section><section class="detail-side-section"><h2>Nearby in your field</h2>${related.map(x => `<a class="thread-link" href="#/echo/${x.id}">${icon('echo', 15)}${escapeHtml(x.title)}</a>`).join('') || '<p class="small muted">Connections can be made when you choose.</p>'}<button class="text-link gold" data-action="chat-about" data-id="${e.id}">${icon('chat', 15)}Bring this to Luna</button></section></aside></div></article>`;
 }
-export function reflectionsView(db:FieldSnapshot){return `<div class="page-intro"><div><div class="eyebrow">Another view, alongside the original</div><h1>Looking again.</h1><p>Your expression comes first. A reflection is a perspective you can keep, question, or leave.</p></div></div><section class="reflection-list">${db.reflections.map(r=>{const e=db.echoes.find(e=>e.id===r.echoId);return `<article class="reflection-entry"><a href="#/echo/${r.echoId}"><div class="echo-meta">Returning to an Echo · ${e?escapeHtml(formatMoment(e.occurredAt)):''}</div><h2>${escapeHtml(e?.title||'An Echo')}</h2></a>${reflectionBlock(r)}<a class="text-link" href="#/echo/${r.echoId}">Read the original expression ${icon('arrow',14)}</a></article>`;}).join('')||emptyState('Another perspective, when you want one','Open an Echo to add a reflection in your own words.','go-echoes','Return to an Echo')}<div class="notice" style="margin-top:28px"><strong>Proposed new capability</strong><br>Living Phase and Cycle Reflections could evolve as experiences enter the Field. They are not connected or generated in this prototype.</div></section>`;}
-export function returnsView(db:FieldSnapshot){const pair=['echo-return','echo-water'].map(id=>db.echoes.find(e=>e.id===id)).filter(Boolean) as Echo[];if(pair.length<2)return emptyState('A return needs two moments','These demonstration Echoes are not available in the current view.','go-echoes','Browse Echoes');return `<a class="text-link detail-back" href="#/field">${icon('back',15)}Your field</a><div class="page-intro"><div><div class="eyebrow">A return · first quarter to first quarter</div><h1>The same path.<br>Another evening.</h1><p>Two original expressions, one cycle apart. The relationship is yours to explore.</p></div></div><div class="return-cycle-link">${continuitySymbol('circle',42)}<span>Earlier moment</span><span class="return-link-curve"></span>${continuitySymbol('spiral',47)}<span>Returning now</span></div><div class="compare-grid">${pair.map((e,i)=>`<article class="compare-card"><div class="author-tag">${i?'This cycle':'Earlier cycle'}</div><h2>${escapeHtml(e.title)}</h2><div class="echo-meta">${escapeHtml(formatMoment(e.occurredAt))}</div><p>${escapeHtml(e.body)}</p><div class="flex" style="margin-top:21px">${contextLink(e)}<a class="text-link" href="#/echo/${e.id}">Open Echo ${icon('arrow',14)}</a></div></article>`).join('')}</div><div class="return-invitation"><h2>What do you notice from here?</h2><p>Something may repeat, shift, or feel entirely different. There is no conclusion to arrive at.</p></div><form class="reflection-form reflection-box" data-form="reflection" data-id="echo-water"><label class="sr-only" for="return-reflection">Your reflection on this return</label><textarea id="return-reflection" name="body" maxlength="6000" placeholder="Looking at these moments together, I notice…" required></textarea><div class="form-foot"><small>Your reflection will belong to the more recent Echo, in this session.</small><button class="btn" type="submit">Keep my reflection</button></div></form><div style="text-align:center"><button class="text-link gold" data-action="chat-return">${icon('chat',16)}Bring both moments to Luna</button></div>`;}
-export function chatView(db:FieldSnapshot,state:UIState){return `<section class="chat-shell"><header class="chat-intro">${brandMark()}<h1>A conversation within your field.</h1><p>Bring a moment, a question, or a connection you want to explore.<br>You choose what enters the conversation.</p></header>${!state.chat.length?`<div class="prompt-chips"><button data-action="chat-prompt" data-value="I would like to return to a recent moment.">Return to a moment</button><button data-action="chat-prompt" data-value="What feels different between these two moments?">Look at two Echoes</button><button data-action="chat-prompt" data-value="There is something I want to leave open.">Leave a question open</button></div>`:''}<div id="chat-messages" aria-live="polite" aria-relevant="additions">${state.chat.map(m=>`<article class="chat-message ${m.role}"><div class="author-tag">${m.role==='person'?`${icon('echo',14)} You`:`${brandMark()} Luna · scripted demo`}</div><p>${escapeHtml(m.content)}</p>${m.echoIds.length?`<div class="chat-sources">${m.echoIds.map(id=>`<a class="chip" href="#/echo/${id}">${icon('echo',12)}${escapeHtml(db.echoes.find(e=>e.id===id)?.title||'Echo')}</a>`).join('')}</div>`:''}</article>`).join('')}${state.chatBusy?'<p class="small muted" role="status">Preparing a demonstration response…</p>':''}</div><div class="chat-bottom"><div class="chat-context"><button class="text-link gold" data-action="chat-context">${icon('plus',14)}Choose Echo context</button>${state.chatContext.map(id=>`<button class="chip" data-action="remove-context" data-id="${id}" aria-label="Remove ${escapeHtml(db.echoes.find(e=>e.id===id)?.title)} from chat context">${escapeHtml(db.echoes.find(e=>e.id===id)?.title||'Echo')} ×</button>`).join('')}</div><form data-form="chat" class="chat-composer"><label class="sr-only" for="chat-input">Message to Luna</label><textarea name="message" id="chat-input" maxlength="4000" placeholder="What would you like to explore?" required ${state.chatBusy?'disabled':''}></textarea><div class="chat-composer-bottom"><small>${state.chatContext.length?`${state.chatContext.length} selected Echo${state.chatContext.length===1?'':'es'} in context`:'No Echo context selected'} · this session only</small><button class="send-button" type="submit" aria-label="Send message in demonstration" ${state.chatBusy?'disabled':''}>${icon('send',19)}</button></div></form><p class="chat-status">Frontend prototype only · scripted responses · no model or private Field connection</p></div></section>`;}
-export function routeView(db:FieldSnapshot,state:UIState,isSample=false,isAuthenticated=false){
-  if(state.scenario==='loading')return `<div role="status" aria-label="Loading your field"><div class="skeleton short"></div><div class="skeleton medium"></div><div class="skeleton block"></div><div class="skeleton medium"></div><div class="skeleton short"></div></div><p class="small muted">Reviewing the loading state.</p><button class="text-link gold" data-action="scenario" data-value="ready">Finish loading demonstration ${icon('arrow',14)}</button>`;
-  if(state.scenario==='error')return emptyState('Your field can wait here.','This is a simulated loading error. Your session changes are still held. Try again when you are ready.','retry','Try again');
-  if(state.scenario==='denied')return emptyState('This field is not available.','This is a simulated permission-denied state. A real connection must verify your access before showing records.','retry','Return to demonstration');
-  let body='';switch(state.route.name){case 'field':body=fieldView(db,isSample,isAuthenticated);break;case 'echoes':body=echoesView(db,state);break;case 'echo':body=echoDetailView(db,state.route.id||'');break;case 'cycles':body=cyclesView(db,state);break;case 'loops':body=loopsView(db,state);break;case 'threads':body=threadsView(db);break;case 'thread':body=threadsView(db,state.route.id);break;case 'reflections':body=reflectionsView(db);break;case 'returns':body=returnsView(db);break;case 'chat':body=chatView(db,state);break;default:body=emptyState('Find your way back.','This view is not part of the exploration.','go-field','Return to the Field');}
-  if(state.scenario==='offline'||globalThis.navigator?.onLine===false)body=`<div class="offline-banner" role="status">${icon('offline',16)}<span>${state.scenario==='offline'?'Offline demonstration.':'You appear to be offline.'} Local interactions remain available; nothing is queued for upload.</span></div>`+body;
+
+export function cyclesView(db: FieldSnapshot, state: UIState) {
+  const p = PHASES.find(p => p.id === state.phase) || PHASES[2];
+  const cycle = db.cycles.find(c => c.id === state.cycleId) || db.cycles[0];
+  const echoes = filterEchoes(db.echoes, { cycleId: cycle.id, phaseId: p.id });
+  const previous = db.echoes.filter(e => e.context.cycleId !== cycle.id && e.context.phaseId === p.id);
+
+  return `<div class="page-intro"><div><div class="eyebrow">A recurring context for a continuing life</div><h1>Same world. Another light.</h1><p>Move through the phases. The landscape stays; its illumination changes.</p></div><label><span class="sr-only">Choose a cycle</span><select class="inline-select" id="cycle-select">${db.cycles.map(c => `<option value="${c.id}" ${c.id === cycle.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label></div><div class="cycle-stage"><section class="cycle-world" aria-label="Cycle environment">${oceanScene(p.index, state.time, 'cycle')}<div class="time-selector" aria-label="Time of day">${['dawn', 'day', 'dusk', 'night'].map(t => `<button data-action="time" data-value="${t}" aria-pressed="${t === state.time}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div><div class="world-caption">Ocean & horizon<br><span style="letter-spacing:1px;font-size:8px">One world through eight phases</span></div><div class="world-title"><div class="eyebrow" style="color:#b6c2ce">${cycle.name} · Phase ${p.index + 1} of 8</div><h2>${p.name}</h2><p>Phase ${p.index + 1} of 8 · ${state.time} atmosphere</p></div></section>${phaseOrbit(p.id)}</div><div class="phase-story"><section><div class="section-head"><h2>Within this phase <span>${echoes.length} ${echoes.length === 1 ? 'Echo' : 'Echoes'}</span></h2><a class="text-link" href="#/echoes?cycle=${cycle.id}">Whole cycle ${icon('arrow', 14)}</a></div>${echoes.length ? echoes.map(e => echoRow(e, true)).join('') : '<p class="empty-inline">No Echoes in this phase yet. The space remains open for you.</p>'}</section><aside class="phase-note"><h3>A context, not a direction.</h3><p>The phase marks when an experience happened. It does not tell you how to feel or what to do.</p><p style="margin-top:13px">This ocean belongs to the cycle. Its atmosphere changes only with the selected phase and time of day.</p>${previous.length ? `<a class="text-link" href="#/echo/${previous[0].id}">${icon('return', 15)}A return from another cycle ${icon('arrow', 14)}</a>` : ''}<p class="small" style="margin-top:17px;font-size:10px">${cycle.range}. Astronomical calculations via Jean Meeus ephemeris.</p></aside></div>`;
+}
+
+export function loopsView(db: FieldSnapshot, state: UIState) {
+  const loops = db.loops.filter(l => state.loopFilter === 'all' || (state.loopFilter === 'unfolding' ? !['closed', 'completed'].includes(l.status) : ['closed', 'completed'].includes(l.status)));
+
+  return `<div class="page-intro"><div><div class="eyebrow">Intentions with room to change</div><h1>Still unfolding.</h1><p>Something you want to follow, return to, or simply leave open.</p></div><button class="btn primary" data-action="new-loop">${icon('plus', 16)}Leave an intention</button></div><div class="filterbar"><div class="segmented" aria-label="Intention state">${[['unfolding', 'Unfolding'], ['settled', 'Settled'], ['all', 'All Loops']].map(([v, label]) => `<button data-action="loop-filter" data-value="${v}" aria-pressed="${state.loopFilter === v}">${label}</button>`).join('')}</div></div><div class="loops-layout"><section class="loops-list">${loops.length ? loops.map(l => `<article class="intent-row"><span class="loop-mark ${l.status}"></span><div class="loop-content"><h3>${escapeHtml(l.title)}</h3><p>${escapeHtml(l.note)}</p><div class="loop-actions"><label><span class="sr-only">State of ${escapeHtml(l.title)}</span><select class="inline-select" data-loop-id="${l.id}">${LOOP_STATUSES.map(s => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></label>${l.echoId ? `<a class="text-link" href="#/echo/${l.echoId}">${icon('echo', 13)}Return to its Echo</a>` : ''}</div>${l.history.length ? `<p class="loop-history">${l.history.map(h => statusLabel(h.status)).join(' → ')} → ${statusLabel(l.status)}</p>` : ''}</div></article>`).join('') : emptyState('Room to leave something open', 'An intention can be a question, a small gesture, or a direction you want to explore.', 'new-loop', 'Leave an intention')}</section><aside class="loop-note"><div class="loop-symbol">◌</div><h2>An open loop<br>is an invitation.</h2><p>There is no overdue here. You can follow an intention, let it evolve, carry it forward, or consciously close it.</p><div class="rule"></div><p>Closing something is also a way of continuing.</p></aside></div>`;
+}
+
+export function threadsView(db: FieldSnapshot, id?: string) {
+  if (id) {
+    const t = db.threads.find(t => t.id === id);
+    if (!t) return emptyState('This Thread is not here', 'Return to your connected experiences.', 'go-threads', 'Explore Threads');
+    const list = db.echoes.filter(e => t.echoIds.includes(e.id)).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    return `<a class="text-link detail-back" href="#/threads">${icon('back', 15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${list.length} Echoes · ${new Set(list.map(e => e.context.cycleId)).size} cycles</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e => echoRow(e)).join('')}</div><div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l => t.loopIds.includes(l.id)).map(miniLoop).join('') || '<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r => t.echoIds.includes(r.echoId)).map(reflectionBlock).join('') || '<p class="small muted">No reflections added here.</p>'}`;
+  }
+  return `<div class="page-intro"><div><div class="eyebrow">Continuity, without a conclusion</div><h1>What connects.</h1><p>Follow experiences across moments and cycles. You choose the connections.</p></div></div><div class="thread-grid">${db.threads.map(t => `<a class="thread-card" href="#/thread/${t.id}"><div class="thread-visual">${moonDisc(0, 25)}<span class="line"></span>${icon('echo', 30)}<span class="line"></span>${moonDisc(2, 29)}<span class="line"></span>${icon('loop', 25)}</div><h2>${escapeHtml(t.title)}</h2><p>${escapeHtml(t.description)}</p><span class="text-link">${t.echoIds.length} Echoes · ${t.loopIds.length} ${t.loopIds.length === 1 ? 'Loop' : 'Loops'} ${icon('arrow', 15)}</span></a>`).join('') || emptyState('Connections can wait', 'Begin with an Echo. You can connect experiences when a relationship feels relevant.')} </div><p class="small muted" style="margin-top:23px">Threads connect your moments across cycles without imposing external categories.</p>`;
+}
+
+export function reflectionsView(db: FieldSnapshot) {
+  return `<div class="page-intro"><div><div class="eyebrow">Another view, alongside the original</div><h1>Looking again.</h1><p>Your expression comes first. A reflection is a perspective you can keep, question, or leave.</p></div></div><section class="reflection-list">${db.reflections.map(r => {
+    const e = db.echoes.find(e => e.id === r.echoId);
+    return `<article class="reflection-entry"><a href="#/echo/${r.echoId}"><div class="echo-meta">Returning to an Echo · ${e ? escapeHtml(formatMoment(e.occurredAt)) : ''}</div><h2>${escapeHtml(e?.title || 'An Echo')}</h2></a>${reflectionBlock(r)}<a class="text-link" href="#/echo/${r.echoId}">Read the original expression ${icon('arrow', 14)}</a></article>`;
+  }).join('') || emptyState('Another perspective, when you want one', 'Open an Echo to add a reflection in your own words.', 'go-echoes', 'Return to an Echo')}</section>`;
+}
+
+export function returnsView(db: FieldSnapshot) {
+  const pair = findReturnPair(db.echoes);
+  if (pair.length < 2) {
+    return `<a class="text-link detail-back" href="#/field">${icon('back', 15)}Your field</a>` +
+      emptyState(
+        'A return needs two moments',
+        'As you capture Echoes across lunar cycles and phases, returns illuminate how your words and reflections evolve over time.',
+        'capture-entrance',
+        'Capture an Echo'
+      );
+  }
+  return `<a class="text-link detail-back" href="#/field">${icon('back', 15)}Your field</a><div class="page-intro"><div><div class="eyebrow">A return · ${pair[0].context.label.toLowerCase()} across time</div><h1>The same path.<br>Another evening.</h1><p>Two original expressions, held in lunar rhythm. The relationship is yours to explore.</p></div></div><div class="return-cycle-link">${continuitySymbol('circle', 42)}<span>Earlier moment</span><span class="return-link-curve"></span>${continuitySymbol('spiral', 47)}<span>Returning now</span></div><div class="compare-grid">${pair.map((e, i) => `<article class="compare-card"><div class="author-tag">${i ? 'More recent' : 'Earlier moment'}</div><h2>${escapeHtml(e.title)}</h2><div class="echo-meta">${escapeHtml(formatMoment(e.occurredAt))}</div><p>${escapeHtml(e.body)}</p><div class="flex" style="margin-top:21px">${contextLink(e)}<a class="text-link" href="#/echo/${e.id}">Open Echo ${icon('arrow', 14)}</a></div></article>`).join('')}</div><div class="return-invitation"><h2>What do you notice from here?</h2><p>Something may repeat, shift, or feel entirely different. There is no conclusion to arrive at.</p></div><form class="reflection-form reflection-box" data-form="reflection" data-id="${pair[1].id}"><label class="sr-only" for="return-reflection">Your reflection on this return</label><textarea id="return-reflection" name="body" maxlength="6000" placeholder="Looking at these moments together, I notice…" required></textarea><div class="form-foot"><small>Your reflection will belong to the more recent Echo.</small><button class="btn" type="submit">Keep my reflection</button></div></form><div style="text-align:center"><button class="text-link gold" data-action="chat-return" data-pair="${pair[0].id},${pair[1].id}">${icon('chat', 16)}Bring both moments to Luna</button></div>`;
+}
+
+export function chatView(db: FieldSnapshot, state: UIState) {
+  return `<section class="chat-shell"><header class="chat-intro">${brandMark()}<h1>A conversation within your field.</h1><p>Bring a moment, a question, or a connection you want to explore.<br>You choose what enters the conversation.</p></header>${!state.chat.length ? `<div class="prompt-chips"><button data-action="chat-prompt" data-value="I would like to return to a recent moment.">Return to a moment</button><button data-action="chat-prompt" data-value="What feels different between these two moments?">Look at two Echoes</button><button data-action="chat-prompt" data-value="There is something I want to leave open.">Leave a question open</button></div>` : ''}<div id="chat-messages" aria-live="polite" aria-relevant="additions">${state.chat.map(m => `<article class="chat-message ${m.role}"><div class="author-tag">${m.role === 'person' ? `${icon('echo', 14)} You` : `${brandMark()} Luna`}</div><p>${escapeHtml(m.content)}</p>${m.echoIds.length ? `<div class="chat-sources">${m.echoIds.map(id => `<a class="chip" href="#/echo/${id}">${icon('echo', 12)}${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')}</a>`).join('')}</div>` : ''}</article>`).join('')}${state.chatBusy ? '<p class="small muted" role="status">Reflecting with Luna…</p>' : ''}</div><div class="chat-bottom"><div class="chat-context"><button class="text-link gold" data-action="chat-context">${icon('plus', 14)}Choose Echo context</button>${state.chatContext.map(id => `<button class="chip" data-action="remove-context" data-id="${id}" aria-label="Remove ${escapeHtml(db.echoes.find(e => e.id === id)?.title)} from chat context">${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')} ×</button>`).join('')}</div><form data-form="chat" class="chat-composer"><label class="sr-only" for="chat-input">Message to Luna</label><textarea name="message" id="chat-input" maxlength="4000" placeholder="What would you like to explore?" required ${state.chatBusy ? 'disabled' : ''}></textarea><div class="chat-composer-bottom"><small>${state.chatContext.length ? `${state.chatContext.length} selected Echo${state.chatContext.length === 1 ? '' : 'es'} in context` : 'No Echo context selected'}</small><button class="send-button" type="submit" aria-label="Send message" ${state.chatBusy ? 'disabled' : ''}>${icon('send', 19)}</button></div></form><p class="chat-status">Luna reflects with you based on your selected Echoes.</p></div></section>`;
+}
+
+export function routeView(db: FieldSnapshot, state: UIState, isSample = false, isAuthenticated = false) {
+  if (state.scenario === 'loading') return `<div role="status" aria-label="Loading your field"><div class="skeleton short"></div><div class="skeleton medium"></div><div class="skeleton block"></div><div class="skeleton medium"></div><div class="skeleton short"></div></div><p class="small muted">Reviewing the loading state.</p><button class="text-link gold" data-action="scenario" data-value="ready">Finish loading demonstration ${icon('arrow', 14)}</button>`;
+  if (state.scenario === 'error') return emptyState('Your field can wait here.', 'This is a simulated loading error. Your session changes are still held. Try again when you are ready.', 'retry', 'Try again');
+  if (state.scenario === 'denied') return emptyState('This field is not available.', 'This is a simulated permission-denied state. A real connection must verify your access before showing records.', 'retry', 'Return to demonstration');
+
+  let body = '';
+  switch (state.route.name) {
+    case 'sky':
+      body = skyView(db, state);
+      break;
+    case 'field':
+      body = fieldView(db, isSample, isAuthenticated);
+      break;
+    case 'echoes':
+      body = echoesView(db, state);
+      break;
+    case 'echo':
+      body = echoDetailView(db, state.route.id || '');
+      break;
+    case 'cycles':
+      body = cyclesView(db, state);
+      break;
+    case 'loops':
+      body = loopsView(db, state);
+      break;
+    case 'threads':
+      body = threadsView(db);
+      break;
+    case 'thread':
+      body = threadsView(db, state.route.id);
+      break;
+    case 'reflections':
+      body = reflectionsView(db);
+      break;
+    case 'returns':
+      body = returnsView(db);
+      break;
+    case 'chat':
+      body = chatView(db, state);
+      break;
+    default:
+      body = emptyState('Find your way back.', 'This view is not part of the exploration.', 'go-field', 'Return to the Field');
+  }
+
+  if (state.scenario === 'offline' || globalThis.navigator?.onLine === false) {
+    body = `<div class="offline-banner" role="status">${icon('offline', 16)}<span>You appear to be offline. Local interactions remain available.</span></div>` + body;
+  }
   return body;
 }

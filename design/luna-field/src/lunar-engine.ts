@@ -121,7 +121,18 @@ export interface LiveLunarBundle {
   lunarMonth: string;
   zodiac: { sign: string; degree: number };
   dayOfCycle: number;
+  dayInPhase: number;
+  phaseDuration: number;
+  phaseProgress: number;
   phaseRemaining: number;
+  isThreshold: boolean;
+  isFlow: boolean;
+  tideKey: 'opening' | 'flowing' | 'completing' | 'closing';
+  isApproaching: boolean;
+  isImminent: boolean;
+  daysToFull: number;
+  daysToNew: number;
+  nextPhase: Phase;
   cycleStart: Date;
   cycleEnd: Date;
   cycleId: string;
@@ -151,6 +162,30 @@ export function getLiveLunarData(date: Date = new Date()): LiveLunarBundle {
     ? (age >= SYNODIC - HALF_THRESHOLD ? age - (SYNODIC - HALF_THRESHOLD) : age + HALF_THRESHOLD)
     : (age - phaseDef.start);
   const phaseRemaining = Math.max(0, phaseDuration - dayInPhase);
+  const phaseProgress = Math.min(1, Math.max(0, dayInPhase / phaseDuration));
+
+  const isThreshold = phaseId === 'new' || phaseId === 'first-quarter' || phaseId === 'full' || phaseId === 'last-quarter';
+  const isFlow = !isThreshold;
+  const tideKey: 'opening' | 'flowing' | 'completing' | 'closing' =
+    phaseProgress < 0.2 ? 'opening' : phaseProgress < 0.62 ? 'flowing' : phaseProgress < 0.88 ? 'completing' : 'closing';
+  const isApproaching = phaseRemaining <= 1.0;
+  const isImminent = phaseRemaining <= 0.25;
+
+  let daysToFull: number;
+  if (age >= SYNODIC - HALF_THRESHOLD) {
+    daysToFull = (SYNODIC - age) + FULL_MOON_PEAK;
+  } else if (age < FULL_MOON_PEAK) {
+    daysToFull = FULL_MOON_PEAK - age;
+  } else {
+    daysToFull = (SYNODIC - age) + FULL_MOON_PEAK;
+  }
+
+  let daysToNew: number;
+  if (age < SYNODIC - HALF_THRESHOLD) {
+    daysToNew = (SYNODIC - HALF_THRESHOLD) - age;
+  } else {
+    daysToNew = 0;
+  }
 
   const cycleId = 'cycle-' + lunarMonth.toLowerCase().replace(/[^a-z0-9]/g, '-');
   const cycleName = 'The ' + lunarMonth + ' field';
@@ -179,6 +214,10 @@ export function getLiveLunarData(date: Date = new Date()): LiveLunarBundle {
     };
   });
 
+  const currentIdx = LUNAR_PHASE_DEFS.findIndex(p => p.id === phaseId);
+  const nextPhaseDef = LUNAR_PHASE_DEFS[(currentIdx + 1) % LUNAR_PHASE_DEFS.length];
+  const nextPhase = phases.find(p => p.id === nextPhaseDef.id) || phases[0];
+
   const context: LunarContext = {
     cycleId,
     phaseId,
@@ -194,7 +233,18 @@ export function getLiveLunarData(date: Date = new Date()): LiveLunarBundle {
     lunarMonth,
     zodiac,
     dayOfCycle,
+    dayInPhase,
+    phaseDuration,
+    phaseProgress,
     phaseRemaining,
+    isThreshold,
+    isFlow,
+    tideKey,
+    isApproaching,
+    isImminent,
+    daysToFull,
+    daysToNew,
+    nextPhase,
     cycleStart,
     cycleEnd,
     cycleId,

@@ -11,6 +11,7 @@ const sources = [
   'audio-geometry',
   'audio-fixtures',
   'fixtures',
+  'sky-data',
   'lunar-engine',
   'mock-services',
   'live-services',
@@ -26,6 +27,7 @@ const parts = [];
 for (const name of sources) {
   const raw = await readFile(path.join(project, 'src', `${name}.ts`), 'utf8');
   const js = stripTypeScriptTypes(raw, { mode: 'strip' })
+    .replace(/import\s+(?:type\s+)?[\s\S]*?from\s+['"][^'"]+['"];?\n?/gm, '')
     .replace(/^import[^\n]*\n/gm, '')
     .replace(/^export\s+(?=(?:const|let|function|class)\b)/gm, '');
   parts.push(`// ${name}.ts\n${js}`);
@@ -39,7 +41,7 @@ for (const name of ['water', 'question']) {
 const css = (await readFile(path.join(project, 'src', 'styles.css'), 'utf8')) + '\n' + (await readFile(path.join(project, 'src', 'refinement.css'), 'utf8'));
 const js = `(()=>{\n'use strict';\nconst LUNA_AUDIO_ASSETS=${JSON.stringify(assets)};\n${parts.join('\n\n')}\n})();`;
 
-const liveCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: https://*.supabase.co; media-src 'self' data: blob: https://*.supabase.co https://eyxvsbqyzeodsjajfqsj.supabase.co; font-src data:; connect-src 'self' https://eyxvsbqyzeodsjajfqsj.supabase.co wss://eyxvsbqyzeodsjajfqsj.supabase.co https://*.supabase.co https://loops-production-e1d5.up.railway.app; base-uri 'none'; form-action 'none'";
+const liveCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' data: blob: https://*.supabase.co https://eyxvsbqyzeodsjajfqsj.supabase.co; font-src data:; connect-src 'self' https://eyxvsbqyzeodsjajfqsj.supabase.co wss://eyxvsbqyzeodsjajfqsj.supabase.co https://*.supabase.co https://loops-production-e1d5.up.railway.app; base-uri 'none'; form-action 'none'";
 const offlineCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
 
 function generateHtml(csp) {

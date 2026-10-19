@@ -74,3 +74,109 @@ export function oceanScene(index=2,time='night',variant='hero'){
 export function formatMoment(value:string){return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'}).format(new Date(value));}
 export function formatDay(value:string){return new Intl.DateTimeFormat('en-US',{month:'long',day:'numeric',timeZone:'America/Chicago'}).format(new Date(value));}
 export function timecode(seconds=0){return `${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;}
+
+export function photographicMoon(phaseFraction: number, size = 200, illumination = 50, phaseName = 'Moon'): string {
+  let p = phaseFraction % 1;
+  if (p < 0) p += 1;
+
+  const isNewMoon = p < 0.02 || p > 0.98;
+  const isFullMoon = p > 0.47 && p < 0.53;
+  const isWaning = p > 0.5;
+
+  let clipPath = '';
+  if (isNewMoon) {
+    clipPath = 'circle(0% at 50% 50%)';
+  } else if (isFullMoon) {
+    clipPath = 'circle(50% at 50% 50%)';
+  } else {
+    const bulge = Math.cos(p * 2 * Math.PI);
+    const steps = 32;
+    const points: { x: number; y: number }[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const angle = Math.PI * t;
+      const y = 50 - 50 * Math.cos(angle);
+      const terminatorX = isWaning
+        ? 50 - bulge * 50 * Math.sin(angle)
+        : 50 + bulge * 50 * Math.sin(angle);
+      points.push({ x: terminatorX, y });
+    }
+
+    const pathPoints: string[] = [];
+    if (isWaning) {
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const angle = Math.PI * t;
+        const x = 50 - 50 * Math.sin(angle);
+        const y = 50 - 50 * Math.cos(angle);
+        pathPoints.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+      }
+      for (let i = steps; i >= 0; i--) {
+        pathPoints.push(`${points[i].x.toFixed(2)}% ${points[i].y.toFixed(2)}%`);
+      }
+    } else {
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const angle = Math.PI * t;
+        const x = 50 + 50 * Math.sin(angle);
+        const y = 50 - 50 * Math.cos(angle);
+        pathPoints.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+      }
+      for (let i = steps; i >= 0; i--) {
+        pathPoints.push(`${points[i].x.toFixed(2)}% ${points[i].y.toFixed(2)}%`);
+      }
+    }
+    clipPath = `polygon(${pathPoints.join(', ')})`;
+  }
+
+  let terminatorGradient = '';
+  if (!isNewMoon && !isFullMoon) {
+    const direction = isWaning ? 'to left' : 'to right';
+    terminatorGradient = `linear-gradient(${direction}, transparent 0%, transparent 30%, rgba(18, 18, 26, 0.15) 40%, rgba(18, 18, 26, 0.35) 50%, transparent 60%, transparent 100%)`;
+  }
+
+  const glowBoxShadow = isNewMoon
+    ? '0 0 25px rgba(255, 220, 150, 0.1)'
+    : '0 0 35px rgba(255, 215, 120, 0.35), 0 0 60px rgba(255, 200, 100, 0.15)';
+
+  return `<div class="photographic-moon" role="img" aria-label="${escapeHtml(phaseName)}, ${illumination}% illuminated" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;margin:0 auto;user-select:none;">
+    <div class="moon-glow" style="position:absolute;inset:-4px;border-radius:50%;box-shadow:${glowBoxShadow};pointer-events:none;"></div>
+    <div style="position:absolute;inset:0;border-radius:50%;background:#12121a;"></div>
+    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(100, 120, 140, 0.04);"></div>
+    ${!isNewMoon ? `
+      <div class="moon-surface" style="position:absolute;inset:0;border-radius:50%;background-image:url(/moon-texture.jpg);background-size:cover;background-position:center;clip-path:${clipPath};filter:sepia(25%) saturate(1.3) brightness(1.1) contrast(1.05);"></div>
+      <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 50%, rgba(255, 210, 120, 0.12) 0%, rgba(255, 190, 80, 0.08) 60%, transparent 100%);clip-path:${clipPath};pointer-events:none;"></div>
+      ${terminatorGradient ? `<div style="position:absolute;inset:0;border-radius:50%;background:${terminatorGradient};clip-path:${clipPath};pointer-events:none;"></div>` : ''}
+      <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 35% 35%, transparent 0%, transparent 60%, rgba(0,0,0,0.2) 100%);clip-path:${clipPath};pointer-events:none;"></div>
+    ` : ''}
+    <div style="position:absolute;inset:0;border-radius:50%;border:1px solid rgba(255,255,255,0.08);pointer-events:none;"></div>
+  </div>`;
+}
+
+export function phaseTideGauge(progress: number, isThreshold: boolean, dayInPhase: number, totalDays: number, remainingText: string): string {
+  const clampedProgress = Math.min(1, Math.max(0, progress));
+  const pct = Math.round(clampedProgress * 100);
+  const status = clampedProgress < 0.2 ? 'OPENING' : clampedProgress < 0.62 ? 'FLOWING' : clampedProgress < 0.88 ? 'COMPLETING' : 'CLOSING';
+  const typeLabel = isThreshold ? 'THRESHOLD' : 'IN FLOW';
+  const subLabel = isThreshold
+    ? (clampedProgress < 0.2 ? 'A turning point. Brief and potent.' : clampedProgress < 0.62 ? 'Inside the pivot.' : clampedProgress < 0.88 ? 'The decision is resolving.' : 'The threshold is passing.')
+    : (clampedProgress < 0.2 ? 'Time to move with what is already moving.' : clampedProgress < 0.62 ? 'In the current.' : clampedProgress < 0.88 ? 'Approaching the close.' : 'Final movement.');
+  const accentColor = isThreshold ? '#F5E6C8' : '#C9A84C';
+
+  return `<div class="phase-tide-gauge" style="padding:16px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:14px;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:monospace;font-size:11px;letter-spacing:0.12em;color:${accentColor};">${status}</span>
+        <span style="font-family:monospace;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--color-text-muted);letter-spacing:0.08em;">${typeLabel}</span>
+      </div>
+      <span style="font-family:monospace;font-size:11px;letter-spacing:0.08em;color:var(--color-text-muted);">${remainingText}</span>
+    </div>
+    <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.08);overflow:hidden;position:relative;margin-bottom:8px;">
+      <div style="width:${pct}%;height:100%;background:${accentColor};border-radius:2px;transition:width 0.4s ease;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--color-text-dim);">
+      <span style="font-style:italic;">${subLabel}</span>
+      <span style="font-family:monospace;font-size:10px;color:var(--color-text-muted);">${dayInPhase.toFixed(1)}d of ${totalDays.toFixed(1)}d</span>
+    </div>
+  </div>`;
+}

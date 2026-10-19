@@ -64,7 +64,7 @@ test('hash routes handle context, missing routes, and malformed encoding safely'
   assert.equal(parseRoute('').name,'field');assert.equal(parseRoute('#/echo/echo-water').id,'echo-water');assert.equal(parseRoute('#/cycles?phase=full').query.get('phase'),'full');assert.doesNotThrow(()=>parseRoute('#/echo/%E0%A4%A'));
 });
 test('all requested views and graceful scenarios render from fixtures',()=>{
-  for(const route of ['field','echoes','echo/echo-water','echo/echo-table','cycles','loops','threads','thread/thread-space','reflections','returns','chat','not-found']){
+  for(const route of ['sky','field','echoes','echo/echo-water','echo/echo-table','cycles','loops','threads','thread/thread-space','reflections','returns','chat','not-found']){
     const state=defaultState();state.route=parseRoute(`#/${route}`);const html=routeView(structuredClone(FIXTURES),state);assert.ok(html.length>80,route);assert.ok(!html.includes('[object Object]'),route);
   }
   for(const scenario of ['loading','error','denied','offline']){const state=defaultState();state.scenario=scenario;assert.ok(routeView(structuredClone(FIXTURES),state).length>80);}
@@ -77,7 +77,7 @@ test('world composition depends on phase and time only; all eight phases are dis
 test('built prototype is self-contained, blocks network connections, and embeds both audio samples',async()=>{
   const html=await readFile(new URL('../dist/Luna-Prototype.html',import.meta.url),'utf8');
   assert.ok(html.includes("connect-src 'none'"));assert.ok(!/<script[^>]+src=/i.test(html));assert.ok(!/<link[^>]+href=.[hH][tT][tT][pP]/.test(html));assert.equal((html.match(/data:audio\/mpeg;base64,/g)||[]).length,2);
-  assert.ok(html.includes('prefers-reduced-motion'));assert.ok(html.includes('scripted responses'));assert.ok(html.includes('Existing backend capability — requires verification'));
+  assert.ok(html.includes('prefers-reduced-motion'));assert.ok(html.includes('photographic-moon'));assert.ok(html.includes('DEEP COSMIC WISDOM'));
 });
 test('desktop/mobile review embeds the exact standalone application without script truncation',async()=>{
   const html=await readFile(new URL('../dist/Luna-Prototype.html',import.meta.url),'utf8');
