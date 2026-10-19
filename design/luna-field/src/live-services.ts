@@ -12,7 +12,8 @@ import type {
   CaptureInput,
   LoopStatus,
   LunarContext,
-  ChatMessage
+  ChatMessage,
+  AuthUser
 } from './contracts.ts';
 import { FIXTURES } from './fixtures.ts';
 import { cleanText, makeId, filterEchoes, LOOP_STATUSES } from './mock-services.ts';
@@ -315,6 +316,31 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     }
   }
 
+  // Check IndexedDB if localStorage has no active session
+  try {
+    if (!getAuthSession().token && typeof indexedDB !== 'undefined') {
+      const req = indexedDB.open('luna_auth_db', 1);
+      req.onsuccess = (e: any) => {
+        const idb = e.target.result;
+        if (idb?.objectStoreNames?.contains('auth')) {
+          const tx = idb.transaction('auth', 'readonly');
+          const getReq = tx.objectStore('auth').get(AUTH_KEY);
+          getReq.onsuccess = () => {
+            if (getReq.result) {
+              try {
+                const raw = typeof getReq.result === 'string' ? JSON.parse(getReq.result) : getReq.result;
+                if (raw?.access_token) {
+                  setStoredJson(AUTH_KEY, raw);
+                  void syncServer();
+                }
+              } catch {}
+            }
+          };
+        }
+      };
+    }
+  } catch {}
+
   // Initial async sync without blocking instant render
   void syncServer();
 
@@ -335,6 +361,85 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           mode: token && userId ? 'authenticated' : 'demo',
           subject: userId || undefined
         };
+      },
+
+      getUser(): AuthUser | null {
+        try {
+          const session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
+          if (session?.user?.id) {
+            return {
+              id: session.user.id,
+              email: session.user.email
+            };
+          }
+        } catch {}
+        return null;
+      },
+
+      async signIn(email: string, password: string): Promise<AuthUser> {
+        const cleanEmail = email.trim().toLowerCase();
+        if (!cleanEmail || !password) throw new Error('Enter your email and password.');
+
+        const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: cleanEmail, password })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.msg || errData.error_description || errData.message || 'Invalid email or password.');
+        }
+
+        const data = await res.json();
+        const sessionRecord: SupabaseSession = {
+          access_token: data.access_token,
+          token_type: data.token_type || 'bearer',
+          expires_in: data.expires_in,
+          expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
+          refresh_token: data.refresh_token,
+          user: data.user
+        };
+
+        setStoredJson(AUTH_KEY, sessionRecord);
+
+        // Also persist to IndexedDB so Classic Luna inherits the session immediately
+        try {
+          const req = indexedDB.open('luna_auth_db', 1);
+          req.onsuccess = (e: any) => {
+            const idb = e.target.result;
+            if (idb?.objectStoreNames?.contains('auth')) {
+              const tx = idb.transaction('auth', 'readwrite');
+              tx.objectStore('auth').put(JSON.stringify(sessionRecord), AUTH_KEY);
+            }
+          };
+        } catch {}
+
+        sampleMode = false;
+        localStorage.setItem(SAMPLE_MODE_KEY, 'false');
+
+        await syncServer();
+        memorySnapshot = assembleSnapshot();
+
+        return { id: data.user.id, email: data.user.email };
+      },
+
+      async signOut(): Promise<void> {
+        localStorage.removeItem(AUTH_KEY);
+        try {
+          const req = indexedDB.open('luna_auth_db', 1);
+          req.onsuccess = (e: any) => {
+            const idb = e.target.result;
+            if (idb?.objectStoreNames?.contains('auth')) {
+              const tx = idb.transaction('auth', 'readwrite');
+              tx.objectStore('auth').delete(AUTH_KEY);
+            }
+          };
+        } catch {}
+        memorySnapshot = assembleSnapshot();
       }
     },
 

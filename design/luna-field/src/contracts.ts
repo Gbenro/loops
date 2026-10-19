@@ -14,8 +14,8 @@ export interface ChatMessage { id: string; role: 'person' | 'luna'; content: str
 export interface FieldSnapshot { echoes: Echo[]; loops: Loop[]; threads: Thread[]; reflections: Reflection[]; cycles: Cycle[]; current: LunarContext; }
 export interface Page<T> { items: T[]; nextCursor?: string; }
 export interface EchoQuery { cursor?: string; limit?: number; cycleId?: string; phaseId?: PhaseId; threadId?: string; search?: string; }
-export interface CaptureInput { title: string; body: string; kind: 'voice' | 'text'; audioUrl?: string; audioBlob?: Blob; duration?: number; waveform?: number[]; waveformSource?: 'decoded-audio'|'capture-levels'|'unavailable'; context: LunarContext; }
-export interface AuthAdapter { getSession(): Promise<{mode:'demo'|'authenticated'; subject?:string}>; }
+export interface AuthUser { id: string; email?: string; }
+export interface AuthAdapter { getSession(): Promise<{mode:'demo'|'authenticated'; subject?:string}>; getUser(): AuthUser | null; signIn(email: string, password: string): Promise<AuthUser>; signOut(): Promise<void>; }
 export interface EchoAdapter { list(query?: EchoQuery): Promise<Page<Echo>>; get(id:string): Promise<Echo>; create(input:CaptureInput): Promise<Echo>; }
 export interface LoopAdapter { list():Promise<Loop[]>; create(title:string,note?:string):Promise<Loop>; transition(id:string,status:LoopStatus):Promise<Loop>; }
 export interface CycleAdapter { list():Promise<Cycle[]>; current():Promise<LunarContext>; }

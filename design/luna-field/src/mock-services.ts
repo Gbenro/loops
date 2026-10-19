@@ -12,7 +12,7 @@ export function createMockServices(audioAssets:Record<string,string>={}):LunaSer
   let db:FieldSnapshot=structuredClone(FIXTURES);
   const requireEcho=(id:string)=>{const e=db.echoes.find(x=>x.id===id);if(!e)throw new Error('This Echo is no longer available.');return e;};
   return {
-    auth:{async getSession(){return {mode:'demo'};}},
+    auth:{async getSession(){return {mode:'demo'};}, getUser(){return null;}, async signIn(){return {id:'demo'};}, async signOut(){}},
     echoes:{
       async list(query={}){const all=filterEchoes(db.echoes,query);const offset=Math.max(0,Number(query.cursor)||0);const limit=Math.min(100,Math.max(1,query.limit||30));return {items:structuredClone(all.slice(offset,offset+limit)),nextCursor:offset+limit<all.length?String(offset+limit):undefined};},
       async get(id){return structuredClone(requireEcho(id));},
