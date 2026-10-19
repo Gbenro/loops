@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: https://*.supabase.co; media-src 'self' data: blob: https://*.supabase.co https://eyxvsbqyzeodsjajfqsj.supabase.co; font-src data:; connect-src 'self' https://eyxvsbqyzeodsjajfqsj.supabase.co wss://eyxvsbqyzeodsjajfqsj.supabase.co https://*.supabase.co https://loops-production-e1d5.up.railway.app; base-uri 'none'; form-action 'none'">
 <meta name="description" content="Luna — a living personal field. An independent frontend design exploration with synthetic data and local-only interactions.">
 <meta name="theme-color" content="#0b1019">
 <title>Luna · A living personal field</title>
@@ -145,6 +145,214 @@ const FIXTURES                = {
 };
 
 
+// lunar-engine.ts
+                                                                          
+
+// Canonical Astronomical Constants (Jean Meeus Moon Ephemeris)
+const SYNODIC = 29.53058867; // Average synodic month in days
+const KNOWN_NEW_MOON = 2451550.259; // Jan 6 2000 18:14 UTC
+
+const PHASE_DURATION = {
+  threshold: 1.85, // days (±0.925 days around cardinal peaks)
+  flow: 5.55,      // days
+};
+const HALF_THRESHOLD = PHASE_DURATION.threshold / 2; // 0.925 days
+const FULL_MOON_PEAK = SYNODIC / 2; // ~14.7653 days
+
+const LUNAR_PHASE_DEFS                                                                                                = [
+  { id: 'new', name: 'New Moon', shortName: 'New', index: 0, start: 0, end: HALF_THRESHOLD },
+  { id: 'waxing-crescent', name: 'Waxing Crescent', shortName: 'Waxing crescent', index: 1, start: HALF_THRESHOLD, end: (SYNODIC / 4) - HALF_THRESHOLD },
+  { id: 'first-quarter', name: 'First Quarter', shortName: 'First quarter', index: 2, start: (SYNODIC / 4) - HALF_THRESHOLD, end: (SYNODIC / 4) + HALF_THRESHOLD },
+  { id: 'waxing-gibbous', name: 'Waxing Gibbous', shortName: 'Waxing gibbous', index: 3, start: (SYNODIC / 4) + HALF_THRESHOLD, end: FULL_MOON_PEAK - HALF_THRESHOLD },
+  { id: 'full', name: 'Full Moon', shortName: 'Full', index: 4, start: FULL_MOON_PEAK - HALF_THRESHOLD, end: FULL_MOON_PEAK + HALF_THRESHOLD },
+  { id: 'waning-gibbous', name: 'Waning Gibbous', shortName: 'Waning gibbous', index: 5, start: FULL_MOON_PEAK + HALF_THRESHOLD, end: (3 * SYNODIC / 4) - HALF_THRESHOLD },
+  { id: 'last-quarter', name: 'Last Quarter', shortName: 'Last quarter', index: 6, start: (3 * SYNODIC / 4) - HALF_THRESHOLD, end: (3 * SYNODIC / 4) + HALF_THRESHOLD },
+  { id: 'waning-crescent', name: 'Waning Crescent', shortName: 'Waning crescent', index: 7, start: (3 * SYNODIC / 4) + HALF_THRESHOLD, end: SYNODIC - HALF_THRESHOLD },
+];
+
+const LUNAR_MONTHS = [
+  'Wolf', 'Snow', 'Worm', 'Pink', 'Flower', 'Strawberry',
+  'Buck', 'Sturgeon', 'Harvest', "Hunter's", 'Beaver', 'Cold'
+];
+
+const ZODIAC_SIGNS = [
+  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+];
+
+function toJulianDate(date       = new Date())         {
+  return date.getTime() / 86400000 + 2440587.5;
+}
+
+function getMoonElongation(date       = new Date())         {
+  const jd = toJulianDate(date);
+  const T = (jd - 2451545.0) / 36525;
+
+  const M_sun = (357.52911 + 35999.05029 * T) * (Math.PI / 180);
+  const L_sun = (280.46646 + 36000.76983 * T + 1.914602 * Math.sin(M_sun) + 0.019993 * Math.sin(2 * M_sun)) % 360;
+
+  const L_moon = (218.3165 + 481267.8813 * T) % 360;
+  const M_moon = (134.9634 + 477198.8675 * T) * (Math.PI / 180);
+  const D = (297.8501921 + 445267.1114034 * T) % 360;
+
+  const periodicTerms =
+    6.289 * Math.sin(M_moon) -
+    1.274 * Math.sin(2 * (D * Math.PI / 180) - M_moon) +
+    0.658 * Math.sin(2 * (D * Math.PI / 180)) -
+    0.214 * Math.sin(2 * M_moon) -
+    0.186 * Math.sin(M_sun);
+
+  const trueMoonLong = (L_moon + periodicTerms + 360) % 360;
+  const trueSunLong = (L_sun + 360) % 360;
+
+  return ((trueMoonLong - trueSunLong + 360) % 360);
+}
+
+function getMoonAge(date       = new Date())         {
+  const elongation = getMoonElongation(date);
+  const age = (elongation / 360) * SYNODIC;
+  return age >= SYNODIC - 0.1 ? 0 : age;
+}
+
+function getIllumination(date       = new Date())         {
+  const elongation = getMoonElongation(date);
+  const illumination = (1 - Math.cos((elongation * Math.PI) / 180)) / 2;
+  return Math.round(illumination * 100);
+}
+
+function getPhaseId(age        )          {
+  if (age >= SYNODIC - HALF_THRESHOLD || age < HALF_THRESHOLD) {
+    return 'new';
+  }
+  for (const p of LUNAR_PHASE_DEFS) {
+    if (p.id !== 'new' && age >= p.start && age < p.end) {
+      return p.id;
+    }
+  }
+  return 'new';
+}
+
+function getLunarMonthName(date       = new Date())         {
+  const age = getMoonAge(date);
+  let daysToFull        ;
+  if (age >= SYNODIC - HALF_THRESHOLD) {
+    daysToFull = (SYNODIC - age) + FULL_MOON_PEAK;
+  } else {
+    daysToFull = FULL_MOON_PEAK - age;
+  }
+  const fullMoonDate = new Date(date.getTime() + daysToFull * 86400000);
+  return LUNAR_MONTHS[fullMoonDate.getMonth()];
+}
+
+function getMoonZodiac(date       = new Date())                                   {
+  const jd = toJulianDate(date);
+  const normalize = (v        ) => v - Math.floor(v);
+
+  const rp = normalize((jd - 2451555.8) / 27.321582241);
+  const ip = normalize((jd - 2451550.1) / 29.530588853);
+  const dp = 2 * Math.PI * normalize((jd - 2451562.2) / 27.55454988);
+  const radIp = 2 * Math.PI * ip;
+
+  const longitude = 360 * rp + 6.3 * Math.sin(dp) + 1.3 * Math.sin(2 * radIp - dp) + 0.7 * Math.sin(2 * radIp);
+  const finalLongitude = ((longitude % 360) + 360) % 360;
+
+  const index = Math.floor(finalLongitude / 30) % 12;
+  const degree = Math.floor(finalLongitude % 30);
+  return { sign: ZODIAC_SIGNS[index], degree };
+}
+
+                                  
+              
+                       
+                   
+                    
+                     
+                                           
+                     
+                         
+                   
+                 
+                  
+                    
+                        
+                  
+ 
+
+function getLiveLunarData(date       = new Date())                  {
+  const age = getMoonAge(date);
+  const phaseId = getPhaseId(age);
+  const illumination = getIllumination(date);
+  const lunarMonth = getLunarMonthName(date);
+  const zodiac = getMoonZodiac(date);
+
+  const isPreConjunction = age >= SYNODIC - HALF_THRESHOLD;
+  const cycleStart = isPreConjunction
+    ? new Date(date.getTime() + (SYNODIC - age) * 86400000)
+    : new Date(date.getTime() - age * 86400000);
+  const cycleEnd = new Date(cycleStart.getTime() + SYNODIC * 86400000);
+  const dayOfCycle = isPreConjunction ? 1 : Math.floor(age) + 1;
+
+  const phaseDef = LUNAR_PHASE_DEFS.find(p => p.id === phaseId) || LUNAR_PHASE_DEFS[0];
+  const isNewMoonWindow = isPreConjunction || age < HALF_THRESHOLD;
+  const phaseDuration = isNewMoonWindow ? PHASE_DURATION.threshold : (phaseDef.end - phaseDef.start);
+  const dayInPhase = isNewMoonWindow
+    ? (age >= SYNODIC - HALF_THRESHOLD ? age - (SYNODIC - HALF_THRESHOLD) : age + HALF_THRESHOLD)
+    : (age - phaseDef.start);
+  const phaseRemaining = Math.max(0, phaseDuration - dayInPhase);
+
+  const cycleId = 'cycle-' + lunarMonth.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const cycleName = 'The ' + lunarMonth + ' field';
+
+  const phases          = LUNAR_PHASE_DEFS.map(p => {
+    const phaseMidAge = (p.start + p.end) / 2;
+    const phaseDate = new Date(cycleStart.getTime() + phaseMidAge * 86400000);
+    const dateLabel = phaseDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let light = 0.5;
+    if (p.id === 'new') light = 0.05;
+    else if (p.id === 'waxing-crescent') light = 0.25;
+    else if (p.id === 'first-quarter') light = 0.5;
+    else if (p.id === 'waxing-gibbous') light = 0.75;
+    else if (p.id === 'full') light = 0.98;
+    else if (p.id === 'waning-gibbous') light = 0.75;
+    else if (p.id === 'last-quarter') light = 0.5;
+    else if (p.id === 'waning-crescent') light = 0.25;
+
+    return {
+      id: p.id,
+      name: p.name,
+      shortName: p.shortName,
+      index: p.index,
+      light,
+      fixtureDate: dateLabel
+    };
+  });
+
+  const context               = {
+    cycleId,
+    phaseId,
+    label: phaseDef.name,
+    source: 'backend'
+  };
+
+  return {
+    age,
+    illumination,
+    phaseId,
+    phaseName: phaseDef.name,
+    lunarMonth,
+    zodiac,
+    dayOfCycle,
+    phaseRemaining,
+    cycleStart,
+    cycleEnd,
+    cycleId,
+    cycleName,
+    context,
+    phases
+  };
+}
+
+
 // mock-services.ts
                                                                                                              
 
@@ -177,6 +385,795 @@ function createMockServices(audioAssets                      ={})              {
 }
 
 
+// live-services.ts
+             
+               
+                
+       
+       
+         
+             
+        
+        
+          
+            
+               
+             
+               
+             
+                        
+
+const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+const LOOPS_KEY = 'cosmic_loops_v1';
+const ECHOES_KEY = 'cosmic_echoes_v1';
+const REFLECTIONS_KEY = 'cosmic_reflections_v1';
+const AUTH_KEY = 'sb-eyxvsbqyzeodsjajfqsj-auth-token';
+const SAMPLE_MODE_KEY = 'luna_beta_sample_mode';
+
+                           
+                       
+                                        
+ 
+
+function getStoredJson   (key        , fallback   )    {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setStoredJson   (key        , value   )       {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn('Storage save error:', err);
+  }
+}
+
+function getAuthSession()                                                  {
+  try {
+    const session = getStoredJson                        (AUTH_KEY, null);
+    if (session && session.access_token) {
+      return {
+        token: session.access_token,
+        userId: session.user?.id || null
+      };
+    }
+  } catch {}
+  return { token: null, userId: null };
+}
+
+async function supabaseFetch(endpoint        , options              = {})               {
+  const { token } = getAuthSession();
+  const headers                         = {
+    'apikey': SUPABASE_ANON_KEY,
+    ...(options.headers                           || {})
+  };
+  if (token) {
+    headers['Authorization'] = 'Bearer ' + token;
+  } else {
+    headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+  }
+
+  const url = endpoint.startsWith('http') ? endpoint : SUPABASE_URL + endpoint;
+  const res = await fetch(url, { ...options, headers });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error('Supabase request failed (' + res.status + '): ' + errorText);
+  }
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return await res.json();
+  }
+  return await res.text();
+}
+
+function mapClassicStatusToBeta(status        , hasHistory = false)             {
+  switch (status) {
+    case 'closed': return 'closed';
+    case 'carried': return 'carried-forward';
+    case 'released': return 'completed';
+    case 'active':
+    default:
+      return hasHistory ? 'evolving' : 'open';
+  }
+}
+
+function mapBetaStatusToClassic(status            )         {
+  switch (status) {
+    case 'closed': return 'closed';
+    case 'carried-forward': return 'carried';
+    case 'completed': return 'released';
+    case 'open':
+    case 'evolving':
+    default:
+      return 'active';
+  }
+}
+
+function mapClassicEchoToBeta(raw     , lunar                 )       {
+  const id = String(raw.id || makeId('echo'));
+  const text = String(raw.text || '').trim();
+  const title = String(raw.title || (text ? text.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment'));
+  const audio_path = raw.audio_path || raw.audioPath || undefined;
+  const isVoice = Boolean(audio_path) || raw.source === 'voice';
+
+  const phaseId = (raw.phase || lunar.phaseId)           ;
+  const phaseName = raw.phaseName || raw.phase_name || lunar.phaseName;
+  const cycleId = 'cycle-' + (raw.lunarMonth || raw.lunar_month || lunar.lunarMonth).toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+  const context               = {
+    cycleId,
+    phaseId,
+    label: phaseName,
+    source: 'backend'
+  };
+
+  return {
+    id,
+    title,
+    body: text,
+    occurredAt: raw.created_at || raw.createdAt || raw.occurredAt || new Date().toISOString(),
+    kind: isVoice ? 'voice' : 'text',
+    audio_path,
+    audioUrl: raw.audioUrl || undefined,
+    duration: raw.duration || undefined,
+    waveform: Array.isArray(raw.waveform) ? raw.waveform : undefined,
+    waveformSource: isVoice ? (raw.waveform ? 'decoded-audio' : 'unavailable') : undefined,
+    context,
+    threadIds: Array.isArray(raw.tags) ? raw.tags : [],
+    provenance: 'local-session'
+  };
+}
+
+function mapClassicLoopToBeta(raw     )       {
+  const id = String(raw.id || makeId('loop'));
+  const title = String(raw.title || '').trim() || 'Untitled intention';
+  const note = String(raw.note || '');
+  const history                                       = Array.isArray(raw.history) ? raw.history : [];
+  const status = mapClassicStatusToBeta(raw.status || 'active', history.length > 0);
+
+  const echoId = raw.linkedTo || raw.related_echo_ids?.[0] || raw.relatedEchoIds?.[0] || undefined;
+
+  return {
+    id,
+    title,
+    note,
+    status,
+    echoId,
+    history,
+    provenance: 'local-session'
+  };
+}
+
+function createLiveLunaServices(audioAssets                         = {})               {
+  let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
+  let memorySnapshot                       = null;
+  const signedUrlCache = new Map                                          ();
+
+  function computeLiveCycles(lunar                 )          {
+    const cycleRange = lunar.cycleStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+      ' — ' + lunar.cycleEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const currentCycle        = {
+      id: lunar.cycleId,
+      name: lunar.cycleName,
+      world: 'ocean',
+      range: cycleRange + ' · Astronomical ephemeris',
+      phases: lunar.phases
+    };
+
+    return [currentCycle];
+  }
+
+  function getLocalEchoes(lunar                 )         {
+    const raw = getStoredJson       (ECHOES_KEY, []);
+    return raw.filter(e => e && typeof e === 'object').map(e => mapClassicEchoToBeta(e, lunar));
+  }
+
+  function getLocalLoops()         {
+    const raw = getStoredJson       (LOOPS_KEY, []);
+    return raw.filter(l => l && typeof l === 'object').map(mapClassicLoopToBeta);
+  }
+
+  function getLocalReflections()               {
+    const raw = getStoredJson       (REFLECTIONS_KEY, []);
+    return raw.map(r => ({
+      id: r.id || makeId('ref'),
+      echoId: r.echo_id || r.echoId,
+      author: r.author || 'person',
+      body: r.body || '',
+      createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+      provenance: 'local-session'         
+    }));
+  }
+
+  function assembleSnapshot()                {
+    const lunar = getLiveLunarData(new Date());
+    const cycles = computeLiveCycles(lunar);
+
+    if (sampleMode) {
+      const snap = structuredClone(FIXTURES);
+      snap.current = lunar.context;
+      snap.cycles = cycles;
+      return snap;
+    }
+
+    const echoes = getLocalEchoes(lunar);
+    const loops = getLocalLoops();
+    const reflections = getLocalReflections();
+
+    const threadMap = new Map                                                                             ();
+    for (const e of echoes) {
+      for (const tag of e.threadIds) {
+        if (!threadMap.has(tag)) {
+          threadMap.set(tag, { id: tag, title: tag, echoIds: [], loopIds: [] });
+        }
+        threadMap.get(tag) .echoIds.push(e.id);
+      }
+    }
+    const threads           = Array.from(threadMap.values()).map(t => ({
+      id: t.id,
+      title: t.title,
+      description: 'Connected in your personal field.',
+      echoIds: t.echoIds,
+      loopIds: t.loopIds
+    }));
+
+    return {
+      echoes,
+      loops,
+      threads,
+      reflections,
+      cycles,
+      current: lunar.context
+    };
+  }
+
+  memorySnapshot = assembleSnapshot();
+
+  async function syncServer()                {
+    const { token, userId } = getAuthSession();
+    if (!token || !userId) return;
+
+    try {
+      const lunar = getLiveLunarData(new Date());
+
+      // Fetch server echoes
+      const serverEchoes = await supabaseFetch(
+        '/rest/v1/echoes?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
+      ).catch(() => []);
+
+      if (Array.isArray(serverEchoes) && serverEchoes.length > 0) {
+        const local = getStoredJson       (ECHOES_KEY, []);
+        const localIds = new Set(local.map(e => e.id));
+
+        const merged = [...local];
+        for (const se of serverEchoes) {
+          if (!localIds.has(se.id)) {
+            merged.push(se);
+          }
+        }
+        merged.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        setStoredJson(ECHOES_KEY, merged);
+      }
+
+      // Fetch server loops
+      const serverLoops = await supabaseFetch(
+        '/rest/v1/loops?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
+      ).catch(() => []);
+
+      if (Array.isArray(serverLoops) && serverLoops.length > 0) {
+        const local = getStoredJson       (LOOPS_KEY, []);
+        const localIds = new Set(local.map(l => l.id));
+
+        const merged = [...local];
+        for (const sl of serverLoops) {
+          if (!localIds.has(sl.id)) {
+            merged.push(sl);
+          }
+        }
+        setStoredJson(LOOPS_KEY, merged);
+      }
+
+      // Fetch reflections
+      const serverRefs = await supabaseFetch(
+        '/rest/v1/echo_reflections?select=*&user_id=eq.' + encodeURIComponent(userId) + '&order=created_at.desc'
+      ).catch(() => []);
+
+      if (Array.isArray(serverRefs) && serverRefs.length > 0) {
+        const local = getStoredJson       (REFLECTIONS_KEY, []);
+        const localIds = new Set(local.map(r => r.id));
+        const merged = [...local];
+        for (const sr of serverRefs) {
+          if (!localIds.has(sr.id)) merged.push(sr);
+        }
+        setStoredJson(REFLECTIONS_KEY, merged);
+      }
+
+      memorySnapshot = assembleSnapshot();
+    } catch (err) {
+      console.warn('Sync failed (will use offline local data):', err);
+    }
+  }
+
+  // Initial async sync without blocking instant render
+  void syncServer();
+
+  return {
+    mode: sampleMode ? 'sample' : 'live',
+    isSampleMode: () => sampleMode,
+    setSampleMode: (enabled         ) => {
+      sampleMode = enabled;
+      localStorage.setItem(SAMPLE_MODE_KEY, String(enabled));
+      memorySnapshot = assembleSnapshot();
+    },
+    sync: syncServer,
+
+    auth: {
+      async getSession() {
+        const { token, userId } = getAuthSession();
+        return {
+          mode: token && userId ? 'authenticated' : 'demo',
+          subject: userId || undefined
+        };
+      }
+    },
+
+    echoes: {
+      async list(query = {}) {
+        const db = assembleSnapshot();
+        const all = filterEchoes(db.echoes, query);
+        const offset = Math.max(0, Number(query.cursor) || 0);
+        const limit = Math.min(100, Math.max(1, query.limit || 30));
+        return {
+          items: structuredClone(all.slice(offset, offset + limit)),
+          nextCursor: offset + limit < all.length ? String(offset + limit) : undefined
+        };
+      },
+
+      async get(id        ) {
+        const db = assembleSnapshot();
+        const found = db.echoes.find(e => e.id === id);
+        if (!found) throw new Error('This Echo is no longer available.');
+        return structuredClone(found);
+      },
+
+      async create(input              ) {
+        const body = cleanText(input.body);
+        if (input.kind === 'text' && !body) {
+          throw new Error('Add a few words before keeping this Echo.');
+        }
+        if (input.kind === 'voice' && !input.audioUrl && !(input       ).audioBlob) {
+          throw new Error('Record a little audio before keeping this Echo.');
+        }
+
+        const lunar = getLiveLunarData(new Date());
+        const echoId = 'e' + Date.now() + Math.random().toString(36).substr(2, 4);
+        const { token, userId } = getAuthSession();
+
+        let audioPath                = null;
+        const audioBlob = (input       ).audioBlob                    ;
+
+        // Voice upload to Supabase Storage if authenticated and blob present
+        if (input.kind === 'voice' && audioBlob && userId && token) {
+          try {
+            const ext = audioBlob.type.includes('mp4') ? 'mp4' :
+                        audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+            audioPath = userId + '/' + echoId + '.' + ext;
+
+            await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
+              method: 'POST',
+              headers: {
+                'Content-Type': audioBlob.type || 'audio/webm',
+                'x-upsert': 'true'
+              },
+              body: audioBlob
+            });
+          } catch (err) {
+            console.warn('Audio upload to Supabase Storage failed, saved locally:', err);
+          }
+        }
+
+        const title = cleanText(input.title, 120) || (body ? body.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment');
+
+        // Canonical Classic Luna Echo schema
+        const classicRecord = {
+          id: echoId,
+          text: body,
+          title,
+          source: input.kind,
+          phase: lunar.phaseId,
+          phaseName: lunar.phaseName,
+          phaseType: 'flow',
+          lunarMonth: lunar.lunarMonth,
+          dayOfCycle: lunar.dayOfCycle,
+          zodiac: typeof lunar.zodiac === 'object' && lunar.zodiac ? lunar.zodiac.sign : String(lunar.zodiac || ''),
+          illumination: lunar.illumination,
+          audio_path: audioPath,
+          audioPath: audioPath,
+          audioUrl: input.audioUrl,
+          waveform: input.waveform,
+          duration: input.duration,
+          tags: [],
+          loopIds: [],
+          linkedLoopId: null,
+          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          provenance_author: 'user',
+          provenance_kind: 'original_echo',
+          provenanceAuthor: 'user',
+          provenanceKind: 'original_echo'
+        };
+
+        // Persist locally
+        const local = getStoredJson       (ECHOES_KEY, []);
+        local.unshift(classicRecord);
+        setStoredJson(ECHOES_KEY, local);
+
+        // Sync to Supabase if authenticated
+        if (userId && token) {
+          try {
+            await supabaseFetch('/rest/v1/echoes', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify({
+                id: echoId,
+                user_id: userId,
+                text: body,
+                title,
+                source: input.kind,
+                phase: lunar.phaseId,
+                phase_name: lunar.phaseName,
+                phase_type: 'flow',
+                lunar_month: lunar.lunarMonth,
+                day_of_cycle: lunar.dayOfCycle,
+                zodiac: typeof lunar.zodiac === 'object' && lunar.zodiac ? lunar.zodiac.sign : String(lunar.zodiac || ''),
+                illumination: lunar.illumination,
+                audio_path: audioPath,
+                tags: [],
+                loop_ids: [],
+                provenance_author: 'user',
+                provenance_kind: 'original_echo',
+                created_at: classicRecord.created_at,
+                updated_at: classicRecord.updated_at
+              })
+            });
+          } catch (err) {
+            console.warn('Server echo save failed, kept locally:', err);
+          }
+        }
+
+        memorySnapshot = assembleSnapshot();
+        const mapped = mapClassicEchoToBeta(classicRecord, lunar);
+        if (input.audioUrl) mapped.audioUrl = input.audioUrl;
+        return mapped;
+      }
+    },
+
+    loops: {
+      async list() {
+        const db = assembleSnapshot();
+        return structuredClone(db.loops);
+      },
+
+      async create(title        , note = '') {
+        const t = cleanText(title, 120);
+        if (!t) throw new Error('Give this intention a few words.');
+
+        const loopId = 'l' + Date.now() + Math.random().toString(36).substr(2, 4);
+        const { token, userId } = getAuthSession();
+        const lunar = getLiveLunarData(new Date());
+        const nowIso = new Date().toISOString();
+        const windowEnd = new Date(Date.now() + lunar.phaseRemaining * 24 * 60 * 60 * 1000).toISOString();
+
+        const classicLoop = {
+          id: loopId,
+          title: t,
+          note: cleanText(note, 600),
+          status: 'active',
+          type: 'phase',
+          color: '#A78BFA',
+          subtasks: [],
+          linkedTo: null,
+          history: [],
+          phaseOpened: lunar.phaseId,
+          phaseName: lunar.phaseName,
+          lunarMonthOpened: lunar.lunarMonth,
+          moonAgeOpened: lunar.age,
+          zodiacOpened: lunar.zodiac.sign,
+          windowEnd: windowEnd,
+          openedAt: nowIso,
+          closedAt: null,
+          releasedAt: null,
+          isEncrypted: false,
+          tags: [],
+          focus: null,
+          autoClosedReason: null,
+          relatedEchoIds: [],
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          // snake_case aliases for direct Supabase/PostgREST schema compatibility
+          phase_opened: lunar.phaseId,
+          phase_name: lunar.phaseName,
+          lunar_month_opened: lunar.lunarMonth,
+          moon_age_opened: lunar.age,
+          zodiac_opened: lunar.zodiac.sign,
+          window_end: windowEnd,
+          opened_at: nowIso,
+          closed_at: null,
+          released_at: null,
+          created_at: nowIso,
+          updated_at: nowIso
+        };
+
+        const local = getStoredJson       (LOOPS_KEY, []);
+        local.unshift(classicLoop);
+        setStoredJson(LOOPS_KEY, local);
+
+        if (userId && token) {
+          try {
+            await supabaseFetch('/rest/v1/loops', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: loopId,
+                user_id: userId,
+                title: t,
+                note: classicLoop.note,
+                status: 'active',
+                type: 'phase',
+                color: '#A78BFA',
+                subtasks: [],
+                phase_opened: lunar.phaseId,
+                phase_name: lunar.phaseName,
+                lunar_month_opened: lunar.lunarMonth,
+                moon_age_opened: lunar.age,
+                zodiac_opened: lunar.zodiac.sign,
+                window_end: windowEnd,
+                opened_at: nowIso,
+                created_at: nowIso,
+                updated_at: nowIso
+              })
+            });
+          } catch (err) {
+            console.warn('Server loop save failed, kept locally:', err);
+          }
+        }
+
+        memorySnapshot = assembleSnapshot();
+        return mapClassicLoopToBeta(classicLoop);
+      },
+
+      async transition(id        , status            ) {
+        if (!LOOP_STATUSES.includes(status)) throw new Error('Choose a recognized intention state.');
+
+        const local = getStoredJson       (LOOPS_KEY, []);
+        const loop = local.find(l => l.id === id);
+        if (!loop) throw new Error('This Loop is no longer available.');
+
+        if (!Array.isArray(loop.history)) loop.history = [];
+        loop.history.push({
+          status: mapClassicStatusToBeta(loop.status || 'active', loop.history.length > 0),
+          at: new Date().toISOString()
+        });
+
+        const classicStatus = mapBetaStatusToClassic(status);
+        const nowIso = new Date().toISOString();
+        const lunar = getLiveLunarData(new Date());
+
+        loop.status = classicStatus;
+        loop.updatedAt = nowIso;
+        loop.updated_at = nowIso;
+
+        if (classicStatus === 'closed') {
+          loop.closedAt = nowIso;
+          loop.closed_at = nowIso;
+          loop.phaseClosed = lunar.phaseId;
+          loop.phase_closed = lunar.phaseId;
+          loop.phaseNameClosed = lunar.phaseName;
+          loop.phase_name_closed = lunar.phaseName;
+          loop.lunarMonthClosed = lunar.lunarMonth;
+          loop.lunar_month_closed = lunar.lunarMonth;
+        } else if (classicStatus === 'released') {
+          loop.releasedAt = nowIso;
+          loop.released_at = nowIso;
+          loop.phaseClosed = lunar.phaseId;
+          loop.phase_closed = lunar.phaseId;
+          loop.phaseNameClosed = lunar.phaseName;
+          loop.phase_name_closed = lunar.phaseName;
+          loop.lunarMonthClosed = lunar.lunarMonth;
+          loop.lunar_month_closed = lunar.lunarMonth;
+        }
+
+        setStoredJson(LOOPS_KEY, local);
+
+        const { token, userId } = getAuthSession();
+        if (userId && token) {
+          try {
+            await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(id), {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: classicStatus,
+                closed_at: loop.closed_at,
+                released_at: loop.released_at,
+                phase_closed: loop.phase_closed,
+                phase_name_closed: loop.phase_name_closed,
+                lunar_month_closed: loop.lunar_month_closed,
+                updated_at: nowIso
+              })
+            });
+          } catch (err) {
+            console.warn('Server loop transition sync failed:', err);
+          }
+        }
+
+        memorySnapshot = assembleSnapshot();
+        return mapClassicLoopToBeta(loop);
+      }
+    },
+
+    cycles: {
+      async list() {
+        const db = assembleSnapshot();
+        return structuredClone(db.cycles);
+      },
+      async current() {
+        const db = assembleSnapshot();
+        return structuredClone(db.current);
+      }
+    },
+
+    threads: {
+      async list() {
+        const db = assembleSnapshot();
+        return structuredClone(db.threads);
+      },
+      async linkEcho(threadId        , echoId        ) {
+        const local = getStoredJson       (ECHOES_KEY, []);
+        const echo = local.find(e => e.id === echoId);
+        if (!echo) throw new Error('Echo not found.');
+        if (!Array.isArray(echo.tags)) echo.tags = [];
+        if (!echo.tags.includes(threadId)) {
+          echo.tags.push(threadId);
+          setStoredJson(ECHOES_KEY, local);
+        }
+        memorySnapshot = assembleSnapshot();
+        const foundThread = memorySnapshot.threads.find(t => t.id === threadId);
+        return foundThread || { id: threadId, title: threadId, description: '', echoIds: [echoId], loopIds: [] };
+      }
+    },
+
+    reflections: {
+      async list(echoId         ) {
+        const db = assembleSnapshot();
+        return structuredClone(db.reflections.filter(r => !echoId || r.echoId === echoId));
+      },
+      async add(echoId        , body        ) {
+        const text = cleanText(body);
+        if (!text) throw new Error('Add your reflection first.');
+
+        const refId = makeId('ref');
+        const { token, userId } = getAuthSession();
+
+        const record = {
+          id: refId,
+          echo_id: echoId,
+          echoId,
+          body: text,
+          author: 'person',
+          created_at: new Date().toISOString()
+        };
+
+        const local = getStoredJson       (REFLECTIONS_KEY, []);
+        local.push(record);
+        setStoredJson(REFLECTIONS_KEY, local);
+
+        if (userId && token) {
+          try {
+            await supabaseFetch('/rest/v1/echo_reflections', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: refId,
+                user_id: userId,
+                echo_id: echoId,
+                body: text,
+                author: 'person',
+                created_at: record.created_at
+              })
+            });
+          } catch (err) {
+            console.warn('Server reflection sync failed:', err);
+          }
+        }
+
+        memorySnapshot = assembleSnapshot();
+        return {
+          id: refId,
+          echoId,
+          body: text,
+          author: 'person'         ,
+          createdAt: record.created_at,
+          provenance: 'local-session'         
+        };
+      }
+    },
+
+    chat: {
+      async respond(message        , echoIds          )                       {
+        if (!cleanText(message)) throw new Error('Write a message first.');
+        const db = assembleSnapshot();
+        const selected = echoIds.map(id => db.echoes.find(e => e.id === id)).filter(Boolean)          ;
+
+        return {
+          id: makeId('chat'),
+          role: 'luna',
+          echoIds: selected.map(e => e.id),
+          content: selected.length
+            ? 'You have brought ' + selected.map(e => '“' + e.title + '”').join(' and ') + ' into this conversation. What feels the same when you return to ' + (selected.length === 1 ? 'this moment' : 'these moments') + ', and what feels different? This is a scripted demonstration prompt; no model has read or interpreted your message.'
+            : 'What would you like to look at together? You can bring an Echo into this conversation using the context picker. This is a scripted demonstration; I do not have an active model connection in this beta.'
+        };
+      }
+    },
+
+    audio: {
+      async resolve(echo      )                         {
+        if (echo.audioUrl) return echo.audioUrl;
+        if (echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
+
+        const path = (echo       ).audio_path || (echo       ).audioPath;
+        if (!path) return null;
+
+        // Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
+        const cached = signedUrlCache.get(path);
+        if (cached && cached.expires > Date.now()) {
+          return cached.url;
+        }
+
+        try {
+          const res = await supabaseFetch('/storage/v1/object/sign/echo-audio/' + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expiresIn: 3600 })
+          });
+
+          if (res && res.signedURL) {
+            const fullUrl = SUPABASE_URL + '/storage/v1' + res.signedURL;
+            signedUrlCache.set(path, { url: fullUrl, expires: Date.now() + 3000 * 1000 });
+            return fullUrl;
+          }
+        } catch (err) {
+          console.warn('Failed to resolve signed audio URL for path:', path, err);
+        }
+
+        return null;
+      }
+    },
+
+    snapshot()                {
+      return memorySnapshot || assembleSnapshot();
+    },
+
+    reset()       {
+      localStorage.removeItem(ECHOES_KEY);
+      localStorage.removeItem(LOOPS_KEY);
+      localStorage.removeItem(REFLECTIONS_KEY);
+      memorySnapshot = assembleSnapshot();
+    }
+  };
+}
+
+
 // state.ts
                                                                      
                                                                           
@@ -184,7 +1181,11 @@ function createMockServices(audioAssets                      ={})              {
 function parseRoute(hash       )       {
   const raw=hash.replace(/^#\/?/,'')||'field';const [path,query]=raw.split('?');const [name,id]=path.split('/');let decoded                 =id;try{decoded=id?decodeURIComponent(id):undefined;}catch{}return {name,id:decoded,query:new URLSearchParams(query||'')};
 }
-const initialState=()        =>({route:parseRoute(globalThis.location?.hash||''),echoKind:'all',search:'',loopFilter:'unfolding',phase:'first-quarter',cycleId:'cycle-10',time:'night',scenario:'ready',chat:[],chatContext:[],chatBusy:false,forceMicDenied:false});
+const initialState=()        =>{
+  let phase        ='first-quarter';let cycleId='cycle-10';
+  try{const live=getLiveLunarData();phase=live.phaseId;cycleId=live.cycleId;}catch{}
+  return {route:parseRoute(globalThis.location?.hash||''),echoKind:'all',search:'',loopFilter:'unfolding',phase,cycleId,time:'night',scenario:'ready',chat:[],chatContext:[],chatBusy:false,forceMicDenied:false};
+};
 
 
 // visuals.ts
@@ -288,15 +1289,19 @@ function phaseOrbit(active       ){
 function continuityTrail(current='echo'){
   return `<nav class="continuity-trail" aria-label="Continue through the Field"><a href="#/field">${continuitySymbol('line',19)}<span>Express</span></a><span class="trail-arc"></span><a href="#/echoes" ${current==='echo'?'aria-current="step"':''}>${continuitySymbol('circle',20)}<span>Return</span></a><span class="trail-arc"></span><a href="#/threads">${continuitySymbol('spiral',21)}<span>Follow a thread</span></a></nav>`;
 }
-function emptyState(title       ,body       ,action='capture-text',label='Write an Echo'){return `<div class="state-panel">${icon('echo',30)}<h2>${escapeHtml(title)}</h2><p>${escapeHtml(body)}</p>${action?`<button class="btn primary" data-action="${action}">${escapeHtml(label)}</button>`:''}</div>`;}
-function footer(){return `<footer class="footer"><span class="footer-brand">One field. Many ways of seeing.</span><span>Synthetic demonstration · session changes only <button data-action="review" class="gold" aria-label="Open prototype review notes">↗ Review notes</button></span></footer>`;}
-function shell(active       ,body       ){
+function emptyState(title       ,body       ,action='capture-text',label='Write an Echo',sampleToggle=false){
+  return `<div class="state-panel">${icon('echo',30)}<h2>${escapeHtml(title)}</h2><p>${escapeHtml(body)}</p>${action?`<button class="btn primary" data-action="${action}">${escapeHtml(label)}</button>`:''}${sampleToggle?'<p style="margin-top:16px"><button class="text-link gold" data-action="toggle-sample-mode">Explore sample field with illustrative data ↗</button></p>':''}</div>`;
+}
+function footer(isSample=false){
+  return `<footer class="footer"><span class="footer-brand">One field. Many ways of seeing.</span><span>${isSample?'Sample demonstration':'Living Personal Field'} <button data-action="toggle-sample-mode" class="gold" aria-label="Toggle sample field mode">↗ ${isSample?'Return to My Field':'Explore Sample Field'}</button></span></footer>`;
+}
+function shell(active       ,body       ,isSample=false){
   const mainNav=[['field','field','Field'],['echoes','echo','Echoes'],['cycles','cycle','Cycles']];
   const secNav=[['loops','loop','Loops'],['threads','thread','Threads'],['reflections','reflect','Reflections']];
   const match=(name       )=>active===name||(name==='echoes'&&active==='echo')||(name==='threads'&&active==='thread')||(name==='cycles'&&active==='returns');
   const nav=(items           )=>items.map(([name,glyph,label])=>`<a class="nav-item ${match(name)?'active':''}" href="#/${name}" ${match(name)?'aria-current="page"':''}>${icon(glyph,19)}${label}</a>`).join('');
   const labels                      ={field:'Now',echoes:'Echoes',echo:'An Echo',cycles:'Cycles',loops:'Loops',threads:'Threads',thread:'A Thread',reflections:'Reflections',chat:'With Luna',returns:'A return'};
-  return `<a class="skip-link" href="#main" data-action="skip">Skip to content</a><aside class="sidebar" id="sidebar"><a class="brand" href="#/field" aria-label="Luna Field">${brandMark()}<span>LUNA</span></a><p class="brand-caption">A living personal field</p><nav aria-label="Primary" class="nav-group">${nav(mainNav)}</nav><p class="nav-label">Within your field</p><nav aria-label="Connected experiences" class="nav-group">${nav(secNav)}</nav><div class="sidebar-footer"><a href="#/chat" class="nav-item ${active==='chat'?'active':''}" ${active==='chat'?'aria-current="page"':''}>${icon('chat',19)}With Luna</a><a class="nav-item" href="/" style="color:var(--gold)">${icon('back',18)}Classic Luna</a><button class="nav-item" data-action="review">${icon('settings',18)}Explore this prototype</button><p class="sidebar-verse">The flow is already here.<br>Come as you are.</p></div></aside><div class="workspace"><header class="topbar"><button class="icon-button mobile-menu" data-action="menu" aria-label="Open navigation" aria-expanded="false">${icon('menu')}</button><a class="mobile-brand" href="#/field">LUNA</a><div class="breadcrumb"><a href="#/field">Your field</a><span>/</span><strong>${labels[active]||'Explore'}</strong></div><div class="spacer"></div><a class="demo-label classic-return" href="/" style="text-decoration:none; color:var(--gold); border-color:#63583d; flex-shrink:0" title="Return to Classic Luna">← Classic</a><button class="demo-label" data-action="review"><span class="pill-dot"></span>Design exploration</button><button class="icon-button" data-action="theme" aria-label="Switch light or dark theme">${icon(document.documentElement.dataset.theme==='light'?'moon':'sun',18)}</button><button class="avatar" data-action="review" aria-label="Demo profile and review notes">L</button></header><main class="main" id="main" tabindex="-1">${body}${footer()}</main></div><nav class="mobile-nav" aria-label="Mobile navigation"><a href="#/field" class="${active==='field'?'active':''}">${icon('field',21)}<span>Field</span></a><a href="#/echoes" class="${match('echoes')?'active':''}">${icon('echo',21)}<span>Echoes</span></a><button class="capture-nav" data-action="capture-voice" aria-label="Create an Echo">${icon('mic',21)}</button><a href="#/cycles" class="${match('cycles')?'active':''}">${icon('cycle',21)}<span>Cycles</span></a><a href="#/chat" class="${active==='chat'?'active':''}">${icon('chat',21)}<span>Luna</span></a></nav>`;
+  return `<a class="skip-link" href="#main" data-action="skip">Skip to content</a><aside class="sidebar" id="sidebar"><a class="brand" href="#/field" aria-label="Luna Field">${brandMark()}<span>LUNA</span></a><p class="brand-caption">A living personal field</p><nav aria-label="Primary" class="nav-group">${nav(mainNav)}</nav><p class="nav-label">Within your field</p><nav aria-label="Connected experiences" class="nav-group">${nav(secNav)}</nav><div class="sidebar-footer"><a href="#/chat" class="nav-item ${active==='chat'?'active':''}" ${active==='chat'?'aria-current="page"':''}>${icon('chat',19)}With Luna</a><a href="/" class="nav-item" aria-label="Return to Classic Luna">${icon('arrow',16)}Classic Luna</a><button class="nav-item" data-action="review">${icon('settings',18)}Explore this prototype</button><p class="sidebar-verse">The flow is already here.<br>Come as you are.</p></div></aside><div class="workspace"><header class="topbar"><button class="icon-button mobile-menu" data-action="menu" aria-label="Open navigation" aria-expanded="false">${icon('menu')}</button><a class="mobile-brand" href="#/field">LUNA</a><div class="breadcrumb"><a href="#/field">Your field</a><span>/</span><strong>${labels[active]||'Explore'}</strong></div><div class="spacer"></div><a href="/" class="text-link" style="font-size:11px;margin-right:12px;color:var(--color-text-muted);text-decoration:none" title="Return to Classic Luna">← Classic Luna</a><button class="demo-label" data-action="toggle-sample-mode"><span class="pill-dot"></span>${isSample?'Sample Field':'Luna Beta'}</button><button class="icon-button" data-action="theme" aria-label="Switch light or dark theme">${icon(document.documentElement.dataset.theme==='light'?'moon':'sun',18)}</button><button class="avatar" data-action="review" aria-label="Demo profile and review notes">L</button></header><main class="main" id="main" tabindex="-1">${isSample?'<div class="sample-banner" style="background:rgba(219,193,140,0.12);border-bottom:1px solid rgba(219,193,140,0.25);padding:8px 16px;font-size:12px;color:#dbc18c;display:flex;align-items:center;justify-content:space-between"><span><strong>Viewing Sample Field</strong> · Illustrative demonstration data</span><button class="btn small" data-action="toggle-sample-mode" style="padding:4px 8px;font-size:11px">Return to My Field</button></div>':''}${body}${footer(isSample)}</main></div><nav class="mobile-nav" aria-label="Mobile navigation"><a href="#/field" class="${active==='field'?'active':''}">${icon('field',21)}<span>Field</span></a><a href="#/echoes" class="${match('echoes')?'active':''}">${icon('echo',21)}<span>Echoes</span></a><button class="capture-nav" data-action="capture-voice" aria-label="Create an Echo">${icon('mic',21)}</button><a href="#/cycles" class="${match('cycles')?'active':''}">${icon('cycle',21)}<span>Cycles</span></a><a href="#/chat" class="${active==='chat'?'active':''}">${icon('chat',21)}<span>Luna</span></a></nav>`;
 }
 
 
@@ -304,9 +1309,12 @@ function shell(active       ,body       ){
                                                           
                                           
 
-function fieldView(db              ){
+function fieldView(db              ,isSample=false){
   const recent=db.echoes.slice(0,3);const open=db.loops.filter(l=>!['completed','closed'].includes(l.status)).slice(0,3);
-  return `<section class="hero">${oceanScene(2,'night','hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/cycles" class="hero-context">${moonDisc(2,23)}<span>First Quarter</span><span>·</span><span>The October field</span>${icon('arrow',13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>OCTOBER 9 · DEMO MOMENT</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p=>`<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.index===2?'active':''}">${moonDisc(p.index,15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>Recent Echoes <span>${db.echoes.length}</span></h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow',14)}</a></div>${recent.length?recent.map(e=>echoRow(e,true)).join(''):emptyState('A place for your first Echo','There is nothing to catch up on. Begin with whatever is here.')}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow',15)}</a></div>${open.length?open.map(miniLoop).join(''):'<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus',14)}Leave an intention</button></section>${db.echoes.find(e=>e.id==='echo-return')?`<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral',58)}</div><div class="eyebrow">An earlier moment</div><h3>The same path.<br>Another evening.</h3><p>Two walks beside the water, one cycle apart. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow',14)}</span></a>`:''}</div></div>`;
+  const pIndex=Math.max(0,phaseIndex(db.current.phaseId));
+  const currentCycle=db.cycles.find(c=>c.id===db.current.cycleId)||db.cycles[0];
+  const dateLabel=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric'}).toUpperCase();
+  return `<section class="hero">${oceanScene(pIndex,'night','hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/cycles" class="hero-context">${moonDisc(pIndex,23)}<span>${escapeHtml(db.current.label)}</span><span>·</span><span>${escapeHtml(currentCycle?.name||'Current cycle')}</span>${icon('arrow',13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>${dateLabel} · LIVE EPHEMERIS</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p=>`<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.id===db.current.phaseId?'active':''}">${moonDisc(p.index,15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>Recent Echoes <span>${db.echoes.length}</span></h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow',14)}</a></div>${recent.length?recent.map(e=>echoRow(e,true)).join(''):emptyState('Your field is open and waiting','Speak a few words or write what’s on your mind. There is nothing to catch up on.','capture-voice','Speak an Echo',!isSample)}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow',15)}</a></div>${open.length?open.map(miniLoop).join(''):'<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus',14)}Leave an intention</button></section>${db.echoes.find(e=>e.id==='echo-return')?`<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral',58)}</div><div class="eyebrow">An earlier moment</div><h3>The same path.<br>Another evening.</h3><p>Two walks beside the water, one cycle apart. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow',14)}</span></a>`:''}</div></div>`;
 }
 function echoesView(db              ,state        ){
   const query=state.route.query;let list=filterEchoes(db.echoes,{search:state.search,cycleId:query.get('cycle')||undefined,phaseId:(query.get('phase')||undefined)       });if(state.echoKind!=='all')list=list.filter(e=>e.kind===state.echoKind);
@@ -315,7 +1323,7 @@ function echoesView(db              ,state        ){
 function echoDetailView(db              ,id       ){
   const e=db.echoes.find(e=>e.id===id);if(!e)return emptyState('This Echo is not here','It may have been a draft from an earlier session. Return to the available Echoes.','go-echoes','Browse Echoes');
   const reflections=db.reflections.filter(r=>r.echoId===e.id);const threads=db.threads.filter(t=>e.threadIds.includes(t.id));const related=db.echoes.filter(x=>x.id!==e.id&&x.threadIds.some(t=>e.threadIds.includes(t))).slice(0,2);
-  return `<a class="text-link detail-back" href="#/echoes">${icon('back',15)}All Echoes</a><div class="detail-banner">${oceanScene(phaseIndex(e.context.phaseId),'night','detail')}<div class="detail-banner-info"><a href="#/cycles?cycle=${e.context.cycleId}">${e.context.cycleId==='cycle-09'?'The September field':'The October field'}</a><span>/</span><a href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">${escapeHtml(e.context.label)}</a><span>· Ocean & horizon</span></div></div><article class="detail-body">${continuityTrail()}<header class="detail-heading"><div class="eyebrow">${e.provenance==='synthetic'?'Synthetic demonstration Echo':'Your session draft'}</div><h1>${escapeHtml(e.title)}</h1><div class="flex"><span class="small muted">${escapeHtml(formatMoment(e.occurredAt))} · Chicago time</span></div></header><div class="detail-columns"><div>${e.kind==='voice'?voicePlayer(e):''}<section class="transcript"><h2>${e.kind==='voice'?'Transcript':'Original expression'}</h2><p>${escapeHtml(e.body||'No transcript yet. You can listen to the recording above. Automatic transcription requires a verified backend capability.')}</p></section><section class="detail-reflections"><div class="section-head"><h2>Another perspective</h2><span class="small muted">You choose what it means</span></div>${reflections.length?reflections.map(reflectionBlock).join(''):'<p class="small muted">Your original expression stands on its own. A reflection is optional.</p>'}<form class="reflection-form" data-form="reflection" data-id="${e.id}"><label class="sr-only" for="reflection-body">Add your own reflection</label><textarea id="reflection-body" name="body" maxlength="6000" placeholder="What do you notice as you return?" required></textarea><button class="btn small" type="submit">${icon('write',14)}Add my reflection</button></form></section></div><aside class="detail-aside"><section class="detail-side-section"><h2>Held in time</h2>${contextLink(e)}<p class="small muted" style="margin-top:12px">${e.context.source==='fixture'?'Illustrative lunar context · not a live calendar':''}</p><a class="text-link" href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">See this phase ${icon('arrow',14)}</a></section><section class="detail-side-section"><h2>Threads through this moment</h2>${threads.map(t=>`<a class="thread-link" href="#/thread/${t.id}">${icon('thread',16)}${escapeHtml(t.title)}</a>`).join('')||'<p class="small muted">No Threads connected yet.</p>'}<button class="text-link" data-action="connect-thread" data-id="${e.id}">${icon('plus',14)}Connect to a Thread</button></section><section class="detail-side-section"><h2>Nearby in your field</h2>${related.map(x=>`<a class="thread-link" href="#/echo/${x.id}">${icon('echo',15)}${escapeHtml(x.title)}</a>`).join('')||'<p class="small muted">Connections can be made when you choose.</p>'}<button class="text-link gold" data-action="chat-about" data-id="${e.id}">${icon('chat',15)}Bring this to Luna</button></section></aside></div></article>`;
+  return `<a class="text-link detail-back" href="#/echoes">${icon('back',15)}All Echoes</a><div class="detail-banner">${oceanScene(phaseIndex(e.context.phaseId),'night','detail')}<div class="detail-banner-info"><a href="#/cycles?cycle=${e.context.cycleId}">${escapeHtml(db.cycles.find(c=>c.id===e.context.cycleId)?.name||db.cycles[0]?.name||'The lunar field')}</a><span>/</span><a href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">${escapeHtml(e.context.label)}</a><span>· Ocean & horizon</span></div></div><article class="detail-body">${continuityTrail()}<header class="detail-heading"><div class="eyebrow">${e.provenance==='synthetic'?'Synthetic demonstration Echo':'Your session draft'}</div><h1>${escapeHtml(e.title)}</h1><div class="flex"><span class="small muted">${escapeHtml(formatMoment(e.occurredAt))} · Chicago time</span></div></header><div class="detail-columns"><div>${e.kind==='voice'?voicePlayer(e):''}<section class="transcript"><h2>${e.kind==='voice'?'Transcript':'Original expression'}</h2><p>${escapeHtml(e.body||'No transcript yet. You can listen to the recording above. Automatic transcription requires a verified backend capability.')}</p></section><section class="detail-reflections"><div class="section-head"><h2>Another perspective</h2><span class="small muted">You choose what it means</span></div>${reflections.length?reflections.map(reflectionBlock).join(''):'<p class="small muted">Your original expression stands on its own. A reflection is optional.</p>'}<form class="reflection-form" data-form="reflection" data-id="${e.id}"><label class="sr-only" for="reflection-body">Add your own reflection</label><textarea id="reflection-body" name="body" maxlength="6000" placeholder="What do you notice as you return?" required></textarea><button class="btn small" type="submit">${icon('write',14)}Add my reflection</button></form></section></div><aside class="detail-aside"><section class="detail-side-section"><h2>Held in time</h2>${contextLink(e)}<p class="small muted" style="margin-top:12px">${e.context.source==='fixture'?'Illustrative lunar context · not a live calendar':''}</p><a class="text-link" href="#/cycles?cycle=${e.context.cycleId}&phase=${e.context.phaseId}">See this phase ${icon('arrow',14)}</a></section><section class="detail-side-section"><h2>Threads through this moment</h2>${threads.map(t=>`<a class="thread-link" href="#/thread/${t.id}">${icon('thread',16)}${escapeHtml(t.title)}</a>`).join('')||'<p class="small muted">No Threads connected yet.</p>'}<button class="text-link" data-action="connect-thread" data-id="${e.id}">${icon('plus',14)}Connect to a Thread</button></section><section class="detail-side-section"><h2>Nearby in your field</h2>${related.map(x=>`<a class="thread-link" href="#/echo/${x.id}">${icon('echo',15)}${escapeHtml(x.title)}</a>`).join('')||'<p class="small muted">Connections can be made when you choose.</p>'}<button class="text-link gold" data-action="chat-about" data-id="${e.id}">${icon('chat',15)}Bring this to Luna</button></section></aside></div></article>`;
 }
 function cyclesView(db              ,state        ){
   const p=PHASES.find(p=>p.id===state.phase)||PHASES[2];const cycle=db.cycles.find(c=>c.id===state.cycleId)||db.cycles[0];const echoes=filterEchoes(db.echoes,{cycleId:cycle.id,phaseId:p.id});const previous=db.echoes.filter(e=>e.context.cycleId!==cycle.id&&e.context.phaseId===p.id);
@@ -332,11 +1340,11 @@ function threadsView(db              ,id        ){
 function reflectionsView(db              ){return `<div class="page-intro"><div><div class="eyebrow">Another view, alongside the original</div><h1>Looking again.</h1><p>Your expression comes first. A reflection is a perspective you can keep, question, or leave.</p></div></div><section class="reflection-list">${db.reflections.map(r=>{const e=db.echoes.find(e=>e.id===r.echoId);return `<article class="reflection-entry"><a href="#/echo/${r.echoId}"><div class="echo-meta">Returning to an Echo · ${e?escapeHtml(formatMoment(e.occurredAt)):''}</div><h2>${escapeHtml(e?.title||'An Echo')}</h2></a>${reflectionBlock(r)}<a class="text-link" href="#/echo/${r.echoId}">Read the original expression ${icon('arrow',14)}</a></article>`;}).join('')||emptyState('Another perspective, when you want one','Open an Echo to add a reflection in your own words.','go-echoes','Return to an Echo')}<div class="notice" style="margin-top:28px"><strong>Proposed new capability</strong><br>Living Phase and Cycle Reflections could evolve as experiences enter the Field. They are not connected or generated in this prototype.</div></section>`;}
 function returnsView(db              ){const pair=['echo-return','echo-water'].map(id=>db.echoes.find(e=>e.id===id)).filter(Boolean)          ;if(pair.length<2)return emptyState('A return needs two moments','These demonstration Echoes are not available in the current view.','go-echoes','Browse Echoes');return `<a class="text-link detail-back" href="#/field">${icon('back',15)}Your field</a><div class="page-intro"><div><div class="eyebrow">A return · first quarter to first quarter</div><h1>The same path.<br>Another evening.</h1><p>Two original expressions, one cycle apart. The relationship is yours to explore.</p></div></div><div class="return-cycle-link">${continuitySymbol('circle',42)}<span>Earlier moment</span><span class="return-link-curve"></span>${continuitySymbol('spiral',47)}<span>Returning now</span></div><div class="compare-grid">${pair.map((e,i)=>`<article class="compare-card"><div class="author-tag">${i?'This cycle':'Earlier cycle'}</div><h2>${escapeHtml(e.title)}</h2><div class="echo-meta">${escapeHtml(formatMoment(e.occurredAt))}</div><p>${escapeHtml(e.body)}</p><div class="flex" style="margin-top:21px">${contextLink(e)}<a class="text-link" href="#/echo/${e.id}">Open Echo ${icon('arrow',14)}</a></div></article>`).join('')}</div><div class="return-invitation"><h2>What do you notice from here?</h2><p>Something may repeat, shift, or feel entirely different. There is no conclusion to arrive at.</p></div><form class="reflection-form reflection-box" data-form="reflection" data-id="echo-water"><label class="sr-only" for="return-reflection">Your reflection on this return</label><textarea id="return-reflection" name="body" maxlength="6000" placeholder="Looking at these moments together, I notice…" required></textarea><div class="form-foot"><small>Your reflection will belong to the more recent Echo, in this session.</small><button class="btn" type="submit">Keep my reflection</button></div></form><div style="text-align:center"><button class="text-link gold" data-action="chat-return">${icon('chat',16)}Bring both moments to Luna</button></div>`;}
 function chatView(db              ,state        ){return `<section class="chat-shell"><header class="chat-intro">${brandMark()}<h1>A conversation within your field.</h1><p>Bring a moment, a question, or a connection you want to explore.<br>You choose what enters the conversation.</p></header>${!state.chat.length?`<div class="prompt-chips"><button data-action="chat-prompt" data-value="I would like to return to a recent moment.">Return to a moment</button><button data-action="chat-prompt" data-value="What feels different between these two moments?">Look at two Echoes</button><button data-action="chat-prompt" data-value="There is something I want to leave open.">Leave a question open</button></div>`:''}<div id="chat-messages" aria-live="polite" aria-relevant="additions">${state.chat.map(m=>`<article class="chat-message ${m.role}"><div class="author-tag">${m.role==='person'?`${icon('echo',14)} You`:`${brandMark()} Luna · scripted demo`}</div><p>${escapeHtml(m.content)}</p>${m.echoIds.length?`<div class="chat-sources">${m.echoIds.map(id=>`<a class="chip" href="#/echo/${id}">${icon('echo',12)}${escapeHtml(db.echoes.find(e=>e.id===id)?.title||'Echo')}</a>`).join('')}</div>`:''}</article>`).join('')}${state.chatBusy?'<p class="small muted" role="status">Preparing a demonstration response…</p>':''}</div><div class="chat-bottom"><div class="chat-context"><button class="text-link gold" data-action="chat-context">${icon('plus',14)}Choose Echo context</button>${state.chatContext.map(id=>`<button class="chip" data-action="remove-context" data-id="${id}" aria-label="Remove ${escapeHtml(db.echoes.find(e=>e.id===id)?.title)} from chat context">${escapeHtml(db.echoes.find(e=>e.id===id)?.title||'Echo')} ×</button>`).join('')}</div><form data-form="chat" class="chat-composer"><label class="sr-only" for="chat-input">Message to Luna</label><textarea name="message" id="chat-input" maxlength="4000" placeholder="What would you like to explore?" required ${state.chatBusy?'disabled':''}></textarea><div class="chat-composer-bottom"><small>${state.chatContext.length?`${state.chatContext.length} selected Echo${state.chatContext.length===1?'':'es'} in context`:'No Echo context selected'} · this session only</small><button class="send-button" type="submit" aria-label="Send message in demonstration" ${state.chatBusy?'disabled':''}>${icon('send',19)}</button></div></form><p class="chat-status">Frontend prototype only · scripted responses · no model or private Field connection</p></div></section>`;}
-function routeView(db              ,state        ){
+function routeView(db              ,state        ,isSample=false){
   if(state.scenario==='loading')return `<div role="status" aria-label="Loading your field"><div class="skeleton short"></div><div class="skeleton medium"></div><div class="skeleton block"></div><div class="skeleton medium"></div><div class="skeleton short"></div></div><p class="small muted">Reviewing the loading state.</p><button class="text-link gold" data-action="scenario" data-value="ready">Finish loading demonstration ${icon('arrow',14)}</button>`;
   if(state.scenario==='error')return emptyState('Your field can wait here.','This is a simulated loading error. Your session changes are still held. Try again when you are ready.','retry','Try again');
   if(state.scenario==='denied')return emptyState('This field is not available.','This is a simulated permission-denied state. A real connection must verify your access before showing records.','retry','Return to demonstration');
-  let body='';switch(state.route.name){case 'field':body=fieldView(db);break;case 'echoes':body=echoesView(db,state);break;case 'echo':body=echoDetailView(db,state.route.id||'');break;case 'cycles':body=cyclesView(db,state);break;case 'loops':body=loopsView(db,state);break;case 'threads':body=threadsView(db);break;case 'thread':body=threadsView(db,state.route.id);break;case 'reflections':body=reflectionsView(db);break;case 'returns':body=returnsView(db);break;case 'chat':body=chatView(db,state);break;default:body=emptyState('Find your way back.','This view is not part of the exploration.','go-field','Return to the Field');}
+  let body='';switch(state.route.name){case 'field':body=fieldView(db,isSample);break;case 'echoes':body=echoesView(db,state);break;case 'echo':body=echoDetailView(db,state.route.id||'');break;case 'cycles':body=cyclesView(db,state);break;case 'loops':body=loopsView(db,state);break;case 'threads':body=threadsView(db);break;case 'thread':body=threadsView(db,state.route.id);break;case 'reflections':body=reflectionsView(db);break;case 'returns':body=returnsView(db);break;case 'chat':body=chatView(db,state);break;default:body=emptyState('Find your way back.','This view is not part of the exploration.','go-field','Return to the Field');}
   if(state.scenario==='offline'||globalThis.navigator?.onLine===false)body=`<div class="offline-banner" role="status">${icon('offline',16)}<span>${state.scenario==='offline'?'Offline demonstration.':'You appear to be offline.'} Local interactions remain available; nothing is queued for upload.</span></div>`+body;
   return body;
 }
@@ -412,7 +1420,7 @@ class VoiceEngine {
                                                         
 
                                                        
-const services=createMockServices(LUNA_AUDIO_ASSETS);
+const services=createLiveLunaServices(LUNA_AUDIO_ASSETS);
 const state=initialState();
 const root=document.getElementById('app') ;
 const modal=document.getElementById('modal')                     ;
@@ -440,6 +1448,7 @@ let captureText='';
 let recorder                   =null;
 let stream                 =null;
 let chunks           =[];
+let recordingBlob          =null;
 let recordingUrl='';
 let recordingDuration=0;
 let recordStarted=0;
@@ -452,8 +1461,10 @@ let submitting=false;
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
+function isSampleMode()        {return Boolean(services.isSampleMode&&services.isSampleMode());}
 function render(focusMain=false){
-  root.innerHTML=shell(state.route.name,routeView(currentDb(),state));
+  const sample=isSampleMode();
+  root.innerHTML=shell(state.route.name,routeView(currentDb(),state,sample),sample);
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
   syncAudioUI();
@@ -479,7 +1490,7 @@ function cleanupCapture(){
   if(recorder&&recorder.state!=='inactive')recorder.stop();
   stream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;
   if(recordingUrl&&!recordedSaved){URL.revokeObjectURL(recordingUrl);localAudioUrls.delete(recordingUrl);}
-  recordingUrl='';recordingDuration=0;recordedSaved=false;
+  recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;
 }
 function keepCaptureInputs(){const title=modal.querySelector                  ('#capture-title');const body=modal.querySelector                     ('#capture-body');if(title)captureTitle=title.value;if(body)captureText=body.value;}
 function openCapture(mode               ){stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureActive=true;renderCapture();}
@@ -524,6 +1535,7 @@ async function startRecording(){
       if(token!==captureToken||!captureActive)return;
       voiceEngine.stop();
       const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
+      recordingBlob=blob;
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
@@ -575,6 +1587,7 @@ document.addEventListener('click',async(event)=>{
       case 'menu':{const open=document.getElementById('sidebar')?.classList.toggle('mobile-open');target.setAttribute('aria-expanded',String(open));break;}
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'review':openReview();break;
+      case 'toggle-sample-mode':{const active=isSampleMode();services.setSampleMode?.(!active);render(true);toast(!active?'Exploring sample field with illustrative data.':'Returned to your personal living field.');break;}
       case 'close-modal':closeModal();break;
       case 'capture-voice':openCapture('voice');await startRecording();break;
       case 'capture-entrance':openCapture('voice');break;
@@ -632,8 +1645,8 @@ document.addEventListener('submit',async(event)=>{
   const data=new FormData(form);const submit=form.querySelector                   ('[type="submit"]');submitting=true;if(submit)submit.disabled=true;
   try{
     switch(form.dataset.form){
-      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:DEMO_CONTEXT});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here for this session.');break;}
-      case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention, left open.');break;}
+      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here.');break;}
+      case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention held in your field.');break;}
       case 'reflection':{await services.reflections.add(form.dataset.id ,String(data.get('body')||''));const input=form.querySelector                     ('textarea') ;delete drafts[input.id];input.value='';render();toast('Your reflection is alongside the original.');break;}
       case 'thread-link':{await services.threads.linkEcho(String(data.get('thread')),form.dataset.id );closeModal();render();toast('Connected by you.');break;}
       case 'chat-context':state.chatContext=data.getAll('echo').map(String);closeModal();render();break;
@@ -650,6 +1663,9 @@ window.addEventListener('offline',()=>render());window.addEventListener('online'
 window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 try{const theme=localStorage.getItem('luna-exploration-theme');if(theme==='light')document.documentElement.dataset.theme='light';}catch{}
 applyRoute();render();
+
+if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
+window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
 
 })();</script>
 </body></html>

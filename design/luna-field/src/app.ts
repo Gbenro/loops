@@ -1,5 +1,7 @@
 import type { Echo, Scenario, LoopStatus } from './contracts.ts';
 import { createMockServices, makeId, filterEchoes } from './mock-services.ts';
+import { createLiveLunaServices } from './live-services.ts';
+import { getLiveLunarData } from './lunar-engine.ts';
 import { initialState, parseRoute } from './state.ts';
 import { PHASES, DEMO_CONTEXT } from './fixtures.ts';
 import { escapeHtml, icon, waveform, liveWave, playbackWave, orbitRings, timecode, formatMoment } from './visuals.ts';
@@ -10,7 +12,7 @@ import { sampleEnvelope, clamp01 } from './audio-geometry.ts';
 import type { WaveAnalysis } from './audio-geometry.ts';
 
 declare const LUNA_AUDIO_ASSETS: Record<string,string>;
-const services=createMockServices(LUNA_AUDIO_ASSETS);
+const services=createLiveLunaServices(LUNA_AUDIO_ASSETS);
 const state=initialState();
 const root=document.getElementById('app')!;
 const modal=document.getElementById('modal') as HTMLDialogElement;
@@ -38,6 +40,7 @@ let captureText='';
 let recorder:MediaRecorder|null=null;
 let stream:MediaStream|null=null;
 let chunks:BlobPart[]=[];
+let recordingBlob:Blob|null=null;
 let recordingUrl='';
 let recordingDuration=0;
 let recordStarted=0;
@@ -50,8 +53,10 @@ let submitting=false;
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
+function isSampleMode():boolean{return Boolean(services.isSampleMode&&services.isSampleMode());}
 function render(focusMain=false){
-  root.innerHTML=shell(state.route.name,routeView(currentDb(),state));
+  const sample=isSampleMode();
+  root.innerHTML=shell(state.route.name,routeView(currentDb(),state,sample),sample);
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
   syncAudioUI();
@@ -77,7 +82,7 @@ function cleanupCapture(){
   if(recorder&&recorder.state!=='inactive')recorder.stop();
   stream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;
   if(recordingUrl&&!recordedSaved){URL.revokeObjectURL(recordingUrl);localAudioUrls.delete(recordingUrl);}
-  recordingUrl='';recordingDuration=0;recordedSaved=false;
+  recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;
 }
 function keepCaptureInputs(){const title=modal.querySelector<HTMLInputElement>('#capture-title');const body=modal.querySelector<HTMLTextAreaElement>('#capture-body');if(title)captureTitle=title.value;if(body)captureText=body.value;}
 function openCapture(mode:'voice'|'text'){stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureActive=true;renderCapture();}
@@ -122,6 +127,7 @@ async function startRecording(){
       if(token!==captureToken||!captureActive)return;
       voiceEngine.stop();
       const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
+      recordingBlob=blob;
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
@@ -173,6 +179,7 @@ document.addEventListener('click',async(event)=>{
       case 'menu':{const open=document.getElementById('sidebar')?.classList.toggle('mobile-open');target.setAttribute('aria-expanded',String(open));break;}
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'review':openReview();break;
+      case 'toggle-sample-mode':{const active=isSampleMode();services.setSampleMode?.(!active);render(true);toast(!active?'Exploring sample field with illustrative data.':'Returned to your personal living field.');break;}
       case 'close-modal':closeModal();break;
       case 'capture-voice':openCapture('voice');await startRecording();break;
       case 'capture-entrance':openCapture('voice');break;
@@ -230,8 +237,8 @@ document.addEventListener('submit',async(event)=>{
   const data=new FormData(form);const submit=form.querySelector<HTMLButtonElement>('[type="submit"]');submitting=true;if(submit)submit.disabled=true;
   try{
     switch(form.dataset.form){
-      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:DEMO_CONTEXT});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here for this session.');break;}
-      case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention, left open.');break;}
+      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here.');break;}
+      case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention held in your field.');break;}
       case 'reflection':{await services.reflections.add(form.dataset.id!,String(data.get('body')||''));const input=form.querySelector<HTMLTextAreaElement>('textarea')!;delete drafts[input.id];input.value='';render();toast('Your reflection is alongside the original.');break;}
       case 'thread-link':{await services.threads.linkEcho(String(data.get('thread')),form.dataset.id!);closeModal();render();toast('Connected by you.');break;}
       case 'chat-context':state.chatContext=data.getAll('echo').map(String);closeModal();render();break;
@@ -248,3 +255,6 @@ window.addEventListener('offline',()=>render());window.addEventListener('online'
 window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 try{const theme=localStorage.getItem('luna-exploration-theme');if(theme==='light')document.documentElement.dataset.theme='light';}catch{}
 applyRoute();render();
+
+if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
+window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
