@@ -609,13 +609,31 @@ app.get('/', (req, res) => {
 // ─── REST API Fallback (for Custom GPT Actions) ────────────────────────────────
 
 import { validateDevSessionToken, validateDevDiscoveryToken } from './devBridge.js';
+import { authorizeDevelopmentRequest, secretEquals, publicDevResult } from './devAuthorization.js';
 import { getSupabaseAnon, getSupabaseService } from './db.js';
 
 const authenticateRest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.match(/^Bearer ([^\s]+)$/i)?.[1];
   if (!token) {
     res.status(401).json({ error: 'Missing token' });
     return;
+  }
+  if (req.method === 'GET' && req.path.startsWith('/api/dev/')) {
+    const sendJson = res.json.bind(res);
+    res.json = body => sendJson(publicDevResult(body));
+  }
+
+  // Observer credentials never enter Personal Field, creative, or execution routes.
+  if (secretEquals(token, process.env.LUNA_DEV_DOT_READ_TOKEN)) {
+    const owner = process.env.LUNA_DEV_DEFAULT_USER_ID;
+    if (!owner) return void res.status(401).json({ error: 'Observer owner is not configured' });
+    (req as any).isDevObserver = true;
+    (req as any).devUserId = owner;
+    try { authorizeDevelopmentRequest(req); }
+    catch (error: any) { return void res.status(403).json({ error: error.message }); }
+    try { req.body.supabaseClient = getSupabaseService(); }
+    catch { return void res.status(503).json({ error: 'Development service is not configured' }); }
+    return next();
   }
 
   // 1. Scoped Discovery Credential (dsc_...)
@@ -626,17 +644,10 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
       return;
     }
 
-    // Strict boundary: Discovery credentials have ZERO Personal Field access
-    const isPersonalField = req.path.startsWith('/api/loops') ||
-      req.path.startsWith('/api/echoes') ||
-      req.path.startsWith('/api/threads') ||
-      req.path.startsWith('/api/context') ||
-      req.path.startsWith('/api/chat');
-
-    if (isPersonalField) {
-      res.status(403).json({ error: 'Discovery credential has zero Personal Field access' });
-      return;
-    }
+    (req as any).isDiscoverySession = true;
+    (req as any).devUserId = discovery.userId;
+    try { authorizeDevelopmentRequest(req); }
+    catch (error: any) { return void res.status(403).json({ error: error.message }); }
 
     try {
       req.body.supabaseClient = getSupabaseService();
@@ -653,11 +664,17 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
 
   // 2. Ephemeral Dev Session Token (dtk_...)
   if (token.startsWith('dtk_')) {
-    const validated = await validateDevSessionToken(token);
+    let validated;
+    try { validated = await validateDevSessionToken(token); }
+    catch { return void res.status(503).json({ error: 'Development service is not configured' }); }
     if (!validated) {
       res.status(401).json({ error: 'Invalid or expired Dev Session Token' });
       return;
     }
+    (req as any).devSession = validated.session;
+    (req as any).devUserId = validated.userId;
+    try { authorizeDevelopmentRequest(req); }
+    catch (error: any) { return void res.status(403).json({ error: error.message }); }
     try {
       req.body.supabaseClient = getSupabaseService();
     } catch (err: any) {

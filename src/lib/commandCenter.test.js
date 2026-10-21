@@ -109,8 +109,8 @@ describe('Luna Command Center Gateway (6 Operations) Test Suite', () => {
   it('Verifies Client-Specific Least Privilege boundary: Core hub disallows discovery token', () => {
     expect(COMMAND_CENTER_CAPABILITIES.hubs.core.allowDiscoveryToken).toBe(false);
     expect(COMMAND_CENTER_CAPABILITIES.hubs.dev.allowDiscoveryToken).toBe(true);
-    expect(COMMAND_CENTER_CAPABILITIES.hubs.creative.allowDiscoveryToken).toBe(true);
-    expect(COMMAND_CENTER_CAPABILITIES.hubs.assets.allowDiscoveryToken).toBe(true);
+    expect(COMMAND_CENTER_CAPABILITIES.hubs.creative.allowDiscoveryToken).toBe(false);
+    expect(COMMAND_CENTER_CAPABILITIES.hubs.assets.allowDiscoveryToken).toBe(false);
   });
 
   it('extractCommandCenterPayload seamlessly extracts both nested and flat arguments', () => {

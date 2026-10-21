@@ -58,34 +58,18 @@ Run these inside `/home/ben/.openclaw/workspace/loops-app`:
 
 ## 4. Luna Dev Bridge Integration
 
-The Luna Dev Bridge coordinates task execution and issue tracking between AI agents and production:
+See `docs/DEVELOPMENT_COORDINATION.md` for the local hardening patch, supported
+roles, separate worktrees, reporting, and staged rollout. That patch is not deployed.
 
-### Connection Coordinates
-* **Production API Base**: `https://loops-production-e1d5.up.railway.app`
-* **Discovery Key**: `dsc_4ba5b063659f5fd48d341fd55d3e2bcc3a8d2a294bbd2c1d`
-* **OpenAPI Specs**:
-  - Dev Bridge: `https://loops-production-e1d5.up.railway.app/openapi-dev.json`
-  - Command Center: `https://loops-production-e1d5.up.railway.app/openapi-command-center.json`
-
-### Option A: Local Dev Bridge CLI Daemon
-Run `npm run dev-bridge` in terminal. It starts a local HTTP bridge on `http://127.0.0.1:4888`:
-- `GET http://127.0.0.1:4888/status` — Current connected session & issue
-- `GET http://127.0.0.1:4888/issue` — Active target issue details
-- `POST http://127.0.0.1:4888/report-tests` — `{ "status": "passed", "command": "npm test", "passed": 51, "failed": 0 }`
-- `POST http://127.0.0.1:4888/report-build` — `{ "status": "passed", "command": "npm run build" }`
-- `POST http://127.0.0.1:4888/report-commit` — `{ "message": "feat: ...", "hash": "..." }`
-- `POST http://127.0.0.1:4888/complete` — `{ "finalSummary": "Completed task..." }`
-
-### Option B: Direct HTTP Gateway (`/api/luna/command-center/dev`)
-Send JSON requests with header `Authorization: Bearer dsc_4ba5b063659f5fd48d341fd55d3e2bcc3a8d2a294bbd2c1d`:
-* **List Issues**:
-  `POST /api/luna/command-center/dev` with `{ "action": "dev.issues.list", "limit": 10 }`
-* **Get Issue**:
-  `POST /api/luna/command-center/dev` with `{ "action": "dev.issues.get", "id": "iss_..." }`
-* **Update Status**:
-  `POST /api/luna/command-center/dev` with `{ "action": "dev.issues.update_status", "id": "iss_...", "status": "awaiting_acceptance" }`
-* **Post Lifecycle Event**:
-  `POST /api/luna/command-center/dev` with `{ "action": "dev.events.post", "issueId": "iss_...", "type": "developer.implementation_reported", "message": "..." }`
+- Keep credentials in the environment or an approved secret store, never this guide.
+- Discovery credentials are read-only; agent reports use an issue/session-bound token.
+- The authenticated creator explicitly provisions separate named agent sessions.
+- Never claim an already connected session or replace another agent's token.
+- Use `node bin/luna-coordinate.mjs events <issueId>` to read updates.
+- Use `node bin/luna-coordinate.mjs report <issueId> <report.json>` to review a dry run.
+  Add `--publish` only for an authorized update using the agent's own session token.
+- Dot requires the restricted observer connector and separate read credential.
+- Publishing, deployment, rotation, acceptance and merges remain distinct actions.
 
 ---
 

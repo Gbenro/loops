@@ -42,6 +42,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
             })
           }),
           eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'owned-issue' }, error: null }),
           order: vi.fn().mockReturnThis(),
           limit: vi.fn().mockReturnThis(),
           single: vi.fn().mockResolvedValue({ data: { id: `${table}_123`, title: 'Test Issue' }, error: null })
@@ -320,7 +321,8 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(authResult).toBeDefined();
     const parsed = JSON.parse(authResult.content[0].text);
     expect(parsed.connectCommand).toContain('iss_1788132031507_65z7');
-    expect(parsed.connectCommand).toContain('--token dtk_');
+    expect(parsed.connectCommand).not.toContain('--token');
+    expect(parsed.connectCommand).not.toMatch(/dtk_[a-zA-Z0-9_-]+/);
   });
 
   // ─── 8. Intent-Aware Task Dispatch & Classification Invariants ───────────
@@ -540,6 +542,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
 
     const session = await createDevSession(supabase, mockUser.id, {
       issueId: 'iss_cold_start_1',
+      agent: 'gemini',
       status: 'pending'
     });
 
@@ -580,18 +583,8 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
         }),
         update: vi.fn().mockImplementation((data) => {
           updated = data;
-          return {
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
-                    data: { ...pendingSessionRow, ...data },
-                    error: null
-                  })
-                })
-              })
-            })
-          };
+          const mutation = { eq: vi.fn().mockReturnThis(), select: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValue({ data: { ...pendingSessionRow, ...data }, error: null }) };
+          return mutation;
         })
       }
     };
@@ -668,7 +661,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
 
     // GPT calls create_dev_session without specifying status
     const result = await executeTool(supabase, 'create_dev_session', {
-      issueId: 'iss_gpt_test_1'
+      issueId: 'iss_gpt_test_1', agent: 'gemini'
     });
 
     const parsed = JSON.parse(result.content[0].text);
@@ -682,6 +675,8 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
   });
 
   it('validates dedicated Development discovery credentials (dsc_...) and rejects invalid tokens', async () => {
+    vi.stubEnv('LUNA_DEV_DISCOVERY_KEY', 'dsc_test_machine_discovery_credential_123');
+    vi.stubEnv('LUNA_DEV_DEFAULT_USER_ID', 'test-owner');
     const valid = await validateDevDiscoveryToken('dsc_test_machine_discovery_credential_123');
     expect(valid).not.toBeNull();
     expect(valid.valid).toBe(true);
@@ -695,6 +690,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
 
     const empty = await validateDevDiscoveryToken('');
     expect(empty).toBeNull();
+    vi.unstubAllEnvs();
   });
 
   it('listPendingDevSessions enforces user isolation and only returns authorized user sessions', async () => {
@@ -824,7 +820,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     expect(result.items[0].issueId).toBe('iss_newer_1');
   });
 
-  it('listPendingDevSessions auto-creates pending sessions for unassigned ready issues', async () => {
+  it('listPendingDevSessions does not auto-create sessions for unassigned ready issues', async () => {
     const targetUserId = 'usr_auto_ready_1';
     let insertedSession = null;
 
@@ -885,9 +881,7 @@ describe('Luna Development Bridge (V1) Test Suite', () => {
     const supabase = createMockSupabase(customHandlers);
 
     const result = await listPendingDevSessions(supabase, targetUserId);
-    expect(insertedSession).toBeDefined();
-    expect(insertedSession.issue_id).toBe('iss_ready_new_1');
-    expect(insertedSession.status).toBe('pending');
+    expect(insertedSession).toBeNull();
     expect(result.items).toHaveLength(1);
     expect(result.items[0].issueId).toBe('iss_ready_new_1');
   });

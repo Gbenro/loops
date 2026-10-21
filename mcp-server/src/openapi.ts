@@ -3975,6 +3975,7 @@ export const LUNA_COMMAND_CENTER_OPENAPI_SPEC = {
               "dev.sessions.claim",
               "dev.sessions.end",
               "dev.sessions.pending",
+              "dev.sessions.get",
               "dev.queue.get_state"
             ],
             "description": "Dev Bridge sub-action identifier"

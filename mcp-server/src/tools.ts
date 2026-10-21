@@ -704,11 +704,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         issueId: { type: 'string', description: 'Issue ID to authorize' },
-        agent: { type: 'string', description: 'Agent identifier (default: gemini)' },
+        agent: { type: 'string', enum: ['codex', 'gemini', 'luna'], description: 'Explicit assigned agent identity' },
         model: { type: 'string', description: 'Model identifier (default: gemini-2.5-pro)' },
         status: { type: 'string', enum: ['pending', 'connected'], description: 'Session lifecycle status (default: pending)' }
       },
-      required: ['issueId']
+      required: ['issueId', 'agent']
     }
   },
   {
@@ -718,9 +718,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         sessionId: { type: 'string', description: 'Dev Session ID to claim' },
-        agent: { type: 'string', description: 'Claiming agent identifier (default: gemini)' }
+        agent: { type: 'string', enum: ['codex', 'gemini', 'luna'], description: 'Explicit assigned agent identity' }
       },
-      required: ['sessionId']
+      required: ['sessionId', 'agent']
     }
   },
   {
@@ -2813,7 +2813,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
             token: session.token || null,
             expiresAt: session.tokenExpiresAt || null,
             connectCommand: session.token 
-              ? `node bin/luna-dev.mjs start ${args.issueId} --token ${session.token}`
+              ? `node bin/luna-dev.mjs start ${args.issueId}`
               : `node bin/luna-dev.mjs watch-pending --claim`
           }, null, 2)
         }]
@@ -2821,7 +2821,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
     }
 
     case 'claim_dev_session': {
-      const claimed = await claimPendingDevSession(supabase, userId, args.sessionId, args.agent || 'gemini');
+      const claimed = await claimPendingDevSession(supabase, userId, args.sessionId, args.agent);
       return {
         content: [{
           type: 'text',
@@ -2829,7 +2829,7 @@ export async function executeTool(supabase: SupabaseClient, name: string, args: 
             session: claimed.session,
             token: claimed.token,
             expiresAt: claimed.session.tokenExpiresAt,
-            connectCommand: `node bin/luna-dev.mjs start ${claimed.session.issueId} --token ${claimed.token}`
+            connectCommand: `node bin/luna-dev.mjs start ${claimed.session.issueId}`
           }, null, 2)
         }]
       };

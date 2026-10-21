@@ -1,0 +1,19 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Luna Development Observer", "version": "1.0.0", "description": "Prepared read-only connector contract for Dot. Server hardening must be reviewed and deployed before connecting. No Personal Field, commands, deployment, or approval actions." },
+  "servers": [{ "url": "https://loops-production-e1d5.up.railway.app" }],
+  "security": [{ "observerBearer": [] }],
+  "components": { "schemas": {}, "securitySchemes": { "observerBearer": { "type": "http", "scheme": "bearer" } } },
+  "paths": { "/api/luna/command-center/dev": { "post": {
+    "operationId": "readLunaDevelopment",
+    "description": "Read only the development issue, events, session status, or queue. Recommendations have no approval authority.",
+    "x-openai-isConsequential": false,
+    "requestBody": { "required": true, "content": { "application/json": { "schema": {
+      "type": "object", "additionalProperties": false, "required": ["action", "payload"], "properties": {
+        "action": { "type": "string", "enum": ["dev.issues.list", "dev.issues.get", "dev.events.list", "dev.sessions.get", "dev.sessions.pending", "dev.queue.get_state"] },
+        "payload": { "type": "object", "additionalProperties": false, "properties": { "id": { "type": "string" }, "issueId": { "type": "string" }, "sessionId": { "type": "string" }, "limit": { "type": "integer", "minimum": 1, "maximum": 50 } } }
+      }
+    } } } },
+    "responses": { "200": { "description": "Development-only response with credentials removed" }, "401": { "description": "Invalid observer credential" }, "403": { "description": "Operation not allowed" } }
+  } } }
+}

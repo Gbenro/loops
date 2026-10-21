@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { secretEquals, requireAgent, publicDevResult } from './devAuthorization.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseAnon, getSupabaseService } from './db.js';
+import { getSupabaseService } from './db.js';
 
 export interface DevIssue {
   id: string;
@@ -172,6 +173,7 @@ export interface DevCompletionSummary {
 }
 
 export interface DevEvidenceSummary {
+  workstreams?: Record<string, DevEvidenceSummary>;
   lifecycleCycle: number;
   isStale: boolean;
   currentCycleCutoff?: string;
@@ -259,7 +261,7 @@ export function mapDevSession(row: any): DevSession {
     id: row.id,
     issueId: row.issue_id,
     userId: row.user_id,
-    agent: row.agent || 'gemini',
+    agent: row.agent || 'unknown',
     model: row.model || null,
     status: row.status || 'connected',
     token: row.token || undefined,
@@ -297,7 +299,21 @@ export function mapDevEvent(row: any): DevEvent {
  * Reopening an issue or updating scope with material requirements resets active evidence
  * while archiving prior cycles for complete auditability.
  */
-export function computeFactualEvidence(events: DevEvent[]): DevEvidenceSummary {
+export function computeFactualEvidence(events: DevEvent[], partitioned = false): DevEvidenceSummary {
+  const scoped = events.filter(event => typeof event.metadata?.workstream === 'string' && event.metadata.workstream.trim());
+  if (!partitioned && scoped.length) {
+    const unscoped = events.filter(event => !scoped.includes(event));
+    const summary = computeFactualEvidence(unscoped, true);
+    summary.workstreams = {};
+    const keys = new Set(scoped.map(event => JSON.stringify([event.author, event.metadata.workstream])));
+    for (const key of keys) {
+      const [agent, workstream] = JSON.parse(key);
+      const own = scoped.filter(event => event.author === agent && event.metadata.workstream === workstream);
+      const globalResets = unscoped.filter(event => ['issue.reopened', 'scope.updated', 'requirement.changed'].includes(event.type));
+      summary.workstreams[`${agent}:${workstream}`] = computeFactualEvidence([...globalResets, ...own], true);
+    }
+    return summary;
+  }
   // Sort events chronologically to guarantee correct order
   const sortedEvents = [...events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
@@ -546,10 +562,11 @@ export function classifyEventIntent(event: Partial<DevEvent>): EventIntent {
 // â”€â”€â”€ Ephemeral Dev Session Token Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function validateDevSessionToken(
-  token: string
+  token: string,
+  validationClient?: SupabaseClient
 ): Promise<{ session: DevSession; userId: string } | null> {
   if (!token || !token.startsWith('dtk_')) return null;
-  const anonSupabase = getSupabaseAnon();
+  const anonSupabase = validationClient || getSupabaseService();
   const now = new Date().toISOString();
 
   const { data, error } = await anonSupabase
@@ -562,13 +579,7 @@ export async function validateDevSessionToken(
 
   if (error || !data) return null;
 
-  // Refresh session activity and extend expiry on activity (30m rolling window)
-  const newExpiry = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  await anonSupabase
-    .from('dev_sessions')
-    .update({ last_activity_at: now, token_expires_at: newExpiry })
-    .eq('id', data.id);
-
+  // Validation is read-only. Explicit heartbeat/report operations renew activity.
   return { session: mapDevSession(data), userId: data.user_id };
 }
 
@@ -580,12 +591,8 @@ export async function validateDevDiscoveryToken(
   token: string
 ): Promise<{ valid: boolean; userId: string } | null> {
   if (!token) return null;
-  const validSecrets = [
-    process.env.LUNA_DEV_DISCOVERY_KEY
-  ].filter(Boolean);
-
-  if ((token.startsWith('dsc_') && token.length >= 16) || validSecrets.includes(token)) {
-    const defaultUserId = process.env.LUNA_DEV_DEFAULT_USER_ID || 'a7def673-5786-4d52-833f-2e7e2dbc7b05';
+  if (secretEquals(token, process.env.LUNA_DEV_DISCOVERY_KEY) && process.env.LUNA_DEV_DEFAULT_USER_ID) {
+    const defaultUserId = process.env.LUNA_DEV_DEFAULT_USER_ID;
     return { valid: true, userId: defaultUserId };
   }
   return null;
@@ -914,19 +921,23 @@ export async function createDevSession(
     status?: 'pending' | 'connected';
   }
 ): Promise<DevSession> {
+  requireAgent(params.agent);
+  const { data: ownedIssue, error: ownershipError } = await supabase.from('dev_issues')
+    .select('id').eq('id', params.issueId).eq('user_id', userId).single();
+  if (ownershipError || !ownedIssue) throw new Error('Issue is not owned by the authenticated user.');
   const id = generateId('sess');
   const now = new Date().toISOString();
   // Requirement 1: Default to status='pending' with no active dtk_ token before atomic claim
   const isConnected = params.status === 'connected';
   const isPending = !isConnected;
-  const token = isConnected ? ('dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)) : null;
+  const token = isConnected ? ('dtk_' + crypto.randomBytes(32).toString('hex')) : null;
   const tokenExpiresAt = isConnected ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
 
   const insertData = {
     id,
     issue_id: params.issueId,
     user_id: userId,
-    agent: params.agent || 'gemini',
+    agent: params.agent,
     model: params.model || null,
     status: isPending ? 'pending' : 'connected',
     token,
@@ -1150,43 +1161,7 @@ export async function listPendingDevSessions(
   }
   const now = new Date().toISOString();
 
-  // 1. Auto-surface any Ready issues that do not yet have an active/pending session
-  try {
-    const { data: readyIssues } = await supabase
-      .from('dev_issues')
-      .select('id, assigned_agent')
-      .eq('user_id', userId)
-      .eq('status', 'ready');
-
-    if (readyIssues && readyIssues.length > 0) {
-      for (const rIssue of readyIssues) {
-        const { data: existingSess } = await supabase
-          .from('dev_sessions')
-          .select('id, status, token_expires_at')
-          .eq('issue_id', rIssue.id)
-          .eq('user_id', userId)
-          .or(`status.eq.pending,and(status.eq.connected,token_expires_at.gt.${now})`)
-          .limit(1);
-
-        if (!existingSess || existingSess.length === 0) {
-          const sessId = generateId('sess');
-          await supabase.from('dev_sessions').insert({
-            id: sessId,
-            issue_id: rIssue.id,
-            user_id: userId,
-            agent: rIssue.assigned_agent || 'gemini',
-            status: 'pending',
-            started_at: now,
-            last_activity_at: now
-          });
-        }
-      }
-    }
-  } catch (discoveryErr) {
-    console.warn('[Discovery] Auto-session minting for ready issues failed:', discoveryErr);
-  }
-
-  // 2. Query all pending and connected sessions
+  // Query pending and connected sessions without provisioning new ones.
   let query = supabase
     .from('dev_sessions')
     .select('id, issue_id, agent, status, started_at, token_expires_at')
@@ -1204,7 +1179,7 @@ export async function listPendingDevSessions(
     items: (data || []).map((row: any) => ({
       id: row.id,
       issueId: row.issue_id,
-      agent: row.agent || 'gemini',
+      agent: row.agent || 'unknown',
       startedAt: row.started_at,
       status: row.status
     }))
@@ -1218,10 +1193,11 @@ export async function claimPendingDevSession(
   supabase: SupabaseClient,
   userId: string,
   sessionId: string,
-  agentName: string = 'gemini'
+  agentName: string
 ): Promise<{ session: DevSession; token: string }> {
   const now = new Date().toISOString();
-  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  requireAgent(agentName);
+  const token = 'dtk_' + crypto.randomBytes(32).toString('hex');
   const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   const { data: existingSession, error: fetchErr } = await supabase
@@ -1235,8 +1211,8 @@ export async function claimPendingDevSession(
     throw new Error(`Dev Session ${sessionId} not found`);
   }
 
-  if (existingSession.status !== 'pending' && existingSession.status !== 'connected') {
-    throw new Error(`Dev Session ${sessionId} cannot be claimed (current status: ${existingSession.status})`);
+  if (existingSession.status !== 'pending' || existingSession.agent !== agentName) {
+    throw Object.assign(new Error(`Dev Session ${sessionId} cannot be claimed (current status: ${existingSession.status}, agent must match)`), { status: 409 });
   }
 
   const { data, error } = await supabase
@@ -1250,6 +1226,8 @@ export async function claimPendingDevSession(
     })
     .eq('id', sessionId)
     .eq('user_id', userId)
+    .eq('status', 'pending')
+    .eq('agent', agentName)
     .select()
     .single();
 
@@ -1281,7 +1259,9 @@ export function sanitizeSecretMetadata(obj: any): any {
   if (Array.isArray(obj)) return obj.map(sanitizeSecretMetadata);
   const result: any = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (typeof v === 'string') {
+    if (/token|secret|password|authorization|credential|api.?key/i.test(k)) {
+      result[k] = '[REDACTED]';
+    } else if (typeof v === 'string') {
       result[k] = sanitizeSecretContent(v);
     } else if (typeof v === 'object' && v !== null) {
       result[k] = sanitizeSecretMetadata(v);
@@ -1398,7 +1378,7 @@ export async function appendDevEvent(
 
   // Automatic lifecycle status transition on milestone events
   try {
-    if (params.type === 'implementation.started') {
+    if (params.type === 'implementation.started' && !params.metadata?.workstream) {
       const { data: currentIssue } = await supabase
         .from('dev_issues')
         .select('status')
@@ -1412,7 +1392,7 @@ export async function appendDevEvent(
           .eq('id', params.issueId)
           .eq('user_id', userId);
       }
-    } else if (params.type === 'verification.reported') {
+    } else if (params.type === 'verification.reported' && !params.metadata?.workstream) {
       const { data: currentIssue } = await supabase
         .from('dev_issues')
         .select('status')
@@ -1617,7 +1597,7 @@ export async function getDevQueueState(
     .select('*')
     .eq('user_id', userId)
     .order('started_at', { ascending: false });
-  const sessions = sessionsData || [];
+  const sessions = (sessionsData || []).filter((session: any) => session.environment?.purpose !== 'coordination');
 
   const { data: eventsData } = await supabase
     .from('dev_events')
@@ -1632,6 +1612,7 @@ export async function getDevQueueState(
 
   const queueItems: DevQueueItem[] = issues.map((issue: any, index: number) => {
     const issueEvents = events.filter((e: any) => e.issue_id === issue.id);
+    const lifecycleEvents = issueEvents.filter((event: any) => !event.metadata?.workstream);
     const issueSessions = sessions.filter((s: any) => s.issue_id === issue.id);
     const latestSession = issueSessions[0] || null;
 
@@ -1646,9 +1627,9 @@ export async function getDevQueueState(
     ].filter(Boolean).length;
     const hasCompletionSummary = evidence.completionSummary?.reported === true;
 
-    const hasBlocker = issueEvents.some((e: any) => e.type === 'developer.blocked') &&
-      !issueEvents.some((e: any) => e.type === 'decision.approved');
-    const hasFailedVerification = issueEvents.some((e: any) => e.type === 'tests.reported' && e.metadata?.status === 'failed');
+    const hasBlocker = lifecycleEvents.some((e: any) => e.type === 'developer.blocked') &&
+      !lifecycleEvents.some((e: any) => e.type === 'decision.approved');
+    const hasFailedVerification = lifecycleEvents.some((e: any) => e.type === 'tests.reported' && e.metadata?.status === 'failed');
 
     let status: DevQueueStatus = 'queued';
     const timestamps: any = { queuedAt: issue.created_at };
@@ -1936,7 +1917,7 @@ export async function getDevTelemetry(
 // â”€â”€â”€ REST Route Registrations & Scoped Security Boundary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function resolveRequestUser(req: Request, supabase: SupabaseClient): Promise<{ userId: string | null; isAgentSession: boolean; isDiscoverySession: boolean }> {
-  if ((req as any).isDiscoverySession) {
+  if ((req as any).isDiscoverySession || (req as any).isDevObserver) {
     return { userId: (req as any).devUserId, isAgentSession: false, isDiscoverySession: true };
   }
   if ((req as any).devUserId) {
@@ -2657,7 +2638,7 @@ export async function claimNextExecution(
   const fencingToken = Date.now();
   const leaseDurationSeconds = 120;
   const leaseExpiresAt = new Date(nowMs + leaseDurationSeconds * 1000).toISOString();
-  const token = 'dtk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const token = 'dtk_' + crypto.randomBytes(32).toString('hex');
 
   const envData = {
     executionId,
@@ -3194,10 +3175,6 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       const { userId, isAgentSession, isDiscoverySession } = await resolveRequestUser(req, supabase);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      // Discovery tokens and agent session tokens cannot list all full issues
-      if (isDiscoverySession) {
-        return res.status(403).json({ error: 'Discovery credential cannot list full issue details. Query GET /api/dev/agent/pending-sessions for minimal discovery metadata.' });
-      }
       if (isAgentSession) {
         return res.status(403).json({ error: 'Dev session token cannot list all issues. Query assigned issue directly via GET /api/dev/issues/:id' });
       }
@@ -3257,7 +3234,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       }
 
       const details = await getDevIssue(supabase, userId, req.params.id);
-      res.json(details);
+      res.json(publicDevResult(details));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -3319,7 +3296,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       }
 
       const session = await getDevSession(supabase, userId, req.params.id);
-      res.json(session);
+      res.json(publicDevResult(session));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -3354,7 +3331,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
 
       const { summary } = req.body;
       const session = await endDevSession(supabase, userId, req.params.id, summary);
-      res.json(session);
+      res.json(publicDevResult(session));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -3372,7 +3349,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       }
 
       const { issueId, type, author, content, metadata } = req.body;
-      if (!issueId || !type || !content) {
+      if (!issueId || !type || !content || !author) {
         return res.status(400).json({ error: 'issueId, type, and content are required' });
       }
 
@@ -3400,11 +3377,15 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
         }
       }
 
+      const reportSession = await getDevSession(supabase, userId, req.params.id);
+      if (reportSession.issueId !== issueId || (author !== 'user' && requireAgent(author) !== reportSession.agent)) {
+        return void res.status(403).json({ error: 'Report issue or author differs from the assigned session.' });
+      }
       const event = await appendDevEvent(supabase, userId, {
         issueId,
         sessionId: req.params.id,
         type,
-        author: author || 'gemini',
+        author: author,
         content,
         metadata
       });
@@ -3492,7 +3473,7 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
       const { agent } = req.body || {};
-      const claimed = await claimPendingDevSession(supabase, userId, req.params.id, agent || 'gemini');
+      const claimed = await claimPendingDevSession(supabase, userId, req.params.id, requireAgent(agent));
       res.json(claimed);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -3831,8 +3812,8 @@ export function registerDevBridgeRoutes(app: Express, authenticateRest: any) {
 
   // Start cloud lease recovery scanner once routes are mounted
   try {
-    const anonSupabase = getSupabaseAnon();
-    startCloudLeaseRecoveryScanner(anonSupabase, 30000);
+    const recoveryClient = getSupabaseService();
+    startCloudLeaseRecoveryScanner(recoveryClient, 30000);
   } catch (err: any) {
     console.warn('[CloudRecovery] Could not start lease recovery scanner:', err.message);
   }

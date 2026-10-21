@@ -4,9 +4,11 @@ import { getSupabaseService } from './db.js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeTool } from './tools.js';
 import { getLunarData } from './lunar.js';
+import { authorizeDevelopmentRequest, publicDevResult, requireAgent, DEV_READ_ACTIONS } from './devAuthorization.js';
 import {
   listDevIssues,
   getDevIssue,
+  getDevSession,
   createDevIssue,
   updateDevIssueStatus,
   listDevEvents,
@@ -151,6 +153,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
       description: 'Sub-action routing for Dev Issues, Sessions, Events, and Queue Telemetry.',
       permission: 'dev_scoped',
       allowDiscoveryToken: true,
+      discoveryReadOnly: true,
       subActions: [
         'dev.issues.list',
         'dev.issues.get',
@@ -162,6 +165,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
         'dev.sessions.claim',
         'dev.sessions.end',
         'dev.sessions.pending',
+        'dev.sessions.get',
         'dev.queue.get_state',
       ],
     },
@@ -171,7 +175,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
       path: '/api/luna/command-center/lab',
       description: 'Sub-action routing for Attention Lab V1.1.0 and Model Routing Lab.',
       permission: 'lab_scoped',
-      allowDiscoveryToken: true,
+      allowDiscoveryToken: false,
       subActions: [
         'lab.status',
         'lab.attention.plan',
@@ -190,7 +194,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
       path: '/api/luna/command-center/creative',
       description: 'Sub-action routing for Creative Studio manifests, scene prompts, and render lock.',
       permission: 'creative_scoped',
-      allowDiscoveryToken: true,
+      allowDiscoveryToken: false,
       subActions: [
         'creative.manifest.get',
         'creative.shots.list',
@@ -205,7 +209,7 @@ export const COMMAND_CENTER_CAPABILITIES = {
       path: '/api/luna/command-center/assets',
       description: 'Sub-action routing for Asset Bridge upload, download URL generation, local ingestion ack, and review-state preview retrieval.',
       permission: 'asset_scoped',
-      allowDiscoveryToken: true,
+      allowDiscoveryToken: false,
       subActions: [
         'assets.list',
         'assets.get',
@@ -692,6 +696,8 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
 
   // 3. command_center_dev
   app.post('/api/luna/command-center/dev', authenticateRest, async (req: Request, res: Response) => {
+    try { authorizeDevelopmentRequest(req); }
+    catch (error: any) { return void res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: error.message } }); }
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { userId } = await resolveUser(req, supabase);
 
@@ -721,13 +727,6 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           result = await listDevIssues(supabase, userId, payload);
           break;
         }
-        case 'dev.inspect.echo': {
-          const inspectId = payload.id || payload.echoId || payload.echo_id;
-          const { data: echoRow } = await supabase.from('echoes').select('*').eq('id', inspectId).maybeSingle();
-          const { data: refRows } = await supabase.from('echo_reflections').select('*').or(`id.eq.${inspectId},echo_id.eq.${inspectId}`);
-          result = { inspectId, echoRow, refRows };
-          break;
-        }
         case 'dev.issues.get': {
           result = await getDevIssue(supabase, userId, payload.id || payload.issueId || payload.issue_id);
           break;
@@ -752,40 +751,25 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
               error: { code: 'MISSING_ISSUE_ID', message: 'issueId is required for dev.events.post' },
             });
           }
-          let sessionId = payload.sessionId || payload.session_id;
-          if (!sessionId) {
-            const { data: activeSession } = await supabase
-              .from('dev_sessions')
-              .select('id')
-              .eq('issue_id', issueId)
-              .eq('user_id', userId)
-              .order('started_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (activeSession?.id) {
-              sessionId = activeSession.id;
-            } else {
-              const autoSession = await createDevSession(supabase, userId, {
-                issueId,
-                agent: (payload.author as string) || (payload.agent as string) || 'luna',
-              } as any);
-              sessionId = autoSession.id;
-            }
-          }
+          const sessionId = payload.sessionId || payload.session_id;
+          if (!sessionId || !payload.type || !payload.author) throw new Error('Explicit sessionId, type and author are required.');
+          const reportSession = await getDevSession(supabase, userId, sessionId);
+          if (reportSession.issueId !== issueId) throw new Error('Session belongs to a different issue.');
+          if (payload.author !== 'user' && requireAgent(payload.author) !== reportSession.agent) throw new Error('Author differs from assigned agent.');
           const sanitizedContent = sanitizeSecretContent(payload.content || '');
           const sanitizedMeta = sanitizeSecretMetadata(payload.metadata || {});
           result = await appendDevEvent(supabase, userId, {
             issueId,
             sessionId,
-            type: (payload.type as DevEventType) || 'verification.reported',
-            author: (payload.author as 'gemini' | 'luna' | 'user') || 'luna',
+            type: payload.type as DevEventType,
+            author: payload.author,
             content: sanitizedContent,
             metadata: sanitizedMeta,
           });
           break;
         }
         case 'dev.sessions.create': {
+          requireAgent(payload.agent);
           result = await createDevSession(supabase, userId, {
             ...payload,
             issueId: payload.issueId || payload.issue_id,
@@ -793,7 +777,11 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
           break;
         }
         case 'dev.sessions.claim': {
-          result = await claimPendingDevSession(supabase, userId, payload.sessionId || payload.session_id || payload.id);
+          result = await claimPendingDevSession(supabase, userId, payload.sessionId || payload.session_id || payload.id, requireAgent(payload.agent));
+          break;
+        }
+        case 'dev.sessions.get': {
+          result = publicDevResult(await getDevSession(supabase, userId, payload.sessionId || payload.session_id || payload.id));
           break;
         }
         case 'dev.sessions.end': {
@@ -814,9 +802,9 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
             error: { code: 'UNKNOWN_SUB_ACTION', message: `Unknown dev sub-action: ${action}` },
           });
       }
-      return res.json({ success: true, data: result });
+      return res.json({ success: true, data: DEV_READ_ACTIONS.has(action) ? publicDevResult(result) : result });
     } catch (err: any) {
-      return res.status(500).json({
+      return res.status(err.status === 403 || err.status === 409 ? err.status : 500).json({
         success: false,
         error: { code: 'EXECUTION_FAILED', message: err.message },
       });
