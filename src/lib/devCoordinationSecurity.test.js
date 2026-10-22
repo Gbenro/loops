@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { authorizeDevelopmentRequest, publicDevResult, requireAgent } from '../../mcp-server/dist/devAuthorization.js';
-import { validateDevDiscoveryToken, validateDevSessionToken, claimPendingDevSession, listPendingDevSessions, computeFactualEvidence, createDevSession } from '../../mcp-server/dist/devBridge.js';
+import { authorizeDevelopmentRequest, publicDevResult, requireAgent, DevMaintenanceError, isDevBridgeMaintenanceActive } from '../../mcp-server/dist/devAuthorization.js';
+import { validateDevDiscoveryToken, validateDevSessionToken, claimPendingDevSession, listPendingDevSessions, computeFactualEvidence, createDevSession, claimNextExecution } from '../../mcp-server/dist/devBridge.js';
 import { registerCommandCenterRoutes } from '../../mcp-server/dist/commandCenter.js';
 
 const session = { id: 'session-codex', issueId: 'issue-1', agent: 'codex' };
@@ -26,8 +26,11 @@ describe('Development credential boundaries', () => {
     vi.stubEnv('LUNA_DEV_DISCOVERY_KEY', 'dsc_test_configured_secret_only');
     vi.stubEnv('LUNA_DEV_DEFAULT_USER_ID', '');
     expect(await validateDevDiscoveryToken('dsc_test_configured_secret_only')).toBeNull();
-    for (const agent of [undefined, '', 'dot', 'admin', 'Gemini']) expect(() => requireAgent(agent)).toThrow();
+    for (const agent of [undefined, '', 'unknown', 'admin', 'Gemini', 'root']) expect(() => requireAgent(agent)).toThrow();
     expect(requireAgent('codex')).toBe('codex');
+    expect(requireAgent('gemini')).toBe('gemini');
+    expect(requireAgent('luna')).toBe('luna');
+    expect(requireAgent('dot')).toBe('dot');
   });
   it.each(['isDiscoverySession', 'isDevObserver'])('%s can read development data but cannot mutate or inspect the Field', role => {
     for (const action of ['dev.issues.list', 'dev.issues.get', 'dev.events.list', 'dev.sessions.get', 'dev.sessions.pending', 'dev.queue.get_state']) expect(() => authorizeDevelopmentRequest(request(action, {}, { [role]: true }))).not.toThrow();
@@ -111,6 +114,238 @@ describe('Claims, discovery and evidence isolation', () => {
     expect(summary.workstreams['codex:ui'].tests.status).toBe('passed');
     expect(summary.workstreams['gemini:integration'].tests.status).toBe('failed');
     expect(summary.completionSummary.reported).toBe(false);
+  });
+});
+
+describe('Dot contributor role and security boundaries', () => {
+  const dotSession = { id: 'session-dot', issueId: 'issue-1', agent: 'dot' };
+  const dotPayload = (overrides = {}) => ({
+    issueId: dotSession.issueId,
+    sessionId: dotSession.id,
+    author: 'dot',
+    type: 'developer.question',
+    content: 'Dot coordination query or QA finding',
+    metadata: { agent: 'dot', workstream: 'qa' },
+    ...overrides
+  });
+
+  it('allows authenticated dot session to read development state and post verified coordination events', () => {
+    // Reads permitted for Dot
+    expect(() => authorizeDevelopmentRequest(request('dev.issues.get', { id: dotSession.issueId }, { devSession: dotSession }))).not.toThrow();
+    expect(() => authorizeDevelopmentRequest(request('dev.events.list', { issueId: dotSession.issueId }, { devSession: dotSession }))).not.toThrow();
+    expect(() => authorizeDevelopmentRequest(request('dev.sessions.get', { id: dotSession.id }, { devSession: dotSession }))).not.toThrow();
+
+    // Allowed coordination reporting types
+    for (const type of ['developer.question', 'developer.blocked', 'implementation.started', 'implementation.reported', 'tests.reported', 'session.handoff', 'completion.summary']) {
+      expect(() => authorizeDevelopmentRequest(request('dev.events.post', dotPayload({ type }), { devSession: dotSession }))).not.toThrow();
+    }
+  });
+
+  it('rejects dot session attempting impersonation, cross-issue writes, or unauthorized actions', () => {
+    const call = p => authorizeDevelopmentRequest(request('dev.events.post', p, { devSession: dotSession }));
+
+    // Rejects impersonating other agents
+    for (const impostor of ['codex', 'gemini', 'luna']) {
+      expect(() => call(dotPayload({ author: impostor }))).toThrow(/author does not match/i);
+      expect(() => call(dotPayload({ metadata: { agent: impostor, workstream: 'qa' } }))).toThrow(/matching agent/i);
+    }
+
+    // Rejects cross-issue and cross-session writes
+    expect(() => call(dotPayload({ issueId: 'different-issue' }))).toThrow(/scoped to a different issue|does not match/i);
+    expect(() => call(dotPayload({ sessionId: 'session-other' }))).toThrow(/does not match/i);
+
+    // Rejects deployment or approval event types (no creator authority)
+    for (const disallowedType of ['deployment.reported', 'decision.approved', 'decision.rejected']) {
+      expect(() => call(dotPayload({ type: disallowedType }))).toThrow(/creator authority/i);
+    }
+
+    // Rejects creator administrative actions
+    for (const action of ['dev.issues.create', 'dev.issues.update_status', 'dev.sessions.create', 'dev.sessions.claim', 'dev.inspect.echo']) {
+      expect(() => authorizeDevelopmentRequest(request(action, {}, { devSession: dotSession }))).toThrow();
+    }
+
+    // Rejects access to Personal Field or core routes
+    for (const path of ['/api/echoes', '/api/threads', '/api/relational-memories', '/api/luna/command-center/core']) {
+      expect(() => authorizeDevelopmentRequest({ method: 'POST', path, body: {}, devSession: dotSession })).toThrow();
+    }
+  });
+
+  it('provisions and claims dedicated pending session for dot', async () => {
+    const mock = claimDatabase({ id: 's-dot', agent: 'dot', status: 'pending' });
+    const result = await claimPendingDevSession(mock.db, 'owner', 's-dot', 'dot');
+    expect(result.token).toMatch(/^dtk_[a-f0-9]{64}$/);
+    expect(mock.filters).toContainEqual(['status', 'pending']);
+    expect(mock.filters).toContainEqual(['agent', 'dot']);
+
+    // Another agent cannot claim Dot's pending session
+    const otherMock = claimDatabase({ id: 's-dot', agent: 'dot', status: 'pending' });
+    await expect(claimPendingDevSession(otherMock.db, 'owner', 's-dot', 'codex')).rejects.toThrow();
+  });
+
+  it('preserves four-agent contributor evidence without cross-agent collisions', () => {
+    const legacy = { ...event('luna', '', true, 0), metadata: { status: 'passed', passed: 9 } };
+    const codexEvt = event('codex', 'ui', true, 1);
+    const geminiEvt = event('gemini', 'integration', true, 2);
+    const dotEvt = { ...event('dot', 'qa', true, 3), content: 'Dot verified QA suite' };
+    const summary = computeFactualEvidence([legacy, codexEvt, geminiEvt, dotEvt]);
+
+    expect(summary.tests.passed).toBe(9);
+    expect(summary.workstreams['codex:ui'].tests.status).toBe('passed');
+    expect(summary.workstreams['gemini:integration'].tests.status).toBe('passed');
+    expect(summary.workstreams['dot:qa'].tests.status).toBe('passed');
+    expect(summary.workstreams['dot:qa'].tests.passed).toBe(4);
+  });
+
+  it('enforces that scoped dot session cannot execute discovery actions', () => {
+    // Discovery actions only permitted to discovery/observer credentials, not scoped sessions
+    for (const action of ['dev.issues.list', 'dev.sessions.pending', 'dev.queue.get_state']) {
+      expect(() => authorizeDevelopmentRequest(request(action, {}, { devSession: dotSession }))).toThrow(/Session credential cannot execute this action/i);
+    }
+  });
+});
+
+describe('Development Bridge Maintenance Gate', () => {
+  it('fails closed with status 503 when LUNA_DEV_MAINTENANCE is set, without affecting public routes', async () => {
+    vi.stubEnv('LUNA_DEV_MAINTENANCE', 'true');
+    expect(isDevBridgeMaintenanceActive()).toBe(true);
+
+    const dotSession = { id: 'session-dot', issueId: 'issue-1', agent: 'dot' };
+    expect(() => authorizeDevelopmentRequest(request('dev.issues.get', { id: 'issue-1' }, { devSession: dotSession })))
+      .toThrow(DevMaintenanceError);
+
+    try {
+      authorizeDevelopmentRequest(request('dev.issues.get', { id: 'issue-1' }, { devSession: dotSession }));
+    } catch (err) {
+      expect(err.status).toBe(503);
+      expect(err.code).toBe('DEV_BRIDGE_MAINTENANCE');
+    }
+
+    // Command Center dev route returns 503 under maintenance
+    const app = express(); app.use(express.json());
+    registerCommandCenterRoutes(app, (req, _res, next) => { req.devSession = dotSession; req.devUserId = 'owner'; next(); });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise(resolve => server.once('listening', resolve));
+    try {
+      const endpoint = `http://127.0.0.1:${server.address().port}/api/luna/command-center/dev`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dev.issues.get', payload: { id: 'issue-1' } })
+      });
+      const data = await res.json();
+      expect(res.status).toBe(503);
+      expect(data.error.code).toBe('DEV_BRIDGE_MAINTENANCE');
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+  });
+
+  it('restores normal operation when maintenance mode is inactive', () => {
+    vi.stubEnv('LUNA_DEV_MAINTENANCE', 'false');
+    expect(isDevBridgeMaintenanceActive()).toBe(false);
+    const dotSession = { id: 'session-dot', issueId: 'issue-1', agent: 'dot' };
+    expect(() => authorizeDevelopmentRequest(request('dev.issues.get', { id: 'issue-1' }, { devSession: dotSession }))).not.toThrow();
+  });
+});
+
+describe('Session provisioning and execution queue isolation', () => {
+  it('marks created dev sessions as coordination mode and prevents them from entering execution queue', async () => {
+    const table = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'iss-coord-1' }, error: null }),
+      insert: vi.fn((data) => ({ select: () => ({ single: async () => ({ data: { ...data, id: 'sess-coord-1' }, error: null }) }) })),
+      update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
+    };
+
+    const session = await createDevSession({ from: () => table }, 'owner', {
+      issueId: 'iss-coord-1',
+      agent: 'dot'
+    });
+
+    expect(session.environment.mode).toBe('coordination');
+
+    // In claimNextExecution, active coordination sessions do not block repository execution slot
+    const mockDb = {
+      from: (tbl) => {
+        if (tbl === 'dev_sessions') {
+          const sessionObj = {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: { id: 'sess-coord-1', status: 'connected' }, error: null }),
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'sess-coord-1',
+                  issue_id: 'iss-coord-1',
+                  user_id: 'owner',
+                  status: 'connected',
+                  repository: 'loops-app',
+                  environment: { mode: 'coordination' },
+                  started_at: new Date().toISOString()
+                }
+              ],
+              error: null
+            }),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { id: 'exec-sess-1' }, error: null })
+              })
+            }),
+            update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
+          };
+          return sessionObj;
+        }
+        if (tbl === 'dev_issues') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [{ id: 'iss-exec-1', title: 'Worker Task', status: 'ready', priority: 'high', user_id: 'owner', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
+              error: null
+            }),
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'iss-exec-1', title: 'Worker Task', status: 'ready', priority: 'high', user_id: 'owner' },
+              error: null
+            }),
+            update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
+          };
+        }
+        if (tbl === 'dev_events') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'evt-1' }, error: null }) }) })
+          };
+        }
+        return {
+          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'exec-1' }, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) })
+        };
+      }
+    };
+
+    const result = await claimNextExecution(mockDb, 'owner', {
+      workerId: 'worker-1',
+      workerInstanceId: 'inst-1',
+      runtimeProfiles: ['agy-headless'],
+      repository: 'loops-app'
+    });
+
+    expect(result.status).toBe('claimed');
+    expect(result.execution.issueId).toBe('iss-exec-1');
+  });
+
+  it('provisions separate agent-bound sessions for codex, gemini, and dot with distinct CAS filters', async () => {
+    for (const agent of ['codex', 'gemini', 'dot']) {
+      const mock = claimDatabase({ id: `sess-${agent}`, agent, status: 'pending' });
+      const claimed = await claimPendingDevSession(mock.db, 'owner', `sess-${agent}`, agent);
+      expect(claimed.token).toMatch(/^dtk_[a-f0-9]{64}$/);
+      expect(mock.filters).toContainEqual(['agent', agent]);
+    }
   });
 });
 

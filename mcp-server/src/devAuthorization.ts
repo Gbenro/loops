@@ -14,7 +14,7 @@ export const DEV_REPORT_EVENTS = new Set([
 const DEV_ACTIONS = new Set([...DEV_READ_ACTIONS, 'dev.issues.create',
   'dev.issues.update_status', 'dev.events.post', 'dev.sessions.create',
   'dev.sessions.claim', 'dev.sessions.end']);
-export const VERIFIED_AGENTS = new Set(['codex', 'gemini', 'luna']);
+export const VERIFIED_AGENTS = new Set(['codex', 'gemini', 'luna', 'dot']);
 
 export function secretEquals(actual: string | undefined, configured: string | undefined): boolean {
   if (!actual || !configured) return false;
@@ -26,7 +26,18 @@ export function secretEquals(actual: string | undefined, configured: string | un
 
 export class DevAuthorizationError extends Error {
   status = 403;
+  code = 'FORBIDDEN';
 }
+
+export class DevMaintenanceError extends DevAuthorizationError {
+  status = 503;
+  code = 'DEV_BRIDGE_MAINTENANCE';
+}
+
+export function isDevBridgeMaintenanceActive(): boolean {
+  return process.env.LUNA_DEV_MAINTENANCE === 'true' || process.env.LUNA_DEV_BRIDGE_PAUSED === 'true';
+}
+
 export function requireAgent(agent: unknown): string {
   if (typeof agent !== 'string' || !VERIFIED_AGENTS.has(agent)) {
     throw new DevAuthorizationError('An explicit supported agent identity is required.');
@@ -43,6 +54,9 @@ export function authorizeDevelopmentRequest(req: Request): void {
   const session = r.devSession;
   const readOnly = r.isDiscoverySession || r.isDevObserver;
   if (!readOnly && !session) return;
+  if (isDevBridgeMaintenanceActive()) {
+    throw new DevMaintenanceError('Development Bridge is in maintenance mode.');
+  }
   const path = req.path;
   // Only the gateway accepts a nested payload. Legacy REST handlers use flat bodies.
   const p = path === '/api/luna/command-center/dev' ? payloadFor(req.body) : (req.body || {});

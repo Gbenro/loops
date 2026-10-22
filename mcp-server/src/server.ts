@@ -630,7 +630,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     (req as any).isDevObserver = true;
     (req as any).devUserId = owner;
     try { authorizeDevelopmentRequest(req); }
-    catch (error: any) { return void res.status(403).json({ error: error.message }); }
+    catch (error: any) { return void res.status(error.status || 403).json({ error: error.message }); }
     try { req.body.supabaseClient = getSupabaseService(); }
     catch { return void res.status(503).json({ error: 'Development service is not configured' }); }
     return next();
@@ -647,7 +647,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     (req as any).isDiscoverySession = true;
     (req as any).devUserId = discovery.userId;
     try { authorizeDevelopmentRequest(req); }
-    catch (error: any) { return void res.status(403).json({ error: error.message }); }
+    catch (error: any) { return void res.status(error.status || 403).json({ error: error.message }); }
 
     try {
       req.body.supabaseClient = getSupabaseService();
@@ -674,7 +674,7 @@ const authenticateRest = async (req: express.Request, res: express.Response, nex
     (req as any).devSession = validated.session;
     (req as any).devUserId = validated.userId;
     try { authorizeDevelopmentRequest(req); }
-    catch (error: any) { return void res.status(403).json({ error: error.message }); }
+    catch (error: any) { return void res.status(error.status || 403).json({ error: error.message }); }
     try {
       req.body.supabaseClient = getSupabaseService();
     } catch (err: any) {

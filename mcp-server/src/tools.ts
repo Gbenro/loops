@@ -704,7 +704,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         issueId: { type: 'string', description: 'Issue ID to authorize' },
-        agent: { type: 'string', enum: ['codex', 'gemini', 'luna'], description: 'Explicit assigned agent identity' },
+        agent: { type: 'string', enum: ['codex', 'gemini', 'luna', 'dot'], description: 'Explicit assigned agent identity' },
         model: { type: 'string', description: 'Model identifier (default: gemini-2.5-pro)' },
         status: { type: 'string', enum: ['pending', 'connected'], description: 'Session lifecycle status (default: pending)' }
       },
@@ -718,7 +718,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         sessionId: { type: 'string', description: 'Dev Session ID to claim' },
-        agent: { type: 'string', enum: ['codex', 'gemini', 'luna'], description: 'Explicit assigned agent identity' }
+        agent: { type: 'string', enum: ['codex', 'gemini', 'luna', 'dot'], description: 'Explicit assigned agent identity' }
       },
       required: ['sessionId', 'agent']
     }

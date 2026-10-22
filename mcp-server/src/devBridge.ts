@@ -944,7 +944,7 @@ export async function createDevSession(
     token_expires_at: tokenExpiresAt,
     repository: params.repository || null,
     branch: params.branch || null,
-    environment: params.environment || {},
+    environment: { mode: 'coordination', ...(params.environment || {}) },
     started_at: now,
     last_activity_at: now
   };
@@ -1613,7 +1613,8 @@ export async function getDevQueueState(
   const queueItems: DevQueueItem[] = issues.map((issue: any, index: number) => {
     const issueEvents = events.filter((e: any) => e.issue_id === issue.id);
     const lifecycleEvents = issueEvents.filter((event: any) => !event.metadata?.workstream);
-    const issueSessions = sessions.filter((s: any) => s.issue_id === issue.id);
+    // Coordination sessions must not alter automated execution queue state
+    const issueSessions = sessions.filter((s: any) => s.issue_id === issue.id && s.environment?.mode !== 'coordination');
     const latestSession = issueSessions[0] || null;
 
     const evidence = computeFactualEvidence(issueEvents);
@@ -2554,6 +2555,8 @@ export async function claimNextExecution(
 
   for (const sess of activeSessions || []) {
     const env = sess.environment || {};
+    // Coordination sessions must not occupy execution slots or block headless worker execution
+    if (env.mode === 'coordination' || !env.workerId) continue;
     const leaseExpiryMs = env.leaseExpiresAt ? new Date(env.leaseExpiresAt).getTime() : 0;
     const isLeaseActive = leaseExpiryMs > nowMs;
     const isRunning = !['completed', 'failed', 'ended', 'cancelled'].includes(env.stage || '');

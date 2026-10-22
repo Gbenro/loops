@@ -1,0 +1,111 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Luna Development Contributor",
+    "version": "1.0.0",
+    "description": "Narrowly scoped contributor contract for Dot. Advertises only actions permitted to an authenticated scoped session. Allows reading issue/event state and publishing verified coordination events. Enforces required report fields. No Personal Field, commands, deployment, credential management, or approval actions."
+  },
+  "servers": [
+    { "url": "https://loops-production-e1d5.up.railway.app" }
+  ],
+  "security": [
+    { "contributorBearer": [] }
+  ],
+  "components": {
+    "schemas": {
+      "DotContributorRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "payload"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "dev.issues.get",
+              "dev.events.list",
+              "dev.sessions.get",
+              "dev.events.post"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "description": "Issue ID or Session ID for get actions" },
+              "issueId": { "type": "string", "description": "Scoped issue ID (required for dev.events.post and dev.events.list)" },
+              "sessionId": { "type": "string", "description": "Scoped session ID (required for dev.events.post and dev.sessions.get)" },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Optional event list limit" },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "developer.question",
+                  "developer.blocked",
+                  "implementation.started",
+                  "implementation.reported",
+                  "tests.reported",
+                  "build.reported",
+                  "commit.reported",
+                  "verification.reported",
+                  "completion.summary",
+                  "session.handoff",
+                  "session.completed",
+                  "session.failed"
+                ],
+                "description": "Permitted coordination event type"
+              },
+              "author": {
+                "type": "string",
+                "enum": ["dot"],
+                "description": "Verified contributor agent identity"
+              },
+              "content": {
+                "type": "string",
+                "description": "Message content or QA finding"
+              },
+              "metadata": {
+                "type": "object",
+                "required": ["agent", "workstream"],
+                "properties": {
+                  "agent": { "type": "string", "enum": ["dot"] },
+                  "workstream": { "type": "string", "description": "Explicit contributor workstream (e.g. qa, coordination)" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "contributorBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api/luna/command-center/dev": {
+      "post": {
+        "operationId": "contributeLunaDevelopment",
+        "description": "Read scoped development state and publish attributed coordination messages. Recommendations have no approval authority.",
+        "x-openai-isConsequential": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DotContributorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Development response with credentials redacted" },
+          "401": { "description": "Invalid contributor credential" },
+          "403": { "description": "Operation not allowed" },
+          "503": { "description": "Development Bridge is in maintenance mode" }
+        }
+      }
+    }
+  }
+}

@@ -697,7 +697,11 @@ export function registerCommandCenterRoutes(app: Express, authenticateRest: any)
   // 3. command_center_dev
   app.post('/api/luna/command-center/dev', authenticateRest, async (req: Request, res: Response) => {
     try { authorizeDevelopmentRequest(req); }
-    catch (error: any) { return void res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: error.message } }); }
+    catch (error: any) {
+      const status = error.status || 403;
+      const code = error.code || (status === 503 ? 'DEV_BRIDGE_MAINTENANCE' : 'FORBIDDEN');
+      return void res.status(status).json({ success: false, error: { code, message: error.message } });
+    }
     const supabase: SupabaseClient = req.body.supabaseClient;
     const { userId } = await resolveUser(req, supabase);
 

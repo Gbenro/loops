@@ -131,23 +131,23 @@ Example report (no personal records):
 }
 ```
 
-## Dot connection preparation
+## Dot contributor preparation
 
-`public/openapi-dev-observer.json` is a restricted Custom Actions contract using
-the existing Command Center endpoint. Its action enum contains only development
-reads; the server independently enforces the observer role. Dot receives a separate
-`LUNA_DEV_DOT_READ_TOKEN`, held in the connector's secret configuration, and no
-Supabase, deployment, worker, rotation or agent-write credential.
+`public/openapi-dev-contributor.json` defines a narrowly scoped Contributor contract
+using the existing Command Center endpoint (`/api/luna/command-center/dev`). Dot is
+registered in `VERIFIED_AGENTS = new Set(['codex', 'gemini', 'luna', 'dot'])`, allowing
+it to read development state and publish verified coordination messages (`developer.question`,
+`developer.blocked`, `implementation.reported`, `tests.reported`, `session.handoff`, etc.)
+within its creator-authorized issue scope using an issued ephemeral session credential (`dtk_...`).
 
-Before connection, identify Dot's actual host. A host supporting Custom Actions can
-import this manifest after the backend is reviewed and deployed. A host supporting
-only MCP needs an approved narrowly scoped tool adapter; this task does not assume
-that generic REST or an MCP connector is already available inside Dot. No connector
-has been installed or granted access.
+Server-side authorization independently verifies that:
+1. `payload.author` matches Dot's authenticated session agent (`dot`). Client-supplied impostor identities (`codex`, `gemini`, `luna`) are rejected with 403.
+2. `payload.metadata.agent` equals `dot` with an explicit workstream (e.g. `qa`, `coordination`).
+3. Multi-agent evidence partitioning (`computeFactualEvidence`) preserves Dot's evidence under `dot:<workstream>` without overwriting Codex or Gemini workstream results.
+4. Dot has zero deployment authority (`deployment.reported` rejected), zero credential management authority (`dev.sessions.create`/`claim` rejected), zero task mutation authority (`dev.issues.update_status` rejected), and zero user-approval authority (`decision.approved` rejected).
+5. Dot has no access to Personal Field, creative, audio, or core execution routes.
 
-Dot may read updates, recommend assignments, flag dependencies and draft decisions.
-It cannot emit user approval, claim or execute tasks, accept issues, deploy, rotate
-credentials or approve consequential actions. Human approval remains authoritative.
+Before connection, configure Dot's HTTPS connector on `NUCBOX_M7\Ben` using the issued session token. Dot does not enter the local git repository and communicates solely over authenticated HTTPS. Human approval remains authoritative.
 
 ## Verification and release gates
 
