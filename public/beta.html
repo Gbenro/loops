@@ -102,6 +102,7 @@ const AUDIO_FIXTURES={"water":{"waveform":[0.00233,0.00183,0.002,0.0022,0.40957,
 
 
 // fixtures.ts
+
                                                                                   
 
 const PHASES          = [
@@ -864,6 +865,7 @@ function getLiveLunarData(date       = new Date())                  {
 // mock-services.ts
                                                                                                              
 
+
 const LOOP_STATUSES               = ['open','evolving','carried-forward','completed','closed'];
 const cleanText = (value        ,max=6000) => String(value ?? '').trim().slice(0,max);
 const makeId = (prefix       ) => `${prefix}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
@@ -909,8 +911,12 @@ function createMockServices(audioAssets                      ={})              {
              
                
               
-          
+           
+            
                         
+
+
+
 
 const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
@@ -919,9 +925,102 @@ const ECHOES_KEY = 'cosmic_echoes_v1';
 const REFLECTIONS_KEY = 'cosmic_reflections_v1';
 const AUTH_KEY = 'sb-eyxvsbqyzeodsjajfqsj-auth-token';
 const SAMPLE_MODE_KEY = 'luna_beta_sample_mode';
+const DRAFT_AUDIO_DB = 'luna_draft_audio_db';
+const DRAFT_AUDIO_STORE = 'draft_recordings';
+
+// In-memory fallback if IndexedDB is unavailable (e.g. test environments)
+const memoryDraftAudio = new Map                                                            ();
+
+function openDraftDB()                              {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(DRAFT_AUDIO_DB, 1);
+      req.onupgradeneeded = (e     ) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DRAFT_AUDIO_STORE)) {
+          db.createObjectStore(DRAFT_AUDIO_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export async function saveDraftAudio(
+  id        ,
+  blob      ,
+  meta                                                                                  = {}
+)                {
+  memoryDraftAudio.set(id, { blob, duration: meta.duration, status: meta.status });
+  if (meta.echoId && meta.echoId !== id) {
+    memoryDraftAudio.set(meta.echoId, { blob, duration: meta.duration, status: meta.status });
+  }
+
+  const db = await openDraftDB();
+  if (!db) return;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(DRAFT_AUDIO_STORE, 'readwrite');
+      const store = tx.objectStore(DRAFT_AUDIO_STORE);
+      const record = {
+        id,
+        echoId: meta.echoId || id,
+        userId: meta.userId || null,
+        blob,
+        duration: meta.duration || 0,
+        status: meta.status || 'draft',
+        updatedAt: new Date().toISOString()
+      };
+      store.put(record);
+      if (meta.echoId && meta.echoId !== id) {
+        store.put({ ...record, id: meta.echoId });
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+export async function getDraftAudio(idOrEchoId        )                                                    {
+  if (memoryDraftAudio.has(idOrEchoId)) {
+    return memoryDraftAudio.get(idOrEchoId) ;
+  }
+  const db = await openDraftDB();
+  if (!db) return null;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(DRAFT_AUDIO_STORE, 'readonly');
+      const store = tx.objectStore(DRAFT_AUDIO_STORE);
+      const req = store.get(idOrEchoId);
+      req.onsuccess = () => {
+        const res = req.result;
+        if (res && res.blob) {
+          resolve({ blob: res.blob, duration: res.duration });
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
                            
                        
+                         
+                      
+                      
+                      
                                         
  
 
@@ -942,39 +1041,119 @@ function setStoredJson   (key        , value   )       {
   }
 }
 
-function getAuthSession()                                                  {
+function getAuthSession()                                                                                                    {
   try {
     const session = getStoredJson                        (AUTH_KEY, null);
     if (session && session.access_token) {
       return {
         token: session.access_token,
-        userId: session.user?.id || null
+        userId: session.user?.id || null,
+        expiresAt: session.expires_at,
+        refreshToken: session.refresh_token || null
       };
     }
   } catch {}
-  return { token: null, userId: null };
+  return { token: null, userId: null, refreshToken: null };
+}
+
+export async function refreshAuthSession()                                                           {
+  try {
+    const session = getStoredJson                        (AUTH_KEY, null);
+    if (!session || !session.refresh_token) {
+      return { token: null, userId: null };
+    }
+
+    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refresh_token: session.refresh_token })
+    });
+
+    if (!res.ok) {
+      console.warn('Token refresh failed (' + res.status + ')');
+      return { token: null, userId: null };
+    }
+
+    const data = await res.json();
+    const updatedSession                  = {
+      access_token: data.access_token,
+      token_type: data.token_type || 'bearer',
+      expires_in: data.expires_in,
+      expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
+      refresh_token: data.refresh_token || session.refresh_token,
+      user: data.user || session.user
+    };
+
+    setStoredJson(AUTH_KEY, updatedSession);
+
+    try {
+      if (typeof indexedDB !== 'undefined') {
+        const req = indexedDB.open('luna_auth_db', 1);
+        req.onsuccess = (e     ) => {
+          const idb = e.target.result;
+          if (idb?.objectStoreNames?.contains('auth')) {
+            const tx = idb.transaction('auth', 'readwrite');
+            tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
+          }
+        };
+      }
+    } catch {}
+
+    return {
+      token: updatedSession.access_token,
+      userId: updatedSession.user?.id || null
+    };
+  } catch (err) {
+    console.warn('Error during token refresh:', err);
+    return { token: null, userId: null };
+  }
 }
 
 async function supabaseFetch(endpoint        , options              = {})               {
-  const { token } = getAuthSession();
-  const headers                         = {
-    'apikey': SUPABASE_ANON_KEY,
-    ...(options.headers                           || {})
-  };
-  if (token) {
-    headers['Authorization'] = 'Bearer ' + token;
-  } else {
-    headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+  let session = getStoredJson                        (AUTH_KEY, null);
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  // Proactive refresh if token expires within 60 seconds
+  if (session?.refresh_token && session?.expires_at && session.expires_at - nowSec < 60) {
+    const refreshed = await refreshAuthSession();
+    if (refreshed.token) {
+      session = getStoredJson                        (AUTH_KEY, null);
+    }
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : SUPABASE_URL + endpoint;
-  const res = await fetch(url, { ...options, headers });
+  const doRequest = async (token               ) => {
+    const headers                         = {
+      'apikey': SUPABASE_ANON_KEY,
+      ...(options.headers                           || {})
+    };
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    } else {
+      headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+    }
+    const url = endpoint.startsWith('http') ? endpoint : SUPABASE_URL + endpoint;
+    return await fetch(url, { ...options, headers });
+  };
+
+  let res = await doRequest(session?.access_token || null);
+
+  // If 401 Unauthorized and refresh token exists, attempt token refresh and retry request once
+  if (res.status === 401 && session?.refresh_token) {
+    const refreshed = await refreshAuthSession();
+    if (refreshed.token) {
+      res = await doRequest(refreshed.token);
+    }
+  }
+
   if (!res.ok) {
     const errorText = await res.text().catch(() => '');
     throw new Error('Supabase request failed (' + res.status + '): ' + errorText);
   }
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
+  const contentType = res.headers?.get ? (res.headers.get('content-type') || '') : '';
+  if (contentType.includes('application/json') || (!contentType && typeof res.json === 'function')) {
     return await res.json();
   }
   return await res.text();
@@ -1008,7 +1187,7 @@ function mapClassicEchoToBeta(raw     , lunar                 )       {
   const text = String(raw.text || '').trim();
   const title = String(raw.title || (text ? text.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment'));
   const audio_path = raw.audio_path || raw.audioPath || undefined;
-  const isVoice = Boolean(audio_path) || raw.source === 'voice';
+  const isVoice = Boolean(audio_path) || raw.source === 'voice' || raw.kind === 'voice';
 
   const phaseId = (raw.phase || lunar.phaseId)           ;
   const phaseName = raw.phaseName || raw.phase_name || lunar.phaseName;
@@ -1034,7 +1213,9 @@ function mapClassicEchoToBeta(raw     , lunar                 )       {
     waveformSource: isVoice ? (raw.waveform ? 'decoded-audio' : 'unavailable') : undefined,
     context,
     threadIds: Array.isArray(raw.tags) ? raw.tags : [],
-    provenance: 'local-session'
+    provenance: 'local-session',
+    user_id: raw.user_id || raw.userId || undefined,
+    syncStatus: raw.syncStatus || (audio_path || !isVoice ? 'synced' : 'local-only')
   };
 }
 
@@ -1054,7 +1235,9 @@ function mapClassicLoopToBeta(raw     )       {
     status,
     echoId,
     history,
-    provenance: 'local-session'
+    provenance: 'local-session',
+    user_id: raw.user_id || raw.userId || undefined,
+    syncStatus: raw.syncStatus || 'synced'
   };
 }
 
@@ -1080,29 +1263,52 @@ function createLiveLunaServices(audioAssets                         = {})       
 
   function getLocalEchoes(lunar                 )         {
     const raw = getStoredJson       (ECHOES_KEY, []);
+    const { userId } = getAuthSession();
     return raw
-      .filter(e => e && typeof e === 'object' && e.provenance !== 'synthetic' && !String(e.id || '').startsWith('echo-demo') && e.id !== 'echo-return' && e.id !== 'echo-water')
+      .filter(e => {
+        if (!e || typeof e !== 'object' || e.provenance === 'synthetic' || String(e.id || '').startsWith('echo-demo') || e.id === 'echo-return' || e.id === 'echo-water') return false;
+        // Account isolation: when authenticated, show records for this user or unassigned local offline drafts
+        if (userId) {
+          return (!e.user_id && !e.userId) || e.user_id === userId || e.userId === userId;
+        }
+        return !e.user_id && !e.userId;
+      })
       .map(e => mapClassicEchoToBeta(e, lunar));
   }
 
   function getLocalLoops()         {
     const raw = getStoredJson       (LOOPS_KEY, []);
+    const { userId } = getAuthSession();
     return raw
-      .filter(l => l && typeof l === 'object' && l.provenance !== 'synthetic' && !String(l.id || '').startsWith('loop-demo'))
+      .filter(l => {
+        if (!l || typeof l !== 'object' || l.provenance === 'synthetic' || String(l.id || '').startsWith('loop-demo')) return false;
+        if (userId) {
+          return (!l.user_id && !l.userId) || l.user_id === userId || l.userId === userId;
+        }
+        return !l.user_id && !l.userId;
+      })
       .map(mapClassicLoopToBeta);
   }
 
   function getLocalReflections()               {
     const raw = getStoredJson       (REFLECTIONS_KEY, []);
+    const { userId } = getAuthSession();
     return raw
-      .filter(r => r && typeof r === 'object' && r.provenance !== 'synthetic')
+      .filter(r => {
+        if (!r || typeof r !== 'object' || r.provenance === 'synthetic') return false;
+        if (userId) {
+          return (!r.user_id && !r.userId) || r.user_id === userId || r.userId === userId;
+        }
+        return !r.user_id && !r.userId;
+      })
       .map(r => ({
         id: r.id || makeId('ref'),
         echoId: r.echo_id || r.echoId,
         author: r.author || 'person',
         body: r.body || '',
         createdAt: r.created_at || r.createdAt || new Date().toISOString(),
-        provenance: 'local-session'         
+        provenance: 'local-session'         ,
+        user_id: r.user_id || r.userId || undefined
       }));
   }
 
@@ -1157,56 +1363,220 @@ function createLiveLunaServices(audioAssets                         = {})       
     try {
       const lunar = getLiveLunarData(new Date());
 
-      // Fetch server echoes
-      const serverEchoes = await supabaseFetch(
-        '/rest/v1/echoes?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
-      ).catch(() => []);
-
-      if (Array.isArray(serverEchoes) && serverEchoes.length > 0) {
-        const local = getStoredJson       (ECHOES_KEY, []);
-        const localIds = new Set(local.map(e => e.id));
-
-        const merged = [...local];
-        for (const se of serverEchoes) {
-          if (!localIds.has(se.id)) {
-            merged.push(se);
-          }
-        }
-        merged.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-        setStoredJson(ECHOES_KEY, merged);
-      }
-
-      // Fetch server loops
+      // 1. Fetch server loops (active)
       const serverLoops = await supabaseFetch(
         '/rest/v1/loops?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
+      ).catch(() => null);
+
+      // Query explicit deletions if available
+      const deletedLoops = await supabaseFetch(
+        '/rest/v1/loops?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=not.is.null&order=deleted_at.desc&limit=50'
       ).catch(() => []);
 
-      if (Array.isArray(serverLoops) && serverLoops.length > 0) {
-        const local = getStoredJson       (LOOPS_KEY, []);
-        const localIds = new Set(local.map(l => l.id));
+      const deletedLoopIds = new Set(Array.isArray(deletedLoops) ? deletedLoops.map(d => d.id) : []);
 
-        const merged = [...local];
+      if (Array.isArray(serverLoops)) {
+        const rawLocal = getStoredJson       (LOOPS_KEY, []);
+        const otherUserLoops = rawLocal.filter(l => l && (l.user_id || l.userId) && (l.user_id !== userId && l.userId !== userId));
+        const currentUserLoops = rawLocal.filter(l => !l || (!l.user_id && !l.userId) || l.user_id === userId || l.userId === userId);
+
+        // Process explicit deletions ONLY (never purge merely because absent from server response)
+        const pruned = currentUserLoops.filter(l => !deletedLoopIds.has(l.id));
+
+        const localMap = new Map(pruned.map(l => [l.id, l]));
+        const serverIds = new Set(serverLoops.map(sl => sl.id));
+        const reconciled        = [];
+
+        // Reconcile server loops
         for (const sl of serverLoops) {
-          if (!localIds.has(sl.id)) {
-            merged.push(sl);
+          const localItem = localMap.get(sl.id);
+          if (localItem) {
+            const serverUpdated = new Date(sl.updated_at || sl.created_at || 0).getTime();
+            const localUpdated = new Date(localItem.updated_at || localItem.updatedAt || 0).getTime();
+
+            // If local was edited more recently while offline, keep local and push to server
+            if (localUpdated > serverUpdated && (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed')) {
+              try {
+                await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(sl.id), {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    status: localItem.status,
+                    note: localItem.note,
+                    title: localItem.title,
+                    updated_at: localItem.updated_at || new Date().toISOString()
+                  })
+                });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' });
+              } catch {
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+              }
+            } else {
+              // Server is newer or equal: accept server state (e.g. status closed on server)
+              reconciled.push({
+                ...localItem,
+                ...sl,
+                user_id: userId,
+                syncStatus: 'synced'
+              });
+            }
+          } else {
+            // New from server
+            reconciled.push({
+              ...sl,
+              user_id: userId,
+              syncStatus: 'synced'
+            });
           }
         }
-        setStoredJson(LOOPS_KEY, merged);
+
+        // Preserve local unsynced loops that are NOT on server (e.g. created offline)
+        // AND preserve existing synced loops that may have been omitted due to pagination
+        for (const localItem of pruned) {
+          if (!serverIds.has(localItem.id)) {
+            if (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed' || !localItem.syncStatus) {
+              try {
+                await supabaseFetch('/rest/v1/loops', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: localItem.id,
+                    user_id: userId,
+                    title: localItem.title,
+                    note: localItem.note,
+                    status: localItem.status || 'active',
+                    created_at: localItem.created_at || localItem.createdAt || new Date().toISOString(),
+                    updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
+                  })
+                });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' });
+              } catch {
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+              }
+            } else {
+              // Previously synced: SAFE RECONCILIATION - DO NOT PURGE
+              reconciled.push(localItem);
+            }
+          }
+        }
+
+        setStoredJson(LOOPS_KEY, [...otherUserLoops, ...reconciled]);
       }
 
-      // Fetch reflections
-      const serverRefs = await supabaseFetch(
-        '/rest/v1/echo_reflections?select=*&user_id=eq.' + encodeURIComponent(userId) + '&order=created_at.desc'
+      // 2. Fetch server echoes (active)
+      const serverEchoes = await supabaseFetch(
+        '/rest/v1/echoes?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
+      ).catch(() => null);
+
+      const deletedEchoes = await supabaseFetch(
+        '/rest/v1/echoes?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=not.is.null&order=deleted_at.desc&limit=50'
       ).catch(() => []);
 
-      if (Array.isArray(serverRefs) && serverRefs.length > 0) {
-        const local = getStoredJson       (REFLECTIONS_KEY, []);
-        const localIds = new Set(local.map(r => r.id));
-        const merged = [...local];
-        for (const sr of serverRefs) {
-          if (!localIds.has(sr.id)) merged.push(sr);
+      const deletedEchoIds = new Set(Array.isArray(deletedEchoes) ? deletedEchoes.map(d => d.id) : []);
+
+      if (Array.isArray(serverEchoes)) {
+        const rawLocal = getStoredJson       (ECHOES_KEY, []);
+        const otherUserEchoes = rawLocal.filter(e => e && (e.user_id || e.userId) && (e.user_id !== userId && e.userId !== userId));
+        const currentUserEchoes = rawLocal.filter(e => !e || (!e.user_id && !e.userId) || e.user_id === userId || e.userId === userId);
+
+        // Process explicit deletions ONLY
+        const pruned = currentUserEchoes.filter(e => !deletedEchoIds.has(e.id));
+
+        const localMap = new Map(pruned.map(e => [e.id, e]));
+        const serverIds = new Set(serverEchoes.map(se => se.id));
+        const reconciled        = [];
+
+        for (const se of serverEchoes) {
+          const localItem = localMap.get(se.id);
+          if (localItem) {
+            reconciled.push({
+              ...localItem,
+              ...se,
+              audioUrl: localItem.audioUrl || se.audioUrl,
+              waveform: localItem.waveform || se.waveform,
+              duration: localItem.duration || se.duration,
+              user_id: userId,
+              syncStatus: 'synced'
+            });
+          } else {
+            reconciled.push({
+              ...se,
+              user_id: userId,
+              syncStatus: 'synced'
+            });
+          }
         }
-        setStoredJson(REFLECTIONS_KEY, merged);
+
+        // Preserve local unsynced echoes that are NOT on server (e.g. created offline)
+        // AND preserve existing synced echoes that may have been omitted due to pagination
+        for (const localItem of pruned) {
+          if (!serverIds.has(localItem.id)) {
+            if (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed' || !localItem.syncStatus) {
+              try {
+                let audioPath = localItem.audio_path || localItem.audioPath || null;
+                if ((localItem.source === 'voice' || localItem.kind === 'voice') && !audioPath) {
+                  const draft = await getDraftAudio(localItem.id);
+                  if (draft && draft.blob) {
+                    const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
+                    audioPath = userId + '/' + localItem.id + '.' + ext;
+                    await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
+                      method: 'POST',
+                      headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
+                      body: draft.blob
+                    });
+                    localItem.audio_path = audioPath;
+                    localItem.audioPath = audioPath;
+                  }
+                }
+
+                await supabaseFetch('/rest/v1/echoes', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: localItem.id,
+                    user_id: userId,
+                    text: localItem.text || localItem.body || '',
+                    title: localItem.title || 'A spoken moment',
+                    source: localItem.source || localItem.kind || 'voice',
+                    phase: localItem.phase || lunar.phaseId,
+                    phase_name: localItem.phaseName || lunar.phaseName,
+                    audio_path: audioPath,
+                    created_at: localItem.created_at || localItem.createdAt || new Date().toISOString(),
+                    updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
+                  })
+                });
+
+                reconciled.push({ ...localItem, user_id: userId, audio_path: audioPath, syncStatus: 'synced' });
+              } catch {
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+              }
+            } else {
+              // Previously synced: SAFE RECONCILIATION - DO NOT PURGE
+              reconciled.push(localItem);
+            }
+          }
+        }
+
+        reconciled.sort((a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || ''));
+        setStoredJson(ECHOES_KEY, [...otherUserEchoes, ...reconciled]);
+      }
+
+      // 3. Fetch reflections
+      const serverRefs = await supabaseFetch(
+        '/rest/v1/echo_reflections?select=*&user_id=eq.' + encodeURIComponent(userId) + '&order=created_at.desc'
+      ).catch(() => null);
+
+      if (Array.isArray(serverRefs)) {
+        const rawLocal = getStoredJson       (REFLECTIONS_KEY, []);
+        const otherRefs = rawLocal.filter(r => r && (r.user_id || r.userId) && (r.user_id !== userId && r.userId !== userId));
+        const currentRefs = rawLocal.filter(r => !r || (!r.user_id && !r.userId) || r.user_id === userId || r.userId === userId);
+
+        const localIds = new Set(currentRefs.map(r => r.id));
+        const merged = [...currentRefs];
+        for (const sr of serverRefs) {
+          if (!localIds.has(sr.id)) merged.push({ ...sr, user_id: userId });
+        }
+        setStoredJson(REFLECTIONS_KEY, [...otherRefs, ...merged]);
       }
 
       memorySnapshot = assembleSnapshot();
@@ -1329,15 +1699,18 @@ function createLiveLunaServices(audioAssets                         = {})       
       async signOut()                {
         localStorage.removeItem(AUTH_KEY);
         try {
-          const req = indexedDB.open('luna_auth_db', 1);
-          req.onsuccess = (e     ) => {
-            const idb = e.target.result;
-            if (idb?.objectStoreNames?.contains('auth')) {
-              const tx = idb.transaction('auth', 'readwrite');
-              tx.objectStore('auth').delete(AUTH_KEY);
-            }
-          };
+          if (typeof indexedDB !== 'undefined') {
+            const req = indexedDB.open('luna_auth_db', 1);
+            req.onsuccess = (e     ) => {
+              const idb = e.target.result;
+              if (idb?.objectStoreNames?.contains('auth')) {
+                const tx = idb.transaction('auth', 'readwrite');
+                tx.objectStore('auth').delete(AUTH_KEY);
+              }
+            };
+          }
         } catch {}
+        signedUrlCache.clear();
         memorySnapshot = assembleSnapshot();
       }
     },
@@ -1377,8 +1750,25 @@ function createLiveLunaServices(audioAssets                         = {})       
         let audioPath                = null;
         const audioBlob = (input       ).audioBlob                    ;
 
+        // Persist audio blob to durable IndexedDB immediately (local-first)
+        if (input.kind === 'voice' && audioBlob) {
+          try {
+            await saveDraftAudio(echoId, audioBlob, {
+              echoId,
+              duration: input.duration,
+              status: 'local-only',
+              userId
+            });
+          } catch (err) {
+            console.warn('IndexedDB audio save failed:', err);
+          }
+        }
+
+        let syncStatus             = 'local-only';
+
         // Voice upload to Supabase Storage if authenticated and blob present
         if (input.kind === 'voice' && audioBlob && userId && token) {
+          syncStatus = 'syncing';
           try {
             const ext = audioBlob.type.includes('mp4') ? 'mp4' :
                         audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
@@ -1393,7 +1783,8 @@ function createLiveLunaServices(audioAssets                         = {})       
               body: audioBlob
             });
           } catch (err) {
-            console.warn('Audio upload to Supabase Storage failed, saved locally:', err);
+            syncStatus = 'failed';
+            console.warn('Audio upload to Supabase Storage failed, saved locally in IndexedDB:', err);
           }
         }
 
@@ -1427,7 +1818,10 @@ function createLiveLunaServices(audioAssets                         = {})       
           provenance_author: 'user',
           provenance_kind: 'original_echo',
           provenanceAuthor: 'user',
-          provenanceKind: 'original_echo'
+          provenanceKind: 'original_echo',
+          user_id: userId || undefined,
+          userId: userId || undefined,
+          syncStatus
         };
 
         // Persist locally
@@ -1466,7 +1860,11 @@ function createLiveLunaServices(audioAssets                         = {})       
                 updated_at: classicRecord.updated_at
               })
             });
+            classicRecord.syncStatus = 'synced';
+            setStoredJson(ECHOES_KEY, local);
           } catch (err) {
+            classicRecord.syncStatus = 'failed';
+            setStoredJson(ECHOES_KEY, local);
             console.warn('Server echo save failed, kept locally:', err);
           }
         }
@@ -1494,6 +1892,9 @@ function createLiveLunaServices(audioAssets                         = {})       
         const nowIso = new Date().toISOString();
         const windowEnd = new Date(Date.now() + lunar.phaseRemaining * 24 * 60 * 60 * 1000).toISOString();
 
+        let syncStatus             = 'local-only';
+        if (userId && token) syncStatus = 'syncing';
+
         const classicLoop = {
           id: loopId,
           title: t,
@@ -1520,7 +1921,6 @@ function createLiveLunaServices(audioAssets                         = {})       
           relatedEchoIds: [],
           createdAt: nowIso,
           updatedAt: nowIso,
-          // snake_case aliases for direct Supabase/PostgREST schema compatibility
           phase_opened: lunar.phaseId,
           phase_name: lunar.phaseName,
           lunar_month_opened: lunar.lunarMonth,
@@ -1531,7 +1931,10 @@ function createLiveLunaServices(audioAssets                         = {})       
           closed_at: null,
           released_at: null,
           created_at: nowIso,
-          updated_at: nowIso
+          updated_at: nowIso,
+          user_id: userId || undefined,
+          userId: userId || undefined,
+          syncStatus
         };
 
         const local = getStoredJson       (LOOPS_KEY, []);
@@ -1563,7 +1966,11 @@ function createLiveLunaServices(audioAssets                         = {})       
                 updated_at: nowIso
               })
             });
+            classicLoop.syncStatus = 'synced';
+            setStoredJson(LOOPS_KEY, local);
           } catch (err) {
+            classicLoop.syncStatus = 'failed';
+            setStoredJson(LOOPS_KEY, local);
             console.warn('Server loop save failed, kept locally:', err);
           }
         }
@@ -1613,9 +2020,10 @@ function createLiveLunaServices(audioAssets                         = {})       
           loop.lunar_month_closed = lunar.lunarMonth;
         }
 
+        const { token, userId } = getAuthSession();
+        loop.syncStatus = (userId && token) ? 'syncing' : 'local-only';
         setStoredJson(LOOPS_KEY, local);
 
-        const { token, userId } = getAuthSession();
         if (userId && token) {
           try {
             await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(id), {
@@ -1631,7 +2039,11 @@ function createLiveLunaServices(audioAssets                         = {})       
                 updated_at: nowIso
               })
             });
+            loop.syncStatus = 'synced';
+            setStoredJson(LOOPS_KEY, local);
           } catch (err) {
+            loop.syncStatus = 'failed';
+            setStoredJson(LOOPS_KEY, local);
             console.warn('Server loop transition sync failed:', err);
           }
         }
@@ -1750,15 +2162,25 @@ function createLiveLunaServices(audioAssets                         = {})       
         if (echo.audioUrl) return echo.audioUrl;
         if (echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
 
+        // 1. Resolve from local durable IndexedDB cache first
+        try {
+          const draft = await getDraftAudio(echo.id);
+          if (draft && draft.blob) {
+            const localUrl = URL.createObjectURL(draft.blob);
+            return localUrl;
+          }
+        } catch {}
+
         const path = (echo       ).audio_path || (echo       ).audioPath;
         if (!path) return null;
 
-        // Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
+        // 2. Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
         const cached = signedUrlCache.get(path);
         if (cached && cached.expires > Date.now()) {
           return cached.url;
         }
 
+        // 3. Resolve from Supabase Storage
         try {
           const res = await supabaseFetch('/storage/v1/object/sign/echo-audio/' + path, {
             method: 'POST',
@@ -1795,6 +2217,7 @@ function createLiveLunaServices(audioAssets                         = {})       
 
 // state.ts
                                                                      
+
                                                                           
                                                                                                                                                                                                                                                                                                                                                                           
 function parseRoute(hash       )       {
@@ -1808,6 +2231,7 @@ const initialState=()        =>{
 
 
 // visuals.ts
+
 const escapeHtml=(value        )=>String(value??'').replace(/[&<>"']/g,c=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }                         )[c]);
 function icon(name       ,size=20){
   const paths                      ={
@@ -1993,6 +2417,8 @@ function phaseTideGauge(progress        , isThreshold         , dayInPhase      
 
 // components.ts
                                                                             
+
+
 const brandMark=()=>`<svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M29 8a15 15 0 1 0 5 19" stroke="currentColor" stroke-width="1.1"/><path d="M29 8a11 11 0 1 0 3 18" stroke="currentColor" stroke-width=".8"/><path d="M6 27c7-9 14-9 26-1" stroke="currentColor" stroke-width=".7"/><circle cx="33" cy="11" r="1.6" fill="currentColor"/></svg>`;
 const phaseIndex=(phase       )=>PHASES.findIndex(p=>p.id===phase);
 const statusLabel=(status       )=>(({open:'Open',evolving:'Evolving',completed:'Completed','carried-forward':'Carried forward',closed:'Consciously closed'}                         )[status]||status);
@@ -2035,6 +2461,12 @@ function shell(active       ,body       ,isSample=false,user                    
 // views.ts
                                                           
                                           
+
+
+
+
+
+
 
 function findReturnPair(echoes        )         {
   if (!echoes || echoes.length < 2) return [];
@@ -2468,6 +2900,7 @@ function routeView(db               , state         , isSample = false, isAuthen
 
 
 // voice-engine.ts
+
                                                         
 
 /** Local Web Audio analysis. Microphone audio is never connected to a speaker or a server. */
@@ -2534,6 +2967,16 @@ class VoiceEngine {
 
 // app.ts
                                                                  
+
+
+
+
+
+
+
+
+
+
                                                         
 
                                                        
@@ -2575,6 +3018,8 @@ let captureActive=false;
 let recordedSaved=false;
 let focusBeforeModal                 =null;
 let submitting=false;
+let wakeLock    =null;
+let currentDraftId='';
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
@@ -2604,6 +3049,8 @@ modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 function cleanupCapture(){
   captureToken++;captureActive=false;clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
+  if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
+  currentDraftId='';
   modal.querySelector                  ('#recording-preview')?.pause();
   recordingAnalysis={waveform:[],source:'unavailable',duration:0};recordingFinalizing=false;inputVisualAvailable=false;
   if(recorder&&recorder.state!=='inactive')recorder.stop();
@@ -2619,7 +3066,7 @@ function renderCapture(error=''){
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?recordingDuration/120*100:0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Up to 2 minutes · saved to your field<br>${running?'Audio is held safely on your device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error)}</div><div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${running?'Audio is held safely on your device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error)}</div><div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector                     ('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
@@ -2644,18 +3091,30 @@ async function startRecording(){
     const requested=await navigator.mediaDevices.getUserMedia({audio:true});
     if(token!==captureToken||!captureActive||!modal.open){requested.getTracks().forEach(t=>t.stop());return;}
     stream=requested;chunks=[];recordingDuration=0;
+    currentDraftId='draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+    try{if('wakeLock' in navigator&&(navigator       ).wakeLock){(navigator       ).wakeLock.request('screen').then((lock    )=>{wakeLock=lock;}).catch(()=>{});}}catch{}
     const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
     recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
     const activeRecorder=recorder;
-    activeRecorder.ondataavailable=e=>{if(token===captureToken&&e.data.size)chunks.push(e.data);};
+    activeRecorder.ondataavailable=e=>{
+      if(token===captureToken&&e.data.size){
+        chunks.push(e.data);
+        if(currentDraftId&&chunks.length>0){
+          const partBlob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
+          saveDraftAudio(currentDraftId,partBlob,{duration:recordingDuration,status:'recording'}).catch(()=>{});
+        }
+      }
+    };
     activeRecorder.onerror=()=>{requested.getTracks().forEach(t=>t.stop());if(token!==captureToken)return;captureToken++;clearInterval(recordInterval);voiceEngine.stop();recorder=null;renderCapture('Recording stopped unexpectedly. Please try again, or write this Echo.');};
     activeRecorder.onstop=async()=>{
       clearInterval(recordInterval);requested.getTracks().forEach(t=>t.stop());
+      if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
       if(token!==captureToken||!captureActive)return;
       voiceEngine.stop();
       const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
       recordingBlob=blob;
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
+      if(currentDraftId){saveDraftAudio(currentDraftId,blob,{duration:recordingDuration,status:'captured'}).catch(()=>{});}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
@@ -2665,10 +3124,23 @@ async function startRecording(){
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit') );
     const recordSource=document.getElementById('recording-source');if(recordSource)recordSource.textContent=inputVisualAvailable?(matchMedia('(prefers-reduced-motion: reduce)').matches?'Live microphone level · reduced motion':'Live microphone waveform'):'Recording · live visualization unavailable in this browser';
     modal.querySelector                   ('[data-action="record-stop"]')?.focus();
-    recordInterval=setInterval(()=>{recordingDuration=(performance.now()-recordStarted)/1000;const timer=document.getElementById('record-timer');if(timer)timer.textContent=timecode(recordingDuration);const arc=modal.querySelector('[data-orbit-progress]');arc?.setAttribute('stroke-dasharray',`${recordingDuration/120*100} 100`);if(recordingDuration>=120)stopRecording();},200);
+    recordInterval=setInterval(()=>{
+      recordingDuration=(performance.now()-recordStarted)/1000;
+      const timer=document.getElementById('record-timer');
+      if(timer)timer.textContent=timecode(recordingDuration);
+      const arc=modal.querySelector('[data-orbit-progress]');
+      arc?.setAttribute('stroke-dasharray',`${((recordingDuration%60)/60)*100} 100`);
+      if(recordingDuration>=300){
+        const notice=document.getElementById('recording-source');
+        if(notice&&!notice.dataset.longNotice){
+          notice.dataset.longNotice='true';
+          notice.textContent='Take your time — your voice is saved safely to your device.';
+        }
+      }
+    },200);
   }catch(error){voiceEngine.stop();stream?.getTracks().forEach(t=>t.stop());stream=null;recorder=null;if(token!==captureToken)return;const name=(error         ).name;renderCapture(name==='NotAllowedError'||name==='SecurityError'?'Microphone access was not granted. You can write instead, or allow microphone access in your browser and try again.':name==='NotFoundError'?'No microphone was found. You can write instead or connect a microphone.':'The microphone could not be started. Try again or write this Echo.');}
 }
-function stopRecording(){keepCaptureInputs();if(recorder?.state==='recording'){recordingDuration=Math.min(120,(performance.now()-recordStarted)/1000);recorder.stop();clearInterval(recordInterval);}}
+function stopRecording(){keepCaptureInputs();if(recorder?.state==='recording'){recordingDuration=(performance.now()-recordStarted)/1000;recorder.stop();clearInterval(recordInterval);}}
 function openNewLoop(){showModal('Leave an intention.',`<p class="dialog-description">A small gesture, a question, a direction to follow.</p><form data-form="loop"><label class="form-field"><span>What would you like to leave open?</span><input class="text-input" name="title" maxlength="120" placeholder="Something I want to return to…" required autofocus></label><label class="form-field"><span>A little context (optional)</span><textarea name="note" maxlength="600" placeholder="There is no deadline here."></textarea></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit">Leave it open ${icon('loop',15)}</button></div></form>`);}
 function openContextPicker(){const db=currentDb();showModal('Bring a moment with you.',`<p class="dialog-description">Select the Echoes you want to explore with Luna.</p><form data-form="chat-context"><div class="checkbox-list">${db.echoes.map(e=>`<label class="checkbox-row"><input type="checkbox" name="echo" value="${e.id}" ${state.chatContext.includes(e.id)?'checked':''}><span><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(formatMoment(e.occurredAt))} · ${escapeHtml(e.context.label)}</small></span></label>`).join('')||'<p class="small muted">No Echoes available in this view.</p>'}</div><div class="form-foot"><small>Select Echoes to include in this reflection.</small><button class="btn primary" type="submit">Use selected context</button></div></form>`);}
 function openThreadPicker(id       ){const db=currentDb();showModal('Make a connection.',`<p class="dialog-description">Choose a Thread that feels relevant. The connection comes from you.</p><form data-form="thread-link" data-id="${id}"><label class="form-field"><span>Thread</span><select name="thread" class="inline-select" required>${db.threads.map(t=>`<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('')}</select></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit" ${db.threads.length?'':'disabled'}>Connect Echo ${icon('thread',15)}</button></div></form>`);}
@@ -2789,7 +3261,18 @@ document.addEventListener('submit',async(event)=>{
         }
         break;
       }
-      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here.');break;}
+      case 'capture':{
+        keepCaptureInputs();
+        const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});
+        recordedSaved=true;
+        if(currentDraftId&&recordingBlob){
+          saveDraftAudio(currentDraftId,recordingBlob,{echoId:echo.id,duration:recordingDuration,status:'saved'}).catch(()=>{});
+        }
+        closeModal();
+        go(`echo/${echo.id}`);
+        toast('Your Echo is here.');
+        break;
+      }
       case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention held in your field.');break;}
       case 'reflection':{await services.reflections.add(form.dataset.id ,String(data.get('body')||''));const input=form.querySelector                     ('textarea') ;delete drafts[input.id];input.value='';render();toast('Your reflection is alongside the original.');break;}
       case 'thread-link':{await services.threads.linkEcho(String(data.get('thread')),form.dataset.id );closeModal();render();toast('Connected by you.');break;}

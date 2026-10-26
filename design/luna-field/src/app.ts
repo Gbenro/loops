@@ -1,6 +1,6 @@
 import type { Echo, Scenario, LoopStatus } from './contracts.ts';
 import { createMockServices, makeId, filterEchoes } from './mock-services.ts';
-import { createLiveLunaServices } from './live-services.ts';
+import { createLiveLunaServices, saveDraftAudio } from './live-services.ts';
 import { getLiveLunarData } from './lunar-engine.ts';
 import { initialState, parseRoute } from './state.ts';
 import { PHASES, DEMO_CONTEXT } from './fixtures.ts';
@@ -50,6 +50,8 @@ let captureActive=false;
 let recordedSaved=false;
 let focusBeforeModal:HTMLElement|null=null;
 let submitting=false;
+let wakeLock:any=null;
+let currentDraftId='';
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
@@ -79,6 +81,8 @@ modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 function cleanupCapture(){
   captureToken++;captureActive=false;clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
+  if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
+  currentDraftId='';
   modal.querySelector<HTMLAudioElement>('#recording-preview')?.pause();
   recordingAnalysis={waveform:[],source:'unavailable',duration:0};recordingFinalizing=false;inputVisualAvailable=false;
   if(recorder&&recorder.state!=='inactive')recorder.stop();
@@ -94,7 +98,7 @@ function renderCapture(error=''){
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?recordingDuration/120*100:0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Up to 2 minutes · saved to your field<br>${running?'Audio is held safely on your device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error)}</div><div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${running?'Audio is held safely on your device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error)}</div><div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
@@ -119,18 +123,30 @@ async function startRecording(){
     const requested=await navigator.mediaDevices.getUserMedia({audio:true});
     if(token!==captureToken||!captureActive||!modal.open){requested.getTracks().forEach(t=>t.stop());return;}
     stream=requested;chunks=[];recordingDuration=0;
+    currentDraftId='draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+    try{if('wakeLock' in navigator&&(navigator as any).wakeLock){(navigator as any).wakeLock.request('screen').then((lock:any)=>{wakeLock=lock;}).catch(()=>{});}}catch{}
     const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
     recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
     const activeRecorder=recorder;
-    activeRecorder.ondataavailable=e=>{if(token===captureToken&&e.data.size)chunks.push(e.data);};
+    activeRecorder.ondataavailable=e=>{
+      if(token===captureToken&&e.data.size){
+        chunks.push(e.data);
+        if(currentDraftId&&chunks.length>0){
+          const partBlob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
+          saveDraftAudio(currentDraftId,partBlob,{duration:recordingDuration,status:'recording'}).catch(()=>{});
+        }
+      }
+    };
     activeRecorder.onerror=()=>{requested.getTracks().forEach(t=>t.stop());if(token!==captureToken)return;captureToken++;clearInterval(recordInterval);voiceEngine.stop();recorder=null;renderCapture('Recording stopped unexpectedly. Please try again, or write this Echo.');};
     activeRecorder.onstop=async()=>{
       clearInterval(recordInterval);requested.getTracks().forEach(t=>t.stop());
+      if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
       if(token!==captureToken||!captureActive)return;
       voiceEngine.stop();
       const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
       recordingBlob=blob;
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
+      if(currentDraftId){saveDraftAudio(currentDraftId,blob,{duration:recordingDuration,status:'captured'}).catch(()=>{});}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
@@ -140,10 +156,23 @@ async function startRecording(){
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit')!);
     const recordSource=document.getElementById('recording-source');if(recordSource)recordSource.textContent=inputVisualAvailable?(matchMedia('(prefers-reduced-motion: reduce)').matches?'Live microphone level · reduced motion':'Live microphone waveform'):'Recording · live visualization unavailable in this browser';
     modal.querySelector<HTMLButtonElement>('[data-action="record-stop"]')?.focus();
-    recordInterval=setInterval(()=>{recordingDuration=(performance.now()-recordStarted)/1000;const timer=document.getElementById('record-timer');if(timer)timer.textContent=timecode(recordingDuration);const arc=modal.querySelector('[data-orbit-progress]');arc?.setAttribute('stroke-dasharray',`${recordingDuration/120*100} 100`);if(recordingDuration>=120)stopRecording();},200);
+    recordInterval=setInterval(()=>{
+      recordingDuration=(performance.now()-recordStarted)/1000;
+      const timer=document.getElementById('record-timer');
+      if(timer)timer.textContent=timecode(recordingDuration);
+      const arc=modal.querySelector('[data-orbit-progress]');
+      arc?.setAttribute('stroke-dasharray',`${((recordingDuration%60)/60)*100} 100`);
+      if(recordingDuration>=300){
+        const notice=document.getElementById('recording-source');
+        if(notice&&!notice.dataset.longNotice){
+          notice.dataset.longNotice='true';
+          notice.textContent='Take your time — your voice is saved safely to your device.';
+        }
+      }
+    },200);
   }catch(error){voiceEngine.stop();stream?.getTracks().forEach(t=>t.stop());stream=null;recorder=null;if(token!==captureToken)return;const name=(error as Error).name;renderCapture(name==='NotAllowedError'||name==='SecurityError'?'Microphone access was not granted. You can write instead, or allow microphone access in your browser and try again.':name==='NotFoundError'?'No microphone was found. You can write instead or connect a microphone.':'The microphone could not be started. Try again or write this Echo.');}
 }
-function stopRecording(){keepCaptureInputs();if(recorder?.state==='recording'){recordingDuration=Math.min(120,(performance.now()-recordStarted)/1000);recorder.stop();clearInterval(recordInterval);}}
+function stopRecording(){keepCaptureInputs();if(recorder?.state==='recording'){recordingDuration=(performance.now()-recordStarted)/1000;recorder.stop();clearInterval(recordInterval);}}
 function openNewLoop(){showModal('Leave an intention.',`<p class="dialog-description">A small gesture, a question, a direction to follow.</p><form data-form="loop"><label class="form-field"><span>What would you like to leave open?</span><input class="text-input" name="title" maxlength="120" placeholder="Something I want to return to…" required autofocus></label><label class="form-field"><span>A little context (optional)</span><textarea name="note" maxlength="600" placeholder="There is no deadline here."></textarea></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit">Leave it open ${icon('loop',15)}</button></div></form>`);}
 function openContextPicker(){const db=currentDb();showModal('Bring a moment with you.',`<p class="dialog-description">Select the Echoes you want to explore with Luna.</p><form data-form="chat-context"><div class="checkbox-list">${db.echoes.map(e=>`<label class="checkbox-row"><input type="checkbox" name="echo" value="${e.id}" ${state.chatContext.includes(e.id)?'checked':''}><span><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(formatMoment(e.occurredAt))} · ${escapeHtml(e.context.label)}</small></span></label>`).join('')||'<p class="small muted">No Echoes available in this view.</p>'}</div><div class="form-foot"><small>Select Echoes to include in this reflection.</small><button class="btn primary" type="submit">Use selected context</button></div></form>`);}
 function openThreadPicker(id:string){const db=currentDb();showModal('Make a connection.',`<p class="dialog-description">Choose a Thread that feels relevant. The connection comes from you.</p><form data-form="thread-link" data-id="${id}"><label class="form-field"><span>Thread</span><select name="thread" class="inline-select" required>${db.threads.map(t=>`<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('')}</select></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit" ${db.threads.length?'':'disabled'}>Connect Echo ${icon('thread',15)}</button></div></form>`);}
@@ -264,7 +293,18 @@ document.addEventListener('submit',async(event)=>{
         }
         break;
       }
-      case 'capture':{keepCaptureInputs();const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});recordedSaved=true;closeModal();go(`echo/${echo.id}`);toast('Your Echo is here.');break;}
+      case 'capture':{
+        keepCaptureInputs();
+        const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});
+        recordedSaved=true;
+        if(currentDraftId&&recordingBlob){
+          saveDraftAudio(currentDraftId,recordingBlob,{echoId:echo.id,duration:recordingDuration,status:'saved'}).catch(()=>{});
+        }
+        closeModal();
+        go(`echo/${echo.id}`);
+        toast('Your Echo is here.');
+        break;
+      }
       case 'loop':{await services.loops.create(String(data.get('title')||''),String(data.get('note')||''));closeModal();state.loopFilter='unfolding';go('loops');render();toast('An intention held in your field.');break;}
       case 'reflection':{await services.reflections.add(form.dataset.id!,String(data.get('body')||''));const input=form.querySelector<HTMLTextAreaElement>('textarea')!;delete drafts[input.id];input.value='';render();toast('Your reflection is alongside the original.');break;}
       case 'thread-link':{await services.threads.linkEcho(String(data.get('thread')),form.dataset.id!);closeModal();render();toast('Connected by you.');break;}
