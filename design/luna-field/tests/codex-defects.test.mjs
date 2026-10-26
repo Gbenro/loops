@@ -1,6 +1,7 @@
 import './idb-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
@@ -535,7 +536,11 @@ test('Defect 1: Standalone bundle boots cleanly in real Chrome browser and navig
   const distHtmlPath = path.resolve(fileURLToPath(import.meta.url), '../../dist/index.html');
   const fileUrl = 'file:///' + distHtmlPath.replace(/\\/g, '/');
 
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const chromePath = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  const launchOptions = fs.existsSync(chromePath)
+    ? { executablePath: chromePath, headless: true }
+    : { headless: true };
+  const browser = await chromium.launch(launchOptions);
   const context = await browser.newContext();
   const page = await context.newPage();
 

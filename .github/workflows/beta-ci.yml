@@ -1,0 +1,47 @@
+name: Luna Beta CI
+on:
+  pull_request:
+    branches: [beta]
+  push:
+    branches: [beta]
+permissions:
+  contents: read
+concurrency:
+  group: beta-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    name: Beta contracts and recording
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node design/luna-field/build.mjs
+      - run: node --test design/luna-field/tests/*.test.mjs design/echo-journey/tests/*.test.mjs
+  browser:
+    name: Beta build and browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:beta
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright test --config playwright.beta.config.js
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: beta-browser-failure
+          path: test-results/
+          retention-days: 7
+
