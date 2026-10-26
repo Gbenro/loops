@@ -5,7 +5,7 @@ export type Scenario = 'ready' | 'loading' | 'empty' | 'error' | 'denied' | 'off
 export type Provenance = 'synthetic' | 'local-session';
 export type SyncStatus = 'local-only' | 'syncing' | 'synced' | 'failed';
 export interface LunarContext { cycleId: string; phaseId: PhaseId; label: string; source: 'fixture' | 'backend'; }
-export interface Echo { id: string; title: string; body: string; occurredAt: string; kind: 'voice' | 'text'; audioKey?: string; audioUrl?: string; audio_path?: string; duration?: number; waveform?: number[]; waveformSource?: 'decoded-audio'|'capture-levels'|'unavailable'; context: LunarContext; threadIds: string[]; provenance: Provenance; user_id?: string; syncStatus?: SyncStatus; }
+export interface Echo { id: string; title: string; body: string; occurredAt: string; kind: 'voice' | 'text'; audioKey?: string; audioUrl?: string; audio_path?: string; duration?: number; waveform?: number[]; waveformSource?: 'decoded-audio'|'capture-levels'|'unavailable'; context: LunarContext; threadIds: string[]; provenance: Provenance; user_id?: string; syncStatus?: SyncStatus; audioSyncStatus?: SyncStatus; }
 export interface Loop { id: string; title: string; note: string; status: LoopStatus; echoId?: string; history: {status: LoopStatus; at: string}[]; provenance: Provenance; user_id?: string; syncStatus?: SyncStatus; }
 export interface Thread { id: string; title: string; description: string; echoIds: string[]; loopIds: string[]; }
 export interface Reflection { id: string; echoId: string; author: 'person' | 'ai-assisted'; body: string; createdAt: string; provenance: Provenance; user_id?: string; }

@@ -225,15 +225,15 @@ export function deepCosmicSheet(lunar: LiveLunarBundle, activeTab = 'phase'): st
         <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin:0 0 10px;">Moon in ${escapeHtml(lunar.zodiac.sign)} (${lunar.zodiac.degree}°)</h3>
         <div style="display:flex;gap:12px;margin-bottom:16px;font-family:monospace;font-size:11px;">
           <span class="chip">${escapeHtml(zodiac.element)}</span>
-          <span class="chip">${escapeHtml(zodiac.polarity)}</span>
+          <span class="chip">${escapeHtml((zodiac as any).polarity || zodiac.ruler)}</span>
           <span class="chip">${escapeHtml(zodiac.modality)}</span>
         </div>
         <p style="font-family:'Cormorant Garamond',serif;font-size:16px;line-height:1.6;color:var(--color-text-dim);margin-bottom:14px;">
-          ${escapeHtml(zodiac.guidance)}
+          ${escapeHtml((zodiac as any).guidance || zodiac.meaning)}
         </p>
         <div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
           <strong style="font-family:monospace;font-size:10px;letter-spacing:0.1em;color:var(--color-focus);display:block;margin-bottom:4px;">TRANSIT INVITATION</strong>
-          <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml(zodiac.reflection)}</p>
+          <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml((zodiac as any).reflection || zodiac.focus)}</p>
         </div>
       </div>
     `;
@@ -252,10 +252,10 @@ export function deepCosmicSheet(lunar: LiveLunarBundle, activeTab = 'phase'): st
           <p style="font-size:13px;line-height:1.5;color:var(--color-text);margin:0;">${escapeHtml(season.guidance)}</p>
         </div>
         <div style="font-family:monospace;font-size:11px;letter-spacing:0.06em;color:var(--color-text-muted);">
-          SYNODIC MONTH: The ${escapeHtml(monthLore.traditionalName)} Moon — ${escapeHtml(monthLore.theme)}
+          SYNODIC MONTH: The ${escapeHtml((monthLore as any).traditionalName || monthLore.name)} Moon — ${escapeHtml((monthLore as any).theme || (monthLore.keywords && monthLore.keywords.join(', ')))}
         </div>
         <p style="font-size:12px;line-height:1.5;color:var(--color-text-muted);margin-top:6px;">
-          ${escapeHtml(monthLore.description)}
+          ${escapeHtml((monthLore as any).description || monthLore.meaning)}
         </p>
       </div>
     `;

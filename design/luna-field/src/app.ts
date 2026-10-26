@@ -51,6 +51,7 @@ let recordedSaved=false;
 let focusBeforeModal:HTMLElement|null=null;
 let submitting=false;
 let wakeLock:any=null;
+let wakeLockToken=0;
 let currentDraftId='';
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
@@ -80,13 +81,19 @@ function closeModal(){if(modal.open)modal.close();}
 modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({preventScroll:true});});
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 function cleanupCapture(){
-  captureToken++;captureActive=false;clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
   if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
+  clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
+  if(recorder&&recorder.state!=='inactive'){
+    try{
+      recorder.requestData?.();
+      recorder.stop();
+    }catch{}
+  }
+  stream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;
+  captureToken++;captureActive=false;
   currentDraftId='';
   modal.querySelector<HTMLAudioElement>('#recording-preview')?.pause();
   recordingAnalysis={waveform:[],source:'unavailable',duration:0};recordingFinalizing=false;inputVisualAvailable=false;
-  if(recorder&&recorder.state!=='inactive')recorder.stop();
-  stream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;
   if(recordingUrl&&!recordedSaved){URL.revokeObjectURL(recordingUrl);localAudioUrls.delete(recordingUrl);}
   recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;
 }
@@ -124,7 +131,21 @@ async function startRecording(){
     if(token!==captureToken||!captureActive||!modal.open){requested.getTracks().forEach(t=>t.stop());return;}
     stream=requested;chunks=[];recordingDuration=0;
     currentDraftId='draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-    try{if('wakeLock' in navigator&&(navigator as any).wakeLock){(navigator as any).wakeLock.request('screen').then((lock:any)=>{wakeLock=lock;}).catch(()=>{});}}catch{}
+    wakeLockToken=token;
+    if('wakeLock' in navigator&&(navigator as any).wakeLock){
+      (navigator as any).wakeLock.request('screen').then((lock:any)=>{
+        if(wakeLockToken!==captureToken||!captureActive||recorder?.state!=='recording'){
+          lock.release?.().catch?.(()=>{});
+          return;
+        }
+        wakeLock=lock;
+        lock.addEventListener?.('release',()=>{
+          if(wakeLock===lock) wakeLock=null;
+        });
+      }).catch((err:any)=>{
+        console.warn('Wake lock request failed, continuing recording without lock:', err);
+      });
+    }
     const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
     recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
     const activeRecorder=recorder;
@@ -141,12 +162,14 @@ async function startRecording(){
     activeRecorder.onstop=async()=>{
       clearInterval(recordInterval);requested.getTracks().forEach(t=>t.stop());
       if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
-      if(token!==captureToken||!captureActive)return;
-      voiceEngine.stop();
       const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
       recordingBlob=blob;
+      if(currentDraftId&&blob.size>0){
+        saveDraftAudio(currentDraftId,blob,{duration:recordingDuration,status:'captured'}).catch(()=>{});
+      }
+      if(token!==captureToken||!captureActive)return;
+      voiceEngine.stop();
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
-      if(currentDraftId){saveDraftAudio(currentDraftId,blob,{duration:recordingDuration,status:'captured'}).catch(()=>{});}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
@@ -320,6 +343,23 @@ document.addEventListener('submit',async(event)=>{
 window.addEventListener('hashchange',()=>{stopPlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
 window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&captureActive&&recorder?.state==='recording'&&!wakeLock){
+    const reacquireToken=captureToken;
+    if('wakeLock' in navigator&&(navigator as any).wakeLock){
+      (navigator as any).wakeLock.request('screen').then((lock:any)=>{
+        if(reacquireToken!==captureToken||!captureActive||recorder?.state!=='recording'){
+          lock.release?.().catch?.(()=>{});
+          return;
+        }
+        wakeLock=lock;
+        lock.addEventListener?.('release',()=>{
+          if(wakeLock===lock) wakeLock=null;
+        });
+      }).catch(()=>{});
+    }
+  }
+});
 try{const theme=localStorage.getItem('luna-exploration-theme');if(theme==='light')document.documentElement.dataset.theme='light';}catch{}
 applyRoute();render();
 

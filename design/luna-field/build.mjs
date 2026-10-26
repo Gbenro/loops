@@ -29,7 +29,9 @@ for (const name of sources) {
   const js = stripTypeScriptTypes(raw, { mode: 'strip' })
     .replace(/import\s+(?:type\s+)?[\s\S]*?from\s+['"][^'"]+['"];?\n?/gm, '')
     .replace(/^import[^\n]*\n/gm, '')
-    .replace(/^export\s+(?=(?:const|let|function|class)\b)/gm, '');
+    .replace(/^export\s+(?:async\s+)?(?=(?:const|let|var|function|class)\b)/gm, (match) => match.includes('async') ? 'async ' : '')
+    .replace(/^export\s*\{[^}]*\}\s*;?\n?/gm, '')
+    .replace(/^export\s+default\s+/gm, '');
   parts.push(`// ${name}.ts\n${js}`);
 }
 

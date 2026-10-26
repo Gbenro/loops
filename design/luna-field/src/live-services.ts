@@ -31,11 +31,11 @@ const DRAFT_AUDIO_DB = 'luna_draft_audio_db';
 const DRAFT_AUDIO_STORE = 'draft_recordings';
 
 // In-memory fallback if IndexedDB is unavailable (e.g. test environments)
-const memoryDraftAudio = new Map<string, { blob: Blob; duration?: number; status?: string }>();
+const memoryDraftAudio = new Map<string, { blob: Blob; duration?: number; status?: string; userId?: string | null; updatedAt?: string; echoId?: string }>();
 
 function openDraftDB(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       const req = indexedDB.open(DRAFT_AUDIO_DB, 1);
       req.onupgradeneeded = (e: any) => {
@@ -45,9 +45,9 @@ function openDraftDB(): Promise<IDBDatabase | null> {
         }
       };
       req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
+      req.onerror = () => reject(req.error || new Error('Failed to open draft audio IndexedDB'));
+    } catch (err) {
+      reject(err);
     }
   });
 }
@@ -55,66 +55,159 @@ function openDraftDB(): Promise<IDBDatabase | null> {
 export async function saveDraftAudio(
   id: string,
   blob: Blob,
-  meta: { echoId?: string; duration?: number; status?: string; userId?: string | null } = {}
+  meta: { echoId?: string; duration?: number; status?: string; userId?: string | null } = {},
+  ownerId?: string | null
 ): Promise<void> {
-  memoryDraftAudio.set(id, { blob, duration: meta.duration, status: meta.status });
+  const currentUserId = ownerId || meta.userId || getAuthSession()?.userId || null;
+  const record = {
+    id,
+    echoId: meta.echoId || id,
+    userId: currentUserId,
+    blob,
+    duration: meta.duration || 0,
+    status: meta.status || 'draft',
+    updatedAt: new Date().toISOString()
+  };
+
+  memoryDraftAudio.set(id, record);
   if (meta.echoId && meta.echoId !== id) {
-    memoryDraftAudio.set(meta.echoId, { blob, duration: meta.duration, status: meta.status });
+    memoryDraftAudio.set(meta.echoId, record);
+  }
+
+  // If IndexedDB is not defined in the environment, memory fallback completes successfully
+  if (typeof indexedDB === 'undefined') {
+    return;
   }
 
   const db = await openDraftDB();
-  if (!db) return;
+  if (!db) {
+    throw new Error('IndexedDB unavailable or failed to open');
+  }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       const tx = db.transaction(DRAFT_AUDIO_STORE, 'readwrite');
       const store = tx.objectStore(DRAFT_AUDIO_STORE);
-      const record = {
-        id,
-        echoId: meta.echoId || id,
-        userId: meta.userId || null,
-        blob,
-        duration: meta.duration || 0,
-        status: meta.status || 'draft',
-        updatedAt: new Date().toISOString()
-      };
       store.put(record);
       if (meta.echoId && meta.echoId !== id) {
         store.put({ ...record, id: meta.echoId });
       }
       tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-    } catch {
-      resolve();
+      tx.onerror = () => reject(tx.error || new Error('Draft audio transaction failed'));
+      tx.onabort = () => reject(tx.error || new Error('Draft audio transaction aborted'));
+    } catch (err) {
+      reject(err);
     }
   });
 }
 
-export async function getDraftAudio(idOrEchoId: string): Promise<{ blob: Blob; duration?: number } | null> {
-  if (memoryDraftAudio.has(idOrEchoId)) {
-    return memoryDraftAudio.get(idOrEchoId)!;
-  }
-  const db = await openDraftDB();
-  if (!db) return null;
-
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(DRAFT_AUDIO_STORE, 'readonly');
-      const store = tx.objectStore(DRAFT_AUDIO_STORE);
-      const req = store.get(idOrEchoId);
-      req.onsuccess = () => {
-        const res = req.result;
-        if (res && res.blob) {
-          resolve({ blob: res.blob, duration: res.duration });
-        } else {
-          resolve(null);
-        }
-      };
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
+export async function getDraftAudio(
+  idOrEchoId: string,
+  expectedUserId?: string | null
+): Promise<{ blob: Blob; duration?: number; status?: string; userId?: string | null } | null> {
+  const mem = memoryDraftAudio.get(idOrEchoId);
+  if (mem) {
+    if (expectedUserId && mem.userId !== expectedUserId) {
+      return null;
     }
-  });
+    return mem;
+  }
+
+  if (typeof indexedDB === 'undefined') return null;
+
+  try {
+    const db = await openDraftDB();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(DRAFT_AUDIO_STORE, 'readonly');
+        const store = tx.objectStore(DRAFT_AUDIO_STORE);
+        const req = store.get(idOrEchoId);
+        req.onsuccess = () => {
+          const res = req.result;
+          if (res && res.blob) {
+            if (expectedUserId && res.userId !== expectedUserId) {
+              resolve(null);
+            } else {
+              resolve({
+                blob: res.blob,
+                duration: res.duration,
+                status: res.status,
+                userId: res.userId
+              });
+            }
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function listDraftRecordings(
+  userId?: string | null
+): Promise<Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string }>> {
+  const list: Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string }> = [];
+  const seenIds = new Set<string>();
+
+  for (const [id, item] of memoryDraftAudio.entries()) {
+    if (seenIds.has(id)) continue;
+    if (userId && item.userId !== userId) continue;
+    seenIds.add(id);
+    list.push({
+      id,
+      echoId: item.echoId,
+      duration: item.duration,
+      status: item.status,
+      updatedAt: item.updatedAt
+    });
+  }
+
+  if (typeof indexedDB !== 'undefined') {
+    try {
+      const db = await openDraftDB();
+      if (db) {
+        await new Promise<void>((resolve) => {
+          try {
+            const tx = db.transaction(DRAFT_AUDIO_STORE, 'readonly');
+            const store = tx.objectStore(DRAFT_AUDIO_STORE);
+            const req = store.openCursor();
+            req.onsuccess = (e: any) => {
+              const cursor = e.target.result;
+              if (cursor) {
+                const val = cursor.value;
+                if (!seenIds.has(val.id) && (!userId || val.userId === userId)) {
+                  seenIds.add(val.id);
+                  list.push({
+                    id: val.id,
+                    echoId: val.echoId,
+                    duration: val.duration,
+                    status: val.status,
+                    updatedAt: val.updatedAt
+                  });
+                }
+                cursor.continue();
+              } else {
+                resolve();
+              }
+            };
+            req.onerror = () => resolve();
+          } catch {
+            resolve();
+          }
+        });
+      }
+    } catch {}
+  }
+
+  return list;
 }
 
 interface SupabaseSession {
@@ -143,6 +236,9 @@ function setStoredJson<T>(key: string, value: T): void {
   }
 }
 
+let authGeneration = 0;
+let inFlightRefresh: Promise<{ token: string | null; userId: string | null }> | null = null;
+
 export function getAuthSession(): { token: string | null; userId: string | null; expiresAt?: number; refreshToken?: string | null } {
   try {
     const session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
@@ -159,59 +255,81 @@ export function getAuthSession(): { token: string | null; userId: string | null;
 }
 
 export async function refreshAuthSession(): Promise<{ token: string | null; userId: string | null }> {
-  try {
-    const session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
-    if (!session || !session.refresh_token) {
-      return { token: null, userId: null };
-    }
+  if (inFlightRefresh) return inFlightRefresh;
 
-    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ refresh_token: session.refresh_token })
-    });
-
-    if (!res.ok) {
-      console.warn('Token refresh failed (' + res.status + ')');
-      return { token: null, userId: null };
-    }
-
-    const data = await res.json();
-    const updatedSession: SupabaseSession = {
-      access_token: data.access_token,
-      token_type: data.token_type || 'bearer',
-      expires_in: data.expires_in,
-      expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
-      refresh_token: data.refresh_token || session.refresh_token,
-      user: data.user || session.user
-    };
-
-    setStoredJson(AUTH_KEY, updatedSession);
-
+  const currentGen = authGeneration;
+  inFlightRefresh = (async () => {
     try {
-      if (typeof indexedDB !== 'undefined') {
-        const req = indexedDB.open('luna_auth_db', 1);
-        req.onsuccess = (e: any) => {
-          const idb = e.target.result;
-          if (idb?.objectStoreNames?.contains('auth')) {
-            const tx = idb.transaction('auth', 'readwrite');
-            tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
-          }
-        };
+      const session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
+      if (!session || !session.refresh_token) {
+        return { token: null, userId: null };
       }
-    } catch {}
 
-    return {
-      token: updatedSession.access_token,
-      userId: updatedSession.user?.id || null
-    };
-  } catch (err) {
-    console.warn('Error during token refresh:', err);
-    return { token: null, userId: null };
-  }
+      const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: session.refresh_token })
+      });
+
+      // If user signed out or account switched during fetch, drop the response
+      if (currentGen !== authGeneration) {
+        return { token: null, userId: null };
+      }
+      const activeSession = getAuthSession();
+      if (!activeSession.userId || (session.user?.id && activeSession.userId !== session.user.id)) {
+        return { token: null, userId: null };
+      }
+
+      if (!res.ok) {
+        console.warn('Token refresh failed (' + res.status + ')');
+        return { token: null, userId: null };
+      }
+
+      const data = await res.json();
+      if (currentGen !== authGeneration) {
+        return { token: null, userId: null };
+      }
+
+      const updatedSession: SupabaseSession = {
+        access_token: data.access_token,
+        token_type: data.token_type || 'bearer',
+        expires_in: data.expires_in,
+        expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
+        refresh_token: data.refresh_token || session.refresh_token,
+        user: data.user || session.user
+      };
+
+      setStoredJson(AUTH_KEY, updatedSession);
+
+      try {
+        if (typeof indexedDB !== 'undefined') {
+          const req = indexedDB.open('luna_auth_db', 1);
+          req.onsuccess = (e: any) => {
+            const idb = e.target.result;
+            if (idb?.objectStoreNames?.contains('auth')) {
+              const tx = idb.transaction('auth', 'readwrite');
+              tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
+            }
+          };
+        }
+      } catch {}
+
+      return {
+        token: updatedSession.access_token,
+        userId: updatedSession.user?.id || null
+      };
+    } catch (err) {
+      console.warn('Error during token refresh:', err);
+      return { token: null, userId: null };
+    } finally {
+      inFlightRefresh = null;
+    }
+  })();
+
+  return inFlightRefresh;
 }
 
 async function supabaseFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
@@ -317,7 +435,8 @@ function mapClassicEchoToBeta(raw: any, lunar: LiveLunarBundle): Echo {
     threadIds: Array.isArray(raw.tags) ? raw.tags : [],
     provenance: 'local-session',
     user_id: raw.user_id || raw.userId || undefined,
-    syncStatus: raw.syncStatus || (audio_path || !isVoice ? 'synced' : 'local-only')
+    syncStatus: raw.syncStatus || (audio_path || !isVoice ? 'synced' : 'local-only'),
+    audioSyncStatus: raw.audioSyncStatus || (isVoice ? (audio_path ? 'synced' : 'local-only') : undefined)
   };
 }
 
@@ -458,45 +577,110 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
   memorySnapshot = assembleSnapshot();
 
+  let activeSyncPromise: Promise<void> | null = null;
+  let pendingSyncRequested = false;
+
   async function syncServer(): Promise<void> {
+    if (activeSyncPromise) {
+      pendingSyncRequested = true;
+      return activeSyncPromise;
+    }
+
     const { token, userId } = getAuthSession();
     if (!token || !userId) return;
 
+    activeSyncPromise = (async () => {
+      try {
+        await doSyncServer(token, userId);
+      } finally {
+        activeSyncPromise = null;
+        if (pendingSyncRequested) {
+          pendingSyncRequested = false;
+          void syncServer();
+        }
+      }
+    })();
+
+    return activeSyncPromise;
+  }
+
+  async function doSyncServer(token: string, userId: string): Promise<void> {
     try {
       const lunar = getLiveLunarData(new Date());
 
-      // 1. Fetch server loops (active)
+      // 1. Scope deletion tombstones by authenticated user with pagination
+      const deletedLoopIds = new Set<string>();
+      const userDeletedLoopKey = 'luna_deleted_loop_ids_' + userId;
+      const storedDeletedLoops = getStoredJson<string[]>(userDeletedLoopKey, []);
+      storedDeletedLoops.forEach(id => deletedLoopIds.add(id));
+
+      let loopOffset = 0;
+      while (loopOffset < 500) {
+        const deletedBatch = await supabaseFetch(
+          '/rest/v1/loops?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) +
+          '&deleted_at=not.is.null&order=deleted_at.desc&limit=100&offset=' + loopOffset
+        ).catch(() => []);
+        if (Array.isArray(deletedBatch) && deletedBatch.length > 0) {
+          for (const d of deletedBatch) {
+            if (d.id) deletedLoopIds.add(d.id);
+          }
+          if (deletedBatch.length < 100) break;
+          loopOffset += 100;
+        } else {
+          break;
+        }
+      }
+      setStoredJson(userDeletedLoopKey, Array.from(deletedLoopIds));
+
+      const deletedEchoIds = new Set<string>();
+      const userDeletedEchoKey = 'luna_deleted_echo_ids_' + userId;
+      const storedDeletedEchoes = getStoredJson<string[]>(userDeletedEchoKey, []);
+      storedDeletedEchoes.forEach(id => deletedEchoIds.add(id));
+
+      let echoOffset = 0;
+      while (echoOffset < 500) {
+        const deletedBatch = await supabaseFetch(
+          '/rest/v1/echoes?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) +
+          '&deleted_at=not.is.null&order=deleted_at.desc&limit=100&offset=' + echoOffset
+        ).catch(() => []);
+        if (Array.isArray(deletedBatch) && deletedBatch.length > 0) {
+          for (const d of deletedBatch) {
+            if (d.id) deletedEchoIds.add(d.id);
+          }
+          if (deletedBatch.length < 100) break;
+          echoOffset += 100;
+        } else {
+          break;
+        }
+      }
+      setStoredJson(userDeletedEchoKey, Array.from(deletedEchoIds));
+
+      // 2. Fetch server loops (active)
       const serverLoops = await supabaseFetch(
         '/rest/v1/loops?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
       ).catch(() => null);
 
-      // Query explicit deletions if available
-      const deletedLoops = await supabaseFetch(
-        '/rest/v1/loops?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=not.is.null&order=deleted_at.desc&limit=50'
-      ).catch(() => []);
-
-      const deletedLoopIds = new Set(Array.isArray(deletedLoops) ? deletedLoops.map(d => d.id) : []);
-
       if (Array.isArray(serverLoops)) {
-        const rawLocal = getStoredJson<any[]>(LOOPS_KEY, []);
-        const otherUserLoops = rawLocal.filter(l => l && (l.user_id || l.userId) && (l.user_id !== userId && l.userId !== userId));
-        const currentUserLoops = rawLocal.filter(l => !l || (!l.user_id && !l.userId) || l.user_id === userId || l.userId === userId);
+        // Tombstones win over server responses
+        const activeServerLoops = serverLoops.filter(sl => !deletedLoopIds.has(sl.id));
 
-        // Process explicit deletions ONLY (never purge merely because absent from server response)
+        const rawLocal = getStoredJson<any[]>(LOOPS_KEY, []);
+        // Strict account scoping: only reconcile records explicitly belonging to this user
+        const currentUserLoops = rawLocal.filter(l => l && (l.user_id === userId || l.userId === userId));
         const pruned = currentUserLoops.filter(l => !deletedLoopIds.has(l.id));
 
         const localMap = new Map(pruned.map(l => [l.id, l]));
-        const serverIds = new Set(serverLoops.map(sl => sl.id));
+        const serverIds = new Set(activeServerLoops.map(sl => sl.id));
         const reconciled: any[] = [];
 
         // Reconcile server loops
-        for (const sl of serverLoops) {
+        for (const sl of activeServerLoops) {
           const localItem = localMap.get(sl.id);
           if (localItem) {
             const serverUpdated = new Date(sl.updated_at || sl.created_at || 0).getTime();
             const localUpdated = new Date(localItem.updated_at || localItem.updatedAt || 0).getTime();
 
-            // If local was edited more recently while offline, keep local and push to server
+            // Conflict-safe reconciliation: protect newer local edits
             if (localUpdated > serverUpdated && (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed')) {
               try {
                 await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(sl.id), {
@@ -509,25 +693,23 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                     updated_at: localItem.updated_at || new Date().toISOString()
                   })
                 });
-                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' as SyncStatus });
               } catch {
-                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' as SyncStatus });
               }
             } else {
-              // Server is newer or equal: accept server state (e.g. status closed on server)
               reconciled.push({
                 ...localItem,
                 ...sl,
                 user_id: userId,
-                syncStatus: 'synced'
+                syncStatus: 'synced' as SyncStatus
               });
             }
           } else {
-            // New from server
             reconciled.push({
               ...sl,
               user_id: userId,
-              syncStatus: 'synced'
+              syncStatus: 'synced' as SyncStatus
             });
           }
         }
@@ -551,9 +733,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                     updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
                   })
                 });
-                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'synced' as SyncStatus });
               } catch {
-                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' as SyncStatus });
               }
             } else {
               // Previously synced: SAFE RECONCILIATION - DO NOT PURGE
@@ -562,49 +744,126 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
         }
 
-        setStoredJson(LOOPS_KEY, [...otherUserLoops, ...reconciled]);
+        // Transactionally merge into the LATEST local array so intervening offline creates/edits are never lost
+        const latestAllLoops = getStoredJson<any[]>(LOOPS_KEY, []);
+        const reconciledMap = new Map(reconciled.map(l => [l.id, l]));
+        const finalLoops: any[] = [];
+        const seenIds = new Set<string>();
+
+        for (const item of latestAllLoops) {
+          if (!item || !item.id) continue;
+          if (deletedLoopIds.has(item.id)) continue;
+          seenIds.add(item.id);
+          const rec = reconciledMap.get(item.id);
+          if (rec) {
+            const itemUpdated = new Date(item.updated_at || item.updatedAt || item.created_at || item.createdAt || 0).getTime();
+            const recUpdated = new Date(rec.updated_at || rec.updatedAt || rec.created_at || rec.createdAt || 0).getTime();
+            if (itemUpdated > recUpdated) {
+              finalLoops.push(item);
+            } else {
+              finalLoops.push(rec);
+            }
+          } else {
+            // Created or unmodified while sync was in flight: PRESERVE!
+            finalLoops.push(item);
+          }
+        }
+
+        for (const rec of reconciled) {
+          if (!seenIds.has(rec.id) && !deletedLoopIds.has(rec.id)) {
+            finalLoops.push(rec);
+            seenIds.add(rec.id);
+          }
+        }
+
+        setStoredJson(LOOPS_KEY, finalLoops);
       }
 
-      // 2. Fetch server echoes (active)
+      // 3. Fetch server echoes (active)
       const serverEchoes = await supabaseFetch(
         '/rest/v1/echoes?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
       ).catch(() => null);
 
-      const deletedEchoes = await supabaseFetch(
-        '/rest/v1/echoes?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=not.is.null&order=deleted_at.desc&limit=50'
-      ).catch(() => []);
-
-      const deletedEchoIds = new Set(Array.isArray(deletedEchoes) ? deletedEchoes.map(d => d.id) : []);
-
       if (Array.isArray(serverEchoes)) {
-        const rawLocal = getStoredJson<any[]>(ECHOES_KEY, []);
-        const otherUserEchoes = rawLocal.filter(e => e && (e.user_id || e.userId) && (e.user_id !== userId && e.userId !== userId));
-        const currentUserEchoes = rawLocal.filter(e => !e || (!e.user_id && !e.userId) || e.user_id === userId || e.userId === userId);
+        // Tombstones win over server responses
+        const activeServerEchoes = serverEchoes.filter(se => !deletedEchoIds.has(se.id));
 
-        // Process explicit deletions ONLY
+        const rawLocal = getStoredJson<any[]>(ECHOES_KEY, []);
+        // Strict account scoping: only reconcile records explicitly belonging to this user (never claim unassigned guest records)
+        const currentUserEchoes = rawLocal.filter(e => e && (e.user_id === userId || e.userId === userId));
         const pruned = currentUserEchoes.filter(e => !deletedEchoIds.has(e.id));
 
         const localMap = new Map(pruned.map(e => [e.id, e]));
-        const serverIds = new Set(serverEchoes.map(se => se.id));
+        const serverIds = new Set(activeServerEchoes.map(se => se.id));
         const reconciled: any[] = [];
 
-        for (const se of serverEchoes) {
+        for (const se of activeServerEchoes) {
           const localItem = localMap.get(se.id);
           if (localItem) {
-            reconciled.push({
-              ...localItem,
-              ...se,
-              audioUrl: localItem.audioUrl || se.audioUrl,
-              waveform: localItem.waveform || se.waveform,
-              duration: localItem.duration || se.duration,
-              user_id: userId,
-              syncStatus: 'synced'
-            });
+            let audioPath = se.audio_path || se.audioPath || localItem.audio_path || localItem.audioPath || undefined;
+            let audioSyncStatus: SyncStatus = (se.source === 'voice' || se.kind === 'voice') ? (audioPath ? 'synced' : 'local-only') : 'synced';
+
+            // Check if audio file needs upload/repair even though metadata row exists on server
+            if ((se.source === 'voice' || se.kind === 'voice') && !audioPath) {
+              const draft = await getDraftAudio(localItem.id, userId);
+              if (draft && draft.blob) {
+                try {
+                  const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
+                  const targetAudioPath = userId + '/' + localItem.id + '.' + ext;
+                  await supabaseFetch('/storage/v1/object/echo-audio/' + targetAudioPath, {
+                    method: 'POST',
+                    headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
+                    body: draft.blob
+                  });
+                  audioPath = targetAudioPath;
+                  audioSyncStatus = 'synced';
+                  await supabaseFetch('/rest/v1/echoes?id=eq.' + encodeURIComponent(se.id), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ audio_path: audioPath, updated_at: new Date().toISOString() })
+                  });
+                } catch (uploadErr) {
+                  audioSyncStatus = 'failed';
+                  console.warn('Audio repair upload failed during sync:', uploadErr);
+                }
+              }
+            }
+
+            const serverUpdated = new Date(se.updated_at || se.created_at || 0).getTime();
+            const localUpdated = new Date(localItem.updated_at || localItem.updatedAt || localItem.created_at || localItem.createdAt || 0).getTime();
+
+            if (localUpdated > serverUpdated && localItem.syncStatus !== 'synced') {
+              reconciled.push({
+                ...se,
+                ...localItem,
+                user_id: userId,
+                audio_path: audioPath,
+                audioPath: audioPath,
+                audioSyncStatus,
+                syncStatus: (audioSyncStatus === 'failed') ? ('failed' as SyncStatus) : ('synced' as SyncStatus)
+              });
+            } else {
+              reconciled.push({
+                ...localItem,
+                ...se,
+                audio_path: audioPath,
+                audioPath: audioPath,
+                audioUrl: localItem.audioUrl || se.audioUrl,
+                waveform: localItem.waveform || se.waveform,
+                duration: localItem.duration || se.duration,
+                user_id: userId,
+                audioSyncStatus,
+                syncStatus: (audioSyncStatus === 'failed') ? ('failed' as SyncStatus) : ('synced' as SyncStatus)
+              });
+            }
           } else {
+            const hasAudio = Boolean(se.audio_path || se.audioPath);
+            const isVoice = se.source === 'voice' || se.kind === 'voice';
             reconciled.push({
               ...se,
               user_id: userId,
-              syncStatus: 'synced'
+              audioSyncStatus: isVoice ? (hasAudio ? 'synced' : 'failed') : 'synced',
+              syncStatus: (isVoice && !hasAudio) ? ('failed' as SyncStatus) : ('synced' as SyncStatus)
             });
           }
         }
@@ -616,18 +875,27 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             if (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed' || !localItem.syncStatus) {
               try {
                 let audioPath = localItem.audio_path || localItem.audioPath || null;
+                let audioSyncStatus: SyncStatus = (localItem.source === 'voice' || localItem.kind === 'voice') ? (audioPath ? 'synced' : 'local-only') : 'synced';
+
                 if ((localItem.source === 'voice' || localItem.kind === 'voice') && !audioPath) {
-                  const draft = await getDraftAudio(localItem.id);
+                  const draft = await getDraftAudio(localItem.id, userId);
                   if (draft && draft.blob) {
-                    const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
-                    audioPath = userId + '/' + localItem.id + '.' + ext;
-                    await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
-                      method: 'POST',
-                      headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
-                      body: draft.blob
-                    });
-                    localItem.audio_path = audioPath;
-                    localItem.audioPath = audioPath;
+                    try {
+                      const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
+                      audioPath = userId + '/' + localItem.id + '.' + ext;
+                      await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
+                        method: 'POST',
+                        headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
+                        body: draft.blob
+                      });
+                      localItem.audio_path = audioPath;
+                      localItem.audioPath = audioPath;
+                      audioSyncStatus = 'synced';
+                    } catch (uploadErr) {
+                      audioSyncStatus = 'failed';
+                      audioPath = null;
+                      console.warn('Sync audio upload failed for offline echo:', localItem.id, uploadErr);
+                    }
                   }
                 }
 
@@ -648,9 +916,19 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   })
                 });
 
-                reconciled.push({ ...localItem, user_id: userId, audio_path: audioPath, syncStatus: 'synced' });
+                const isVoice = (localItem.source === 'voice' || localItem.kind === 'voice');
+                const finalSyncStatus: SyncStatus = (isVoice && audioSyncStatus !== 'synced') ? 'failed' : 'synced';
+
+                reconciled.push({
+                  ...localItem,
+                  user_id: userId,
+                  audio_path: audioPath,
+                  audioPath: audioPath,
+                  audioSyncStatus,
+                  syncStatus: finalSyncStatus
+                });
               } catch {
-                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' });
+                reconciled.push({ ...localItem, user_id: userId, syncStatus: 'failed' as SyncStatus });
               }
             } else {
               // Previously synced: SAFE RECONCILIATION - DO NOT PURGE
@@ -659,26 +937,55 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
         }
 
-        reconciled.sort((a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || ''));
-        setStoredJson(ECHOES_KEY, [...otherUserEchoes, ...reconciled]);
+        // Transactionally merge into the LATEST local array so intervening offline creates/edits are never lost
+        const latestAllEchoes = getStoredJson<any[]>(ECHOES_KEY, []);
+        const reconciledMap = new Map(reconciled.map(e => [e.id, e]));
+        const finalEchoes: any[] = [];
+        const seenIds = new Set<string>();
+
+        for (const item of latestAllEchoes) {
+          if (!item || !item.id) continue;
+          if (deletedEchoIds.has(item.id)) continue;
+          seenIds.add(item.id);
+          const rec = reconciledMap.get(item.id);
+          if (rec) {
+            const itemUpdated = new Date(item.updated_at || item.updatedAt || item.created_at || item.createdAt || 0).getTime();
+            const recUpdated = new Date(rec.updated_at || rec.updatedAt || rec.created_at || rec.createdAt || 0).getTime();
+            if (itemUpdated > recUpdated) {
+              finalEchoes.push(item);
+            } else {
+              finalEchoes.push(rec);
+            }
+          } else {
+            // Created or unmodified while sync was in flight: PRESERVE!
+            finalEchoes.push(item);
+          }
+        }
+
+        for (const rec of reconciled) {
+          if (!seenIds.has(rec.id) && !deletedEchoIds.has(rec.id)) {
+            finalEchoes.push(rec);
+            seenIds.add(rec.id);
+          }
+        }
+
+        finalEchoes.sort((a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || ''));
+        setStoredJson(ECHOES_KEY, finalEchoes);
       }
 
-      // 3. Fetch reflections
+      // 4. Fetch reflections
       const serverRefs = await supabaseFetch(
         '/rest/v1/echo_reflections?select=*&user_id=eq.' + encodeURIComponent(userId) + '&order=created_at.desc'
       ).catch(() => null);
 
       if (Array.isArray(serverRefs)) {
-        const rawLocal = getStoredJson<any[]>(REFLECTIONS_KEY, []);
-        const otherRefs = rawLocal.filter(r => r && (r.user_id || r.userId) && (r.user_id !== userId && r.userId !== userId));
-        const currentRefs = rawLocal.filter(r => !r || (!r.user_id && !r.userId) || r.user_id === userId || r.userId === userId);
-
-        const localIds = new Set(currentRefs.map(r => r.id));
-        const merged = [...currentRefs];
+        const latestRefs = getStoredJson<any[]>(REFLECTIONS_KEY, []);
+        const localIds = new Set(latestRefs.map(r => r.id));
+        const merged = [...latestRefs];
         for (const sr of serverRefs) {
           if (!localIds.has(sr.id)) merged.push({ ...sr, user_id: userId });
         }
-        setStoredJson(REFLECTIONS_KEY, [...otherRefs, ...merged]);
+        setStoredJson(REFLECTIONS_KEY, merged);
       }
 
       memorySnapshot = assembleSnapshot();
@@ -748,6 +1055,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       },
 
       async signIn(email: string, password: string): Promise<AuthUser> {
+        authGeneration++;
         const cleanEmail = email.trim().toLowerCase();
         if (!cleanEmail || !password) throw new Error('Enter your email and password.');
 
@@ -799,6 +1107,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       },
 
       async signOut(): Promise<void> {
+        authGeneration++;
+        inFlightRefresh = null;
+        signedUrlCache.clear();
+        memoryDraftAudio.clear();
         localStorage.removeItem(AUTH_KEY);
         try {
           if (typeof indexedDB !== 'undefined') {
@@ -812,7 +1124,6 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             };
           }
         } catch {}
-        signedUrlCache.clear();
         memorySnapshot = assembleSnapshot();
       }
     },
@@ -852,14 +1163,14 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         let audioPath: string | null = null;
         const audioBlob = (input as any).audioBlob as Blob | undefined;
 
-        // Persist audio blob to durable IndexedDB immediately (local-first)
+        // Persist audio blob to durable IndexedDB immediately (local-first outbox)
         if (input.kind === 'voice' && audioBlob) {
           try {
             await saveDraftAudio(echoId, audioBlob, {
               echoId,
               duration: input.duration,
               status: 'local-only',
-              userId
+              userId: userId || null
             });
           } catch (err) {
             console.warn('IndexedDB audio save failed:', err);
@@ -867,33 +1178,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         let syncStatus: SyncStatus = 'local-only';
-
-        // Voice upload to Supabase Storage if authenticated and blob present
-        if (input.kind === 'voice' && audioBlob && userId && token) {
-          syncStatus = 'syncing';
-          try {
-            const ext = audioBlob.type.includes('mp4') ? 'mp4' :
-                        audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
-            audioPath = userId + '/' + echoId + '.' + ext;
-
-            await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
-              method: 'POST',
-              headers: {
-                'Content-Type': audioBlob.type || 'audio/webm',
-                'x-upsert': 'true'
-              },
-              body: audioBlob
-            });
-          } catch (err) {
-            syncStatus = 'failed';
-            console.warn('Audio upload to Supabase Storage failed, saved locally in IndexedDB:', err);
-          }
-        }
+        let audioSyncStatus: SyncStatus = (input.kind === 'voice') ? 'local-only' : 'synced';
 
         const title = cleanText(input.title, 120) || (body ? body.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment');
 
-        // Canonical Classic Luna Echo schema
-        const classicRecord = {
+        // Canonical Classic Luna Echo schema with explicit SyncStatus typing
+        const classicRecord: Record<string, any> & { syncStatus: SyncStatus; audioSyncStatus?: SyncStatus } = {
           id: echoId,
           text: body,
           title,
@@ -905,8 +1195,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           dayOfCycle: lunar.dayOfCycle,
           zodiac: typeof lunar.zodiac === 'object' && lunar.zodiac ? lunar.zodiac.sign : String(lunar.zodiac || ''),
           illumination: lunar.illumination,
-          audio_path: audioPath,
-          audioPath: audioPath,
+          audio_path: undefined,
+          audioPath: undefined,
           audioUrl: input.audioUrl,
           waveform: input.waveform,
           duration: input.duration,
@@ -923,16 +1213,47 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           provenanceKind: 'original_echo',
           user_id: userId || undefined,
           userId: userId || undefined,
-          syncStatus
+          syncStatus,
+          audioSyncStatus
         };
 
-        // Persist locally
+        // Persist locally FIRST (outbox pattern)
         const local = getStoredJson<any[]>(ECHOES_KEY, []);
         local.unshift(classicRecord);
         setStoredJson(ECHOES_KEY, local);
 
-        // Sync to Supabase if authenticated
+        // Upload and sync to Supabase if authenticated
         if (userId && token) {
+          if (input.kind === 'voice' && audioBlob) {
+            classicRecord.syncStatus = 'syncing';
+            classicRecord.audioSyncStatus = 'syncing';
+            try {
+              const ext = audioBlob.type.includes('mp4') ? 'mp4' :
+                          audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+              const targetAudioPath = userId + '/' + echoId + '.' + ext;
+
+              await supabaseFetch('/storage/v1/object/echo-audio/' + targetAudioPath, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': audioBlob.type || 'audio/webm',
+                  'x-upsert': 'true'
+                },
+                body: audioBlob
+              });
+
+              audioPath = targetAudioPath;
+              classicRecord.audio_path = targetAudioPath;
+              classicRecord.audioPath = targetAudioPath;
+              classicRecord.audioSyncStatus = 'synced';
+            } catch (err) {
+              classicRecord.audioSyncStatus = 'failed';
+              audioPath = null;
+              classicRecord.audio_path = undefined;
+              classicRecord.audioPath = undefined;
+              console.warn('Audio upload to Supabase Storage failed, saved locally in IndexedDB:', err);
+            }
+          }
+
           try {
             await supabaseFetch('/rest/v1/echoes', {
               method: 'POST',
@@ -962,12 +1283,24 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                 updated_at: classicRecord.updated_at
               })
             });
-            classicRecord.syncStatus = 'synced';
-            setStoredJson(ECHOES_KEY, local);
+
+            // Echo is only marked synced if voice audio is also confirmed uploaded
+            if (input.kind === 'voice' && classicRecord.audioSyncStatus !== 'synced') {
+              classicRecord.syncStatus = 'failed';
+            } else {
+              classicRecord.syncStatus = 'synced';
+            }
           } catch (err) {
             classicRecord.syncStatus = 'failed';
-            setStoredJson(ECHOES_KEY, local);
             console.warn('Server echo save failed, kept locally:', err);
+          }
+
+          // Transactionally update record in latest storage (preserving intervening records)
+          const latestEchoes = getStoredJson<any[]>(ECHOES_KEY, []);
+          const idx = latestEchoes.findIndex(e => e.id === echoId);
+          if (idx !== -1) {
+            latestEchoes[idx] = { ...latestEchoes[idx], ...classicRecord };
+            setStoredJson(ECHOES_KEY, latestEchoes);
           }
         }
 
@@ -997,7 +1330,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         let syncStatus: SyncStatus = 'local-only';
         if (userId && token) syncStatus = 'syncing';
 
-        const classicLoop = {
+        const classicLoop: Record<string, any> & { syncStatus: SyncStatus } = {
           id: loopId,
           title: t,
           note: cleanText(note, 600),
@@ -1069,11 +1402,17 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               })
             });
             classicLoop.syncStatus = 'synced';
-            setStoredJson(LOOPS_KEY, local);
           } catch (err) {
             classicLoop.syncStatus = 'failed';
-            setStoredJson(LOOPS_KEY, local);
             console.warn('Server loop save failed, kept locally:', err);
+          }
+
+          // Transactionally update record in latest storage (preserving intervening records)
+          const latestLoops = getStoredJson<any[]>(LOOPS_KEY, []);
+          const idx = latestLoops.findIndex(l => l.id === loopId);
+          if (idx !== -1) {
+            latestLoops[idx] = { ...latestLoops[idx], ...classicLoop };
+            setStoredJson(LOOPS_KEY, latestLoops);
           }
         }
 
@@ -1261,28 +1600,43 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
     audio: {
       async resolve(echo: Echo): Promise<string | null> {
-        if (echo.audioUrl) return echo.audioUrl;
-        if (echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
+        const currentUserId = getAuthSession().userId;
+        // Account isolation: User B cannot resolve User A's private draft audio
+        if (echo.user_id && currentUserId && echo.user_id !== currentUserId) {
+          return null;
+        }
 
-        // 1. Resolve from local durable IndexedDB cache first
+        // 1. Resolve from local durable IndexedDB cache first (avoids stale/revoked blob URL masking durable audio)
         try {
-          const draft = await getDraftAudio(echo.id);
+          const draft = await getDraftAudio(echo.id, currentUserId);
           if (draft && draft.blob) {
             const localUrl = URL.createObjectURL(draft.blob);
             return localUrl;
           }
         } catch {}
 
-        const path = (echo as any).audio_path || (echo as any).audioPath;
-        if (!path) return null;
+        if (echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
 
-        // 2. Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
+        // 2. Only use echo.audioUrl if it is a remote/data URL or if no durable draft was found
+        if (echo.audioUrl) {
+          if (echo.audioUrl.startsWith('http://') || echo.audioUrl.startsWith('https://') || echo.audioUrl.startsWith('data:')) {
+            return echo.audioUrl;
+          }
+        }
+
+        const path = (echo as any).audio_path || (echo as any).audioPath;
+        if (!path) {
+          if (echo.audioUrl) return echo.audioUrl;
+          return null;
+        }
+
+        // 3. Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
         const cached = signedUrlCache.get(path);
         if (cached && cached.expires > Date.now()) {
           return cached.url;
         }
 
-        // 3. Resolve from Supabase Storage
+        // 4. Resolve from Supabase Storage
         try {
           const res = await supabaseFetch('/storage/v1/object/sign/echo-audio/' + path, {
             method: 'POST',
