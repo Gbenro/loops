@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+const files=['public/beta.html','public/beta/index.html','public/beta/review.html'];
+const root=new URL('../../../',import.meta.url);
+const read=file=>fs.readFileSync(new URL(file,root),'utf8').replace(/\r\n/g,'\n');
+const before=files.map(read);
+execFileSync(process.execPath,[new URL('../build.mjs',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],{stdio:'pipe'});
+for(const [i,file] of files.entries())assert.equal(read(file),before[i],file+' must match generated source');
+for(const file of files.slice(0,2))new vm.Script(read(file).match(/<script>([\s\S]*?)<\/script>/)[1]);
+console.log('PASS: all 3 committed-target bundles reproduce from source; both application scripts parse.');

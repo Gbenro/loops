@@ -1,3 +1,4 @@
+import './idb-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -395,6 +396,7 @@ test('Defect 5: saveDraftAudio rejects with honest error on IndexedDB failure', 
 test('Defect 5: Interrupted audio drafts are enumeratable and recoverable by owner', async () => {
   resetStorage();
   const userId = 'usr-interrupted-unique';
+  mockStorage.set('sb-eyxvsbqyzeodsjajfqsj-auth-token', JSON.stringify({access_token:'fixture',user:{id:userId}}));
   const testBlob = new Blob(['interrupted-voice-draft'], { type: 'audio/webm' });
 
   // Save an interrupted draft (e.g., app backgrounded or phone call during recording)

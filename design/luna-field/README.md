@@ -1,5 +1,7 @@
 # Luna — A Living Personal Field
 
+**Current Beta release candidate:** see [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md) for live-service behavior, recovery, Echo Journey and verification. The sections below describe the original design exploration and are historical; their memory-only/reset statements do not describe current Beta.
+
 An independent frontend design exploration. **No existing Luna application was modified, connected, registered, or deployed.**
 
 ## Circular refinement

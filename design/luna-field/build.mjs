@@ -20,6 +20,9 @@ const sources = [
   'components',
   'views',
   'voice-engine',
+  'recording-session',
+  'journey-service',
+  'journey-view',
   'app'
 ];
 
@@ -31,16 +34,20 @@ for (const name of sources) {
     .replace(/^import[^\n]*\n/gm, '')
     .replace(/^export\s+(?:async\s+)?(?=(?:const|let|var|function|class)\b)/gm, (match) => match.includes('async') ? 'async ' : '')
     .replace(/^export\s*\{[^}]*\}\s*;?\n?/gm, '')
-    .replace(/^export\s+default\s+/gm, '');
+    .replace(/^export\s+default\s+/gm, '')
+    .replace(/[ \t]+$/gm, '');
   parts.push(`// ${name}.ts\n${js}`);
 }
 
+const journeyController=(await readFile(path.join(project,'../echo-journey/journey.mjs'),'utf8')).replace(/^export /gm,'');
+const journeyUi=(await readFile(path.join(project,'src/journey-ui.mjs'),'utf8')).replace(/^import[^\n]+\n/gm,'').replace(/^export /gm,'');
+parts.unshift(journeyController,journeyUi);
 const assets = {};
 for (const name of ['water', 'question']) {
   assets[name] = `data:audio/mpeg;base64,${(await readFile(path.join(project, 'assets', `${name}.mp3`))).toString('base64')}`;
 }
 
-const css = (await readFile(path.join(project, 'src', 'styles.css'), 'utf8')) + '\n' + (await readFile(path.join(project, 'src', 'refinement.css'), 'utf8'));
+const css = (await readFile(path.join(project, 'src', 'styles.css'), 'utf8')) + '\n' + (await readFile(path.join(project, 'src', 'refinement.css'), 'utf8')) + '\n' + (await readFile(path.join(project,'src/journey.css'),'utf8'));
 const js = `(()=>{\n'use strict';\nconst LUNA_AUDIO_ASSETS=${JSON.stringify(assets)};\n${parts.join('\n\n')}\n})();`;
 
 const liveCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' data: blob: https://*.supabase.co https://eyxvsbqyzeodsjajfqsj.supabase.co; font-src data:; connect-src 'self' https://eyxvsbqyzeodsjajfqsj.supabase.co wss://eyxvsbqyzeodsjajfqsj.supabase.co https://*.supabase.co https://loops-production-e1d5.up.railway.app; base-uri 'none'; form-action 'none'";
@@ -53,7 +60,7 @@ function generateHtml(csp) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
-<meta name="description" content="Luna — a living personal field. An independent frontend design exploration with synthetic data and local-only interactions.">
+<meta name="description" content="Luna — a living personal field. Express, preserve and revisit your original experiences.">
 <meta name="theme-color" content="#0b1019">
 <title>Luna · A living personal field</title>
 <style>${css}</style>
@@ -61,7 +68,7 @@ function generateHtml(csp) {
 <div id="app"></div>
 <dialog id="modal"></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<noscript><p style="padding:30px">Luna's interactive prototype needs JavaScript enabled. No connection to the real Luna backend is made.</p></noscript>
+<noscript><p style="padding:30px">Luna's interactive prototype needs JavaScript enabled. Open Beta on localhost or a secure browser.</p></noscript>
 <script>${js.replace(/<\/script/gi, '<\\/script')}</script>
 </body></html>`;
 }

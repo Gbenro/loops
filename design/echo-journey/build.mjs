@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { stripTypeScriptTypes } from 'node:module';
+const root = path.dirname(fileURLToPath(import.meta.url));
+const out = path.join(root, 'dist');
+await fs.mkdir(path.join(out, 'assets'), { recursive: true });
+for (const file of ['index.html', 'styles.css', 'app.mjs', 'journey.mjs', 'fixtures.mjs']) await fs.copyFile(path.join(root, file), path.join(out, file));
+for (const file of ['water.mp3', 'question.mp3']) await fs.copyFile(path.join(root, '../luna-field/assets', file), path.join(out, 'assets', file));
+await fs.writeFile(path.join(out, 'audio-fixtures.mjs'), stripTypeScriptTypes(await fs.readFile(path.join(root, '../luna-field/src/audio-fixtures.ts'), 'utf8')));
+console.log('Isolated Echo Journey built: design/echo-journey/dist (no public/Beta assets changed)');

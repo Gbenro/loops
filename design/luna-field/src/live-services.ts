@@ -30,8 +30,8 @@ const SAMPLE_MODE_KEY = 'luna_beta_sample_mode';
 const DRAFT_AUDIO_DB = 'luna_draft_audio_db';
 const DRAFT_AUDIO_STORE = 'draft_recordings';
 
-// In-memory fallback if IndexedDB is unavailable (e.g. test environments)
-const memoryDraftAudio = new Map<string, { blob: Blob; duration?: number; status?: string; userId?: string | null; updatedAt?: string; echoId?: string }>();
+// Recovery copy remains available while this page is open; it is never a durable-save acknowledgement.
+const memoryDraftAudio = new Map<string, { blob: Blob; duration?: number; status?: string; userId?: string | null; updatedAt?: string; startedAt?: string; echoId?: string }>();
 
 function openDraftDB(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
@@ -55,10 +55,10 @@ function openDraftDB(): Promise<IDBDatabase | null> {
 export async function saveDraftAudio(
   id: string,
   blob: Blob,
-  meta: { echoId?: string; duration?: number; status?: string; userId?: string | null } = {},
+  meta: { echoId?: string; duration?: number; status?: string; userId?: string | null; startedAt?: string } = {},
   ownerId?: string | null
 ): Promise<void> {
-  const currentUserId = ownerId || meta.userId || getAuthSession()?.userId || null;
+  const currentUserId = ownerId !== undefined ? ownerId : meta.userId !== undefined ? meta.userId : getAuthSession().userId;
   const record = {
     id,
     echoId: meta.echoId || id,
@@ -66,6 +66,7 @@ export async function saveDraftAudio(
     blob,
     duration: meta.duration || 0,
     status: meta.status || 'draft',
+    startedAt: meta.startedAt || memoryDraftAudio.get(id)?.startedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
 
@@ -74,10 +75,7 @@ export async function saveDraftAudio(
     memoryDraftAudio.set(meta.echoId, record);
   }
 
-  // If IndexedDB is not defined in the environment, memory fallback completes successfully
-  if (typeof indexedDB === 'undefined') {
-    return;
-  }
+  if (typeof indexedDB === 'undefined') throw new Error('Audio is only in memory. Device storage is unavailable; keep this page open and download or retry.');
 
   const db = await openDraftDB();
   if (!db) {
@@ -92,9 +90,9 @@ export async function saveDraftAudio(
       if (meta.echoId && meta.echoId !== id) {
         store.put({ ...record, id: meta.echoId });
       }
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error('Draft audio transaction failed'));
-      tx.onabort = () => reject(tx.error || new Error('Draft audio transaction aborted'));
+      tx.oncomplete = () => { db.close?.(); resolve(); };
+      tx.onerror = () => { db.close?.(); reject(tx.error || new Error('Draft audio transaction failed')); };
+      tx.onabort = () => { db.close?.(); reject(tx.error || new Error('Draft audio transaction aborted')); };
     } catch (err) {
       reject(err);
     }
@@ -105,9 +103,11 @@ export async function getDraftAudio(
   idOrEchoId: string,
   expectedUserId?: string | null
 ): Promise<{ blob: Blob; duration?: number; status?: string; userId?: string | null } | null> {
+  expectedUserId = expectedUserId === undefined ? getAuthSession().userId : expectedUserId;
+  if (expectedUserId !== getAuthSession().userId) return null;
   const mem = memoryDraftAudio.get(idOrEchoId);
   if (mem) {
-    if (expectedUserId && mem.userId !== expectedUserId) {
+    if ((mem.userId ?? null) !== expectedUserId) {
       return null;
     }
     return mem;
@@ -127,7 +127,7 @@ export async function getDraftAudio(
         req.onsuccess = () => {
           const res = req.result;
           if (res && res.blob) {
-            if (expectedUserId && res.userId !== expectedUserId) {
+            if ((res.userId ?? null) !== expectedUserId || getAuthSession().userId !== expectedUserId) {
               resolve(null);
             } else {
               resolve({
@@ -153,20 +153,22 @@ export async function getDraftAudio(
 
 export async function listDraftRecordings(
   userId?: string | null
-): Promise<Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string }>> {
-  const list: Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string }> = [];
+): Promise<Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string; startedAt?: string }>> {
+  const list: Array<{ id: string; echoId?: string; duration?: number; status?: string; updatedAt?: string; startedAt?: string }> = [];
+  userId = userId === undefined ? getAuthSession().userId : userId;
+  if (userId !== getAuthSession().userId) return [];
   const seenIds = new Set<string>();
 
   for (const [id, item] of memoryDraftAudio.entries()) {
     if (seenIds.has(id)) continue;
-    if (userId && item.userId !== userId) continue;
+    if ((item.userId ?? null) !== userId) continue;
     seenIds.add(id);
     list.push({
       id,
       echoId: item.echoId,
       duration: item.duration,
       status: item.status,
-      updatedAt: item.updatedAt
+      startedAt: item.startedAt, updatedAt: item.updatedAt
     });
   }
 
@@ -183,14 +185,14 @@ export async function listDraftRecordings(
               const cursor = e.target.result;
               if (cursor) {
                 const val = cursor.value;
-                if (!seenIds.has(val.id) && (!userId || val.userId === userId)) {
+                if (!seenIds.has(val.id) && ((val.userId ?? null) === userId && getAuthSession().userId === userId)) {
                   seenIds.add(val.id);
                   list.push({
                     id: val.id,
                     echoId: val.echoId,
                     duration: val.duration,
                     status: val.status,
-                    updatedAt: val.updatedAt
+                    startedAt: val.startedAt, updatedAt: val.updatedAt
                   });
                 }
                 cursor.continue();
@@ -207,7 +209,7 @@ export async function listDraftRecordings(
     } catch {}
   }
 
-  return list;
+  return getAuthSession().userId === userId ? list : [];
 }
 
 interface SupabaseSession {
@@ -254,7 +256,7 @@ export function getAuthSession(): { token: string | null; userId: string | null;
   return { token: null, userId: null, refreshToken: null };
 }
 
-export async function refreshAuthSession(): Promise<{ token: string | null; userId: string | null }> {
+async function refreshAuthSessionUnlocked(): Promise<{ token: string | null; userId: string | null }> {
   if (inFlightRefresh) return inFlightRefresh;
 
   const currentGen = authGeneration;
@@ -289,7 +291,7 @@ export async function refreshAuthSession(): Promise<{ token: string | null; user
       }
 
       const data = await res.json();
-      if (currentGen !== authGeneration) {
+      if (currentGen !== authGeneration || getAuthSession().token !== session.access_token || getAuthSession().refreshToken !== session.refresh_token || getAuthSession().userId !== session.user?.id || (data.user?.id && data.user.id !== session.user?.id)) {
         return { token: null, userId: null };
       }
 
@@ -309,6 +311,7 @@ export async function refreshAuthSession(): Promise<{ token: string | null; user
           const req = indexedDB.open('luna_auth_db', 1);
           req.onsuccess = (e: any) => {
             const idb = e.target.result;
+            if (getAuthSession().token !== updatedSession.access_token) { idb.close?.(); return; }
             if (idb?.objectStoreNames?.contains('auth')) {
               const tx = idb.transaction('auth', 'readwrite');
               tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
@@ -332,7 +335,21 @@ export async function refreshAuthSession(): Promise<{ token: string | null; user
   return inFlightRefresh;
 }
 
+export async function refreshAuthSession(): Promise<{token:string|null;userId:string|null}> {
+  const before = getAuthSession();
+  const run = async () => {
+    const now = getAuthSession();
+    if (now.userId !== before.userId) return {token:null,userId:null};
+    if (now.token !== before.token) return now; // another tab already refreshed
+    return refreshAuthSessionUnlocked();
+  };
+  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('luna-auth-refresh', run) : run();
+}
+
 async function supabaseFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const owner = getAuthSession().userId, gen = authGeneration;
+  const check = () => { if (owner !== getAuthSession().userId || gen !== authGeneration) throw new Error('Account changed; request cancelled.'); };
+  check();
   let session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
   const nowSec = Math.floor(Date.now() / 1000);
 
@@ -358,13 +375,17 @@ async function supabaseFetch(endpoint: string, options: RequestInit = {}): Promi
     return await fetch(url, { ...options, headers });
   };
 
+  check();
   let res = await doRequest(session?.access_token || null);
+  check();
 
   // If 401 Unauthorized and refresh token exists, attempt token refresh and retry request once
   if (res.status === 401 && session?.refresh_token) {
     const refreshed = await refreshAuthSession();
     if (refreshed.token) {
+      check();
       res = await doRequest(refreshed.token);
+      check();
     }
   }
 
@@ -374,9 +395,9 @@ async function supabaseFetch(endpoint: string, options: RequestInit = {}): Promi
   }
   const contentType = res.headers?.get ? (res.headers.get('content-type') || '') : '';
   if (contentType.includes('application/json') || (!contentType && typeof res.json === 'function')) {
-    return await res.json();
+    const data = await res.json(); check(); return data;
   }
-  return await res.text();
+  const data = await res.text(); check(); return data;
 }
 
 function mapClassicStatusToBeta(status: string, hasHistory = false): LoopStatus {
@@ -409,14 +430,16 @@ function mapClassicEchoToBeta(raw: any, lunar: LiveLunarBundle): Echo {
   const audio_path = raw.audio_path || raw.audioPath || undefined;
   const isVoice = Boolean(audio_path) || raw.source === 'voice' || raw.kind === 'voice';
 
-  const phaseId = (raw.phase || lunar.phaseId) as PhaseId;
-  const phaseName = raw.phaseName || raw.phase_name || lunar.phaseName;
-  const cycleId = 'cycle-' + (raw.lunarMonth || raw.lunar_month || lunar.lunarMonth).toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const historical = getLiveLunarData(new Date(raw.created_at || raw.createdAt || raw.occurredAt || new Date()));
+  const phaseId = (raw.phase || historical.phaseId) as PhaseId;
+  const phaseName = raw.phaseName || raw.phase_name || historical.phaseName;
+  const cycleId = 'cycle-' + (raw.lunarMonth || raw.lunar_month || historical.lunarMonth).toLowerCase().replace(/[^a-z0-9]/g, '-');
 
   const context: LunarContext = {
     cycleId,
     phaseId,
     label: phaseName,
+    cycleLabel: raw.lunarMonth || raw.lunar_month || historical.cycleName,
     source: 'backend'
   };
 
@@ -466,6 +489,20 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
   let memorySnapshot: FieldSnapshot | null = null;
   const signedUrlCache = new Map<string, { url: string; expires: number }>();
+
+  const objectUrls = new Set<string>();
+  let observedUser = getAuthSession().userId;
+  const accountChanged = () => {
+    const next = getAuthSession().userId;
+    if (next === observedUser) return;
+    observedUser = next; authGeneration++; inFlightRefresh = null;
+    signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
+    memorySnapshot = null;
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('luna-account-changed'));
+  };
+  if (typeof window !== 'undefined') window.addEventListener('storage', event => {
+    if (event.key === AUTH_KEY || event.key === null) accountChanged();
+  });
 
   function computeLiveCycles(lunar: LiveLunarBundle): Cycle[] {
     const cycleRange = lunar.cycleStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
@@ -596,7 +633,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         activeSyncPromise = null;
         if (pendingSyncRequested) {
           pendingSyncRequested = false;
-          void syncServer();
+          void syncServer().catch(() => {});
         }
       }
     })();
@@ -604,7 +641,19 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     return activeSyncPromise;
   }
 
+  async function readAllRows(table:string,userId:string,request:(url:string)=>Promise<any>):Promise<any[]> {
+    const rows:any[]=[];
+    for(let offset=0;;offset+=100){
+      const page=await request('/rest/v1/'+table+'?select=*&user_id=eq.'+encodeURIComponent(userId)+'&deleted_at=is.null&order=created_at.asc,id.asc&limit=100&offset='+offset);
+      if(!Array.isArray(page))throw new Error('Invalid synchronization page.');
+      rows.push(...page);if(page.length<100)return rows;
+    }
+  }
+
   async function doSyncServer(token: string, userId: string): Promise<void> {
+    const syncGen = authGeneration;
+    const checkOwner = () => { if (getAuthSession().userId !== userId || syncGen !== authGeneration) throw new Error('Account changed during synchronization.'); };
+    const request = async (endpoint:string, options:RequestInit = {}) => { checkOwner(); const value = await supabaseFetch(endpoint, options); checkOwner(); return value; };
     try {
       const lunar = getLiveLunarData(new Date());
 
@@ -615,12 +664,13 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       storedDeletedLoops.forEach(id => deletedLoopIds.add(id));
 
       let loopOffset = 0;
-      while (loopOffset < 500) {
-        const deletedBatch = await supabaseFetch(
+      while (true) {
+        const deletedBatch = await request(
           '/rest/v1/loops?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) +
-          '&deleted_at=not.is.null&order=deleted_at.desc&limit=100&offset=' + loopOffset
-        ).catch(() => []);
-        if (Array.isArray(deletedBatch) && deletedBatch.length > 0) {
+          '&deleted_at=not.is.null&order=id.asc&limit=100&offset=' + loopOffset
+        );
+        if (!Array.isArray(deletedBatch)) throw new Error('Invalid deletion page; reconciliation stopped.');
+        if (deletedBatch.length > 0) {
           for (const d of deletedBatch) {
             if (d.id) deletedLoopIds.add(d.id);
           }
@@ -630,7 +680,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           break;
         }
       }
-      setStoredJson(userDeletedLoopKey, Array.from(deletedLoopIds));
+      checkOwner(); setStoredJson(userDeletedLoopKey, Array.from(deletedLoopIds));
 
       const deletedEchoIds = new Set<string>();
       const userDeletedEchoKey = 'luna_deleted_echo_ids_' + userId;
@@ -638,12 +688,13 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       storedDeletedEchoes.forEach(id => deletedEchoIds.add(id));
 
       let echoOffset = 0;
-      while (echoOffset < 500) {
-        const deletedBatch = await supabaseFetch(
+      while (true) {
+        const deletedBatch = await request(
           '/rest/v1/echoes?select=id,deleted_at,updated_at&user_id=eq.' + encodeURIComponent(userId) +
-          '&deleted_at=not.is.null&order=deleted_at.desc&limit=100&offset=' + echoOffset
-        ).catch(() => []);
-        if (Array.isArray(deletedBatch) && deletedBatch.length > 0) {
+          '&deleted_at=not.is.null&order=id.asc&limit=100&offset=' + echoOffset
+        );
+        if (!Array.isArray(deletedBatch)) throw new Error('Invalid deletion page; reconciliation stopped.');
+        if (deletedBatch.length > 0) {
           for (const d of deletedBatch) {
             if (d.id) deletedEchoIds.add(d.id);
           }
@@ -653,12 +704,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           break;
         }
       }
-      setStoredJson(userDeletedEchoKey, Array.from(deletedEchoIds));
+      checkOwner(); setStoredJson(userDeletedEchoKey, Array.from(deletedEchoIds));
 
       // 2. Fetch server loops (active)
-      const serverLoops = await supabaseFetch(
-        '/rest/v1/loops?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
-      ).catch(() => null);
+      const serverLoops = await readAllRows('loops', userId, request);
 
       if (Array.isArray(serverLoops)) {
         // Tombstones win over server responses
@@ -683,7 +732,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             // Conflict-safe reconciliation: protect newer local edits
             if (localUpdated > serverUpdated && (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed')) {
               try {
-                await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(sl.id), {
+                await request('/rest/v1/loops?id=eq.' + encodeURIComponent(sl.id), {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -720,7 +769,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           if (!serverIds.has(localItem.id)) {
             if (localItem.syncStatus === 'local-only' || localItem.syncStatus === 'failed' || !localItem.syncStatus) {
               try {
-                await supabaseFetch('/rest/v1/loops', {
+                await request('/rest/v1/loops', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -745,6 +794,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         // Transactionally merge into the LATEST local array so intervening offline creates/edits are never lost
+        getStoredJson<string[]>(userDeletedLoopKey, []).forEach(id => deletedLoopIds.add(id));
         const latestAllLoops = getStoredJson<any[]>(LOOPS_KEY, []);
         const reconciledMap = new Map(reconciled.map(l => [l.id, l]));
         const finalLoops: any[] = [];
@@ -752,7 +802,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
         for (const item of latestAllLoops) {
           if (!item || !item.id) continue;
-          if (deletedLoopIds.has(item.id)) continue;
+          if (deletedLoopIds.has(item.id) && (item.user_id || item.userId) === userId) continue;
           seenIds.add(item.id);
           const rec = reconciledMap.get(item.id);
           if (rec) {
@@ -776,13 +826,11 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
         }
 
-        setStoredJson(LOOPS_KEY, finalLoops);
+        checkOwner(); setStoredJson(LOOPS_KEY, finalLoops);
       }
 
       // 3. Fetch server echoes (active)
-      const serverEchoes = await supabaseFetch(
-        '/rest/v1/echoes?select=*&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null&order=created_at.desc'
-      ).catch(() => null);
+      const serverEchoes = await readAllRows('echoes', userId, request);
 
       if (Array.isArray(serverEchoes)) {
         // Tombstones win over server responses
@@ -800,33 +848,28 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         for (const se of activeServerEchoes) {
           const localItem = localMap.get(se.id);
           if (localItem) {
-            let audioPath = se.audio_path || se.audioPath || localItem.audio_path || localItem.audioPath || undefined;
-            let audioSyncStatus: SyncStatus = (se.source === 'voice' || se.kind === 'voice') ? (audioPath ? 'synced' : 'local-only') : 'synced';
-
-            // Check if audio file needs upload/repair even though metadata row exists on server
-            if ((se.source === 'voice' || se.kind === 'voice') && !audioPath) {
-              const draft = await getDraftAudio(localItem.id, userId);
-              if (draft && draft.blob) {
-                try {
+            const voice = se.source === 'voice' || se.kind === 'voice' || localItem.source === 'voice' || localItem.kind === 'voice';
+            const remotePath = se.audio_path || se.audioPath;
+            let audioPath = remotePath || localItem.audio_path || localItem.audioPath;
+            let audioSyncStatus: SyncStatus = !voice || remotePath ? 'synced' : 'failed';
+            if (voice && !remotePath) {
+              try {
+                if (!audioPath) {
+                  const draft = await getDraftAudio(localItem.id, userId);
+                  if (!draft?.blob) throw new Error('Original audio is not available locally.');
                   const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
-                  const targetAudioPath = userId + '/' + localItem.id + '.' + ext;
-                  await supabaseFetch('/storage/v1/object/echo-audio/' + targetAudioPath, {
-                    method: 'POST',
-                    headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
-                    body: draft.blob
-                  });
-                  audioPath = targetAudioPath;
-                  audioSyncStatus = 'synced';
-                  await supabaseFetch('/rest/v1/echoes?id=eq.' + encodeURIComponent(se.id), {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ audio_path: audioPath, updated_at: new Date().toISOString() })
-                  });
-                } catch (uploadErr) {
-                  audioSyncStatus = 'failed';
-                  console.warn('Audio repair upload failed during sync:', uploadErr);
+                  const uploaded = userId + '/' + localItem.id + '.' + ext;
+                  await request('/storage/v1/object/echo-audio/' + uploaded, {method:'POST',headers:{'Content-Type':draft.blob.type || 'audio/webm','x-upsert':'true'},body:draft.blob});
+                  audioPath = uploaded;
                 }
-              }
+                // Local path confirms upload only. Retry metadata independently until acknowledged.
+                const patched = await request('/rest/v1/echoes?id=eq.' + encodeURIComponent(se.id) + '&user_id=eq.' + encodeURIComponent(userId) + '&deleted_at=is.null', {
+                  method:'PATCH', headers:{'Content-Type':'application/json',Prefer:'return=representation'},
+                  body:JSON.stringify({audio_path:audioPath,updated_at:new Date().toISOString()})
+                });
+                if (!Array.isArray(patched) || !patched.some(row => row.id === se.id && row.audio_path === audioPath)) throw new Error('Audio metadata is awaiting confirmation.');
+                audioSyncStatus = 'synced';
+              } catch { audioSyncStatus = 'failed'; }
             }
 
             const serverUpdated = new Date(se.updated_at || se.created_at || 0).getTime();
@@ -840,7 +883,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                 audio_path: audioPath,
                 audioPath: audioPath,
                 audioSyncStatus,
-                syncStatus: (audioSyncStatus === 'failed') ? ('failed' as SyncStatus) : ('synced' as SyncStatus)
+                audioMetadataPending: Boolean(voice && audioPath && audioSyncStatus !== 'synced'),
+                syncStatus: audioSyncStatus === 'synced' ? ('synced' as SyncStatus) : ('failed' as SyncStatus)
               });
             } else {
               reconciled.push({
@@ -853,7 +897,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                 duration: localItem.duration || se.duration,
                 user_id: userId,
                 audioSyncStatus,
-                syncStatus: (audioSyncStatus === 'failed') ? ('failed' as SyncStatus) : ('synced' as SyncStatus)
+                audioMetadataPending: Boolean(voice && audioPath && audioSyncStatus !== 'synced'),
+                syncStatus: audioSyncStatus === 'synced' ? ('synced' as SyncStatus) : ('failed' as SyncStatus)
               });
             }
           } else {
@@ -883,7 +928,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                     try {
                       const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
                       audioPath = userId + '/' + localItem.id + '.' + ext;
-                      await supabaseFetch('/storage/v1/object/echo-audio/' + audioPath, {
+                      await request('/storage/v1/object/echo-audio/' + audioPath, {
                         method: 'POST',
                         headers: { 'Content-Type': draft.blob.type || 'audio/webm', 'x-upsert': 'true' },
                         body: draft.blob
@@ -899,7 +944,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   }
                 }
 
-                await supabaseFetch('/rest/v1/echoes', {
+                await request('/rest/v1/echoes', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -938,6 +983,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         // Transactionally merge into the LATEST local array so intervening offline creates/edits are never lost
+        getStoredJson<string[]>(userDeletedEchoKey, []).forEach(id => deletedEchoIds.add(id));
         const latestAllEchoes = getStoredJson<any[]>(ECHOES_KEY, []);
         const reconciledMap = new Map(reconciled.map(e => [e.id, e]));
         const finalEchoes: any[] = [];
@@ -945,7 +991,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
         for (const item of latestAllEchoes) {
           if (!item || !item.id) continue;
-          if (deletedEchoIds.has(item.id)) continue;
+          if (deletedEchoIds.has(item.id) && (item.user_id || item.userId) === userId) continue;
           seenIds.add(item.id);
           const rec = reconciledMap.get(item.id);
           if (rec) {
@@ -970,11 +1016,11 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         finalEchoes.sort((a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || ''));
-        setStoredJson(ECHOES_KEY, finalEchoes);
+        checkOwner(); setStoredJson(ECHOES_KEY, finalEchoes);
       }
 
       // 4. Fetch reflections
-      const serverRefs = await supabaseFetch(
+      const serverRefs = await request(
         '/rest/v1/echo_reflections?select=*&user_id=eq.' + encodeURIComponent(userId) + '&order=created_at.desc'
       ).catch(() => null);
 
@@ -985,42 +1031,18 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         for (const sr of serverRefs) {
           if (!localIds.has(sr.id)) merged.push({ ...sr, user_id: userId });
         }
-        setStoredJson(REFLECTIONS_KEY, merged);
+        checkOwner(); setStoredJson(REFLECTIONS_KEY, merged);
       }
 
-      memorySnapshot = assembleSnapshot();
+      checkOwner(); memorySnapshot = assembleSnapshot();
     } catch (err) {
-      console.warn('Sync failed (will use offline local data):', err);
+      console.warn('Sync incomplete; local data retained.');
+      throw err;
     }
   }
 
-  // Check IndexedDB if localStorage has no active session
-  try {
-    if (!getAuthSession().token && typeof indexedDB !== 'undefined') {
-      const req = indexedDB.open('luna_auth_db', 1);
-      req.onsuccess = (e: any) => {
-        const idb = e.target.result;
-        if (idb?.objectStoreNames?.contains('auth')) {
-          const tx = idb.transaction('auth', 'readonly');
-          const getReq = tx.objectStore('auth').get(AUTH_KEY);
-          getReq.onsuccess = () => {
-            if (getReq.result) {
-              try {
-                const raw = typeof getReq.result === 'string' ? JSON.parse(getReq.result) : getReq.result;
-                if (raw?.access_token) {
-                  setStoredJson(AUTH_KEY, raw);
-                  void syncServer();
-                }
-              } catch {}
-            }
-          };
-        }
-      };
-    }
-  } catch {}
-
   // Initial async sync without blocking instant render
-  void syncServer();
+  void syncServer().catch(() => {});
 
   return {
     mode: sampleMode ? 'sample' : 'live',
@@ -1044,7 +1066,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       getUser(): AuthUser | null {
         try {
           const session = getStoredJson<SupabaseSession | null>(AUTH_KEY, null);
-          if (session?.user?.id) {
+          if (session?.access_token && session?.user?.id) {
             return {
               id: session.user.id,
               email: session.user.email
@@ -1055,7 +1077,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       },
 
       async signIn(email: string, password: string): Promise<AuthUser> {
-        authGeneration++;
+        const loginGen = ++authGeneration;
+        const loginIdentity = localStorage.getItem(AUTH_KEY);
         const cleanEmail = email.trim().toLowerCase();
         if (!cleanEmail || !password) throw new Error('Enter your email and password.');
 
@@ -1074,6 +1097,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         const data = await res.json();
+        if (loginGen !== authGeneration || localStorage.getItem(AUTH_KEY) !== loginIdentity) throw new Error('Account changed during sign-in. Please try again.');
         const sessionRecord: SupabaseSession = {
           access_token: data.access_token,
           token_type: data.token_type || 'bearer',
@@ -1084,12 +1108,14 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         };
 
         setStoredJson(AUTH_KEY, sessionRecord);
+        accountChanged();
 
         // Also persist to IndexedDB so Classic Luna inherits the session immediately
         try {
           const req = indexedDB.open('luna_auth_db', 1);
           req.onsuccess = (e: any) => {
             const idb = e.target.result;
+            if (getAuthSession().token !== sessionRecord.access_token) { idb.close?.(); return; }
             if (idb?.objectStoreNames?.contains('auth')) {
               const tx = idb.transaction('auth', 'readwrite');
               tx.objectStore('auth').put(JSON.stringify(sessionRecord), AUTH_KEY);
@@ -1100,7 +1126,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         sampleMode = false;
         localStorage.setItem(SAMPLE_MODE_KEY, 'false');
 
-        await syncServer();
+        await syncServer().catch(() => {});
         memorySnapshot = assembleSnapshot();
 
         return { id: data.user.id, email: data.user.email };
@@ -1110,13 +1136,15 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         authGeneration++;
         inFlightRefresh = null;
         signedUrlCache.clear();
-        memoryDraftAudio.clear();
+        objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
         localStorage.removeItem(AUTH_KEY);
+        accountChanged();
         try {
           if (typeof indexedDB !== 'undefined') {
             const req = indexedDB.open('luna_auth_db', 1);
             req.onsuccess = (e: any) => {
               const idb = e.target.result;
+              if (getAuthSession().token) { idb.close?.(); return; }
               if (idb?.objectStoreNames?.contains('auth')) {
                 const tx = idb.transaction('auth', 'readwrite');
                 tx.objectStore('auth').delete(AUTH_KEY);
@@ -1156,10 +1184,13 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           throw new Error('Record a little audio before keeping this Echo.');
         }
 
-        const lunar = getLiveLunarData(new Date());
+        const occurredAt = input.occurredAt || new Date().toISOString();
+        const lunar = getLiveLunarData(new Date(occurredAt));
         const echoId = 'e' + Date.now() + Math.random().toString(36).substr(2, 4);
         const { token, userId } = getAuthSession();
 
+        const createGen = authGeneration;
+        const assertOwner = () => { if (getAuthSession().userId !== userId || authGeneration !== createGen) throw new Error('Account changed. Recording remains in its original account drafts.'); };
         let audioPath: string | null = null;
         const audioBlob = (input as any).audioBlob as Blob | undefined;
 
@@ -1172,8 +1203,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               status: 'local-only',
               userId: userId || null
             });
-          } catch (err) {
-            console.warn('IndexedDB audio save failed:', err);
+          } catch {
+            throw new Error('Audio could not be saved on this device. Keep this page open; retry or download the recording.');
           }
         }
 
@@ -1203,8 +1234,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           tags: [],
           loopIds: [],
           linkedLoopId: null,
-          created_at: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
+          created_at: occurredAt,
+          createdAt: occurredAt,
           updated_at: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           provenance_author: 'user',
@@ -1217,6 +1248,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           audioSyncStatus
         };
 
+        assertOwner();
         // Persist locally FIRST (outbox pattern)
         const local = getStoredJson<any[]>(ECHOES_KEY, []);
         local.unshift(classicRecord);
@@ -1254,6 +1286,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             }
           }
 
+          assertOwner();
           try {
             await supabaseFetch('/rest/v1/echoes', {
               method: 'POST',
@@ -1295,6 +1328,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             console.warn('Server echo save failed, kept locally:', err);
           }
 
+          assertOwner();
           // Transactionally update record in latest storage (preserving intervening records)
           const latestEchoes = getStoredJson<any[]>(ECHOES_KEY, []);
           const idx = latestEchoes.findIndex(e => e.id === echoId);
@@ -1599,23 +1633,26 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     },
 
     audio: {
-      async resolve(echo: Echo): Promise<string | null> {
+      async resolve(echo: Echo, options: {signal?:AbortSignal; refresh?:boolean} = {}): Promise<string | null> {
         const currentUserId = getAuthSession().userId;
-        // Account isolation: User B cannot resolve User A's private draft audio
-        if (echo.user_id && currentUserId && echo.user_id !== currentUserId) {
+        const audioGen = authGeneration;
+        const valid = () => !options.signal?.aborted && currentUserId === getAuthSession().userId && audioGen === authGeneration;
+        if ((echo.user_id ?? null) !== currentUserId) {
           return null;
         }
 
         // 1. Resolve from local durable IndexedDB cache first (avoids stale/revoked blob URL masking durable audio)
         try {
           const draft = await getDraftAudio(echo.id, currentUserId);
+          if (!valid()) return null;
           if (draft && draft.blob) {
             const localUrl = URL.createObjectURL(draft.blob);
-            return localUrl;
+            objectUrls.add(localUrl); return localUrl;
           }
         } catch {}
 
-        if (echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
+        if (!valid()) return null;
+        if (sampleMode && echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
 
         // 2. Only use echo.audioUrl if it is a remote/data URL or if no durable draft was found
         if (echo.audioUrl) {
@@ -1631,6 +1668,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
 
         // 3. Check in-memory signed URL cache (avoid spamming Supabase for same path within 50 minutes)
+        if (!currentUserId || !path.startsWith(currentUserId + '/')) return null;
+        if (options.refresh) signedUrlCache.delete(path);
         const cached = signedUrlCache.get(path);
         if (cached && cached.expires > Date.now()) {
           return cached.url;
@@ -1639,18 +1678,19 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         // 4. Resolve from Supabase Storage
         try {
           const res = await supabaseFetch('/storage/v1/object/sign/echo-audio/' + path, {
+            signal: options.signal,
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ expiresIn: 3600 })
           });
 
-          if (res && res.signedURL) {
+          if (valid() && res && res.signedURL) {
             const fullUrl = SUPABASE_URL + '/storage/v1' + res.signedURL;
             signedUrlCache.set(path, { url: fullUrl, expires: Date.now() + 3000 * 1000 });
             return fullUrl;
           }
         } catch (err) {
-          console.warn('Failed to resolve signed audio URL for path:', path, err);
+          console.warn('Audio URL unavailable; playback can be retried.');
         }
 
         return null;
@@ -1658,7 +1698,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     },
 
     snapshot(): FieldSnapshot {
-      return memorySnapshot || assembleSnapshot();
+      accountChanged();
+      return assembleSnapshot();
     },
 
     reset(): void {

@@ -1,12 +1,15 @@
+import { mountJourney } from './journey-ui.mjs';
+import { journeyMarkup } from './journey-view.ts';
 import type { Echo, Scenario, LoopStatus } from './contracts.ts';
 import { createMockServices, makeId, filterEchoes } from './mock-services.ts';
-import { createLiveLunaServices, saveDraftAudio } from './live-services.ts';
+import { createLiveLunaServices, saveDraftAudio, getDraftAudio, listDraftRecordings, getAuthSession } from './live-services.ts';
 import { getLiveLunarData } from './lunar-engine.ts';
 import { initialState, parseRoute } from './state.ts';
 import { PHASES, DEMO_CONTEXT } from './fixtures.ts';
 import { escapeHtml, icon, waveform, liveWave, playbackWave, orbitRings, timecode, formatMoment } from './visuals.ts';
 import { shell, echoRow, emptyState } from './components.ts';
 import { routeView } from './views.ts';
+import { RecordingSession } from './recording-session.ts';
 import { VoiceEngine } from './voice-engine.ts';
 import { sampleEnvelope, clamp01 } from './audio-geometry.ts';
 import type { WaveAnalysis } from './audio-geometry.ts';
@@ -53,19 +56,48 @@ let submitting=false;
 let wakeLock:any=null;
 let wakeLockToken=0;
 let currentDraftId='';
+let recordingSession:RecordingSession|null=null;
+let recordingOwner:string|null=null;
+let recordingStartedAt='';
+let storageError='';
+let recoveryItems:Awaited<ReturnType<typeof listDraftRecordings>>=[];
+async function refreshRecovery(){
+  recoveryItems=(await listDraftRecordings()).filter(d=>d.id.startsWith('draft_')&&['draft','recording','captured','interrupted'].includes(d.status||''));
+  document.getElementById('draft-recovery')?.remove();
+  if(recoveryItems.length){const button=document.createElement('button');button.id='draft-recovery';button.className='btn';button.dataset.action='recover-list';button.textContent='Recover recording ('+recoveryItems.length+')';root.querySelector('main')?.prepend(button);}
+}
+async function openRecovery(){
+  await refreshRecovery();
+  showModal('Recover a recording', '<p class="dialog-description">These recordings have not been kept as Echoes. Listen before keeping or discarding.</p>'+recoveryItems.map(d=>'<div class="form-foot"><span>'+escapeHtml(formatMoment(d.startedAt||d.updatedAt||''))+' · '+timecode(d.duration||0)+'</span><button class="btn" data-action="recover-draft" data-id="'+escapeHtml(d.id)+'">Listen and recover</button><button class="text-link" data-action="discard-draft" data-id="'+escapeHtml(d.id)+'">Discard</button></div>').join(''));
+}
+async function recoverDraft(id:string){
+  const owner=getAuthSession().userId;
+  const item=recoveryItems.find(d=>d.id===id),draft=await getDraftAudio(id,owner);
+  if(owner!==getAuthSession().userId||!draft?.blob)throw new Error('This recording is not available in this account.');
+  openCapture('voice');currentDraftId=id;recordingOwner=owner;recordingStartedAt=item?.startedAt||item?.updatedAt||new Date().toISOString();
+  recordingBlob=draft.blob;recordingDuration=draft.duration||0;recordingUrl=URL.createObjectURL(draft.blob);localAudioUrls.add(recordingUrl);
+  recordingAnalysis=await voiceEngine.analyse(draft.blob,recordingDuration);
+  if(owner!==getAuthSession().userId)return;
+  renderCapture();
+}
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
 function isSampleMode():boolean{return Boolean(services.isSampleMode&&services.isSampleMode());}
+let journeyView:ReturnType<typeof mountJourney>|null=null;
 function render(focusMain=false){
+  if(state.route.name==='listen'&&!isSampleMode()&&journeyView&&journeyView.owner===services.auth.getUser()?.id){journeyView.refresh();return;}
+  journeyView?.dispose();journeyView=null;
   const sample=isSampleMode();
   const user=services.auth?.getUser?.()||null;
   const isAuthenticated=Boolean(user);
-  root.innerHTML=shell(state.route.name,routeView(currentDb(),state,sample,isAuthenticated),sample,user);
+  root.innerHTML=shell(state.route.name,state.route.name==='listen'?(isAuthenticated&&!sample?journeyMarkup:emptyState('Return to your Original Voice.','Sign in to listen to your authentic Echoes.','open-auth','Sign in')):routeView(currentDb(),state,sample,isAuthenticated),sample,user);
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
+  if(state.route.name==='listen'&&isAuthenticated&&!sample)journeyView=mountJourney(root.querySelector('.echo-journey'),services);
   syncAudioUI();
   void primeEchoAudio();
+  void refreshRecovery();
   document.title=`Luna · ${state.route.name==='field'?'A living personal field':state.route.name.charAt(0).toUpperCase()+state.route.name.slice(1)}`;
 }
 function toast(message:string){clearTimeout(toastTimer);toastEl.textContent=message;toastEl.classList.add('show');toastTimer=setTimeout(()=>toastEl.classList.remove('show'),4800);}
@@ -83,29 +115,25 @@ modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.ge
 function cleanupCapture(){
   if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
   clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
-  if(recorder&&recorder.state!=='inactive'){
-    try{
-      recorder.requestData?.();
-      recorder.stop();
-    }catch{}
-  }
-  stream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;
+  if(recordingSession&&recorder?.state!=='inactive')void recordingSession.stop(true).then(()=>refreshRecovery());
+  // RecordingSession owns tracks and final events until stop has persisted them.
+  stream=null;recorder=null;recordingSession=null;
   captureToken++;captureActive=false;
   currentDraftId='';
   modal.querySelector<HTMLAudioElement>('#recording-preview')?.pause();
   recordingAnalysis={waveform:[],source:'unavailable',duration:0};recordingFinalizing=false;inputVisualAvailable=false;
   if(recordingUrl&&!recordedSaved){URL.revokeObjectURL(recordingUrl);localAudioUrls.delete(recordingUrl);}
-  recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;
+  recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;storageError='';
 }
 function keepCaptureInputs(){const title=modal.querySelector<HTMLInputElement>('#capture-title');const body=modal.querySelector<HTMLTextAreaElement>('#capture-body');if(title)captureTitle=title.value;if(body)captureText=body.value;}
-function openCapture(mode:'voice'|'text'){stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureActive=true;renderCapture();}
+function openCapture(mode:'voice'|'text'){journeyView?.pause();stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureActive=true;recordingOwner=getAuthSession().userId;recordingStartedAt=new Date().toISOString();renderCapture();}
 function renderCapture(error=''){
   const running=recorder?.state==='recording';
   const ready=!!recordingUrl&&!recordingFinalizing;
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${running?'Audio is held safely on your device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error)}</div><div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<a class="text-link" href="${recordingUrl}" download="Luna-recording.${recordingBlob?.type.includes('mp4')?'mp4':'webm'}">Download original audio</a>`:''}<div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
@@ -149,25 +177,19 @@ async function startRecording(){
     const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
     recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
     const activeRecorder=recorder;
-    activeRecorder.ondataavailable=e=>{
-      if(token===captureToken&&e.data.size){
-        chunks.push(e.data);
-        if(currentDraftId&&chunks.length>0){
-          const partBlob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
-          saveDraftAudio(currentDraftId,partBlob,{duration:recordingDuration,status:'recording'}).catch(()=>{});
-        }
-      }
-    };
-    activeRecorder.onerror=()=>{requested.getTracks().forEach(t=>t.stop());if(token!==captureToken)return;captureToken++;clearInterval(recordInterval);voiceEngine.stop();recorder=null;renderCapture('Recording stopped unexpectedly. Please try again, or write this Echo.');};
+    const session=new RecordingSession(activeRecorder,currentDraftId,recordingOwner,saveDraftAudio,()=>{
+      if(token!==captureToken)return;
+      storageError=session.error;
+      const errorEl=document.getElementById('capture-error');if(errorEl)errorEl.textContent=storageError;
+      const caption=modal.querySelector('.audio-caption');if(caption)caption.textContent=session.error?'Device storage failed. Keep this page open.':'Audio checkpoints saved on this device.';
+    });
+    recordingSession=session;recordingStartedAt=session.startedAt;
     activeRecorder.onstop=async()=>{
-      clearInterval(recordInterval);requested.getTracks().forEach(t=>t.stop());
-      if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
-      const blob=new Blob(chunks,{type:activeRecorder.mimeType||'audio/webm'});
-      recordingBlob=blob;
-      if(currentDraftId&&blob.size>0){
-        saveDraftAudio(currentDraftId,blob,{duration:recordingDuration,status:'captured'}).catch(()=>{});
-      }
+      await session.finished;
+      if(token===captureToken){clearInterval(recordInterval);if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}}
+      const blob=session.blob||new Blob([]);
       if(token!==captureToken||!captureActive)return;
+      recordingBlob=blob;recordingDuration=session.duration;storageError=session.error;
       voiceEngine.stop();
       if(!blob.size){recorder=null;renderCapture('No audio was captured. Please try again or write instead.');return;}
       recordingUrl=URL.createObjectURL(blob);localAudioUrls.add(recordingUrl);recorder=null;recordingFinalizing=true;renderCapture();
@@ -189,7 +211,7 @@ async function startRecording(){
         const notice=document.getElementById('recording-source');
         if(notice&&!notice.dataset.longNotice){
           notice.dataset.longNotice='true';
-          notice.textContent='Take your time — your voice is saved safely to your device.';
+          notice.textContent=storageError||'Take your time — recording continues.';
         }
       }
     },200);
@@ -236,10 +258,13 @@ document.addEventListener('click',async(event)=>{
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'review':openReview();break;
       case 'open-auth':{const u=services.auth?.getUser?.();if(u)openAccountModal(u);else openSignInModal();break;}
-      case 'auth-signout':{await services.auth?.signOut?.();closeModal();render(true);toast('Signed out of your Luna Field.');break;}
-      case 'auth-sync':{closeModal();toast('Synchronizing with your Luna account...');await services.sync?.();render(true);toast('Your Field is synchronized.');break;}
+      case 'auth-signout':{stopPlayback();cleanupCapture();await services.auth?.signOut?.();closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'auth-sync':{closeModal();toast('Synchronizing with your Luna account...');await services.sync?.();render(true);toast(services.snapshot().echoes.some(e=>e.user_id===services.auth.getUser()?.id&&e.syncStatus!=='synced')?'Sync checked. Some Echoes still need synchronization.':'Your Field is synchronized.');break;}
       case 'toggle-sample-mode':{const active=isSampleMode();services.setSampleMode?.(!active);render(true);toast(!active?'Exploring sample field with illustrative data.':'Returned to your personal living field.');break;}
       case 'close-modal':closeModal();break;
+      case 'recover-list':await openRecovery();break;
+      case 'recover-draft':await recoverDraft(id);break;
+      case 'discard-draft':{const owner=getAuthSession().userId;const draft=await getDraftAudio(id,owner);if(draft)await saveDraftAudio(id,draft.blob,{duration:draft.duration,status:'discarded'},owner);await openRecovery();break;}
       case 'capture-voice':openCapture('voice');await startRecording();break;
       case 'capture-entrance':openCapture('voice');break;
       case 'capture-text':openCapture('text');break;
@@ -309,7 +334,7 @@ document.addEventListener('submit',async(event)=>{
           await services.auth?.signIn?.(email,password);
           closeModal();
           render(true);
-          toast('Welcome back! Your personal Field is synchronized.');
+          toast('Welcome back. Your personal Field is ready.');
         }catch(err){
           if(errorEl)errorEl.textContent=(err as Error).message||'Invalid email or password.';
           toast('Sign in failed: '+((err as Error).message||'Invalid credentials'));
@@ -318,10 +343,11 @@ document.addEventListener('submit',async(event)=>{
       }
       case 'capture':{
         keepCaptureInputs();
-        const echo=await services.echoes.create({title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});
+        if(recordingOwner!==getAuthSession().userId)throw new Error('Account changed. Recover this recording in its original account.');
+        const echo=await services.echoes.create({occurredAt:recordingStartedAt,title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});
         recordedSaved=true;
         if(currentDraftId&&recordingBlob){
-          saveDraftAudio(currentDraftId,recordingBlob,{echoId:echo.id,duration:recordingDuration,status:'saved'}).catch(()=>{});
+          await saveDraftAudio(currentDraftId,recordingBlob,{echoId:echo.id,duration:recordingDuration,status:'saved',startedAt:recordingStartedAt},recordingOwner);
         }
         closeModal();
         go(`echo/${echo.id}`);
@@ -340,6 +366,7 @@ document.addEventListener('submit',async(event)=>{
   }catch(error){state.chatBusy=false;const errorEl=document.getElementById('capture-error');if(modal.open&&errorEl)errorEl.textContent=(error as Error).message;else toast((error as Error).message||'That could not be kept. Please try again.');}
   finally{submitting=false;if(submit?.isConnected)submit.disabled=false;}
 });
+window.addEventListener('luna-account-changed',()=>{generation++;stopPlayback();cleanupCapture();closeModal();state.chat=[];state.chatContext=[];Object.keys(drafts).forEach(key=>delete drafts[key]);render();});
 window.addEventListener('hashchange',()=>{stopPlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
 window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
