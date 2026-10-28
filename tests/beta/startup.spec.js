@@ -3,6 +3,13 @@ test('built Beta starts and opens capture without live services', async ({ page 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
+    if (!navigator.mediaDevices) {
+      try {
+        Object.defineProperty(navigator, 'mediaDevices', { value: {}, configurable: true, writable: true });
+      } catch {
+        navigator.mediaDevices = {};
+      }
+    }
     navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Synthetic denial', 'NotAllowedError'); };
   });
   // Never contact production or send user data from PR checks.

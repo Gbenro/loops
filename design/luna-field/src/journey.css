@@ -10,3 +10,18 @@ html[data-theme=light] .echo-journey{color-scheme:light;--bg:#f4f3ee;--sidebar:#
 @media(prefers-reduced-motion:reduce){.echo-journey *{scroll-behavior:auto!important;transition:none!important}}
 
 .echo-journey{background:transparent;padding-bottom:70px}.echo-journey .mobile-dock:not([hidden]){bottom:68px}.echo-journey .journey-filter{margin-top:14px}.echo-journey .listening{top:20px}.echo-journey .intro{padding-top:18px}
+.echo-journey .cycle-nav-banner{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 20px;margin-bottom:28px}
+.echo-journey .cycle-nav-controls{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.echo-journey .cycle-nav-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);color:var(--text);font-size:24px;line-height:1;display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s;flex-shrink:0}
+.echo-journey .cycle-nav-btn:hover:not(:disabled){background:var(--line);border-color:var(--gold);color:var(--gold)}
+.echo-journey .cycle-nav-btn:disabled{opacity:.35;cursor:default}
+.echo-journey .cycle-nav-center{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;min-width:0;flex:1}
+.echo-journey .cycle-select{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 14px;font-size:14px;font-weight:500;max-width:400px;width:100%;text-align:center}
+.echo-journey .cycle-range-text{font-size:11px;color:var(--muted);letter-spacing:.02em}
+.echo-journey .journey-subfilters{display:flex;gap:12px;margin:14px 0 16px}
+.echo-journey .journey-subfilters .order-label{flex:1;min-width:0}
+.echo-journey .empty-cycle{text-align:center;padding:48px 24px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;margin:20px 0}
+.echo-journey .empty-cycle .empty-icon{font-size:32px;color:var(--gold);margin-bottom:12px}
+.echo-journey .empty-cycle h3{font:400 22px var(--serif);color:var(--text);margin-bottom:8px}
+.echo-journey .empty-cycle p{font-size:12px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.6}
+

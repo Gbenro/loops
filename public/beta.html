@@ -53,6 +53,21 @@ html[data-theme=light] .echo-journey{color-scheme:light;--bg:#f4f3ee;--sidebar:#
 @media(prefers-reduced-motion:reduce){.echo-journey *{scroll-behavior:auto!important;transition:none!important}}
 
 .echo-journey{background:transparent;padding-bottom:70px}.echo-journey .mobile-dock:not([hidden]){bottom:68px}.echo-journey .journey-filter{margin-top:14px}.echo-journey .listening{top:20px}.echo-journey .intro{padding-top:18px}
+.echo-journey .cycle-nav-banner{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 20px;margin-bottom:28px}
+.echo-journey .cycle-nav-controls{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.echo-journey .cycle-nav-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);color:var(--text);font-size:24px;line-height:1;display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s;flex-shrink:0}
+.echo-journey .cycle-nav-btn:hover:not(:disabled){background:var(--line);border-color:var(--gold);color:var(--gold)}
+.echo-journey .cycle-nav-btn:disabled{opacity:.35;cursor:default}
+.echo-journey .cycle-nav-center{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;min-width:0;flex:1}
+.echo-journey .cycle-select{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 14px;font-size:14px;font-weight:500;max-width:400px;width:100%;text-align:center}
+.echo-journey .cycle-range-text{font-size:11px;color:var(--muted);letter-spacing:.02em}
+.echo-journey .journey-subfilters{display:flex;gap:12px;margin:14px 0 16px}
+.echo-journey .journey-subfilters .order-label{flex:1;min-width:0}
+.echo-journey .empty-cycle{text-align:center;padding:48px 24px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;margin:20px 0}
+.echo-journey .empty-cycle .empty-icon{font-size:32px;color:var(--gold);margin-bottom:12px}
+.echo-journey .empty-cycle h3{font:400 22px var(--serif);color:var(--text);margin-bottom:8px}
+.echo-journey .empty-cycle p{font-size:12px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.6}
+
 </style>
 </head><body>
 <div id="app"></div>
@@ -194,109 +209,404 @@ class Journey {
 }
 
 
-function mountJourney(host, services) {
-const adapter = createJourneyService(services);
-let items = adapter.items();
-const resolveAudio = (id, signal, options) => adapter.resolve(id,signal,options);
-const abort = new AbortController();
-const on = (el,type,fn) => el.addEventListener(type,fn,{signal:abort.signal});
-const $ = id => host.querySelector('#'+id);
-const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const time = value => `${Math.floor((value || 0) / 60)}:${String(Math.floor((value || 0) % 60)).padStart(2, '0')}`;
-const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-const stamp = date => new Date(date).toLocaleString('en-US', { timeZone: zone, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-let filterKey = '';
-let groupBy = 'day', shownId = '', saved = null, skippedCount = 0;
-saved = adapter.loadPlace();
-let saveEnabled=true;const resume=adapter.loadPlace(true)||saved;
-const journey = new Journey(items, resolveAudio, () => new Audio(), update);
-$('timezone').textContent = zone;
-function drawWave(values) {
-  if (!values || values.length < 2) return '<line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>';
-  const upper = values.map((v, i) => `${i * 600 / (values.length - 1)},${36 - v * 31}`).join(' ');
-  const lower = [...values].reverse().map((v, i) => `${600 - i * 600 / (values.length - 1)},${36 + v * 31}`).join(' ');
-  return `<defs><path id="envelope" d="M${upper} L${lower} Z"/><clipPath id="heard"><rect id="heard-width" width="0" height="72"/></clipPath></defs><use href="#envelope" fill="currentColor" opacity=".27"/><use href="#envelope" fill="currentColor" clip-path="url(#heard)"/><line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>`;
-}
-function renderPath() {
-  const sorted = ordered(journey.items, journey.order);
-  $('groups').innerHTML = groups(sorted, groupBy, zone).map(group => `<section class="group"><h3>${esc(group.label)}${group.context ? `<small>${esc(group.context)}</small>` : ''}</h3>${group.items.map(e => {
-    const n = journey.queue.findIndex(item => item.id === e.id);
-    return `<button class="echo" data-echo="${esc(e.id)}" ${e.availability === 'unavailable' || journey.skipped.has(e.id) ? 'disabled' : ''} aria-current="${e.id === journey.id}"><span class="echo-index">${n >= 0 ? String(n + 1).padStart(2,'0') : '—'}</span><span class="echo-body"><span class="echo-name">${esc(e.title)}</span><span class="echo-meta"><span>${esc(new Date(e.occurredAt).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'}))}</span><span>·</span><span>${esc(groupBy === 'day' ? e.context.phaseLabel : new Date(e.occurredAt).toLocaleDateString('en-US',{timeZone:zone,month:'short',day:'numeric'}))}</span></span></span><span class="echo-length">${n < 0 ? 'Unavailable' : time(e.duration)}</span></button>`;
-  }).join('')}</section>`).join('');
-  host.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === groupBy)));
-  $('available-count').textContent = `${journey.queue.length} recordings`;
-}
-function update() {
-  const e = journey.current;
-  if (!e) { $('voice-title').textContent = items.length?'No recordings in this selection':'No voice Echoes are available yet';$('player-status').textContent='Your original recordings will appear here.';for(const id of ['play','previous','next','dock-play','dock-previous','dock-next','save','return','seek'])$(id).disabled=true;return; }
-  for(const id of ['play','save','seek','dock-play'])$(id).disabled=false;
-  if (skippedCount !== journey.skipped.size) { skippedCount = journey.skipped.size; renderPath(); }
-  if (shownId !== e.id) {
-    shownId = e.id;
-    $('voice-title').textContent = e.title;
-    $('moment-date').textContent = stamp(e.occurredAt);
-    $('context').textContent = `◐ ${e.context.phaseLabel} · ${e.context.cycleLabel.split(' · ')[0]} ↗`;
-    $('wave').innerHTML = drawWave(e.waveform);
-  }
-  const duration = journey.duration || e.duration || 0;
-  $('seek').max = duration; $('seek').value = journey.time;
-  $('seek').setAttribute('aria-valuetext', `${time(journey.time)} of ${time(duration)}`);
-  $('elapsed').textContent = time(journey.time); $('duration').textContent = time(duration);
-  $('heard-width')?.setAttribute('width', String(600 * Math.min(1, journey.time / (duration || 1))));
-  $('play-glyph').textContent = journey.desired ? 'Ⅱ' : '▶';
-  $('play').setAttribute('aria-label', journey.desired ? 'Pause recording' : 'Play recording');
-  $('dock-title').textContent = e.title;
-  $('dock-play').textContent = journey.desired ? 'Ⅱ' : '▶';
-  $('dock-play').setAttribute('aria-label', journey.desired ? 'Pause journey' : 'Play journey');
-  const index = journey.queue.findIndex(item => item.id === e.id);
-  const status = journey.message || ({idle:'Ready when you are',loading:'Finding the recording…',playing:'Listening · continues automatically',paused:'Paused · your place is held',buffering:'Waiting for audio…',complete:'Journey complete',unavailable:'Recording unavailable'}[journey.status] || 'Ready');
-  if ($('player-status').textContent !== status) $('player-status').textContent = status;
-  $('previous').disabled = index <= 0; $('next').disabled = index >= journey.queue.length - 1;
-  $('dock-previous').disabled = $('previous').disabled; $('dock-next').disabled = $('next').disabled;
-  $('queue-count').textContent = `${Math.max(0,index + 1)} of ${journey.queue.length} recordings`;
-  $('queue-progress').max = journey.queue.length;
-  $('queue-progress').value = journey.status === 'complete' ? journey.queue.length : Math.max(0,index) + Math.min(1,journey.time / duration);
-  $('queue-progress').setAttribute('aria-valuetext', `Recording ${index+1} of ${journey.queue.length}`);
-  $('up-next').textContent = journey.queue[index+1] ? `Next · ${journey.queue[index+1].title}` : 'The last moment in this listening path.';
-  host.querySelectorAll('[data-echo]').forEach(b => b.setAttribute('aria-current',String(b.dataset.echo === e.id)));
-  $('return').disabled = !saved || !items.some(f => f.id === saved.echoId && f.availability !== 'unavailable');
-  $('order').value = journey.order;
-}
-$('play').addEventListener('click', () => void journey.toggle());
-$('previous').addEventListener('click', () => void journey.step(-1));
-$('next').addEventListener('click', () => void journey.step(1));
-$('dock-play').addEventListener('click', () => void journey.toggle());
-$('dock-previous').addEventListener('click', () => void journey.step(-1));
-$('dock-next').addEventListener('click', () => void journey.step(1));
-$('dock-return').addEventListener('click', () => { host.querySelector('.listening').scrollIntoView({block:'start'}); $('play').focus({preventScroll:true}); });
-const observer=new IntersectionObserver(([entry]) => { $('mobile-dock').hidden = entry.isIntersecting; }, {threshold:0});observer.observe(host.querySelector('.listening'));
-$('seek').addEventListener('input', e => journey.seek(Number(e.target.value)));
-$('order').addEventListener('change', e => { journey.setOrder(e.target.value); renderPath();filterOptions(); });
-host.querySelectorAll('[data-group]').forEach(b => b.addEventListener('click', () => { groupBy = b.dataset.group;filterKey='';filterOptions();applyFilter(); }));
-$('groups').addEventListener('click', e => { const b = e.target.closest('[data-echo]'); if (b && !b.disabled) void journey.select(b.dataset.echo, true); });
-$('context').addEventListener('click', () => { groupBy = 'phase';filterKey='';filterOptions();applyFilter(); const active = host.querySelector('[data-echo][aria-current=true]'); active?.scrollIntoView({block:'center'}); active?.focus({preventScroll:true}); });
-$('save').addEventListener('click', () => {
-  saveEnabled=true;saved = journey.place(); let persisted = false;
-  persisted = adapter.savePlace(saved);
-  $('save-note').textContent = `Place kept at ${time(saved.seconds)} · ${persisted ? 'saved for this account in this browser' : 'held for this tab only'}.`; update();
-});
-$('return').addEventListener('click', async () => { await journey.restore(saved); renderPath(); $('save-note').textContent = 'Returned to your kept place. Press play when ready.'; });
-$('clear').addEventListener('click', () => { saved = null; saveEnabled=false;adapter.clearPlace(); $('save-note').textContent = 'Saved listening place cleared.'; update(); });
-on(window,'pagehide',()=>{saveAutomatically();journey.pause();});
-function filterOptions(){
- const options=groups(ordered(items,journey.order),groupBy,zone);
- $('group-filter').innerHTML='<option value="">All moments</option>'+[...new Map(options.map(g=>[g.key,g])).values()].map(g=>'<option value="'+esc(g.key)+'">'+esc(g.label+(g.context?' · '+g.context:''))+'</option>').join('');$('group-filter').value=filterKey;
-}
-function applyFilter(){const selected=filterKey?groups(ordered(items,journey.order),groupBy,zone).filter(g=>g.key===filterKey).flatMap(g=>g.items):items;journey.setItems(selected);renderPath();update();}
-on($('group-filter'),'change',()=>{filterKey=$('group-filter').value;applyFilter();});
-function saveAutomatically(){if(saveEnabled&&journey.id&&journey.status!=='idle')adapter.savePlace(journey.place(),true);}
-const saveTimer=setInterval(saveAutomatically,2000);
-filterOptions();
-renderPath(); update();
-if (saved && items.some(f => f.id === saved.echoId)) $('save-note').textContent = `A place is kept at ${time(saved.seconds)}. Use “Return to saved place”.`;
 
-if(resume&&items.some(f=>f.id===resume.echoId))void journey.restore(resume).then(()=>renderPath());
-return {owner:adapter.owner,pause(){journey.pause();},refresh(){items=adapter.items();applyFilter();filterOptions();},dispose(){saveAutomatically();clearInterval(saveTimer);abort.abort();observer.disconnect();journey.dispose();}};
+function mountJourney(host, services) {
+  const adapter = createJourneyService(services);
+  const resolveAudio = (id, signal, options) => adapter.resolve(id, signal, options);
+  const abort = new AbortController();
+  const on = (el, type, fn) => el && el.addEventListener(type, fn, { signal: abort.signal });
+  const $ = id => host.querySelector('#' + id);
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const time = value => `${Math.floor((value || 0) / 60)}:${String(Math.floor((value || 0) % 60)).padStart(2, '0')}`;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const stamp = date => new Date(date).toLocaleString('en-US', { timeZone: zone, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: 'long', day: 'numeric' });
+
+  // 1. Cycle Discovery & Initial State
+  let cycles = adapter.getCycles();
+  const currentCycleId = adapter.currentCycleId();
+  let selectedCycleId = currentCycleId;
+
+  // Ensure selected cycle exists in cycles list
+  if (!cycles.some(c => c.id === selectedCycleId)) {
+    const lunNum = Number(selectedCycleId.replace('lunation-', ''));
+    if (Number.isFinite(lunNum)) {
+      cycles.unshift(getCycleInfoForLunation(lunNum, adapter.currentLunation()));
+    }
+  }
+
+  let cycleEchoes = adapter.items(selectedCycleId);
+  let selectedPhase = '';
+  let selectedDay = '';
+  let groupBy = 'day';
+  let shownId = '';
+  let skippedCount = 0;
+
+  let saved = adapter.loadPlace();
+  let saveEnabled = true;
+  const resume = adapter.loadPlace(true) || saved;
+
+  const journey = new Journey([], resolveAudio, () => new Audio(), update);
+  $('timezone').textContent = zone;
+
+  function getCurrentCycleObj() {
+    return cycles.find(c => c.id === selectedCycleId) || getCycleInfoForLunation(Number(selectedCycleId.replace('lunation-', '')) || adapter.currentLunation(), adapter.currentLunation());
+  }
+
+  function drawWave(values) {
+    if (!values || values.length < 2) return '<line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>';
+    const upper = values.map((v, i) => `${i * 600 / (values.length - 1)},${36 - v * 31}`).join(' ');
+    const lower = [...values].reverse().map((v, i) => `${600 - i * 600 / (values.length - 1)},${36 + v * 31}`).join(' ');
+    return `<defs><path id="envelope" d="M${upper} L${lower} Z"/><clipPath id="heard"><rect id="heard-width" width="0" height="72"/></clipPath></defs><use href="#envelope" fill="currentColor" opacity=".27"/><use href="#envelope" fill="currentColor" clip-path="url(#heard)"/><line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>`;
+  }
+
+  function getFilteredEchoes() {
+    let list = cycleEchoes;
+    if (selectedPhase) {
+      list = list.filter(e => e.context.phaseId === selectedPhase);
+    }
+    if (selectedDay) {
+      list = list.filter(e => dayFmt.format(new Date(e.occurredAt)) === selectedDay);
+    }
+    return list;
+  }
+
+  function renderCycleNav() {
+    const cycle = getCurrentCycleObj();
+    const currIdx = cycles.findIndex(c => c.id === selectedCycleId);
+
+    $('cycle-select').innerHTML = cycles.map(c =>
+      `<option value="${esc(c.id)}" ${c.id === selectedCycleId ? 'selected' : ''}>${esc(c.label)}${c.isCurrent ? ' (Current)' : ''} · ${c.count} ${c.count === 1 ? 'recording' : 'recordings'}</option>`
+    ).join('');
+
+    $('cycle-range-label').textContent = `${cycle.range}${cycle.isCurrent ? ' · Current lunar cycle' : ''}`;
+    $('path-cycle-eyebrow').textContent = `${cycle.name.toUpperCase()} · ${cycle.year}`;
+
+    // Previous step moves to older cycle (higher index in descending cycles array, or next older lunation)
+    $('prev-cycle').disabled = false;
+    // Next step moves to newer cycle (lower index; disabled if at top/newest)
+    $('next-cycle').disabled = currIdx <= 0;
+  }
+
+  function updateFilterOptions() {
+    // Populate Phase filter within this cycle
+    const phaseCounts = new Map();
+    for (const e of cycleEchoes) {
+      const pid = e.context.phaseId;
+      const plabel = e.context.phaseLabel;
+      if (!phaseCounts.has(pid)) phaseCounts.set(pid, { label: plabel, count: 0 });
+      phaseCounts.get(pid).count++;
+    }
+
+    $('phase-filter').innerHTML = `<option value="">All phases (${cycleEchoes.length})</option>` +
+      [...phaseCounts.entries()].map(([pid, p]) => `<option value="${esc(pid)}">${esc(p.label)} (${p.count})</option>`).join('');
+    $('phase-filter').value = selectedPhase;
+
+    // Populate Day filter within this cycle (and current phase if selected)
+    updateDayFilterOptions();
+  }
+
+  function updateDayFilterOptions() {
+    const subset = selectedPhase ? cycleEchoes.filter(e => e.context.phaseId === selectedPhase) : cycleEchoes;
+    const dayCounts = new Map();
+    for (const e of subset) {
+      const dayStr = dayFmt.format(new Date(e.occurredAt));
+      dayCounts.set(dayStr, (dayCounts.get(dayStr) || 0) + 1);
+    }
+
+    $('day-filter').innerHTML = `<option value="">All days (${subset.length})</option>` +
+      [...dayCounts.entries()].map(([dayStr, cnt]) => `<option value="${esc(dayStr)}">${esc(dayStr)} (${cnt})</option>`).join('');
+    $('day-filter').value = selectedDay;
+  }
+
+  function renderPath() {
+    const filtered = getFilteredEchoes();
+    const cycle = getCurrentCycleObj();
+
+    // 1. Empty State Handling (Cycle has 0 recordings or active filter returned 0)
+    if (filtered.length === 0) {
+      if (cycleEchoes.length === 0) {
+        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings in this cycle</h3><p>${esc(cycle.name)} spans ${esc(cycle.range)}. Step back to earlier cycles to listen to past moments, or return to the Field to speak.</p></div>`;
+        $('available-count').textContent = '0 recordings in this cycle';
+      } else {
+        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings match this filter</h3><p>No moments in ${esc(cycle.name)} match the selected phase or day. Clear the filter to show all ${cycleEchoes.length} recordings in this cycle.</p></div>`;
+        $('available-count').textContent = `0 of ${cycleEchoes.length} recordings in this cycle`;
+      }
+      host.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === groupBy)));
+      return;
+    }
+
+    // 2. Render grouped recordings
+    const sorted = ordered(filtered, journey.order);
+    $('groups').innerHTML = groups(sorted, groupBy, zone).map(group => `<section class="group"><h3>${esc(group.label)}${group.context ? `<small>${esc(group.context)}</small>` : ''}</h3>${group.items.map(e => {
+      const n = journey.queue.findIndex(item => item.id === e.id);
+      return `<button class="echo" data-echo="${esc(e.id)}" ${e.availability === 'unavailable' || journey.skipped.has(e.id) ? 'disabled' : ''} aria-current="${e.id === journey.id}"><span class="echo-index">${n >= 0 ? String(n + 1).padStart(2, '0') : '—'}</span><span class="echo-body"><span class="echo-name">${esc(e.title)}</span><span class="echo-meta"><span>${esc(new Date(e.occurredAt).toLocaleTimeString('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit' }))}</span><span>·</span><span>${esc(groupBy === 'day' ? e.context.phaseLabel : new Date(e.occurredAt).toLocaleDateString('en-US', { timeZone: zone, month: 'short', day: 'numeric' }))}</span></span></span><span class="echo-length">${n < 0 ? 'Unavailable' : time(e.duration)}</span></button>`;
+    }).join('')}</section>`).join('');
+
+    host.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === groupBy)));
+
+    // Accurate count display
+    if (filtered.length === cycleEchoes.length) {
+      $('available-count').textContent = `${cycleEchoes.length} ${cycleEchoes.length === 1 ? 'recording' : 'recordings'} in this cycle`;
+    } else {
+      $('available-count').textContent = `${filtered.length} of ${cycleEchoes.length} recordings in this cycle`;
+    }
+  }
+
+  function update() {
+    const cycle = getCurrentCycleObj();
+    const e = journey.current;
+
+    if (!e) {
+      if (cycleEchoes.length === 0) {
+        $('voice-title').textContent = `No voice Echoes in ${cycle.name}`;
+        $('player-status').textContent = `No recordings found for the ${cycle.name} cycle.`;
+      } else {
+        $('voice-title').textContent = 'No recordings in this selection';
+        $('player-status').textContent = 'Adjust phase or day filter to continue listening.';
+      }
+      $('moment-date').textContent = cycle.range;
+      $('context').textContent = `◐ ${cycle.name}`;
+      $('wave').innerHTML = drawWave([]);
+      $('queue-count').textContent = `0 of ${cycleEchoes.length} recordings`;
+      $('queue-progress').value = 0;
+      $('queue-progress').max = 1;
+      $('up-next').textContent = cycleEchoes.length === 0 ? 'Choose another cycle to begin listening.' : 'Clear filters to play all recordings.';
+      for (const id of ['play', 'previous', 'next', 'dock-play', 'dock-previous', 'dock-next', 'save', 'seek']) $(id).disabled = true;
+      $('return').disabled = !saved || !adapter.items().some(f => f.id === saved.echoId && f.availability !== 'unavailable');
+      return;
+    }
+
+    for (const id of ['play', 'save', 'seek', 'dock-play']) $(id).disabled = false;
+    if (skippedCount !== journey.skipped.size) {
+      skippedCount = journey.skipped.size;
+      renderPath();
+    }
+
+    if (shownId !== e.id) {
+      shownId = e.id;
+      $('voice-title').textContent = e.title;
+      $('moment-date').textContent = stamp(e.occurredAt);
+      $('context').textContent = `◐ ${e.context.phaseLabel} · ${cycle.name} ↗`;
+      $('wave').innerHTML = drawWave(e.waveform);
+    }
+
+    const duration = journey.duration || e.duration || 0;
+    $('seek').max = duration;
+    $('seek').value = journey.time;
+    $('seek').setAttribute('aria-valuetext', `${time(journey.time)} of ${time(duration)}`);
+    $('elapsed').textContent = time(journey.time);
+    $('duration').textContent = time(duration);
+    $('heard-width')?.setAttribute('width', String(600 * Math.min(1, journey.time / (duration || 1))));
+    $('play-glyph').textContent = journey.desired ? 'Ⅱ' : '▶';
+    $('play').setAttribute('aria-label', journey.desired ? 'Pause recording' : 'Play recording');
+    $('dock-title').textContent = e.title;
+    $('dock-play').textContent = journey.desired ? 'Ⅱ' : '▶';
+    $('dock-play').setAttribute('aria-label', journey.desired ? 'Pause journey' : 'Play journey');
+
+    const index = journey.queue.findIndex(item => item.id === e.id);
+    const status = journey.message || ({
+      idle: 'Ready when you are',
+      loading: 'Finding the recording…',
+      playing: 'Listening · continues automatically',
+      paused: 'Paused · your place is held',
+      buffering: 'Waiting for audio…',
+      complete: 'Journey complete',
+      unavailable: 'Recording unavailable'
+    }[journey.status] || 'Ready');
+
+    if ($('player-status').textContent !== status) $('player-status').textContent = status;
+    $('previous').disabled = index <= 0;
+    $('next').disabled = index >= journey.queue.length - 1;
+    $('dock-previous').disabled = $('previous').disabled;
+    $('dock-next').disabled = $('next').disabled;
+
+    $('queue-count').textContent = `${Math.max(0, index + 1)} of ${journey.queue.length} in this cycle`;
+    $('queue-progress').max = journey.queue.length;
+    $('queue-progress').value = journey.status === 'complete' ? journey.queue.length : Math.max(0, index) + Math.min(1, journey.time / (duration || 1));
+    $('queue-progress').setAttribute('aria-valuetext', `Recording ${index + 1} of ${journey.queue.length}`);
+    $('up-next').textContent = journey.queue[index + 1] ? `Next · ${journey.queue[index + 1].title}` : 'The last moment in this cycle.';
+    host.querySelectorAll('[data-echo]').forEach(b => b.setAttribute('aria-current', String(b.dataset.echo === e.id)));
+    $('return').disabled = !saved || !adapter.items().some(f => f.id === saved.echoId && f.availability !== 'unavailable');
+    $('order').value = journey.order;
+  }
+
+  function applyFilter() {
+    const filtered = getFilteredEchoes();
+    journey.setItems(filtered);
+    renderCycleNav();
+    renderPath();
+    update();
+  }
+
+  function selectCycle(cycleId) {
+    if (cycleId === selectedCycleId && cycleEchoes.length > 0) return;
+    selectedCycleId = cycleId;
+    cycleEchoes = adapter.items(selectedCycleId);
+    selectedPhase = '';
+    selectedDay = '';
+    updateFilterOptions();
+    applyFilter();
+  }
+
+  // Event Listeners
+  $('play').addEventListener('click', () => void journey.toggle());
+  $('previous').addEventListener('click', () => void journey.step(-1));
+  $('next').addEventListener('click', () => void journey.step(1));
+  $('dock-play').addEventListener('click', () => void journey.toggle());
+  $('dock-previous').addEventListener('click', () => void journey.step(-1));
+  $('dock-next').addEventListener('click', () => void journey.step(1));
+  $('dock-return').addEventListener('click', () => { host.querySelector('.listening').scrollIntoView({ block: 'start' }); $('play').focus({ preventScroll: true }); });
+
+  const observer = new IntersectionObserver(([entry]) => { $('mobile-dock').hidden = entry.isIntersecting; }, { threshold: 0 });
+  observer.observe(host.querySelector('.listening'));
+
+  $('seek').addEventListener('input', e => journey.seek(Number(e.target.value)));
+  $('order').addEventListener('change', e => {
+    journey.setOrder(e.target.value);
+    renderPath();
+  });
+
+  host.querySelectorAll('[data-group]').forEach(b => b.addEventListener('click', () => {
+    groupBy = b.dataset.group;
+    renderPath();
+  }));
+
+  $('groups').addEventListener('click', e => {
+    const b = e.target.closest('[data-echo]');
+    if (b && !b.disabled) void journey.select(b.dataset.echo, true);
+  });
+
+  // Cycle navigation events
+  on($('cycle-select'), 'change', e => {
+    selectCycle(e.target.value);
+  });
+
+  on($('prev-cycle'), 'click', () => {
+    const currIdx = cycles.findIndex(c => c.id === selectedCycleId);
+    if (currIdx >= 0 && currIdx < cycles.length - 1) {
+      selectCycle(cycles[currIdx + 1].id);
+    } else {
+      // Step back one lunation astronomically
+      const currentLun = Number(selectedCycleId.replace('lunation-', ''));
+      if (Number.isFinite(currentLun)) {
+        const prevLun = currentLun - 1;
+        const prevInfo = getCycleInfoForLunation(prevLun, adapter.currentLunation());
+        cycles.push(prevInfo);
+        selectCycle(prevInfo.id);
+      }
+    }
+  });
+
+  on($('next-cycle'), 'click', () => {
+    const currIdx = cycles.findIndex(c => c.id === selectedCycleId);
+    if (currIdx > 0) {
+      selectCycle(cycles[currIdx - 1].id);
+    }
+  });
+
+  // Sub-filter events
+  on($('phase-filter'), 'change', e => {
+    selectedPhase = e.target.value;
+    updateDayFilterOptions();
+    applyFilter();
+  });
+
+  on($('day-filter'), 'change', e => {
+    selectedDay = e.target.value;
+    applyFilter();
+  });
+
+  // Context button filters by the playing Echo's phase
+  $('context').addEventListener('click', () => {
+    if (!journey.current) return;
+    selectedPhase = journey.current.context.phaseId;
+    $('phase-filter').value = selectedPhase;
+    updateDayFilterOptions();
+    applyFilter();
+    const active = host.querySelector('[data-echo][aria-current=true]');
+    active?.scrollIntoView({ block: 'center' });
+    active?.focus({ preventScroll: true });
+  });
+
+  // Bookmark / Save Place actions
+  $('save').addEventListener('click', () => {
+    saveEnabled = true;
+    saved = { ...journey.place(), cycleId: selectedCycleId };
+    let persisted = adapter.savePlace(saved);
+    $('save-note').textContent = `Place kept at ${time(saved.seconds)} · ${persisted ? 'saved for this account in this browser' : 'held for this tab only'}.`;
+    update();
+  });
+
+  $('return').addEventListener('click', async () => {
+    if (!saved) return;
+    const all = adapter.items();
+    const targetEcho = all.find(f => f.id === saved.echoId);
+    if (targetEcho && targetEcho.context.cycleId !== selectedCycleId) {
+      selectCycle(targetEcho.context.cycleId);
+    }
+    await journey.restore(saved);
+    renderPath();
+    $('save-note').textContent = 'Returned to your kept place. Press play when ready.';
+  });
+
+  $('clear').addEventListener('click', () => {
+    saved = null;
+    saveEnabled = false;
+    adapter.clearPlace();
+    $('save-note').textContent = 'Saved listening place cleared.';
+    update();
+  });
+
+  on(window, 'pagehide', () => {
+    saveAutomatically();
+    journey.pause();
+  });
+
+  function saveAutomatically() {
+    if (saveEnabled && journey.id && journey.status !== 'idle') {
+      adapter.savePlace({ ...journey.place(), cycleId: selectedCycleId }, true);
+    }
+  }
+
+  const saveTimer = setInterval(saveAutomatically, 2000);
+
+  // Initialize view
+  updateFilterOptions();
+  applyFilter();
+
+  if (saved && adapter.items().some(f => f.id === saved.echoId)) {
+    $('save-note').textContent = `A place is kept at ${time(saved.seconds)}. Use “Return to saved place”.`;
+  }
+
+  if (resume) {
+    const all = adapter.items();
+    const target = all.find(f => f.id === resume.echoId);
+    if (target) {
+      if (target.context.cycleId !== selectedCycleId) {
+        selectCycle(target.context.cycleId);
+      }
+      void journey.restore(resume).then(() => renderPath());
+    }
+  }
+
+  return {
+    owner: adapter.owner,
+    pause() { journey.pause(); },
+    refresh() {
+      cycles = adapter.getCycles();
+      cycleEchoes = adapter.items(selectedCycleId);
+      updateFilterOptions();
+      applyFilter();
+    },
+    dispose() {
+      saveAutomatically();
+      clearInterval(saveTimer);
+      abort.abort();
+      observer.disconnect();
+      journey.dispose();
+    }
+  };
 }
 
 
@@ -1147,6 +1457,9 @@ function createMockServices(audioAssets                      ={})              {
 
 
 // live-services.ts
+
+
+
 
 
 
@@ -3060,6 +3373,8 @@ function phaseTideGauge(progress        , isThreshold         , dayInPhase      
 
 // components.ts
 
+
+
 const brandMark=()=>`<svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M29 8a15 15 0 1 0 5 19" stroke="currentColor" stroke-width="1.1"/><path d="M29 8a11 11 0 1 0 3 18" stroke="currentColor" stroke-width=".8"/><path d="M6 27c7-9 14-9 26-1" stroke="currentColor" stroke-width=".7"/><circle cx="33" cy="11" r="1.6" fill="currentColor"/></svg>`;
 const phaseIndex=(phase       )=>PHASES.findIndex(p=>p.id===phase);
 const statusLabel=(status       )=>(({open:'Open',evolving:'Evolving',completed:'Completed','carried-forward':'Carried forward',closed:'Consciously closed'}                         )[status]||status);
@@ -3100,6 +3415,12 @@ function shell(active       ,body       ,isSample=false,user                    
 
 
 // views.ts
+
+
+
+
+
+
 
 
 
@@ -3662,48 +3983,326 @@ class RecordingSession {
 
 
 
+function getLunationForDate(date       = new Date())         {
+  const lunar = getLiveLunarData(date);
+  return Math.round((lunar.cycleStart.getTime() / 86400000 + 2440587.5 - KNOWN_NEW_MOON) / SYNODIC);
+}
+
+function getCurrentLunation()         {
+  return getLunationForDate(new Date());
+}
+
+function getCycleInfoForLunation(lunation        , currentLunation         = getCurrentLunation())               {
+  const jdStart = KNOWN_NEW_MOON + lunation * SYNODIC;
+  const cycleStartDate = new Date((jdStart - 2440587.5) * 86400000);
+  const midDate = new Date(cycleStartDate.getTime() + FULL_MOON_PEAK * 86400000);
+  const cycleEndDate = new Date(cycleStartDate.getTime() + SYNODIC * 86400000);
+  const monthName = getLunarMonthName(midDate);
+  const name = `${monthName} Moon`;
+  const year = midDate.getUTCFullYear();
+  const label = `${name} · ${year}`;
+
+  const startStr = cycleStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endStr = cycleEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const range = `${startStr} – ${endStr}`;
+
+  return {
+    id: `lunation-${lunation}`,
+    lunation,
+    label,
+    name,
+    monthName,
+    year,
+    range,
+    cycleStart: cycleStartDate.toISOString(),
+    cycleEnd: cycleEndDate.toISOString(),
+    isCurrent: lunation === currentLunation,
+    count: 0
+  };
+}
+
 /** Read-only projection. Original Echo timestamps/metadata are never written back. */
 function journeyEcho(echo      )              {
   const lunar = getLiveLunarData(new Date(echo.occurredAt));
-  // A month name repeats every year (and sometimes within a year). Identify the
-  // actual lunation using the existing engine's cycle estimate and constants.
-  const lunation = Math.round((lunar.cycleStart.getTime()/86400000 + 2440587.5 - KNOWN_NEW_MOON)/SYNODIC);
-  return { id:echo.id,title:echo.title,kind:'voice',occurredAt:echo.occurredAt,
-    duration:echo.duration,waveform:echo.waveform,availability:'unknown',
-    context:{cycleId:`lunation-${lunation}`,cycleLabel:`${echo.context.cycleLabel || lunar.cycleName} · ${lunar.cycleStart.getUTCFullYear()}`,
-      phaseId:echo.context.phaseId || lunar.phaseId,phaseLabel:echo.context.label || lunar.phaseName} };
+  const lunation = Math.round((lunar.cycleStart.getTime() / 86400000 + 2440587.5 - KNOWN_NEW_MOON) / SYNODIC);
+  const cycleInfo = getCycleInfoForLunation(lunation);
+  return {
+    id: echo.id,
+    title: echo.title,
+    kind: 'voice',
+    occurredAt: echo.occurredAt,
+    duration: echo.duration,
+    waveform: echo.waveform,
+    availability: 'unknown',
+    context: {
+      cycleId: `lunation-${lunation}`,
+      cycleLabel: `${echo.context?.cycleLabel || cycleInfo.label}`,
+      phaseId: echo.context?.phaseId || lunar.phaseId,
+      phaseLabel: echo.context?.label || lunar.phaseName
+    }
+  };
 }
 
-function createJourneyService(services             ) {
-  const owner=services.auth.getUser()?.id;
-  const valid=()=>Boolean(owner && services.auth.getUser()?.id===owner && !services.isSampleMode?.());
-  const storageKey=`luna.echo-journey.place.v1.${owner || 'signed-out'}`;
+function createJourneyService(services              ) {
+  const owner = services.auth.getUser()?.id;
+  const valid = () => Boolean(owner && services.auth.getUser()?.id === owner && !services.isSampleMode?.());
+  const storageKey = `luna.echo-journey.place.v1.${owner || 'signed-out'}`;
+
+  const allEchoes = ()                => {
+    return valid()
+      ? services
+          .snapshot()
+          .echoes.filter(
+            (e) =>
+              e.kind === 'voice' &&
+              e.user_id === owner &&
+              e.provenance !== 'synthetic' &&
+              Number.isFinite(Date.parse(e.occurredAt))
+          )
+          .map(journeyEcho)
+      : [];
+  };
+
   return {
-    owner, valid,
-    items()              {return valid()?services.snapshot().echoes.filter(e=>e.kind==='voice'&&e.user_id===owner&&e.provenance!=='synthetic'&&Number.isFinite(Date.parse(e.occurredAt))).map(journeyEcho):[];},
-    async resolve(id       ,signal            ,options                   ={}) {
-      if(!valid())return {status:'authentication-required'};
-      let echo     ;
-      try{echo=await services.echoes.get(id);}catch{return {status:'unavailable'};}
-      if(!valid()||signal.aborted)return {status:'authentication-required'};
-      if(echo.user_id!==owner||echo.provenance==='synthetic')return {status:'forbidden'};
-      const url=await services.audio.resolve(echo,{signal,refresh:options.refresh});
-      if(!valid()||signal.aborted){if(url?.startsWith('blob:'))URL.revokeObjectURL(url);return {status:'authentication-required'};}
-      if(url)return {status:'ready',url};
-      return {status:echo.audio_path?'retryable-error':'unavailable'};
+    owner,
+    valid,
+    currentLunation()         {
+      return getCurrentLunation();
     },
-    loadPlace(resume=false)                   {if(!valid())return null;try{const p=JSON.parse(localStorage.getItem(storageKey+(resume?'.resume':'.bookmark'))||'null');return p&&typeof p.echoId==='string'&&Number.isFinite(p.seconds)&&p.seconds>=0&&['oldest','newest'].includes(p.order)?p:null;}catch{return null;}},
-    savePlace(place             ,resume=false)         {if(!valid()||!place.echoId)return false;try{localStorage.setItem(storageKey+(resume?'.resume':'.bookmark'),JSON.stringify({echoId:place.echoId,seconds:place.seconds,order:place.order}));return true;}catch{return false;}},
-    clearPlace(){if(valid()){localStorage.removeItem(storageKey+'.bookmark');localStorage.removeItem(storageKey+'.resume');}}
+    currentCycleId()         {
+      return `lunation-${getCurrentLunation()}`;
+    },
+    items(cycleId         )                {
+      const all = allEchoes();
+      if (!cycleId) return all;
+      return all.filter((e) => e.context.cycleId === cycleId);
+    },
+    getCycles()                 {
+      const currentLun = getCurrentLunation();
+      const all = allEchoes();
+      const countMap = new Map                ();
+
+      for (const e of all) {
+        const lun = Number(e.context.cycleId.replace('lunation-', ''));
+        if (Number.isFinite(lun)) {
+          countMap.set(lun, (countMap.get(lun) || 0) + 1);
+        }
+      }
+
+      // Always include current cycle even if 0 recordings
+      if (!countMap.has(currentLun)) {
+        countMap.set(currentLun, 0);
+      }
+
+      // Sort descending (newest lunation first)
+      const sortedLunations = Array.from(countMap.keys()).sort((a, b) => b - a);
+
+      return sortedLunations.map((lun) => {
+        const info = getCycleInfoForLunation(lun, currentLun);
+        info.count = countMap.get(lun) || 0;
+        return info;
+      });
+    },
+    async resolve(id        , signal             , options                        = {}) {
+      if (!valid()) return { status: 'authentication-required'          };
+      let echo      ;
+      try {
+        echo = await services.echoes.get(id);
+      } catch {
+        return { status: 'unavailable'          };
+      }
+      if (!valid() || signal.aborted) return { status: 'authentication-required'          };
+      if (echo.user_id !== owner || echo.provenance === 'synthetic') return { status: 'forbidden'          };
+      const url = await services.audio.resolve(echo, { signal, refresh: options.refresh });
+      if (!valid() || signal.aborted) {
+        if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+        return { status: 'authentication-required'          };
+      }
+      if (url) return { status: 'ready'         , url };
+      return { status: echo.audio_path ? ('retryable-error'         ) : ('unavailable'         ) };
+    },
+    loadPlace(resume = false)                      {
+      if (!valid()) return null;
+      try {
+        const p = JSON.parse(localStorage.getItem(storageKey + (resume ? '.resume' : '.bookmark')) || 'null');
+        return p &&
+          typeof p.echoId === 'string' &&
+          Number.isFinite(p.seconds) &&
+          p.seconds >= 0 &&
+          ['oldest', 'newest'].includes(p.order)
+          ? p
+          : null;
+      } catch {
+        return null;
+      }
+    },
+    savePlace(place              , resume = false)          {
+      if (!valid() || !place.echoId) return false;
+      try {
+        localStorage.setItem(
+          storageKey + (resume ? '.resume' : '.bookmark'),
+          JSON.stringify({
+            echoId: place.echoId,
+            seconds: place.seconds,
+            order: place.order,
+            cycleId: place.cycleId
+          })
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    clearPlace() {
+      if (valid()) {
+        localStorage.removeItem(storageKey + '.bookmark');
+        localStorage.removeItem(storageKey + '.resume');
+      }
+    }
   };
 }
 
 
 // journey-view.ts
-const journeyMarkup = "<div class=\"echo-journey\"><section id=\"journey\" class=\"intro\"><div><p class=\"eyebrow\">RETURN TO ORIGINAL VOICE</p><h1>A journey through your Echoes</h1><p class=\"lead\">Listen to the moments as they unfolded.<br>Find what meets you differently this time.</p></div><div class=\"intro-orbit\" aria-hidden=\"true\"><svg viewBox=\"0 0 110 110\"><circle cx=\"55\" cy=\"55\" r=\"43\"/><circle cx=\"55\" cy=\"55\" r=\"32\"/><path d=\"M17 74Q55 41 95 72\"/><circle class=\"orbit-dot\" cx=\"87\" cy=\"26\" r=\"3\"/></svg></div></section>\n<div class=\"journey-layout\"><section class=\"listening\" aria-labelledby=\"voice-label\"><div class=\"listening-top\"><span class=\"eyebrow\" id=\"voice-label\">ORIGINAL VOICE</span><span class=\"test-label\">Original recording</span></div><div class=\"atmosphere\" aria-hidden=\"true\"><svg viewBox=\"0 0 600 160\" preserveAspectRatio=\"none\"><path d=\"M0 75Q150 30 310 92T600 60M0 104Q170 65 330 113T600 90M0 133Q170 98 330 139T600 120\"/></svg></div>\n<div class=\"voice-heading\"><p class=\"moment-date\" id=\"moment-date\"></p><h2 id=\"voice-title\"></h2><button id=\"context\" class=\"context-button\" title=\"Group the listening path by this lunar phase\"></button></div>\n<div class=\"voice-orbit\"><svg class=\"orbit\" viewBox=\"0 0 170 170\" aria-hidden=\"true\"><circle cx=\"85\" cy=\"85\" r=\"78\"/><circle cx=\"85\" cy=\"85\" r=\"63\"/><path d=\"M12 112Q82 52 158 108\"/></svg><button id=\"play\" class=\"play\" aria-label=\"Play recording\"><span id=\"play-glyph\" aria-hidden=\"true\">▶</span></button></div>\n<div class=\"wave-wrap\"><svg id=\"wave\" viewBox=\"0 0 600 72\" preserveAspectRatio=\"none\" aria-hidden=\"true\"></svg><input id=\"seek\" type=\"range\" min=\"0\" max=\"1\" step=\"0.05\" value=\"0\" aria-label=\"Listening position\"></div><div class=\"times\"><span id=\"elapsed\">0:00</span><span id=\"duration\">0:00</span></div>\n<div class=\"transport\"><button id=\"previous\" class=\"icon-button\" aria-label=\"Previous Echo\">|‹</button><span id=\"player-status\" role=\"status\" aria-live=\"polite\">Ready when you are</span><button id=\"next\" class=\"icon-button\" aria-label=\"Next Echo\">›|</button></div>\n<div class=\"place-actions\"><button id=\"save\" class=\"quiet-button\">＋ Keep this place</button><button id=\"return\" class=\"quiet-button\" disabled>↶ Return to saved place</button></div><p class=\"save-note\" id=\"save-note\">Keep a listening position to return to later.</p>\n<div class=\"continuation\"><div><span class=\"eyebrow\">THROUGH THIS FIELD</span><strong id=\"queue-count\"></strong></div><progress id=\"queue-progress\" max=\"1\" value=\"0\" aria-label=\"Journey progress\"></progress><p id=\"up-next\"></p></div>\n</section>\n<section class=\"path\" id=\"moments\" aria-labelledby=\"path-title\"><div class=\"path-heading\"><div><p class=\"eyebrow\">YOUR LISTENING PATH</p><h2 id=\"path-title\">Moments in time</h2></div><span id=\"available-count\" class=\"count\"></span></div>\n<div class=\"filters\"><fieldset><legend>Group moments</legend><div class=\"segments\"><button data-group=\"day\" aria-pressed=\"true\">Day</button><button data-group=\"phase\" aria-pressed=\"false\">Phase</button><button data-group=\"cycle\" aria-pressed=\"false\">Cycle</button></div></fieldset><label class=\"order-label\">Listening order<select id=\"order\"><option value=\"oldest\">Oldest → newest</option><option value=\"newest\">Newest → oldest</option></select></label></div>\n<label class=\"order-label journey-filter\">Filter listening path<select id=\"group-filter\"><option value=\"\">All moments</option></select></label><p class=\"path-note\">Continues across available recordings. Unavailable audio is left out.</p><div id=\"groups\"></div><p class=\"zone-note\">Days shown in <span id=\"timezone\"></span>. Phase and cycle context follows each original moment.</p></section></div>\n<p class=\"zone-note\">Your listening position is saved in this browser for this account. Audio uses local device storage first. <button id=\"clear\" class=\"quiet-button\">Clear saved place</button></p><footer>One field. Many ways of seeing.<span>Original Voice · Echo Journey</span></footer>\n<aside id=\"mobile-dock\" class=\"mobile-dock\" aria-label=\"Journey controls while browsing\" hidden><button id=\"dock-return\" class=\"dock-title\" aria-label=\"Return to current recording\"><span>LISTENING JOURNEY ↑</span><strong id=\"dock-title\"></strong></button><button id=\"dock-previous\" class=\"icon-button\" aria-label=\"Previous journey recording\">|‹</button><button id=\"dock-play\" class=\"icon-button dock-play\" aria-label=\"Play journey\">▶</button><button id=\"dock-next\" class=\"icon-button\" aria-label=\"Next journey recording\">›|</button></aside>\n</div>";
+const journeyMarkup = `<div class="echo-journey">
+  <section id="journey" class="intro">
+    <div>
+      <p class="eyebrow">RETURN TO ORIGINAL VOICE</p>
+      <h1>A journey through your Echoes</h1>
+      <p class="lead">Listen to the moments as they unfolded.<br>Find what meets you differently this time.</p>
+    </div>
+    <div class="intro-orbit" aria-hidden="true">
+      <svg viewBox="0 0 110 110"><circle cx="55" cy="55" r="43"/><circle cx="55" cy="55" r="32"/><path d="M17 74Q55 41 95 72"/><circle class="orbit-dot" cx="87" cy="26" r="3"/></svg>
+    </div>
+  </section>
+
+  <div class="cycle-nav-banner" aria-label="Lunar cycle navigation">
+    <div class="cycle-nav-controls">
+      <button id="prev-cycle" class="cycle-nav-btn" aria-label="Previous lunar cycle" title="Step back to previous lunar cycle">‹</button>
+      <div class="cycle-nav-center">
+        <span class="eyebrow cycle-badge" id="cycle-badge">LUNAR CYCLE</span>
+        <select id="cycle-select" class="cycle-select" aria-label="Select lunar cycle"></select>
+        <span id="cycle-range-label" class="cycle-range-text"></span>
+      </div>
+      <button id="next-cycle" class="cycle-nav-btn" aria-label="Next lunar cycle" title="Step forward to newer lunar cycle">›</button>
+    </div>
+  </div>
+
+  <div class="journey-layout">
+    <section class="listening" aria-labelledby="voice-label">
+      <div class="listening-top">
+        <span class="eyebrow" id="voice-label">ORIGINAL VOICE</span>
+        <span class="test-label">Original recording</span>
+      </div>
+      <div class="atmosphere" aria-hidden="true">
+        <svg viewBox="0 0 600 160" preserveAspectRatio="none"><path d="M0 75Q150 30 310 92T600 60M0 104Q170 65 330 113T600 90M0 133Q170 98 330 139T600 120"/></svg>
+      </div>
+      <div class="voice-heading">
+        <p class="moment-date" id="moment-date"></p>
+        <h2 id="voice-title"></h2>
+        <button id="context" class="context-button" title="Filter the listening path by this lunar phase"></button>
+      </div>
+      <div class="voice-orbit">
+        <svg class="orbit" viewBox="0 0 170 170" aria-hidden="true"><circle cx="85" cy="85" r="78"/><circle cx="85" cy="85" r="63"/><path d="M12 112Q82 52 158 108"/></svg>
+        <button id="play" class="play" aria-label="Play recording"><span id="play-glyph" aria-hidden="true">▶</span></button>
+      </div>
+      <div class="wave-wrap">
+        <svg id="wave" viewBox="0 0 600 72" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <input id="seek" type="range" min="0" max="1" step="0.05" value="0" aria-label="Listening position">
+      </div>
+      <div class="times">
+        <span id="elapsed">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+      <div class="transport">
+        <button id="previous" class="icon-button" aria-label="Previous Echo">|‹</button>
+        <span id="player-status" role="status" aria-live="polite">Ready when you are</span>
+        <button id="next" class="icon-button" aria-label="Next Echo">›|</button>
+      </div>
+      <div class="place-actions">
+        <button id="save" class="quiet-button">＋ Keep this place</button>
+        <button id="return" class="quiet-button" disabled>↶ Return to saved place</button>
+      </div>
+      <p class="save-note" id="save-note">Keep a listening position to return to later.</p>
+      <div class="continuation">
+        <div>
+          <span class="eyebrow">IN THIS CYCLE</span>
+          <strong id="queue-count"></strong>
+        </div>
+        <progress id="queue-progress" max="1" value="0" aria-label="Journey progress"></progress>
+        <p id="up-next"></p>
+      </div>
+    </section>
+
+    <section class="path" id="moments" aria-labelledby="path-title">
+      <div class="path-heading">
+        <div>
+          <p class="eyebrow" id="path-cycle-eyebrow">SELECTED CYCLE</p>
+          <h2 id="path-title">Moments in time</h2>
+        </div>
+        <span id="available-count" class="count"></span>
+      </div>
+      <div class="filters">
+        <fieldset>
+          <legend>Group moments</legend>
+          <div class="segments">
+            <button data-group="day" aria-pressed="true">Day</button>
+            <button data-group="phase" aria-pressed="false">Phase</button>
+          </div>
+        </fieldset>
+        <label class="order-label">
+          Listening order
+          <select id="order">
+            <option value="oldest">Oldest → newest</option>
+            <option value="newest">Newest → oldest</option>
+          </select>
+        </label>
+      </div>
+      <div class="journey-subfilters">
+        <label class="order-label">
+          Phase
+          <select id="phase-filter">
+            <option value="">All phases</option>
+          </select>
+        </label>
+        <label class="order-label">
+          Day
+          <select id="day-filter">
+            <option value="">All days</option>
+          </select>
+        </label>
+      </div>
+      <p class="path-note">Continues across recordings in this cycle. Unavailable audio is left out.</p>
+      <div id="groups"></div>
+      <p class="zone-note">Days shown in <span id="timezone"></span>. Phase and cycle context follows each original moment.</p>
+    </section>
+  </div>
+
+  <p class="zone-note">Your listening position is saved in this browser for this account. Audio uses local device storage first. <button id="clear" class="quiet-button">Clear saved place</button></p>
+  <footer>One field. Many ways of seeing.<span>Original Voice · Echo Journey</span></footer>
+  <aside id="mobile-dock" class="mobile-dock" aria-label="Journey controls while browsing" hidden>
+    <button id="dock-return" class="dock-title" aria-label="Return to current recording"><span>LISTENING JOURNEY ↑</span><strong id="dock-title"></strong></button>
+    <button id="dock-previous" class="icon-button" aria-label="Previous journey recording">|‹</button>
+    <button id="dock-play" class="icon-button dock-play" aria-label="Play journey">▶</button>
+    <button id="dock-next" class="icon-button" aria-label="Next journey recording">›|</button>
+  </aside>
+</div>`;
 
 
 // app.ts
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

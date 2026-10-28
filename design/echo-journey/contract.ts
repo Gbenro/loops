@@ -14,6 +14,19 @@ export interface JourneyEcho {
     phaseLabel: string;
   };
 }
+export interface JourneyCycle {
+  id: string; // e.g. "lunation-331"
+  lunation: number;
+  label: string;
+  name: string;
+  monthName: string;
+  year: number;
+  range: string;
+  cycleStart: string;
+  cycleEnd: string;
+  isCurrent: boolean;
+  count: number;
+}
 export type AudioResolution =
   | { status: 'ready'; url: string }
   | { status: 'unavailable' }
@@ -31,4 +44,5 @@ export interface JourneyPlace {
   echoId: string;
   seconds: number;
   order: 'oldest' | 'newest';
+  cycleId?: string;
 }
