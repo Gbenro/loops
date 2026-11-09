@@ -133,7 +133,7 @@ function renderCapture(error=''){
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<a class="text-link" href="${recordingUrl}" download="Luna-recording.${recordingBlob?.type.includes('mp4')?'mp4':'webm'}">Download original audio</a>`:''}<div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>Saved to your personal living field.<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
@@ -249,10 +249,115 @@ for(const event of ['pause','ended'])audio.addEventListener(event,()=>cancelAnim
 audio.addEventListener('loadedmetadata',()=>{if(pendingSeek!==null){try{audio.currentTime=pendingSeek;pendingSeek=null;}catch{}}});
 audio.addEventListener('error',()=>toast('This audio could not be loaded. You can still read the transcript.'));
 
+function sanitizeFilename(name:string,fallback='luna-recording'):string{
+  const cleaned=(name||'')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .replace(/[. ]+$/,'');
+  return cleaned.slice(0,80)||fallback;
+}
+
+async function getBlobHeaderBytes(blob:Blob):Promise<Uint8Array>{
+  try{
+    const slice=blob.slice(0,32);
+    if(typeof slice.arrayBuffer==='function'){
+      return new Uint8Array(await slice.arrayBuffer());
+    }
+  }catch{}
+  return new Promise((resolve)=>{
+    try{
+      const reader=new FileReader();
+      reader.onloadend=()=>{
+        resolve(reader.result instanceof ArrayBuffer?new Uint8Array(reader.result):new Uint8Array());
+      };
+      reader.onerror=()=>resolve(new Uint8Array());
+      reader.readAsArrayBuffer(blob.slice(0,32));
+    }catch{
+      resolve(new Uint8Array());
+    }
+  });
+}
+
+function detectAudioExt(bytes:Uint8Array,mime=''):string{
+  if(bytes.length>=4&&bytes[0]===0x1a&&bytes[1]===0x45&&bytes[2]===0xdf&&bytes[3]===0xa3)return 'webm';
+  if(bytes.length>=8&&bytes[4]===0x66&&bytes[5]===0x74&&bytes[6]===0x79&&bytes[7]===0x70)return 'm4a';
+  if(bytes.length>=4&&bytes[0]===0x4f&&bytes[1]===0x67&&bytes[2]===0x67&&bytes[3]===0x53)return 'ogg';
+  if(bytes.length>=3&&bytes[0]===0x49&&bytes[1]===0x44&&bytes[2]===0x33)return 'mp3';
+  if(bytes.length>=2&&bytes[0]===0xff&&(bytes[1]&0xe0)===0xe0&&(bytes[1]&0x06)===0x02)return 'mp3';
+  if(bytes.length>=12&&bytes[0]===0x52&&bytes[1]===0x49&&bytes[2]===0x46&&bytes[3]===0x46&&bytes[8]===0x57&&bytes[9]===0x41&&bytes[10]===0x56&&bytes[11]===0x45)return 'wav';
+  if(bytes.length>=4&&bytes[0]===0x66&&bytes[1]===0x4c&&bytes[2]===0x61&&bytes[3]===0x43)return 'flac';
+  const lower=(mime||'').toLowerCase();
+  if(lower.includes('webm'))return 'webm';
+  if(lower.includes('mp4')||lower.includes('m4a')||lower.includes('aac'))return 'm4a';
+  if(lower.includes('ogg')||lower.includes('opus'))return 'ogg';
+  if(lower.includes('mpeg')||lower.includes('mp3'))return 'mp3';
+  if(lower.includes('wav'))return 'wav';
+  return 'webm';
+}
+
+async function downloadAudioBlob(blob:Blob,rawTitle:string):Promise<void>{
+  const bytes=await getBlobHeaderBytes(blob);
+  const ext=detectAudioExt(bytes,blob.type);
+  const base=sanitizeFilename(rawTitle,'luna-recording');
+  const filename=`${base}.${ext}`;
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');
+  anchor.href=url;
+  anchor.download=filename;
+  anchor.style.display='none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  toast(`Downloading original audio as ${filename}`);
+}
+
+async function downloadEchoAudio(id:string):Promise<void>{
+  const echo=await services.echoes.get(id);
+  if(!echo){
+    toast('Echo could not be found.');
+    return;
+  }
+  let blob:Blob|null=null;
+  if(echo.audioBlob){
+    blob=echo.audioBlob;
+  }else{
+    try{
+      const owner=getAuthSession().userId;
+      const draft=await getDraftAudio(echo.id,owner);
+      if(draft&&draft.blob)blob=draft.blob;
+    }catch{}
+    if(!blob){
+      const source=await services.audio.resolve(echo);
+      if(source){
+        toast('Fetching original audio...');
+        try{
+          const resp=await fetch(source);
+          if(resp.ok){
+            blob=await resp.blob();
+          }
+        }catch(e){
+          console.error('Failed to fetch echo audio source',e);
+        }
+      }
+    }
+  }
+  if(!blob||!blob.size){
+    toast('No downloadable audio is available for this Echo.');
+    return;
+  }
+  await downloadAudioBlob(blob,echo.title||'Echo');
+}
+
 document.addEventListener('click',async(event)=>{
   const target=(event.target as HTMLElement).closest<HTMLElement>('[data-action]');if(!target)return;event.preventDefault();const action=target.dataset.action!;const value=target.dataset.value||'';const id=target.dataset.id||'';
   try{
     switch(action){
+      case 'download-voice':await downloadEchoAudio(id);break;
+      case 'download-capture':if(recordingBlob){keepCaptureInputs();await downloadAudioBlob(recordingBlob,captureTitle||captureText||'luna-recording');}break;
       case 'skip':document.getElementById('main')?.focus();document.getElementById('main')?.scrollIntoView({block:'start'});break;
       case 'menu':{const open=document.getElementById('sidebar')?.classList.toggle('mobile-open');target.setAttribute('aria-expanded',String(open));break;}
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}

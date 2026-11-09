@@ -19,6 +19,12 @@ import { getPhaseContent } from '../data/phaseContent.js';
 import { resolvePhaseText, getPhaseRelevantTags } from '../lib/phaseText.js';
 import { transcribeAudio, isModelLoaded, preloadModel } from '../lib/whisper.js';
 import { saveAudio, getAudioUrl, getAudio, deleteAudio, saveDraftAudio, updateDraftAudio, deleteDraftAudio, getAllDraftAudio, normalizeAudioBlob } from '../lib/audioStorage.js';
+import {
+  detectAudioFormat,
+  getBlobHeaderBytes,
+  generateAudioDownloadFilename,
+  downloadAudioFile,
+} from '../lib/audioFormat.js';
 import { useEncryption } from '../lib/EncryptionContext.jsx';
 
 // Phase-specific voice prompts
@@ -2082,28 +2088,28 @@ export function Echoes({ userId, phrases, phrasesLoading, hemisphere = 'north' }
               isUnavailable={playingId === 'unavailable-' + echo.id}
               tourId={echoIndex === 0 ? 'echoes-card' : undefined}
               onDownloadAudio={async () => {
-                const blob = await getAudio(echo.audio_path);
-                if (!blob) return;
-                const ext = blob.type.includes('mp4')
-                  ? 'mp4'
-                  : blob.type.includes('ogg')
-                    ? 'ogg'
-                    : 'webm';
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const date = (() => {
-                  if (!echo.createdAt) return 'unknown';
-                  const d = new Date(echo.createdAt);
-                  return isNaN(d.getTime()) ? 'unknown' : d.toISOString().slice(0, 10);
-                })();
-                const phase = (echo.phase || 'moon').replace(/\s+/g, '-');
-                const zodiac = (echo.zodiac || '').toLowerCase();
-                const day = echo.dayOfCycle ? `day${echo.dayOfCycle}` : '';
-                const parts = ['echo', phase, zodiac, day, date].filter(Boolean);
-                a.download = `${parts.join('_')}.${ext}`;
-                a.click();
-                URL.revokeObjectURL(url);
+                try {
+                  const blob = await getAudio(echo.audio_path, echo.id);
+                  if (!blob || blob.size === 0) {
+                    alert('Could not download audio. The recording is unavailable or could not be loaded.');
+                    return;
+                  }
+
+                  // Inspect true audio container format from binary magic bytes
+                  const slice = await getBlobHeaderBytes(blob, 64);
+                  const formatInfo = detectAudioFormat(slice, blob.type);
+
+                  if (!formatInfo) {
+                    alert('Could not identify audio format for this recording.');
+                    return;
+                  }
+
+                  const filename = generateAudioDownloadFilename(echo, formatInfo.extension);
+                  downloadAudioFile(blob, filename, formatInfo.mimeType);
+                } catch (err) {
+                  console.error('[Echoes] Audio download failed:', err);
+                  alert('Audio download failed: ' + (err?.message || 'unknown error'));
+                }
               }}
             />
           ))

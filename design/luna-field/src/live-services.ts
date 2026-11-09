@@ -926,7 +926,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   const draft = await getDraftAudio(localItem.id, userId);
                   if (draft && draft.blob) {
                     try {
-                      const ext = draft.blob.type.includes('mp4') ? 'mp4' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm';
+                      const ext = (draft.blob.type.includes('mp4') || draft.blob.type.includes('m4a')) ? 'mp4' :
+                                  draft.blob.type.includes('webm') ? 'webm' :
+                                  (draft.blob.type.includes('ogg') || draft.blob.type.includes('opus')) ? 'ogg' : 'webm';
                       audioPath = userId + '/' + localItem.id + '.' + ext;
                       await request('/storage/v1/object/echo-audio/' + audioPath, {
                         method: 'POST',
@@ -1260,8 +1262,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             classicRecord.syncStatus = 'syncing';
             classicRecord.audioSyncStatus = 'syncing';
             try {
-              const ext = audioBlob.type.includes('mp4') ? 'mp4' :
-                          audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+              const ext = (audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')) ? 'mp4' :
+                          audioBlob.type.includes('webm') ? 'webm' :
+                          (audioBlob.type.includes('ogg') || audioBlob.type.includes('opus')) ? 'ogg' : 'webm';
               const targetAudioPath = userId + '/' + echoId + '.' + ext;
 
               await supabaseFetch('/storage/v1/object/echo-audio/' + targetAudioPath, {

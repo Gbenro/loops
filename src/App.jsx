@@ -528,16 +528,20 @@ function App() {
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
         if (accessToken && refreshToken) {
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
+          try {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+          } catch (err) {
+            console.warn('[Auth] URL token restore notice:', err?.message || err);
+          }
           // Clean the tokens from the URL
           window.history.replaceState(null, '', window.location.pathname);
         }
       }
 
-      const {
+      let {
         data: { session },
       } = await supabase.auth.getSession();
       const u = session?.user || null;

@@ -9,11 +9,20 @@ const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
 
 // ─── Supabase Storage ─────────────────────────────────────────────────────────
 
+export function storageExtension(mimeType) {
+  if (!mimeType) return 'webm';
+  const lower = String(mimeType).toLowerCase();
+  if (lower.includes('mp4') || lower.includes('m4a') || lower.includes('aac')) return 'mp4';
+  if (lower.includes('webm')) return 'webm'; // Evaluate webm before opus so audio/webm;codecs=opus gets .webm
+  if (lower.includes('ogg') || lower.includes('opus')) return 'ogg';
+  if (lower.includes('wav')) return 'wav';
+  if (lower.includes('flac')) return 'flac';
+  if (lower.includes('mpeg') || lower.includes('mp3')) return 'mp3';
+  return 'webm';
+}
+
 function storagePath(userId, echoId, mimeType) {
-  const ext = mimeType?.includes('mp4') || mimeType?.includes('m4a') || mimeType?.includes('aac') ? 'mp4' :
-              mimeType?.includes('ogg') || mimeType?.includes('opus') ? 'ogg' :
-              mimeType?.includes('wav') ? 'wav' :
-              mimeType?.includes('flac') ? 'flac' : 'webm';
+  const ext = storageExtension(mimeType);
   return `${userId}/${echoId}.${ext}`;
 }
 
@@ -196,18 +205,46 @@ export async function getAudioUrl(audioPath) {
   }
 }
 
-// Download blob (for the download button) — uses signed URL
-export async function getAudio(audioPath) {
-  if (!audioPath) return null;
-  try {
-    const url = await getAudioUrl(audioPath);
-    if (!url) return null;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
-    return await res.blob();
-  } catch (_e) {
-    return null;
+// Download blob (for the download button) — uses signed URL with fallback to local draft and legacy DB
+export async function getAudio(audioPath, echoId) {
+  // 1. Try remote Supabase Storage first if path exists
+  if (audioPath) {
+    try {
+      const url = await getAudioUrl(audioPath);
+      if (url) {
+        const res = await fetch(url);
+        if (res.ok) {
+          return await res.blob();
+        }
+      }
+    } catch (_e) {
+      /* fallback below */
+    }
   }
+
+  // 2. Try durable draft audio IndexedDB (offline or un-synced)
+  if (echoId) {
+    try {
+      const draft = await getDraftAudio(echoId);
+      if (draft?.blob) {
+        return draft.blob;
+      }
+    } catch (_e) {
+      /* fallback below */
+    }
+
+    // 3. Try legacy IndexedDB
+    try {
+      const legacyBlob = await getLegacyAudioBlob(echoId);
+      if (legacyBlob) {
+        return legacyBlob;
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  return null;
 }
 
 // Delete audio file from storage
