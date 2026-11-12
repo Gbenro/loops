@@ -2,7 +2,7 @@ import { mountJourney } from './journey-ui.mjs';
 import { journeyMarkup } from './journey-view.ts';
 import type { Echo, Scenario, LoopStatus } from './contracts.ts';
 import { createMockServices, makeId, filterEchoes } from './mock-services.ts';
-import { createLiveLunaServices, saveDraftAudio, getDraftAudio, listDraftRecordings, getAuthSession } from './live-services.ts';
+import { createLiveLunaServices, saveDraftAudio, getDraftAudio, listDraftRecordings, getAuthSession, ECHOES_KEY } from './live-services.ts';
 import { getLiveLunarData } from './lunar-engine.ts';
 import { initialState, parseRoute } from './state.ts';
 import { PHASES, DEMO_CONTEXT } from './fixtures.ts';
@@ -32,6 +32,10 @@ let activeDuration=0;
 let playbackFrame=0;
 let previewFrame=0;
 let pendingSeek:number|null=null;
+let isScrubbing=false;
+let chatLoadingPromise:Promise<void>|null=null;
+let lastUserMessage='';
+let lastChatContext:string[]=[];
 const voiceEngine=new VoiceEngine();
 let recordingAnalysis:WaveAnalysis={waveform:[],source:'unavailable',duration:0};
 let recordingFinalizing=false;
@@ -82,7 +86,32 @@ async function recoverDraft(id:string){
 }
 
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
-function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;}
+async function initChatSessionIfNeeded(){
+  const user=services.auth?.getUser?.();
+  if(!user){state.chatInitialized=true;return;}
+  if(state.chatInitialized||chatLoadingPromise)return;
+  chatLoadingPromise=(async()=>{
+    try{
+      if(services.chat.getActiveSession){
+        state.chatSessionId=await services.chat.getActiveSession();
+        if(state.chatSessionId&&services.chat.getMessages){
+          const msgs=await services.chat.getMessages(state.chatSessionId);
+          if(Array.isArray(msgs)&&msgs.length){
+            state.chat=msgs;
+          }
+        }
+      }
+    }catch(err){
+      console.warn('Failed to load initial chat history:',err);
+    }finally{
+      state.chatInitialized=true;
+      chatLoadingPromise=null;
+      if(state.route.name==='chat')render();
+    }
+  })();
+}
+
+function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();}
 function isSampleMode():boolean{return Boolean(services.isSampleMode&&services.isSampleMode());}
 let journeyView:ReturnType<typeof mountJourney>|null=null;
 function render(focusMain=false){
@@ -95,6 +124,7 @@ function render(focusMain=false){
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
   if(state.route.name==='listen'&&isAuthenticated&&!sample)journeyView=mountJourney(root.querySelector('.echo-journey'),services);
+  bindSeekSurfaceEvents();
   syncAudioUI();
   void primeEchoAudio();
   void refreshRecovery();
@@ -224,21 +254,161 @@ function openThreadPicker(id:string){const db=currentDb();showModal('Make a conn
 function openReview(){showModal('Luna Field Guide & Shortcuts',`<p class="dialog-description">One field. Many ways of seeing.</p><div class="notice"><strong>Luna Living Field</strong><br>Real-time Jean Meeus ephemeris, live recording, and personalized cycles. In live mode, your data synchronizes two-way with Classic Luna and Supabase.</div><h3 style="margin-top:20px">How to explore</h3><p class="small muted" style="margin-top:8px">Visit <strong>Sky</strong> for the realistic photographic moon, cosmic tide, and wisdom sheet. Begin with <strong>Speak</strong> in the Field to capture an Echo with live waveforms. Follow your intentions in <strong>Loops</strong> or see how moments weave together across cycles in <strong>Returns</strong>.</p><div class="review-divider"><h3>Keyboard & Touch Shortcuts</h3><p class="small muted"><strong>1-4</strong> or <strong>Arrow keys</strong> in Cycles view change phases. <strong>Esc</strong> closes dialogs. <strong>Theme toggle</strong> switches between Dark and Light.</p></div><div class="review-divider"><p class="small muted">Desktop: use the left navigation. Mobile: Sky, Field, Voice, Echoes, and Luna are in the bottom bar.</p><button class="text-link" data-action="reset-open">${icon('return',15)}Reset session draft cache</button></div>`);}
 function openSignInModal(){showModal('Sign in to Luna',`<p class="dialog-description">Connect to your Luna account to access your personal Field, Echoes, and Loops.</p><form data-form="auth" style="display:flex;flex-direction:column;gap:14px;margin-top:12px"><label class="form-field"><span>Email</span><input class="text-input" name="email" type="email" autocomplete="email" required placeholder="you@domain.com" autofocus></label><label class="form-field"><span>Password</span><input class="text-input" name="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label><div id="auth-error" style="color:#ef4444;font-size:12px;min-height:16px"></div><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Sign in & Sync</button></div><p style="text-align:center;font-size:11px;color:var(--color-text-muted);margin-top:8px">Or visit <a href="/" class="gold" style="text-decoration:none">Classic Luna</a> (Sky tab) to create an account.</p></form>`);}
 function openAccountModal(user:{id:string;email?:string}){showModal('Your Luna Account',`<div style="display:flex;flex-direction:column;gap:16px;margin-top:8px"><div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:50%;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:16px">${(user.email?user.email.charAt(0):'U').toUpperCase()}</div><div><div style="font-weight:500;font-size:14px">${escapeHtml(user.email||'Luna Member')}</div><div style="font-size:11px;color:var(--color-text-muted)">Connected to Supabase Live Sync</div></div></div><div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:12px"><div style="display:flex;justify-content:space-between"><span style="color:var(--color-text-muted)">User ID</span><span style="font-family:monospace;font-size:11px">${escapeHtml(user.id.slice(0,12))}…</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--color-text-muted)">Sync status</span><span style="color:#34d399">Active · Two-way with Classic Luna</span></div></div><div class="form-foot" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><button type="button" class="btn" data-action="auth-sync">Sync Now</button><button type="button" class="btn" data-action="auth-signout" style="background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.25)">Sign out</button></div></div>`);}
-function updateWaveProgress(container:ParentNode,progress:number){const ratio=clamp01(progress);container.querySelectorAll('[data-wave-progress]').forEach(el=>el.setAttribute('width',String(ratio*720)));container.querySelectorAll('[data-wave-cursor]').forEach(el=>{el.setAttribute('x1',String(ratio*720));el.setAttribute('x2',String(ratio*720));});container.querySelectorAll('[data-orbit-progress]').forEach(el=>el.setAttribute('stroke-dasharray',`${ratio*100} 100`));}
-function stopPlayback(){audioAttempt++;cancelAnimationFrame(playbackFrame);audio.pause();try{audio.currentTime=0;}catch{}audioEchoId='';activeWaveform=[];activeDuration=0;pendingSeek=null;}
+function updateWaveProgress(container:ParentNode,progress:number){
+  const ratio=clamp01(progress);
+  container.querySelectorAll('[data-wave-progress]').forEach(el=>el.setAttribute('width',String(ratio*720)));
+  container.querySelectorAll('[data-wave-cursor]').forEach(el=>{
+    el.setAttribute('x1',String(ratio*720));
+    el.setAttribute('x2',String(ratio*720));
+  });
+  container.querySelectorAll<HTMLElement>('[data-honest-fill]').forEach(el=>{
+    el.style.width=`${ratio*100}%`;
+  });
+  container.querySelectorAll<HTMLElement>('[data-honest-thumb]').forEach(el=>{
+    el.style.left=`${ratio*100}%`;
+  });
+  container.querySelectorAll('[data-orbit-progress]').forEach(el=>el.setAttribute('stroke-dasharray',`${ratio*100} 100`));
+}
+
+function bindSeekSurfaceEvents(){
+  const surfaces=document.querySelectorAll<HTMLElement>('[data-seek-surface]');
+  surfaces.forEach(surface=>{
+    if((surface as any)._seekBound)return;
+    (surface as any)._seekBound=true;
+    const handleSeek=(e:PointerEvent|MouseEvent)=>{
+      const rect=surface.getBoundingClientRect();
+      if(!rect.width)return 0;
+      const x=Math.max(0,Math.min(rect.width,e.clientX-rect.left));
+      const ratio=x/rect.width;
+      const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;
+      const targetTime=ratio*(duration||30);
+      updateWaveProgress(surface,ratio);
+      const currentEl=document.getElementById('audio-current');
+      if(currentEl)currentEl.textContent=timecode(targetTime);
+      surface.setAttribute('aria-valuenow',String(targetTime.toFixed(1)));
+      const input=document.getElementById('audio-seek') as HTMLInputElement|null;
+      if(input)input.value=String(targetTime);
+      return targetTime;
+    };
+    surface.addEventListener('pointerdown',(e:PointerEvent)=>{
+      if(!audioEchoId&&!audio.src)return;
+      isScrubbing=true;
+      try{surface.setPointerCapture(e.pointerId);}catch{}
+      const targetTime=handleSeek(e);
+      try{audio.currentTime=targetTime;}catch{pendingSeek=targetTime;}
+    });
+    surface.addEventListener('pointermove',(e:PointerEvent)=>{
+      if(!isScrubbing)return;
+      const targetTime=handleSeek(e);
+      try{audio.currentTime=targetTime;}catch{pendingSeek=targetTime;}
+    });
+    const finishScrub=(e:PointerEvent)=>{
+      if(!isScrubbing)return;
+      isScrubbing=false;
+      try{surface.releasePointerCapture(e.pointerId);}catch{}
+      const targetTime=handleSeek(e);
+      try{audio.currentTime=targetTime;}catch{pendingSeek=targetTime;}
+      syncAudioUI();
+    };
+    surface.addEventListener('pointerup',finishScrub);
+    surface.addEventListener('pointercancel',finishScrub);
+    surface.addEventListener('keydown',(e:KeyboardEvent)=>{
+      const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;
+      if(!duration)return;
+      let target=audio.currentTime||0;
+      const step=5;
+      if(e.key==='ArrowLeft')target=Math.max(0,target-step);
+      else if(e.key==='ArrowRight')target=Math.min(duration,target+step);
+      else if(e.key==='Home')target=0;
+      else if(e.key==='End')target=duration;
+      else return;
+      e.preventDefault();
+      try{audio.currentTime=target;}catch{pendingSeek=target;}
+      syncAudioUI();
+    });
+  });
+}
+
+async function deriveEchoWaveformIfNeeded(echo:Echo):Promise<void>{
+  if(Array.isArray(echo.waveform)&&echo.waveform.length>0&&echo.waveform.some(v=>v>0.01))return;
+  let blob:Blob|null=null;
+  const owner=getAuthSession().userId;
+  try{
+    const draft=await getDraftAudio(echo.id,owner);
+    if(draft&&draft.blob)blob=draft.blob;
+  }catch{}
+  if(!blob){
+    const source=await services.audio.resolve(echo);
+    if(source){
+      try{
+        const resp=await fetch(source);
+        if(resp.ok)blob=await resp.blob();
+      }catch{}
+    }
+  }
+  if(!blob||!blob.size)return;
+  try{
+    await voiceEngine.prepare();
+    const duration=echo.duration||0;
+    const analysis=await voiceEngine.analyse(blob,duration);
+    if(analysis&&analysis.waveform&&analysis.waveform.length){
+      echo.waveform=analysis.waveform;
+      echo.waveformSource=analysis.source;
+      if(analysis.duration&&(!echo.duration||Math.abs(echo.duration-analysis.duration)>1)){
+        echo.duration=analysis.duration;
+      }
+      try{
+        const raw=localStorage.getItem(ECHOES_KEY);
+        if(raw){
+          const stored=JSON.parse(raw);
+          const idx=stored.findIndex((x:any)=>x.id===echo.id);
+          if(idx!==-1){
+            stored[idx].waveform=analysis.waveform;
+            stored[idx].waveform_levels=analysis.waveform;
+            localStorage.setItem(ECHOES_KEY,JSON.stringify(stored));
+          }
+        }
+      }catch{}
+      if(state.route.name==='echo'&&state.route.id===echo.id){
+        const playerSec=document.querySelector<HTMLElement>('.original-voice[data-echo-id="'+echo.id+'"]');
+        if(playerSec){
+          const seekEl=playerSec.querySelector<HTMLElement>('[data-seek-surface]');
+          if(seekEl&&seekEl.dataset.seekSurface==='slider'){
+            seekEl.outerHTML=`<div class="wave-seek" data-seek-surface="waveform" role="slider" aria-label="Seek in Original Voice recording" aria-valuemin="0" aria-valuemax="${echo.duration||30}" aria-valuenow="${audio.currentTime||0}" tabindex="0">${playbackWave(analysis.waveform,'player-'+echo.id)}<input id="audio-seek" aria-label="Seek in Original Voice recording" type="range" min="0" max="${echo.duration||30}" step=".05" value="${audio.currentTime||0}"></div>`;
+            const caption=playerSec.querySelector<HTMLElement>('.audio-caption');
+            if(caption){
+              const desc=analysis.source==='decoded-audio'?'Waveform derived from this audio':'Measured live input envelope';
+              caption.textContent=`${desc}. ${echo.provenance==='synthetic'?'Demonstration audio.':echo.syncStatus==='synced'?'Available from your synchronized Field.':'Cloud synchronization is pending; local audio is used when available.'}`;
+            }
+            bindSeekSurfaceEvents();
+            syncAudioUI();
+          }
+        }
+      }
+    }
+  }catch(err){
+    console.warn('Waveform analysis failed for echo:',echo.id,err);
+  }
+}
+
+function stopPlayback(){audioAttempt++;cancelAnimationFrame(playbackFrame);audio.pause();try{audio.currentTime=0;}catch{}audioEchoId='';activeWaveform=[];activeDuration=0;pendingSeek=null;isScrubbing=false;}
+
 async function primeEchoAudio(){
   if(state.route.name!=='echo')return;const echo=currentDb().echoes.find(e=>e.id===state.route.id);if(!echo||echo.kind!=='voice'||audioEchoId===echo.id)return;
   const attempt=++audioAttempt;const source=await services.audio.resolve(echo);if(attempt!==audioAttempt||state.route.name!=='echo'||state.route.id!==echo.id||!source)return;
   audio.pause();audioEchoId=echo.id;activeWaveform=echo.waveform||[];activeDuration=echo.duration||0;audio.src=source;syncAudioUI();
+  void deriveEchoWaveformIfNeeded(echo);
 }
+
 async function playEcho(id:string){
   if(audioEchoId===id&&audio.src){if(audio.paused){try{await audio.play();}catch{toast('Playback could not start. Try again in a supported browser.');}}else audio.pause();syncAudioUI();return;}
   const attempt=++audioAttempt;audio.pause();
-  try{const echo=await services.echoes.get(id);const source=await services.audio.resolve(echo);if(attempt!==audioAttempt)return;if(!source){toast('No playable audio is available for this Echo.');return;}audioEchoId=id;activeWaveform=echo.waveform||[];activeDuration=echo.duration||0;audio.src=source;audio.currentTime=0;await audio.play();syncAudioUI();}catch{toast('Audio could not be played. Your original words remain available.');}
+  try{const echo=await services.echoes.get(id);const source=await services.audio.resolve(echo);if(attempt!==audioAttempt)return;if(!source){toast('No playable audio is available for this Echo.');return;}audioEchoId=id;activeWaveform=echo.waveform||[];activeDuration=echo.duration||0;audio.src=source;audio.currentTime=0;await audio.play();syncAudioUI();void deriveEchoWaveformIfNeeded(echo);}catch{toast('Audio could not be played. Your original words remain available.');}
 }
+
 function syncAudioUI(){
   const currentButton=document.querySelector<HTMLButtonElement>('[data-action="play"]');if(!currentButton)return;const active=currentButton.dataset.id===audioEchoId;const playing=active&&!audio.paused;currentButton.innerHTML=icon(playing?'pause':'play',23);currentButton.setAttribute('aria-label',`${playing?'Pause':'Play'} Original Voice`);
-  if(!active)return;const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;const current=audio.currentTime||0;const progress=duration?current/duration:0;const input=document.getElementById('audio-seek') as HTMLInputElement|null;if(input){input.max=String(duration||30);input.value=String(current);input.setAttribute('aria-valuetext',`${timecode(current)} of ${timecode(duration)}`);}const currentEl=document.getElementById('audio-current');if(currentEl&&currentEl.textContent!==timecode(current))currentEl.textContent=timecode(current);const durationEl=document.getElementById('audio-duration');if(durationEl&&duration)durationEl.textContent=timecode(duration);
+  if(!active)return;if(isScrubbing)return;const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;const current=audio.currentTime||0;const progress=duration?current/duration:0;const input=document.getElementById('audio-seek') as HTMLInputElement|null;if(input){input.max=String(duration||30);input.value=String(current);input.setAttribute('aria-valuetext',`${timecode(current)} of ${timecode(duration)}`);}const seekSurface=document.querySelector<HTMLElement>('[data-seek-surface]');if(seekSurface){seekSurface.setAttribute('aria-valuemax',String(duration||30));seekSurface.setAttribute('aria-valuenow',String(current.toFixed(1)));}const currentEl=document.getElementById('audio-current');if(currentEl&&currentEl.textContent!==timecode(current))currentEl.textContent=timecode(current);const durationEl=document.getElementById('audio-duration');if(durationEl&&duration)durationEl.textContent=timecode(duration);
   const player=document.querySelector<HTMLElement>('.original-voice');if(player){updateWaveProgress(player,progress);player.classList.toggle('is-playing',playing);player.style.setProperty('--voice-energy',String(playing&&!matchMedia('(prefers-reduced-motion: reduce)').matches?sampleEnvelope(activeWaveform,progress):0));}
 }
 let lastPlaybackDraw=0;
@@ -363,7 +533,49 @@ document.addEventListener('click',async(event)=>{
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'review':openReview();break;
       case 'open-auth':{const u=services.auth?.getUser?.();if(u)openAccountModal(u);else openSignInModal();break;}
-      case 'auth-signout':{stopPlayback();cleanupCapture();await services.auth?.signOut?.();closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'auth-signout':{stopPlayback();cleanupCapture();await services.auth?.signOut?.();state.chat=[];state.chatSessionId=null;state.chatInitialized=false;state.chatError=null;state.chatContext=[];closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'toggle-transcript':{
+        const targetId=target.dataset.target;
+        const container=targetId?document.getElementById(targetId):target.previousElementSibling;
+        if(container){
+          const isCollapsed=container.classList.contains('collapsed');
+          if(isCollapsed){
+            container.classList.remove('collapsed');
+            container.classList.add('expanded');
+            target.setAttribute('aria-expanded','true');
+            target.innerHTML=`${icon('up',13)}<span>Show less</span>`;
+          }else{
+            container.classList.remove('expanded');
+            container.classList.add('collapsed');
+            target.setAttribute('aria-expanded','false');
+            target.innerHTML=`${icon('down',13)}<span>Show more</span>`;
+            container.scrollIntoView({behavior:'smooth',block:'nearest'});
+          }
+        }
+        break;
+      }
+      case 'retry-chat':{
+        if(!lastUserMessage)return;
+        const token=generation;
+        state.chatBusy=true;
+        state.chatError=null;
+        render();
+        try{
+          const clientTurnId=makeId('turn');
+          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          if(token!==generation)return;
+          state.chat.push(response);
+          state.chatBusy=false;
+          state.chatError=null;
+          render();
+        }catch(err:any){
+          if(token!==generation)return;
+          state.chatBusy=false;
+          state.chatError=err.message||'Retry failed.';
+          render();
+        }
+        break;
+      }
       case 'auth-sync':{closeModal();toast('Synchronizing with your Luna account...');await services.sync?.();render(true);toast(services.snapshot().echoes.some(e=>e.user_id===services.auth.getUser()?.id&&e.syncStatus!=='synced')?'Sync checked. Some Echoes still need synchronization.':'Your Field is synchronized.');break;}
       case 'toggle-sample-mode':{const active=isSampleMode();services.setSampleMode?.(!active);render(true);toast(!active?'Exploring sample field with illustrative data.':'Returned to your personal living field.');break;}
       case 'close-modal':closeModal();break;
@@ -464,14 +676,61 @@ document.addEventListener('submit',async(event)=>{
       case 'thread-link':{await services.threads.linkEcho(String(data.get('thread')),form.dataset.id!);closeModal();render();toast('Connected by you.');break;}
       case 'chat-context':state.chatContext=data.getAll('echo').map(String);closeModal();render();break;
       case 'chat':{
-        const message=String(data.get('message')||'').trim();if(!message)return;const token=generation;const context=[...state.chatContext];state.chat.push({id:makeId('message'),role:'person',content:message,echoIds:context});delete drafts['chat-input'];state.chatBusy=true;render();
-        await new Promise(resolve=>setTimeout(resolve,550));const response=await services.chat.respond(message,context);if(token!==generation)return;state.chat.push(response);state.chatBusy=false;if(state.route.name==='chat'){render();document.getElementById('chat-input')?.focus({preventScroll:true});document.getElementById('chat-input')?.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}break;
+        const message=String(data.get('message')||'').trim();if(!message)return;
+        lastUserMessage=message;
+        lastChatContext=[...state.chatContext];
+        const user=services.auth?.getUser?.();
+        if(!user){
+          toast('Sign in to converse with Luna.');
+          openSignInModal();
+          return;
+        }
+        const token=generation;
+        const context=[...state.chatContext];
+        state.chat.push({id:makeId('message'),role:'person',content:message,echoIds:context});
+        delete drafts['chat-input'];
+        state.chatBusy=true;
+        state.chatError=null;
+        render();
+        try{
+          const clientTurnId=makeId('turn');
+          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          if(token!==generation)return;
+          state.chat.push(response);
+          state.chatBusy=false;
+          state.chatError=null;
+          if(state.route.name==='chat'){
+            render();
+            document.getElementById('chat-input')?.focus({preventScroll:true});
+            document.getElementById('chat-input')?.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+          }
+        }catch(err:any){
+          if(token!==generation)return;
+          state.chatBusy=false;
+          state.chatError=err.message||'Luna could not respond at this time.';
+          render();
+        }
+        break;
       }
     }
   }catch(error){state.chatBusy=false;const errorEl=document.getElementById('capture-error');if(modal.open&&errorEl)errorEl.textContent=(error as Error).message;else toast((error as Error).message||'That could not be kept. Please try again.');}
   finally{submitting=false;if(submit?.isConnected)submit.disabled=false;}
 });
-window.addEventListener('luna-account-changed',()=>{generation++;stopPlayback();cleanupCapture();closeModal();state.chat=[];state.chatContext=[];Object.keys(drafts).forEach(key=>delete drafts[key]);render();});
+window.addEventListener('luna-account-changed',()=>{
+  generation++;
+  stopPlayback();
+  cleanupCapture();
+  closeModal();
+  state.chat=[];
+  state.chatSessionId=null;
+  state.chatInitialized=false;
+  state.chatError=null;
+  state.chatContext=[];
+  lastUserMessage='';
+  lastChatContext=[];
+  Object.keys(drafts).forEach(key=>delete drafts[key]);
+  render();
+});
 window.addEventListener('hashchange',()=>{stopPlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
 window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});

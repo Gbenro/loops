@@ -14,6 +14,7 @@ export function icon(name:string,size=20){
     arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',
     back:'<path d="M20 12H4m6-6-6 6 6 6"/>',
     down:'<path d="m6 9 6 6 6-6"/>',
+    up:'<path d="m18 15-6-6-6 6"/>',
     download:'<path d="M12 3v13m-5-5 5 5 5-5M4 20h16"/>',
     close:'<path d="m6 6 12 12M6 18 18 6"/>',
     play:'<path d="m9 5 11 7-11 7V5Z" fill="currentColor" stroke="none"/>',

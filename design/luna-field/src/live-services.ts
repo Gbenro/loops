@@ -23,7 +23,7 @@ import { getLiveLunarData, type LiveLunarBundle } from './lunar-engine.ts';
 const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 const LOOPS_KEY = 'cosmic_loops_v1';
-const ECHOES_KEY = 'cosmic_echoes_v1';
+export const ECHOES_KEY = 'cosmic_echoes_v1';
 const REFLECTIONS_KEY = 'cosmic_reflections_v1';
 const AUTH_KEY = 'sb-eyxvsbqyzeodsjajfqsj-auth-token';
 const SAMPLE_MODE_KEY = 'luna_beta_sample_mode';
@@ -1619,19 +1619,137 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     },
 
     chat: {
-      async respond(message: string, echoIds: string[]): Promise<ChatMessage> {
-        if (!cleanText(message)) throw new Error('Write a message first.');
-        const db = assembleSnapshot();
-        const selected = echoIds.map(id => db.echoes.find(e => e.id === id)).filter(Boolean) as Echo[];
+      async getActiveSession(): Promise<string> {
+        const currentUserId = getAuthSession().userId;
+        if (!currentUserId) return 'demo-session';
+        try {
+          const rows = await supabaseFetch(
+            `/rest/v1/chat_sessions?select=id,title,updated_at,created_at&user_id=eq.${encodeURIComponent(currentUserId)}&order=updated_at.desc&limit=1`
+          );
+          if (Array.isArray(rows) && rows.length > 0 && rows[0]?.id) {
+            return rows[0].id;
+          }
+          const newId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          await supabaseFetch('/rest/v1/chat_sessions', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=representation' },
+            body: JSON.stringify({
+              id: newId,
+              user_id: currentUserId,
+              title: 'Continuous Reflection'
+            })
+          });
+          return newId;
+        } catch (err) {
+          console.warn('Failed to load/create active chat session from Supabase:', err);
+          return `session_${Date.now()}_local`;
+        }
+      },
 
-        return {
-          id: makeId('chat'),
-          role: 'luna',
-          echoIds: selected.map(e => e.id),
-          content: selected.length
-            ? 'You have brought ' + selected.map(e => '“' + e.title + '”').join(' and ') + ' into this conversation. What feels the same when you return to ' + (selected.length === 1 ? 'this moment' : 'these moments') + ', and what feels different? This is a scripted demonstration prompt; no model has read or interpreted your message.'
-            : 'What would you like to look at together? You can bring an Echo into this conversation using the context picker. This is a scripted demonstration; I do not have an active model connection in this beta.'
-        };
+      async getMessages(sessionId: string): Promise<ChatMessage[]> {
+        const currentUserId = getAuthSession().userId;
+        if (!currentUserId || !sessionId || sessionId === 'demo-session') return [];
+        try {
+          const rows = await supabaseFetch(
+            `/rest/v1/chat_messages?select=id,role,content,session_id,created_at,metadata&session_id=eq.${encodeURIComponent(sessionId)}&order=created_at.asc`
+          );
+          if (!Array.isArray(rows)) return [];
+          return rows
+            .filter((m: any) => m.role !== 'system' && m.content !== '__LUNA_SESSION_ARCHIVED__')
+            .map((m: any) => ({
+              id: m.id || makeId('msg'),
+              role: m.role === 'assistant' ? 'luna' : 'person',
+              content: m.content || '',
+              echoIds: Array.isArray(m.metadata?.selectedEchoIds)
+                ? m.metadata.selectedEchoIds
+                : Array.isArray(m.metadata?.echoIds)
+                ? m.metadata.echoIds
+                : []
+            }));
+        } catch (err) {
+          console.warn('Failed to load chat messages from Supabase:', err);
+          return [];
+        }
+      },
+
+      async respond(message: string, echoIds: string[], options?: { sessionId?: string; clientTurnId?: string }): Promise<ChatMessage> {
+        const clean = cleanText(message);
+        if (!clean) throw new Error('Write a message first.');
+
+        let auth = getAuthSession();
+        if (!auth.userId || !auth.token) {
+          throw new Error('Sign in to converse with Luna.');
+        }
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (auth.refreshToken && auth.expiresAt && auth.expiresAt - nowSec < 60) {
+          try {
+            const refreshed = await refreshAuthSession();
+            if (refreshed.token) {
+              auth = getAuthSession();
+            }
+          } catch {}
+        }
+
+        const sessionId = options?.sessionId || (await this.getActiveSession());
+        const clientTurnId = options?.clientTurnId || makeId('turn');
+        const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/chat`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: clean,
+              sessionId,
+              clientTurnId,
+              metadata: {
+                selectedEchoIds: echoIds || []
+              }
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            let errMsg = `Server error (${response.status})`;
+            try {
+              const errData = await response.json();
+              errMsg = errData.error || errMsg;
+            } catch {
+              try {
+                const txt = await response.text();
+                if (txt) errMsg = txt;
+              } catch {}
+            }
+            throw new Error(errMsg);
+          }
+
+          const data = await response.json();
+          const reply = data.message?.content || data.reply || '';
+          if (!reply && data.error) {
+            throw new Error(data.error);
+          }
+
+          return {
+            id: data.message?.id || data.assistantMessageId || makeId('chat'),
+            role: 'luna',
+            content: reply,
+            echoIds: echoIds || []
+          };
+        } catch (fetchErr: any) {
+          clearTimeout(timeoutId);
+          if (fetchErr.name === 'AbortError') {
+            throw new Error('Luna took longer than expected to respond. Please retry.');
+          }
+          throw fetchErr;
+        }
       }
     },
 
