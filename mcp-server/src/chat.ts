@@ -752,9 +752,17 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
 }
 
 // 3. OpenRouter Adapter
-async function callOpenRouter(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+async function callOpenRouter(
+  modelId: string,
+  messages: any[],
+  systemPrompt: string,
+  tools: any[],
+  maxTokens: number = 4096
+): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured on server');
+
+  const configuredMaxTokens = process.env.OPENROUTER_MAX_TOKENS ? parseInt(process.env.OPENROUTER_MAX_TOKENS, 10) : maxTokens;
 
   const formattedMessages = [
     { role: 'system', content: systemPrompt },
@@ -782,7 +790,8 @@ async function callOpenRouter(modelId: string, messages: any[], systemPrompt: st
       body: JSON.stringify({
         model: modelId,
         messages: formattedMessages,
-        tools: tools.length > 0 ? tools : undefined
+        tools: tools.length > 0 ? tools : undefined,
+        max_tokens: configuredMaxTokens
       }),
       signal: controller.signal
     });
