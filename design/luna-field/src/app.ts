@@ -756,3 +756,15 @@ applyRoute();render();
 
 if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
 window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
+
+// Refresh the Field after returning from Classic or an Android background pause.
+let resumeSync: Promise<void> | null = null;
+function syncOnReturn() {
+  if (document.visibilityState !== 'visible' || captureActive || resumeSync) return;
+  resumeSync = Promise.resolve(services.sync?.()).then(() => render()).catch(() => {}).finally(() => { resumeSync = null; });
+}
+document.addEventListener('visibilitychange', syncOnReturn);
+window.addEventListener('focus', syncOnReturn);
+window.addEventListener('storage', event => {
+  if (event.key === 'cosmic_echoes_v1' || event.key === 'cosmic_loops_v1') syncOnReturn();
+});

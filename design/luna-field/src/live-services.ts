@@ -1,3 +1,4 @@
+import { idbStorage } from '../../../src/lib/authStorage.js';
 import type {
   LunaServices,
   FieldSnapshot,
@@ -304,21 +305,7 @@ async function refreshAuthSessionUnlocked(): Promise<{ token: string | null; use
         user: data.user || session.user
       };
 
-      setStoredJson(AUTH_KEY, updatedSession);
-
-      try {
-        if (typeof indexedDB !== 'undefined') {
-          const req = indexedDB.open('luna_auth_db', 1);
-          req.onsuccess = (e: any) => {
-            const idb = e.target.result;
-            if (getAuthSession().token !== updatedSession.access_token) { idb.close?.(); return; }
-            if (idb?.objectStoreNames?.contains('auth')) {
-              const tx = idb.transaction('auth', 'readwrite');
-              tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
-            }
-          };
-        }
-      } catch {}
+      await idbStorage.setItem(AUTH_KEY, JSON.stringify(updatedSession));
 
       return {
         token: updatedSession.access_token,
@@ -343,7 +330,7 @@ export async function refreshAuthSession(): Promise<{token:string|null;userId:st
     if (now.token !== before.token) return now; // another tab already refreshed
     return refreshAuthSessionUnlocked();
   };
-  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('luna-auth-refresh', run) : run();
+  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('lock:' + AUTH_KEY, run) : run();
 }
 
 async function supabaseFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
@@ -414,7 +401,7 @@ function mapClassicStatusToBeta(status: string, hasHistory = false): LoopStatus 
 function mapBetaStatusToClassic(status: LoopStatus): string {
   switch (status) {
     case 'closed': return 'closed';
-    case 'carried-forward': return 'carried';
+    case 'carried-forward': return 'active';
     case 'completed': return 'released';
     case 'open':
     case 'evolving':
@@ -467,8 +454,11 @@ function mapClassicLoopToBeta(raw: any): Loop {
   const id = String(raw.id || makeId('loop'));
   const title = String(raw.title || '').trim() || 'Untitled intention';
   const note = String(raw.note || '');
-  const history: { status: LoopStatus; at: string }[] = Array.isArray(raw.history) ? raw.history : [];
-  const status = mapClassicStatusToBeta(raw.status || 'active', history.length > 0);
+  const lifecycle = raw.metadata?.luna_beta_lifecycle;
+  const history: { status: LoopStatus; at: string }[] = Array.isArray(lifecycle?.history) ? lifecycle.history : Array.isArray(raw.history) ? raw.history : [];
+  const currentMarker = lifecycle && lifecycle.classicStatus === raw.status &&
+    Date.parse(lifecycle.updatedAt) === Date.parse(raw.updated_at || raw.updatedAt) && LOOP_STATUSES.includes(lifecycle.status);
+  const status = currentMarker ? lifecycle.status : mapClassicStatusToBeta(raw.status || 'active');
 
   const echoId = raw.linkedTo || raw.related_echo_ids?.[0] || raw.relatedEchoIds?.[0] || undefined;
 
@@ -503,6 +493,13 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   if (typeof window !== 'undefined') window.addEventListener('storage', event => {
     if (event.key === AUTH_KEY || event.key === null) accountChanged();
   });
+
+  async function restoreSession(): Promise<void> {
+    if (!getAuthSession().token) {
+      await idbStorage.getItem(AUTH_KEY);
+      accountChanged();
+    }
+  }
 
   function computeLiveCycles(lunar: LiveLunarBundle): Cycle[] {
     const cycleRange = lunar.cycleStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
@@ -618,6 +615,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   let pendingSyncRequested = false;
 
   async function syncServer(): Promise<void> {
+    await restoreSession();
     if (activeSyncPromise) {
       pendingSyncRequested = true;
       return activeSyncPromise;
@@ -737,6 +735,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     status: localItem.status,
+                    metadata: { ...sl.metadata, ...localItem.metadata },
+                    closed_at: localItem.closed_at,
+                    released_at: localItem.released_at,
+                    phase_closed: localItem.phase_closed,
+                    phase_name_closed: localItem.phase_name_closed,
+                    lunar_month_closed: localItem.lunar_month_closed,
                     note: localItem.note,
                     title: localItem.title,
                     updated_at: localItem.updated_at || new Date().toISOString()
@@ -778,6 +782,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                     title: localItem.title,
                     note: localItem.note,
                     status: localItem.status || 'active',
+                    metadata: localItem.metadata || {},
                     created_at: localItem.created_at || localItem.createdAt || new Date().toISOString(),
                     updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
                   })
@@ -1043,8 +1048,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     }
   }
 
-  // Initial async sync without blocking instant render
-  void syncServer().catch(() => {});
+  // The app starts synchronization after its account-change listeners are installed.
 
   return {
     mode: sampleMode ? 'sample' : 'live',
@@ -1058,6 +1062,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
     auth: {
       async getSession() {
+        await restoreSession();
         const { token, userId } = getAuthSession();
         return {
           mode: token && userId ? 'authenticated' : 'demo',
@@ -1109,21 +1114,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           user: data.user
         };
 
-        setStoredJson(AUTH_KEY, sessionRecord);
+        await idbStorage.setItem(AUTH_KEY, JSON.stringify(sessionRecord));
         accountChanged();
-
-        // Also persist to IndexedDB so Classic Luna inherits the session immediately
-        try {
-          const req = indexedDB.open('luna_auth_db', 1);
-          req.onsuccess = (e: any) => {
-            const idb = e.target.result;
-            if (getAuthSession().token !== sessionRecord.access_token) { idb.close?.(); return; }
-            if (idb?.objectStoreNames?.contains('auth')) {
-              const tx = idb.transaction('auth', 'readwrite');
-              tx.objectStore('auth').put(JSON.stringify(sessionRecord), AUTH_KEY);
-            }
-          };
-        } catch {}
 
         sampleMode = false;
         localStorage.setItem(SAMPLE_MODE_KEY, 'false');
@@ -1139,21 +1131,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         inFlightRefresh = null;
         signedUrlCache.clear();
         objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
-        localStorage.removeItem(AUTH_KEY);
+        const removal = idbStorage.removeItem(AUTH_KEY);
         accountChanged();
-        try {
-          if (typeof indexedDB !== 'undefined') {
-            const req = indexedDB.open('luna_auth_db', 1);
-            req.onsuccess = (e: any) => {
-              const idb = e.target.result;
-              if (getAuthSession().token) { idb.close?.(); return; }
-              if (idb?.objectStoreNames?.contains('auth')) {
-                const tx = idb.transaction('auth', 'readwrite');
-                tx.objectStore('auth').delete(AUTH_KEY);
-              }
-            };
-          }
-        } catch {}
+        await removal;
+
         memorySnapshot = assembleSnapshot();
       }
     },
@@ -1464,9 +1445,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         const loop = local.find(l => l.id === id);
         if (!loop) throw new Error('This Loop is no longer available.');
 
-        if (!Array.isArray(loop.history)) loop.history = [];
+        const previous = mapClassicLoopToBeta(loop);
+        loop.history = [...previous.history];
         loop.history.push({
-          status: mapClassicStatusToBeta(loop.status || 'active', loop.history.length > 0),
+          status: previous.status,
           at: new Date().toISOString()
         });
 
@@ -1477,6 +1459,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         loop.status = classicStatus;
         loop.updatedAt = nowIso;
         loop.updated_at = nowIso;
+        loop.metadata = { ...loop.metadata, luna_beta_lifecycle: {
+          status, classicStatus, updatedAt: nowIso, history: loop.history
+        } };
 
         if (classicStatus === 'closed') {
           loop.closedAt = nowIso;
@@ -1498,6 +1483,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           loop.lunar_month_closed = lunar.lunarMonth;
         }
 
+        if (classicStatus === 'active') {
+          loop.closedAt = loop.closed_at = loop.releasedAt = loop.released_at = null;
+          loop.phaseClosed = loop.phase_closed = loop.phaseNameClosed = loop.phase_name_closed = null;
+          loop.lunarMonthClosed = loop.lunar_month_closed = null;
+        }
+
         const { token, userId } = getAuthSession();
         loop.syncStatus = (userId && token) ? 'syncing' : 'local-only';
         setStoredJson(LOOPS_KEY, local);
@@ -1509,6 +1500,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 status: classicStatus,
+                metadata: loop.metadata,
                 closed_at: loop.closed_at,
                 released_at: loop.released_at,
                 phase_closed: loop.phase_closed,
@@ -1775,14 +1767,15 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         if (!valid()) return null;
         if (sampleMode && echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
 
+        const path = (echo as any).audio_path || (echo as any).audioPath;
+
         // 2. Only use echo.audioUrl if it is a remote/data URL or if no durable draft was found
-        if (echo.audioUrl) {
+        if (!path && echo.audioUrl) {
           if (echo.audioUrl.startsWith('http://') || echo.audioUrl.startsWith('https://') || echo.audioUrl.startsWith('data:')) {
             return echo.audioUrl;
           }
         }
 
-        const path = (echo as any).audio_path || (echo as any).audioPath;
         if (!path) {
           if (echo.audioUrl) return echo.audioUrl;
           return null;

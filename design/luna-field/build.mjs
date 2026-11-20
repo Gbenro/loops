@@ -26,7 +26,8 @@ const sources = [
   'app'
 ];
 
-const parts = [];
+const sharedAuth = (await readFile(path.resolve(project, '../../src/lib/authStorage.js'), 'utf8')).replace(/^export /gm, '');
+const parts = [sharedAuth];
 for (const name of sources) {
   const raw = await readFile(path.join(project, 'src', `${name}.ts`), 'utf8');
   const js = stripTypeScriptTypes(raw, { mode: 'strip' })

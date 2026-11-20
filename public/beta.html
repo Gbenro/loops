@@ -655,6 +655,83 @@ function mountJourney(host, services) {
 }
 
 
+// Shared by Classic and Beta. Bound every IndexedDB operation, not just opening.
+function createAuthStorage(timeoutMs = 1500) {
+  const versions = new Map();
+  const local = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+  const marker = (key) => key + ':signed-out';
+  const version = (key) => versions.get(key) || 0;
+  function transact(key, mode, value, expectedVersion) {
+    return new Promise((resolve) => {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      let done = false, db, tx;
+      const finish = (result = null) => {
+        if (done) return;
+        done = true; clearTimeout(timer); db?.close?.(); resolve(result);
+      };
+      const timer = setTimeout(() => { try { tx?.abort?.(); } catch {} finish(); }, timeoutMs);
+      try {
+        const request = indexedDB.open('luna_auth_db', 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains('auth')) database.createObjectStore('auth');
+        };
+        request.onerror = request.onblocked = () => finish();
+        request.onsuccess = () => {
+          db = request.result;
+          if (done) { db?.close?.(); return; }
+          if (expectedVersion !== version(key)) { finish(); return; }
+          // A newer tab may have changed the session while IndexedDB was opening.
+          const current = local(key);
+          if (mode === 'put' && ((current !== null && current !== value) || local(marker(key)))) { finish(); return; }
+          if (mode === 'delete' && current !== null) { finish(); return; }
+          try {
+            tx = db.transaction('auth', mode === 'get' ? 'readonly' : 'readwrite');
+            const store = tx.objectStore('auth');
+            const op = mode === 'get' ? store.get(key) : mode === 'put' ? store.put(value, key) : store.delete(key);
+            if (mode === 'get') op.onsuccess = () => finish(op.result ?? null);
+            tx.oncomplete = () => finish();
+            tx.onerror = tx.onabort = () => finish();
+            op.onerror = () => finish();
+          } catch { finish(); }
+        };
+      } catch { finish(); }
+    });
+  }
+  return {
+    async getItem(key) {
+      // The synchronous copy contains the latest rotated token even if IDB is stale.
+      const current = local(key);
+      if (current !== null) {
+        void transact(key, 'put', current, version(key));
+        return current;
+      }
+      if (local(marker(key))) return null;
+      const before = version(key);
+      const stored = await transact(key, 'get', null, before);
+      if (before !== version(key) || local(marker(key))) return local(key);
+      const newer = local(key);
+      if (newer !== null) return newer;
+      if (typeof stored !== 'string') return null;
+      try { localStorage.setItem(key, stored); } catch {}
+      return stored;
+    },
+    async setItem(key, value) {
+      const next = version(key) + 1; versions.set(key, next);
+      try { localStorage.setItem(key, value); localStorage.removeItem(marker(key)); } catch {}
+      await transact(key, 'put', value, next);
+    },
+    async removeItem(key) {
+      const next = version(key) + 1; versions.set(key, next);
+      // Retain a tombstone if IDB deletion stalls, so a later launch cannot revive it.
+      try { localStorage.setItem(marker(key), '1'); localStorage.removeItem(key); } catch {}
+      await transact(key, 'delete', null, next);
+    }
+  };
+}
+const idbStorage = createAuthStorage();
+
+
 // audio-geometry.ts
 /** Pure audio-to-geometry functions. No animation clock, randomness, or sentiment input. */
 
@@ -1809,21 +1886,7 @@ async function refreshAuthSessionUnlocked()                                     
         user: data.user || session.user
       };
 
-      setStoredJson(AUTH_KEY, updatedSession);
-
-      try {
-        if (typeof indexedDB !== 'undefined') {
-          const req = indexedDB.open('luna_auth_db', 1);
-          req.onsuccess = (e     ) => {
-            const idb = e.target.result;
-            if (getAuthSession().token !== updatedSession.access_token) { idb.close?.(); return; }
-            if (idb?.objectStoreNames?.contains('auth')) {
-              const tx = idb.transaction('auth', 'readwrite');
-              tx.objectStore('auth').put(JSON.stringify(updatedSession), AUTH_KEY);
-            }
-          };
-        }
-      } catch {}
+      await idbStorage.setItem(AUTH_KEY, JSON.stringify(updatedSession));
 
       return {
         token: updatedSession.access_token,
@@ -1848,7 +1911,7 @@ async function refreshAuthSession()                                             
     if (now.token !== before.token) return now; // another tab already refreshed
     return refreshAuthSessionUnlocked();
   };
-  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('luna-auth-refresh', run) : run();
+  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('lock:' + AUTH_KEY, run) : run();
 }
 
 async function supabaseFetch(endpoint        , options              = {})               {
@@ -1919,7 +1982,7 @@ function mapClassicStatusToBeta(status        , hasHistory = false)             
 function mapBetaStatusToClassic(status            )         {
   switch (status) {
     case 'closed': return 'closed';
-    case 'carried-forward': return 'carried';
+    case 'carried-forward': return 'active';
     case 'completed': return 'released';
     case 'open':
     case 'evolving':
@@ -1972,8 +2035,11 @@ function mapClassicLoopToBeta(raw     )       {
   const id = String(raw.id || makeId('loop'));
   const title = String(raw.title || '').trim() || 'Untitled intention';
   const note = String(raw.note || '');
-  const history                                       = Array.isArray(raw.history) ? raw.history : [];
-  const status = mapClassicStatusToBeta(raw.status || 'active', history.length > 0);
+  const lifecycle = raw.metadata?.luna_beta_lifecycle;
+  const history                                       = Array.isArray(lifecycle?.history) ? lifecycle.history : Array.isArray(raw.history) ? raw.history : [];
+  const currentMarker = lifecycle && lifecycle.classicStatus === raw.status &&
+    Date.parse(lifecycle.updatedAt) === Date.parse(raw.updated_at || raw.updatedAt) && LOOP_STATUSES.includes(lifecycle.status);
+  const status = currentMarker ? lifecycle.status : mapClassicStatusToBeta(raw.status || 'active');
 
   const echoId = raw.linkedTo || raw.related_echo_ids?.[0] || raw.relatedEchoIds?.[0] || undefined;
 
@@ -2008,6 +2074,13 @@ function createLiveLunaServices(audioAssets                         = {})       
   if (typeof window !== 'undefined') window.addEventListener('storage', event => {
     if (event.key === AUTH_KEY || event.key === null) accountChanged();
   });
+
+  async function restoreSession()                {
+    if (!getAuthSession().token) {
+      await idbStorage.getItem(AUTH_KEY);
+      accountChanged();
+    }
+  }
 
   function computeLiveCycles(lunar                 )          {
     const cycleRange = lunar.cycleStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
@@ -2123,6 +2196,7 @@ function createLiveLunaServices(audioAssets                         = {})       
   let pendingSyncRequested = false;
 
   async function syncServer()                {
+    await restoreSession();
     if (activeSyncPromise) {
       pendingSyncRequested = true;
       return activeSyncPromise;
@@ -2242,6 +2316,12 @@ function createLiveLunaServices(audioAssets                         = {})       
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     status: localItem.status,
+                    metadata: { ...sl.metadata, ...localItem.metadata },
+                    closed_at: localItem.closed_at,
+                    released_at: localItem.released_at,
+                    phase_closed: localItem.phase_closed,
+                    phase_name_closed: localItem.phase_name_closed,
+                    lunar_month_closed: localItem.lunar_month_closed,
                     note: localItem.note,
                     title: localItem.title,
                     updated_at: localItem.updated_at || new Date().toISOString()
@@ -2283,6 +2363,7 @@ function createLiveLunaServices(audioAssets                         = {})       
                     title: localItem.title,
                     note: localItem.note,
                     status: localItem.status || 'active',
+                    metadata: localItem.metadata || {},
                     created_at: localItem.created_at || localItem.createdAt || new Date().toISOString(),
                     updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
                   })
@@ -2548,8 +2629,7 @@ function createLiveLunaServices(audioAssets                         = {})       
     }
   }
 
-  // Initial async sync without blocking instant render
-  void syncServer().catch(() => {});
+  // The app starts synchronization after its account-change listeners are installed.
 
   return {
     mode: sampleMode ? 'sample' : 'live',
@@ -2563,6 +2643,7 @@ function createLiveLunaServices(audioAssets                         = {})       
 
     auth: {
       async getSession() {
+        await restoreSession();
         const { token, userId } = getAuthSession();
         return {
           mode: token && userId ? 'authenticated' : 'demo',
@@ -2614,21 +2695,8 @@ function createLiveLunaServices(audioAssets                         = {})       
           user: data.user
         };
 
-        setStoredJson(AUTH_KEY, sessionRecord);
+        await idbStorage.setItem(AUTH_KEY, JSON.stringify(sessionRecord));
         accountChanged();
-
-        // Also persist to IndexedDB so Classic Luna inherits the session immediately
-        try {
-          const req = indexedDB.open('luna_auth_db', 1);
-          req.onsuccess = (e     ) => {
-            const idb = e.target.result;
-            if (getAuthSession().token !== sessionRecord.access_token) { idb.close?.(); return; }
-            if (idb?.objectStoreNames?.contains('auth')) {
-              const tx = idb.transaction('auth', 'readwrite');
-              tx.objectStore('auth').put(JSON.stringify(sessionRecord), AUTH_KEY);
-            }
-          };
-        } catch {}
 
         sampleMode = false;
         localStorage.setItem(SAMPLE_MODE_KEY, 'false');
@@ -2644,21 +2712,10 @@ function createLiveLunaServices(audioAssets                         = {})       
         inFlightRefresh = null;
         signedUrlCache.clear();
         objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
-        localStorage.removeItem(AUTH_KEY);
+        const removal = idbStorage.removeItem(AUTH_KEY);
         accountChanged();
-        try {
-          if (typeof indexedDB !== 'undefined') {
-            const req = indexedDB.open('luna_auth_db', 1);
-            req.onsuccess = (e     ) => {
-              const idb = e.target.result;
-              if (getAuthSession().token) { idb.close?.(); return; }
-              if (idb?.objectStoreNames?.contains('auth')) {
-                const tx = idb.transaction('auth', 'readwrite');
-                tx.objectStore('auth').delete(AUTH_KEY);
-              }
-            };
-          }
-        } catch {}
+        await removal;
+
         memorySnapshot = assembleSnapshot();
       }
     },
@@ -2969,9 +3026,10 @@ function createLiveLunaServices(audioAssets                         = {})       
         const loop = local.find(l => l.id === id);
         if (!loop) throw new Error('This Loop is no longer available.');
 
-        if (!Array.isArray(loop.history)) loop.history = [];
+        const previous = mapClassicLoopToBeta(loop);
+        loop.history = [...previous.history];
         loop.history.push({
-          status: mapClassicStatusToBeta(loop.status || 'active', loop.history.length > 0),
+          status: previous.status,
           at: new Date().toISOString()
         });
 
@@ -2982,6 +3040,9 @@ function createLiveLunaServices(audioAssets                         = {})       
         loop.status = classicStatus;
         loop.updatedAt = nowIso;
         loop.updated_at = nowIso;
+        loop.metadata = { ...loop.metadata, luna_beta_lifecycle: {
+          status, classicStatus, updatedAt: nowIso, history: loop.history
+        } };
 
         if (classicStatus === 'closed') {
           loop.closedAt = nowIso;
@@ -3003,6 +3064,12 @@ function createLiveLunaServices(audioAssets                         = {})       
           loop.lunar_month_closed = lunar.lunarMonth;
         }
 
+        if (classicStatus === 'active') {
+          loop.closedAt = loop.closed_at = loop.releasedAt = loop.released_at = null;
+          loop.phaseClosed = loop.phase_closed = loop.phaseNameClosed = loop.phase_name_closed = null;
+          loop.lunarMonthClosed = loop.lunar_month_closed = null;
+        }
+
         const { token, userId } = getAuthSession();
         loop.syncStatus = (userId && token) ? 'syncing' : 'local-only';
         setStoredJson(LOOPS_KEY, local);
@@ -3014,6 +3081,7 @@ function createLiveLunaServices(audioAssets                         = {})       
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 status: classicStatus,
+                metadata: loop.metadata,
                 closed_at: loop.closed_at,
                 released_at: loop.released_at,
                 phase_closed: loop.phase_closed,
@@ -3280,14 +3348,15 @@ function createLiveLunaServices(audioAssets                         = {})       
         if (!valid()) return null;
         if (sampleMode && echo.audioKey && audioAssets[echo.audioKey]) return audioAssets[echo.audioKey];
 
+        const path = (echo       ).audio_path || (echo       ).audioPath;
+
         // 2. Only use echo.audioUrl if it is a remote/data URL or if no durable draft was found
-        if (echo.audioUrl) {
+        if (!path && echo.audioUrl) {
           if (echo.audioUrl.startsWith('http://') || echo.audioUrl.startsWith('https://') || echo.audioUrl.startsWith('data:')) {
             return echo.audioUrl;
           }
         }
 
-        const path = (echo       ).audio_path || (echo       ).audioPath;
         if (!path) {
           if (echo.audioUrl) return echo.audioUrl;
           return null;
@@ -3542,6 +3611,8 @@ function phaseTideGauge(progress        , isThreshold         , dayInPhase      
 
 // components.ts
 
+
+
 const brandMark=()=>`<svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M29 8a15 15 0 1 0 5 19" stroke="currentColor" stroke-width="1.1"/><path d="M29 8a11 11 0 1 0 3 18" stroke="currentColor" stroke-width=".8"/><path d="M6 27c7-9 14-9 26-1" stroke="currentColor" stroke-width=".7"/><circle cx="33" cy="11" r="1.6" fill="currentColor"/></svg>`;
 const phaseIndex=(phase       )=>PHASES.findIndex(p=>p.id===phase);
 const statusLabel=(status       )=>(({open:'Open',evolving:'Evolving',completed:'Completed','carried-forward':'Carried forward',closed:'Consciously closed'}                         )[status]||status);
@@ -3587,6 +3658,12 @@ function shell(active       ,body       ,isSample=false,user                    
 
 
 // views.ts
+
+
+
+
+
+
 
 
 
@@ -5223,6 +5300,18 @@ applyRoute();render();
 
 if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
 window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
+
+// Refresh the Field after returning from Classic or an Android background pause.
+let resumeSync                       = null;
+function syncOnReturn() {
+  if (document.visibilityState !== 'visible' || captureActive || resumeSync) return;
+  resumeSync = Promise.resolve(services.sync?.()).then(() => render()).catch(() => {}).finally(() => { resumeSync = null; });
+}
+document.addEventListener('visibilitychange', syncOnReturn);
+window.addEventListener('focus', syncOnReturn);
+window.addEventListener('storage', event => {
+  if (event.key === 'cosmic_echoes_v1' || event.key === 'cosmic_loops_v1') syncOnReturn();
+});
 
 })();</script>
 </body></html>
