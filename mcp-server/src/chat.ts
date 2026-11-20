@@ -1927,14 +1927,14 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         finalResponseText = formatFallbackActionReport(toolCallsTracked);
       }
 
-      // Append honest, transparent failover notice if model fallback occurred
-      if (isFailover && failoverNotice) {
-        finalResponseText = `${finalResponseText.trim()}\n\n${failoverNotice}`;
-      }
-
-      // STRICT VALIDATION: Never persist an empty assistant response and never mark empty inference as successful
+      // STRICT VALIDATION: Reject empty model response BEFORE appending any fallback notice
       if (!finalResponseText || !finalResponseText.trim()) {
         throw new Error('Model produced an empty response. Inference aborted without persisting an empty turn.');
+      }
+
+      // Append honest, transparent failover notice if model fallback occurred and genuine prose exists
+      if (isFailover && failoverNotice) {
+        finalResponseText = `${finalResponseText.trim()}\n\n${failoverNotice}`;
       }
 
       // Save assistant message to database
