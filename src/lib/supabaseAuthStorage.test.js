@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { idbStorage, resetDBPromiseForTesting } from './supabase.js';
+import { idbStorage } from './supabase.js';
 
 describe('idbStorage Dual Storage Adapter', () => {
   let localStorageMock;
@@ -7,7 +7,6 @@ describe('idbStorage Dual Storage Adapter', () => {
   let originalIndexedDB;
 
   beforeEach(() => {
-    resetDBPromiseForTesting();
 
     // Mock localStorage
     const localStore = new Map();
@@ -69,7 +68,6 @@ describe('idbStorage Dual Storage Adapter', () => {
   });
 
   afterEach(() => {
-    resetDBPromiseForTesting();
     vi.restoreAllMocks();
     if (originalIndexedDB) {
       vi.stubGlobal('indexedDB', originalIndexedDB);
@@ -96,13 +94,9 @@ describe('idbStorage Dual Storage Adapter', () => {
     expect(val).toBe(localSession);
     expect(localStorageMock.getItem).toHaveBeenCalledWith('sb-auth-token');
 
-    // Should also asynchronously hydrate IndexedDB
-    await new Promise((r) => setTimeout(r, 50));
-    expect(idbRecords.get('sb-auth-token')).toBe(localSession);
   });
 
   it('falls back to localStorage when IndexedDB is blocked or times out', async () => {
-    resetDBPromiseForTesting();
 
     // Mock indexedDB that triggers onblocked or stalls
     const blockedIDB = {

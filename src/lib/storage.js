@@ -91,6 +91,7 @@ export async function getLoops(userId) {
       title: row.title,
       type: row.type || 'phase',
       status: row.status || 'active',
+      metadata: row.metadata || {},
       color: row.color || '#A78BFA',
       subtasks: row.subtasks || [],
       linkedTo: row.linked_to || null,
@@ -137,6 +138,14 @@ export async function getLoops(userId) {
 }
 
 export async function saveLoop(loop, userId) {
+  const updatedAt = new Date().toISOString();
+  const metadata = loop.metadata ? { ...loop.metadata } : undefined;
+  const lifecycle = metadata?.luna_beta_lifecycle;
+  if (lifecycle) {
+    if (lifecycle.classicStatus !== loop.status) delete metadata.luna_beta_lifecycle;
+    else metadata.luna_beta_lifecycle = { ...lifecycle, updatedAt };
+  }
+  loop = { ...loop, metadata, updatedAt, updated_at: updatedAt };
   const loops = getLocal(LOOPS_KEY);
   const idx = loops.findIndex((l) => l.id === loop.id);
   if (idx >= 0) {
@@ -157,6 +166,7 @@ export async function saveLoop(loop, userId) {
         title: loop.title,
         type: loop.type,
         status: loop.status,
+        metadata: loop.metadata,
         color: loop.color,
         subtasks: loop.subtasks,
         linked_to: loop.linkedTo,
@@ -178,7 +188,7 @@ export async function saveLoop(loop, userId) {
         focus: loop.focus || null,
         auto_closed_reason: loop.autoClosedReason || null,
         related_echo_ids: loop.relatedEchoIds || [],
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       })
       .select();
 

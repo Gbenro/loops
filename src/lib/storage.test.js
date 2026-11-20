@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   generateId,
+  saveLoop,
   getPhaseSummaries,
   savePhaseSummary,
   generatePhaseSummary,
@@ -27,6 +28,7 @@ const localStorageMock = (() => {
       store = {};
     }),
     _store: store,
+    _read: key => store[key] || null,
     _reset: () => {
       store = {};
     },
@@ -381,5 +383,21 @@ describe('storage.js', () => {
       storage.saveEchoes(echoes);
       expect(localStorageMock.setItem).toHaveBeenCalled();
     });
+  });
+});
+
+describe('Classic preserves Beta lifecycle metadata', () => {
+  beforeEach(() => { localStorageMock._reset(); localStorageMock.getItem.mockImplementation(key => localStorageMock._read(key)); });
+  it('keeps evolving when Classic edits the same active Loop', async () => {
+    const loop=await saveLoop({id:'parity',status:'active',metadata:{other:'keep',luna_beta_lifecycle:{status:'evolving',classicStatus:'active',updatedAt:'old'}}},null);
+    expect(loop.metadata.luna_beta_lifecycle.status).toBe('evolving');
+    expect(loop.metadata.luna_beta_lifecycle.updatedAt).toBe(loop.updatedAt);
+    expect(loop.updated_at).toBe(loop.updatedAt);
+    expect(loop.metadata.other).toBe('keep');
+  });
+  it('Classic reopen overrides completed without changing unrelated metadata', async () => {
+    const loop=await saveLoop({id:'parity',status:'active',metadata:{other:'keep',luna_beta_lifecycle:{status:'completed',classicStatus:'released'}}},null);
+    expect(loop.metadata.luna_beta_lifecycle).toBeUndefined();
+    expect(loop.metadata.other).toBe('keep');
   });
 });
