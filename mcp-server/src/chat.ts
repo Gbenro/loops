@@ -39,6 +39,24 @@ const getAnthropicTools = () => {
   }));
 };
 
+// Recursive sanitizer to ensure Gemini OpenAPI compliance (e.g. string enums)
+function sanitizeSchemaForGemini(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(sanitizeSchemaForGemini);
+
+  const copy: any = {};
+  for (const [key, val] of Object.entries(schema)) {
+    if (key === 'enum' && Array.isArray(val)) {
+      copy[key] = val.map(v => String(v));
+    } else if (typeof val === 'object' && val !== null) {
+      copy[key] = sanitizeSchemaForGemini(val);
+    } else {
+      copy[key] = val;
+    }
+  }
+  return copy;
+}
+
 // Map standard MCP schemas to Gemini tool format
 const getGeminiTools = () => {
   return [
@@ -46,7 +64,7 @@ const getGeminiTools = () => {
       functionDeclarations: TOOL_DEFINITIONS_COMPAT.map(t => ({
         name: t.name,
         description: t.description,
-        parameters: t.inputSchema
+        parameters: sanitizeSchemaForGemini(t.inputSchema)
       }))
     }
   ];
