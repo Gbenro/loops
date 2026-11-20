@@ -63,3 +63,19 @@ Before calling Beta the main app:
 ## Backend status reported by Gemini
 
 Gemini reported that the live app used a Railway service with a stale OpenRouter key, while a different project held the valid key. It reported correcting the service configuration and verifying genuine replies through Gemini and GPT models. It also reported that the selected Claude model still encountered a credit/budget failure and began a transparent fallback patch. This document records Gemini's report; Codex has not independently verified a final fallback deployment.
+
+## Final coordination update
+
+Local frontend commits:
+- 023cbc9: shared auth persistence and Classic Loop metadata preservation.
+- 15ea715: Beta restoration, lifecycle/audio sync, generated bundle and tests.
+
+Gemini completed a read-only frontend review and reported no blocking issue. Its review covered the earlier 112-test version; Codex subsequently added two passing offline/durable-storage cases and preserved server-only metadata. Final local counts above reflect 114 Node tests and 52 focused Vitest tests.
+
+Gemini's final backend report:
+- main commits d1090eb (bounded OpenRouter completion tokens), cbae9cc (transparent Gemini fallback), eedc702 (Gemini tool-schema compatibility).
+- Railway deployment 310b1da2-8363-4cde-adeb-375933407cf5 reported SUCCESS.
+- A request selecting Claude returned HTTP 200 with a genuine Gemini 2.5 Flash reply and an explicit fallback notice; the selected model remained unchanged.
+- This is Gemini's live verification report, not a Codex independent production probe.
+
+The next feature phase should explicitly divide encryption/subtasks/realtime work and model/voice/transcription work between agents before edits, using separate worktrees. The current reliability candidate is prepared for frontend release review; full Classic replacement remains pending the feature and Android acceptance checks above.
