@@ -226,6 +226,19 @@ async function startRecording(){
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
       recordingAnalysis=analysis;recordingDuration=analysis.duration;recordingFinalizing=false;renderCapture();
+      if(!captureText&&blob.size>=500){
+        void(async()=>{
+          try{
+            const text=await transcribeVoice(blob);
+            if(token===captureToken&&captureActive&&text&&!captureText){
+              captureText=text;
+              drafts['capture-body']=text;
+              const ta=modal.querySelector<HTMLTextAreaElement>('#capture-body');
+              if(ta&&!ta.value.trim()){ta.value=text;}
+            }
+          }catch{}
+        })();
+      }
     };
     activeRecorder.start(250);recordStarted=performance.now();renderCapture();
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit')!);
@@ -401,6 +414,7 @@ async function primeEchoAudio(){
 }
 
 async function playEcho(id:string){
+  stopChatVoicePlayback();
   if(audioEchoId===id&&audio.src){if(audio.paused){try{await audio.play();}catch{toast('Playback could not start. Try again in a supported browser.');}}else audio.pause();syncAudioUI();return;}
   const attempt=++audioAttempt;audio.pause();
   try{const echo=await services.echoes.get(id);const source=await services.audio.resolve(echo);if(attempt!==audioAttempt)return;if(!source){toast('No playable audio is available for this Echo.');return;}audioEchoId=id;activeWaveform=echo.waveform||[];activeDuration=echo.duration||0;audio.src=source;audio.currentTime=0;await audio.play();syncAudioUI();void deriveEchoWaveformIfNeeded(echo);}catch{toast('Audio could not be played. Your original words remain available.');}
@@ -522,6 +536,274 @@ async function downloadEchoAudio(id:string):Promise<void>{
   await downloadAudioBlob(blob,echo.title||'Echo');
 }
 
+// --- CHAT VOICE, TTS & TRANSCRIPTION CONTROLS ---
+
+let chatAudio: HTMLAudioElement | null = null;
+let chatSpeechUtterance: SpeechSynthesisUtterance | null = null;
+let chatDictationRecorder: MediaRecorder | null = null;
+let chatDictationStream: MediaStream | null = null;
+let chatDictationChunks: BlobPart[] = [];
+let chatDictationTimer: any = null;
+let chatDictationStartedAt = 0;
+
+async function transcribeVoice(blob: Blob): Promise<string> {
+  if (!blob || blob.size < 500) return '';
+  const apiBase = 'https://loops-production-e1d5.up.railway.app';
+  const edgeUrl = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
+  const anonKey = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+  const mime = blob.type || 'audio/webm';
+  const ext = mime.includes('mp4') || mime.includes('m4a') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : 'webm';
+
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const res = await fetch(`${apiBase}/api/voice/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': mime,
+        'x-audio-filename': `recording.${ext}`
+      },
+      body: arrayBuffer
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.text && data.text.trim()) {
+        return data.text.trim();
+      }
+    }
+  } catch (e) {
+    console.warn('[Transcription] Primary backend failed, trying edge fallback:', e);
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', blob, `audio.${ext}`);
+    const res = await fetch(edgeUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey
+      },
+      body: formData
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.text && data.text.trim()) {
+        return data.text.trim();
+      }
+    }
+  } catch (e) {
+    console.warn('[Transcription] Edge fallback failed:', e);
+  }
+
+  return '';
+}
+
+function stopChatVoicePlayback() {
+  if (chatAudio) {
+    chatAudio.pause();
+    chatAudio.onended = null;
+    chatAudio.onerror = null;
+    chatAudio = null;
+  }
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); } catch {}
+  }
+  chatSpeechUtterance = null;
+  if (state.chatPlayingMessageId !== null) {
+    state.chatPlayingMessageId = null;
+    render();
+  }
+}
+
+function playBrowserSpeech(text: string, messageId: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    toast('Speech playback is not supported in this browser.');
+    state.chatPlayingMessageId = null;
+    render();
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    utter.pitch = 1.0;
+    utter.onend = () => {
+      if (state.chatPlayingMessageId === messageId) {
+        state.chatPlayingMessageId = null;
+        render();
+      }
+    };
+    utter.onerror = () => {
+      if (state.chatPlayingMessageId === messageId) {
+        state.chatPlayingMessageId = null;
+        render();
+      }
+    };
+    chatSpeechUtterance = utter;
+    window.speechSynthesis.speak(utter);
+  } catch {
+    state.chatPlayingMessageId = null;
+    render();
+  }
+}
+
+async function handlePlayChatVoice(messageId: string) {
+  if (state.chatPlayingMessageId === messageId) {
+    stopChatVoicePlayback();
+    return;
+  }
+
+  stopPlayback();
+  stopChatVoicePlayback();
+  const msg = state.chat.find(m => m.id === messageId);
+  if (!msg || !msg.content) return;
+
+  const textToSpeak = msg.content
+    .replace(/<[^>]+>/g, '')
+    .replace(/\*\(Note: Served via[^\)]+\)\*/g, '')
+    .trim();
+  if (!textToSpeak) return;
+
+  state.chatPlayingMessageId = messageId;
+  render();
+
+  if (state.chatVoice === 'browser-web-speech') {
+    playBrowserSpeech(textToSpeak, messageId);
+    return;
+  }
+
+  try {
+    const voiceId = state.chatVoice;
+    const model = state.chatVoiceModel;
+    const res = await services.chat.synthesizeSpeech?.(textToSpeak, { voiceId, model, messageId });
+    if (res?.audioUrl && !res.useClientFallback) {
+      chatAudio = new Audio(res.audioUrl);
+      chatAudio.onended = () => {
+        if (state.chatPlayingMessageId === messageId) {
+          state.chatPlayingMessageId = null;
+          render();
+        }
+      };
+      chatAudio.onerror = () => {
+        playBrowserSpeech(textToSpeak, messageId);
+      };
+      await chatAudio.play();
+      return;
+    }
+  } catch (err) {
+    console.warn('[Chat Voice] Synthesis failed, falling back to browser speech:', err);
+  }
+
+  playBrowserSpeech(textToSpeak, messageId);
+}
+
+async function startChatDictation() {
+  if (state.chatVoiceRecording) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast('Microphone access is not supported in this browser.');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true }
+    });
+    chatDictationStream = stream;
+    chatDictationChunks = [];
+
+    let mimeType = 'audio/webm';
+    if (typeof MediaRecorder !== 'undefined') {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+    }
+
+    const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    mr.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chatDictationChunks.push(e.data);
+    };
+
+    mr.onstop = async () => {
+      if (chatDictationStream) {
+        chatDictationStream.getTracks().forEach(t => t.stop());
+        chatDictationStream = null;
+      }
+      if (chatDictationTimer) {
+        clearInterval(chatDictationTimer);
+        chatDictationTimer = null;
+      }
+      state.chatVoiceRecording = false;
+      state.chatVoiceDuration = 0;
+
+      const blob = new Blob(chatDictationChunks, { type: mimeType });
+      chatDictationChunks = [];
+      if (!blob || blob.size < 500) {
+        render();
+        return;
+      }
+
+      state.chatTranscribing = true;
+      render();
+
+      try {
+        const text = await transcribeVoice(blob);
+        state.chatTranscribing = false;
+        if (text) {
+          const input = document.getElementById('chat-input') as HTMLTextAreaElement | null;
+          const current = (input?.value || drafts['chat-input'] || '').trim();
+          const combined = current ? `${current} ${text}` : text;
+          if (input) {
+            input.value = combined;
+            input.focus();
+          }
+          drafts['chat-input'] = combined;
+          toast('Voice transcribed into message.');
+        } else {
+          toast('No speech detected. Please speak closer to the microphone.');
+        }
+      } catch {
+        state.chatTranscribing = false;
+        toast('Transcription could not finish.');
+      }
+      render();
+    };
+
+    chatDictationRecorder = mr;
+    mr.start(250);
+    chatDictationStartedAt = Date.now();
+    state.chatVoiceRecording = true;
+    state.chatVoiceDuration = 0;
+    render();
+
+    chatDictationTimer = setInterval(() => {
+      state.chatVoiceDuration = Math.floor((Date.now() - chatDictationStartedAt) / 1000);
+      const pill = document.querySelector('.chat-voice-btn .recording-pill');
+      if (pill) pill.textContent = `${state.chatVoiceDuration}s`;
+    }, 1000);
+  } catch (err: any) {
+    console.error('Dictation error:', err);
+    toast(err.name === 'NotAllowedError' ? 'Microphone permission denied.' : 'Could not start microphone.');
+    state.chatVoiceRecording = false;
+    state.chatVoiceDuration = 0;
+    render();
+  }
+}
+
+async function stopChatDictation() {
+  if (chatDictationRecorder && chatDictationRecorder.state === 'recording') {
+    chatDictationRecorder.stop();
+  }
+  chatDictationRecorder = null;
+}
+
+async function handleToggleChatDictation() {
+  if (state.chatVoiceRecording) {
+    await stopChatDictation();
+  } else {
+    await startChatDictation();
+  }
+}
+
 document.addEventListener('click',async(event)=>{
   const target=(event.target as HTMLElement).closest<HTMLElement>('[data-action]');if(!target)return;event.preventDefault();const action=target.dataset.action!;const value=target.dataset.value||'';const id=target.dataset.id||'';
   try{
@@ -533,7 +815,10 @@ document.addEventListener('click',async(event)=>{
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'review':openReview();break;
       case 'open-auth':{const u=services.auth?.getUser?.();if(u)openAccountModal(u);else openSignInModal();break;}
-      case 'auth-signout':{stopPlayback();cleanupCapture();await services.auth?.signOut?.();state.chat=[];state.chatSessionId=null;state.chatInitialized=false;state.chatError=null;state.chatContext=[];closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'auth-signout':{stopPlayback();stopChatVoicePlayback();stopChatDictation();cleanupCapture();await services.auth?.signOut?.();state.chat=[];state.chatSessionId=null;state.chatInitialized=false;state.chatError=null;state.chatContext=[];closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'toggle-chat-controls':state.chatControlsOpen=!state.chatControlsOpen;render();break;
+      case 'play-chat-voice':await handlePlayChatVoice(id);break;
+      case 'chat-voice-record':await handleToggleChatDictation();break;
       case 'toggle-transcript':{
         const targetId=target.dataset.target;
         const container=targetId?document.getElementById(targetId):target.previousElementSibling;
@@ -562,7 +847,7 @@ document.addEventListener('click',async(event)=>{
         render();
         try{
           const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
           if(token!==generation)return;
           state.chat.push(response);
           state.chatBusy=false;
@@ -630,6 +915,21 @@ document.addEventListener('change',async(event)=>{
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value as LoopStatus);render();toast('Your intention has room to change.');}
     if(el.id==='cycle-select'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
     if(el.id==='mic-denial')state.forceMicDenied=(el as HTMLInputElement).checked;
+    if(el.id==='chat-model-select'||el.dataset.action==='select-chat-model'){
+      state.chatModel=el.value;
+      try{localStorage.setItem('luna_model_key',el.value);}catch{}
+      render();
+    }
+    if(el.id==='chat-voice-select'||el.dataset.action==='select-chat-voice'){
+      state.chatVoice=el.value;
+      try{localStorage.setItem('luna_voice_key',el.value);}catch{}
+      render();
+    }
+    if(el.id==='chat-voice-tier-select'||el.dataset.action==='select-chat-voice-tier'){
+      state.chatVoiceModel=el.value;
+      try{localStorage.setItem('luna_voice_model_key',el.value);}catch{}
+      render();
+    }
   }catch(error){toast((error as Error).message);}
 });
 document.addEventListener('keydown',event=>{
@@ -694,7 +994,7 @@ document.addEventListener('submit',async(event)=>{
         render();
         try{
           const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
           if(token!==generation)return;
           state.chat.push(response);
           state.chatBusy=false;
@@ -719,6 +1019,8 @@ document.addEventListener('submit',async(event)=>{
 window.addEventListener('luna-account-changed',()=>{
   generation++;
   stopPlayback();
+  stopChatVoicePlayback();
+  stopChatDictation();
   cleanupCapture();
   closeModal();
   state.chat=[];
@@ -731,9 +1033,9 @@ window.addEventListener('luna-account-changed',()=>{
   Object.keys(drafts).forEach(key=>delete drafts[key]);
   render();
 });
-window.addEventListener('hashchange',()=>{stopPlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
+window.addEventListener('hashchange',()=>{stopPlayback();stopChatVoicePlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
-window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('pagehide',()=>{cleanupCapture();stopChatVoicePlayback();stopChatDictation();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&captureActive&&recorder?.state==='recording'&&!wakeLock){
     const reacquireToken=captureToken;

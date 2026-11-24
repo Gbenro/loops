@@ -396,6 +396,40 @@ export function returnsView(db: FieldSnapshot) {
   return `<a class="text-link detail-back" href="#/field">${icon('back', 15)}Your field</a><div class="page-intro"><div><div class="eyebrow">A return · ${pair[0].context.label.toLowerCase()} across time</div><h1>The same path.<br>Another evening.</h1><p>Two original expressions, held in lunar rhythm. The relationship is yours to explore.</p></div></div><div class="return-cycle-link">${continuitySymbol('circle', 42)}<span>Earlier moment</span><span class="return-link-curve"></span>${continuitySymbol('spiral', 47)}<span>Returning now</span></div><div class="compare-grid">${pair.map((e, i) => `<article class="compare-card"><div class="author-tag">${i ? 'More recent' : 'Earlier moment'}</div><h2>${escapeHtml(e.title)}</h2><div class="echo-meta">${escapeHtml(formatMoment(e.occurredAt))}</div><p>${escapeHtml(e.body)}</p><div class="flex" style="margin-top:21px">${contextLink(e)}<a class="text-link" href="#/echo/${e.id}">Open Echo ${icon('arrow', 14)}</a></div></article>`).join('')}</div><div class="return-invitation"><h2>What do you notice from here?</h2><p>Something may repeat, shift, or feel entirely different. There is no conclusion to arrive at.</p></div><form class="reflection-form reflection-box" data-form="reflection" data-id="${pair[1].id}"><label class="sr-only" for="return-reflection">Your reflection on this return</label><textarea id="return-reflection" name="body" maxlength="6000" placeholder="Looking at these moments together, I notice…" required></textarea><div class="form-foot"><small>Your reflection will belong to the more recent Echo.</small><button class="btn" type="submit">Keep my reflection</button></div></form><div style="text-align:center"><button class="text-link gold" data-action="chat-return" data-pair="${pair[0].id},${pair[1].id}">${icon('chat', 16)}Bring both moments to Luna</button></div>`;
 }
 
+export function getModelDisplayName(key: string): string {
+  const map: Record<string, string> = {
+    'anthropic-fable-5': 'Claude Fable 5',
+    'anthropic-sonnet-5': 'Claude Sonnet 5',
+    'anthropic-opus-5': 'Claude Opus 5',
+    'openai-gpt-5.6-sol': 'GPT-5.6 Sol',
+    'openai-gpt-5.6-luna': 'GPT-5.6 Luna',
+    'gemini-3.7-flash': 'Gemini 3.7 Flash',
+    'xai-grok-4.6': 'Grok 4.6',
+    'openrouter-deepseek-v4-pro-0813': 'DeepSeek V4 Pro',
+    'openrouter-deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'openrouter-qwen-3.8-max': 'Qwen 3.8 Max',
+    'openrouter-qwen-3.6-35b-a3b': 'Qwen 3.6 35B',
+    'openrouter-qwen-3.6-27b': 'Qwen 3.6 27B',
+    'openrouter-glm-5.3': 'GLM 5.3',
+    'openrouter-glm-5.2': 'GLM 5.2',
+    'openrouter-minimax-m2.5': 'MiniMax M2.5',
+    'openrouter-kimi-k2.5': 'Kimi K2.5'
+  };
+  return map[key] || key || 'Claude Fable 5';
+}
+
+export function getVoiceDisplayName(key: string): string {
+  const map: Record<string, string> = {
+    'eleven-nicole': 'Nicole (Poet)',
+    'eleven-rachel': 'Rachel (Calm)',
+    'eleven-bella': 'Bella (Warm)',
+    'eleven-antoni': 'Antoni (Modulated)',
+    'eleven-adam': 'Adam (Resonant)',
+    'browser-web-speech': 'Web Speech'
+  };
+  return map[key] || key || 'Nicole';
+}
+
 export function formatChatMessageContent(content:string):string{
   const clean=(content||'').trim();
   if(!clean)return '';
@@ -405,7 +439,125 @@ export function formatChatMessageContent(content:string):string{
 }
 
 export function chatView(db: FieldSnapshot, state: UIState) {
-  return `<section class="chat-shell"><header class="chat-intro">${brandMark()}<h1>A conversation within your field.</h1><p>Bring a moment, a question, or a connection you want to explore.<br>You choose what enters the conversation.</p></header>${!state.chat.length ? `<div class="prompt-chips"><button data-action="chat-prompt" data-value="I would like to return to a recent moment.">Return to a moment</button><button data-action="chat-prompt" data-value="What feels different between these two moments?">Look at two Echoes</button><button data-action="chat-prompt" data-value="There is something I want to leave open.">Leave a question open</button></div>` : ''}<div id="chat-messages" aria-live="polite" aria-relevant="additions">${state.chat.map(m => `<article class="chat-message ${m.role}"><div class="author-tag">${m.role === 'person' ? `${icon('echo', 14)} You` : `${brandMark()} Luna`}</div><div class="chat-body">${formatChatMessageContent(m.content)}</div>${m.echoIds.length ? `<div class="chat-sources">${m.echoIds.map(id => `<a class="chip" href="#/echo/${id}">${icon('echo', 12)}${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')}</a>`).join('')}</div>` : ''}</article>`).join('')}${state.chatBusy ? `<div class="chat-message luna is-thinking" role="status"><div class="author-tag">${brandMark()} Luna</div><div class="chat-thinking-pulse"><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-text">✦ Attuning to the cosmic context… Luna is contemplating…</span></div></div>` : ''}${state.chatError ? `<div class="chat-error-banner" role="alert"><div class="chat-error-text"><strong>Service notice:</strong> ${escapeHtml(state.chatError)}</div><button type="button" class="btn small" data-action="retry-chat">Retry message</button></div>` : ''}</div><div class="chat-bottom"><div class="chat-context"><button class="text-link gold" data-action="chat-context">${icon('plus', 14)}Choose Echo context</button>${state.chatContext.map(id => `<button class="chip" data-action="remove-context" data-id="${id}" aria-label="Remove ${escapeHtml(db.echoes.find(e => e.id === id)?.title)} from chat context">${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')} ×</button>`).join('')}</div><form data-form="chat" class="chat-composer"><label class="sr-only" for="chat-input">Message to Luna</label><textarea name="message" id="chat-input" maxlength="4000" placeholder="What would you like to explore?" required ${state.chatBusy ? 'disabled' : ''}></textarea><div class="chat-composer-bottom"><small>${state.chatContext.length ? `${state.chatContext.length} selected Echo${state.chatContext.length === 1 ? '' : 'es'} in context · Only chosen moments are shared` : 'No Echo context selected'}</small><button class="send-button" type="submit" aria-label="Send message" ${state.chatBusy ? 'disabled' : ''}>${icon('send', 19)}</button></div></form><p class="chat-status">Luna reflects with you based on your selected Echoes.</p></div></section>`;
+  const modelName = getModelDisplayName(state.chatModel);
+  const voiceName = getVoiceDisplayName(state.chatVoice);
+  return `<section class="chat-shell">
+    <header class="chat-intro">
+      ${brandMark()}
+      <h1>A conversation within your field.</h1>
+      <p>Bring a moment, a question, or a connection you want to explore.<br>You choose what enters the conversation.</p>
+    </header>
+
+    <div class="chat-controls-bar">
+      <div class="chat-controls-toggle">
+        <button type="button" data-action="toggle-chat-controls">
+          ${icon('settings', 13)}
+          <span>Engine: <strong>${escapeHtml(modelName)}</strong> · Voice: <small>${escapeHtml(voiceName)}</small></span>
+          ${icon(state.chatControlsOpen ? 'up' : 'down', 12)}
+        </button>
+      </div>
+      ${state.chatControlsOpen ? `
+      <div class="chat-controls-panel">
+        <div class="chat-control-group">
+          <label for="chat-model-select">Reasoning Engine</label>
+          <select id="chat-model-select" data-action="select-chat-model">
+            <optgroup label="Proprietary / Closed Frontier Models">
+              <option value="anthropic-fable-5" ${state.chatModel === 'anthropic-fable-5' ? 'selected' : ''}>Claude Fable 5 (Agentic Baseline · 1M Ctx)</option>
+              <option value="anthropic-sonnet-5" ${state.chatModel === 'anthropic-sonnet-5' ? 'selected' : ''}>Claude Sonnet 5 (Frontier Reasoning · 1M Ctx)</option>
+              <option value="anthropic-opus-5" ${state.chatModel === 'anthropic-opus-5' ? 'selected' : ''}>Claude Opus 5 (Deep Reasoning · 1M Ctx)</option>
+              <option value="openai-gpt-5.6-sol" ${state.chatModel === 'openai-gpt-5.6-sol' ? 'selected' : ''}>GPT-5.6 Sol (Multi-Step Agent · 1.05M Ctx)</option>
+              <option value="openai-gpt-5.6-luna" ${state.chatModel === 'openai-gpt-5.6-luna' ? 'selected' : ''}>GPT-5.6 Luna (Conversational · 1.05M Ctx)</option>
+              <option value="gemini-3.7-flash" ${state.chatModel === 'gemini-3.7-flash' ? 'selected' : ''}>Gemini 3.7 Flash (Native Audio & Multimodal · 1.05M Ctx)</option>
+              <option value="xai-grok-4.6" ${state.chatModel === 'xai-grok-4.6' ? 'selected' : ''}>Grok 4.6 (Frontier Reasoning · 500k Ctx)</option>
+            </optgroup>
+            <optgroup label="Open-Weight Frontier Models (OpenRouter)">
+              <option value="openrouter-deepseek-v4-pro-0813" ${state.chatModel === 'openrouter-deepseek-v4-pro-0813' ? 'selected' : ''}>DeepSeek V4 Pro 0813 (Frontier Reasoning · 1.05M Ctx)</option>
+              <option value="openrouter-deepseek-v4-flash" ${state.chatModel === 'openrouter-deepseek-v4-flash' ? 'selected' : ''}>DeepSeek V4 Flash (Economy Engine · 1.05M Ctx)</option>
+              <option value="openrouter-qwen-3.8-max" ${state.chatModel === 'openrouter-qwen-3.8-max' ? 'selected' : ''}>Qwen 3.8 Max (Multimodal Flagship · 1M Ctx)</option>
+              <option value="openrouter-qwen-3.6-35b-a3b" ${state.chatModel === 'openrouter-qwen-3.6-35b-a3b' ? 'selected' : ''}>Qwen 3.6 35B-A3B (Dense Reasoning · 262k Ctx)</option>
+              <option value="openrouter-qwen-3.6-27b" ${state.chatModel === 'openrouter-qwen-3.6-27b' ? 'selected' : ''}>Qwen 3.6 27B (Efficiency Agent · 262k Ctx)</option>
+              <option value="openrouter-glm-5.3" ${state.chatModel === 'openrouter-glm-5.3' ? 'selected' : ''}>GLM 5.3 (Frontier Long-Context · 1.31M Ctx)</option>
+              <option value="openrouter-glm-5.2" ${state.chatModel === 'openrouter-glm-5.2' ? 'selected' : ''}>GLM 5.2 (Standard Baseline · 1.05M Ctx)</option>
+              <option value="openrouter-minimax-m2.5" ${state.chatModel === 'openrouter-minimax-m2.5' ? 'selected' : ''}>MiniMax M2.5 (Conversational · 204k Ctx)</option>
+              <option value="openrouter-kimi-k2.5" ${state.chatModel === 'openrouter-kimi-k2.5' ? 'selected' : ''}>Kimi K2.5 (Multimodal Agent · 262k Ctx)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="chat-control-group">
+          <label for="chat-voice-select">Luna Voice</label>
+          <select id="chat-voice-select" data-action="select-chat-voice">
+            <option value="eleven-nicole" ${state.chatVoice === 'eleven-nicole' ? 'selected' : ''}>Luna Default — Nicole (Soft Whisper · Poet)</option>
+            <optgroup label="ElevenLabs Voices">
+              <option value="eleven-rachel" ${state.chatVoice === 'eleven-rachel' ? 'selected' : ''}>ElevenLabs — Rachel (Calm & Reflective)</option>
+              <option value="eleven-bella" ${state.chatVoice === 'eleven-bella' ? 'selected' : ''}>ElevenLabs — Bella (Warm & Expressive)</option>
+              <option value="eleven-antoni" ${state.chatVoice === 'eleven-antoni' ? 'selected' : ''}>ElevenLabs — Antoni (Modulated & Thoughtful)</option>
+              <option value="eleven-adam" ${state.chatVoice === 'eleven-adam' ? 'selected' : ''}>ElevenLabs — Adam (Deep & Resonant)</option>
+            </optgroup>
+            <optgroup label="Browser Native">
+              <option value="browser-web-speech" ${state.chatVoice === 'browser-web-speech' ? 'selected' : ''}>Browser Native Web Speech</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="chat-control-group">
+          <label for="chat-voice-tier-select">TTS Quality Tier</label>
+          <select id="chat-voice-tier-select" data-action="select-chat-voice-tier">
+            <option value="eleven_flash_v2_5" ${state.chatVoiceModel === 'eleven_flash_v2_5' ? 'selected' : ''}>Flash v2.5 (Fast · Conversational)</option>
+            <option value="eleven_turbo_v2_5" ${state.chatVoiceModel === 'eleven_turbo_v2_5' ? 'selected' : ''}>Turbo v2.5 (Standard)</option>
+            <option value="eleven_multilingual_v2" ${state.chatVoiceModel === 'eleven_multilingual_v2' ? 'selected' : ''}>Multilingual v2 (Premium Expressive)</option>
+          </select>
+        </div>
+      </div>` : ''}
+    </div>
+
+    ${!state.chat.length ? `<div class="prompt-chips"><button data-action="chat-prompt" data-value="I would like to return to a recent moment.">Return to a moment</button><button data-action="chat-prompt" data-value="What feels different between these two moments?">Look at two Echoes</button><button data-action="chat-prompt" data-value="There is something I want to leave open.">Leave a question open</button></div>` : ''}
+
+    <div id="chat-messages" aria-live="polite" aria-relevant="additions">
+      ${state.chat.map(m => `
+        <article class="chat-message ${m.role}">
+          <div class="chat-author-line">
+            <div class="chat-author-tag">
+              ${m.role === 'person' ? `${icon('echo', 14)} You` : `${brandMark()} Luna`}
+            </div>
+            ${m.role === 'luna' ? `
+            <div class="chat-message-actions">
+              ${m.servingModel ? `<span class="chat-model-badge ${m.fallbackUsed ? 'fallback' : ''}" title="${m.fallbackNotice ? escapeHtml(m.fallbackNotice) : escapeHtml(m.servingModel)}">${escapeHtml(m.fallbackUsed ? `Served via ${m.servingModel}` : getModelDisplayName(m.servingModel))}</span>` : ''}
+              <button type="button" class="chat-voice-play-btn ${state.chatPlayingMessageId === m.id ? 'is-playing' : ''}" data-action="play-chat-voice" data-id="${m.id}" aria-label="${state.chatPlayingMessageId === m.id ? 'Pause voice' : 'Listen to Luna speak'}">
+                ${icon(state.chatPlayingMessageId === m.id ? 'pause' : 'play', 12)}
+                <span>${state.chatPlayingMessageId === m.id ? 'Listening…' : 'Listen'}</span>
+              </button>
+            </div>` : ''}
+          </div>
+          <div class="chat-body">${formatChatMessageContent(m.content)}</div>
+          ${m.echoIds.length ? `<div class="chat-sources">${m.echoIds.map(id => `<a class="chip" href="#/echo/${id}">${icon('echo', 12)}${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')}</a>`).join('')}</div>` : ''}
+        </article>
+      `).join('')}
+      ${state.chatBusy ? `<div class="chat-message luna is-thinking" role="status"><div class="author-tag">${brandMark()} Luna</div><div class="chat-thinking-pulse"><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-text">✦ Attuning to the cosmic context… Luna is contemplating…</span></div></div>` : ''}
+      ${state.chatError ? `<div class="chat-error-banner" role="alert"><div class="chat-error-text"><strong>Service notice:</strong> ${escapeHtml(state.chatError)}</div><button type="button" class="btn small" data-action="retry-chat">Retry message</button></div>` : ''}
+    </div>
+
+    <div class="chat-bottom">
+      <div class="chat-context">
+        <button class="text-link gold" data-action="chat-context">${icon('plus', 14)}Choose Echo context</button>
+        ${state.chatContext.map(id => `<button class="chip" data-action="remove-context" data-id="${id}" aria-label="Remove ${escapeHtml(db.echoes.find(e => e.id === id)?.title)} from chat context">${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')} ×</button>`).join('')}
+      </div>
+      ${state.chatTranscribing ? `<div class="chat-transcribing-notice"><span class="thinking-dot"></span> ✦ Transcribing your speech…</div>` : ''}
+      <form data-form="chat" class="chat-composer">
+        <label class="sr-only" for="chat-input">Message to Luna</label>
+        <textarea name="message" id="chat-input" maxlength="4000" placeholder="What would you like to explore?" required ${state.chatBusy ? 'disabled' : ''}></textarea>
+        <div class="chat-composer-bottom">
+          <small>${state.chatContext.length ? `${state.chatContext.length} selected Echo${state.chatContext.length === 1 ? '' : 'es'} in context · Only chosen moments are shared` : 'No Echo context selected'}</small>
+          <div class="composer-action-group">
+            <button type="button" class="chat-voice-btn ${state.chatVoiceRecording ? 'is-recording' : ''}" data-action="chat-voice-record" aria-label="${state.chatVoiceRecording ? 'Stop dictation' : 'Dictate with voice'}" title="${state.chatVoiceRecording ? 'Tap to finish recording' : 'Dictate your message'}">
+              ${icon(state.chatVoiceRecording ? 'stop' : 'mic', 18)}
+              ${state.chatVoiceRecording ? `<span class="recording-pill">${state.chatVoiceDuration}s</span>` : ''}
+            </button>
+            <button class="send-button" type="submit" aria-label="Send message" ${state.chatBusy ? 'disabled' : ''}>${icon('send', 19)}</button>
+          </div>
+        </div>
+      </form>
+      <p class="chat-status">Luna reflects with you using ${escapeHtml(modelName)}. Tap Listen to hear responses in ${escapeHtml(voiceName)}.</p>
+    </div>
+  </section>`;
 }
 
 export function routeView(db: FieldSnapshot, state: UIState, isSample = false, isAuthenticated = false) {

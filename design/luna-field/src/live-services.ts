@@ -1685,6 +1685,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
         const sessionId = options?.sessionId || (await this.getActiveSession());
         const clientTurnId = options?.clientTurnId || makeId('turn');
+        const modelKey = options?.modelKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_model_key') : null) || 'anthropic-fable-5';
         const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
 
         const controller = new AbortController();
@@ -1701,6 +1702,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               message: clean,
               sessionId,
               clientTurnId,
+              modelKey,
               metadata: {
                 selectedEchoIds: echoIds || []
               }
@@ -1724,7 +1726,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
 
           const data = await response.json();
-          const reply = data.message?.content || data.reply || '';
+          const reply = typeof data.message === 'string' ? data.message : (data.message?.content || data.reply || '');
           if (!reply && data.error) {
             throw new Error(data.error);
           }
@@ -1733,7 +1735,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             id: data.message?.id || data.assistantMessageId || makeId('chat'),
             role: 'luna',
             content: reply,
-            echoIds: echoIds || []
+            echoIds: echoIds || [],
+            servingModel: data.servingModel || data.message?.servingModel,
+            fallbackUsed: Boolean(data.fallbackUsed || data.message?.fallbackUsed),
+            fallbackNotice: data.fallbackNotice || data.message?.fallbackNotice
           };
         } catch (fetchErr: any) {
           clearTimeout(timeoutId);
@@ -1741,6 +1746,43 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             throw new Error('Luna took longer than expected to respond. Please retry.');
           }
           throw fetchErr;
+        }
+      },
+
+      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string }): Promise<{ audioUrl?: string; audioBase64?: string; contentType?: string; useClientFallback?: boolean }> {
+        const auth = getAuthSession();
+        const voiceId = options?.voiceId || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole';
+        const model = options?.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5';
+        const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
+        if (voiceId === 'browser-web-speech') {
+          return { useClientFallback: true };
+        }
+        try {
+          const res = await fetch(`${apiBaseUrl}/api/chat/synthesize-speech`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              text,
+              voiceId,
+              model,
+              messageId: options?.messageId
+            })
+          });
+          if (!res.ok) {
+            return { useClientFallback: true };
+          }
+          const data = await res.json();
+          if (data.useClientFallback || (!data.audioBase64 && !data.audioUrl)) {
+            return { useClientFallback: true };
+          }
+          const mime = data.contentType || (data.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
+          const audioUrl = data.audioUrl || `data:${mime};base64,${data.audioBase64}`;
+          return { audioUrl, audioBase64: data.audioBase64, contentType: mime, useClientFallback: false };
+        } catch {
+          return { useClientFallback: true };
         }
       }
     },
