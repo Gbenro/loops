@@ -590,24 +590,13 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
   const ext = mime.includes('mp4') || mime.includes('m4a') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : 'webm';
 
   const timeoutMs = options?.timeoutMs || 20000;
-  const timeoutController = new AbortController();
-  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
-
-  let activeSignal = timeoutController.signal;
-  if (options?.signal) {
-    if (typeof (AbortSignal as any).any === 'function') {
-      activeSignal = (AbortSignal as any).any([options.signal, timeoutController.signal]);
-    } else {
-      activeSignal = options.signal;
-    }
-  }
+  const { signal: activeSignal, cleanup } = composeTimeoutSignal(options?.signal, timeoutMs);
 
   let lastError = '';
 
   try {
     const arrayBuffer = await blob.arrayBuffer();
     if (activeSignal.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     const res = await fetch(`${apiBase}/api/voice/transcribe`, {
@@ -620,7 +609,6 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
       signal: activeSignal
     });
     if (res.ok) {
-      clearTimeout(timeoutId);
       const data = await res.json();
       const text = (data?.text || '').trim();
       return text ? { text, status: 'ok' } : { text: '', status: 'no-speech' };
@@ -629,7 +617,6 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
     }
   } catch (e: any) {
     if (options?.signal?.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     lastError = e?.message || 'Network error';
@@ -638,7 +625,6 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
 
   try {
     if (activeSignal.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     const formData = new FormData();
@@ -652,7 +638,6 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
       body: formData,
       signal: activeSignal
     });
-    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       const text = (data?.text || '').trim();
@@ -661,12 +646,13 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
       lastError = `Edge HTTP ${res.status}`;
     }
   } catch (e: any) {
-    clearTimeout(timeoutId);
     if (options?.signal?.aborted) {
       return { text: '', status: 'aborted' };
     }
     lastError = e?.message || 'Network error';
     console.warn('[Transcription] Edge fallback failed:', e);
+  } finally {
+    cleanup();
   }
 
   return { text: '', status: 'error', error: lastError };
@@ -688,9 +674,10 @@ function stopChatVoicePlayback() {
     try { window.speechSynthesis.cancel(); } catch {}
   }
   chatSpeechUtterance = null;
-  if (state.chatPlayingMessageId !== null || state.chatVoiceFallbackMessageId !== null) {
+  if (state.chatPlayingMessageId !== null || state.chatVoiceFallbackMessageId !== null || state.chatVoiceFallbackLabel !== null) {
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
   }
 }
@@ -700,6 +687,7 @@ function playBrowserSpeech(text: string, messageId: string, isFallback = false) 
     toast(isFallback ? 'Voice service unavailable and browser speech not supported.' : 'Speech playback is not supported in this browser.');
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
     return;
   }
@@ -712,6 +700,7 @@ function playBrowserSpeech(text: string, messageId: string, isFallback = false) 
       if (state.chatPlayingMessageId === messageId) {
         state.chatPlayingMessageId = null;
         state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
         render();
       }
     };
@@ -719,18 +708,22 @@ function playBrowserSpeech(text: string, messageId: string, isFallback = false) 
       if (state.chatPlayingMessageId === messageId) {
         state.chatPlayingMessageId = null;
         state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
         render();
       }
     };
     chatSpeechUtterance = utter;
     state.chatVoiceFallbackMessageId = isFallback ? messageId : null;
+    state.chatVoiceFallbackLabel = isFallback ? 'Device Voice…' : null;
     window.speechSynthesis.speak(utter);
     if (isFallback) {
       toast('Selected voice unavailable; speaking with device voice.');
     }
+    render();
   } catch {
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
   }
 }
@@ -758,6 +751,7 @@ async function handlePlayChatVoice(messageId: string) {
 
   state.chatPlayingMessageId = messageId;
   state.chatVoiceFallbackMessageId = null;
+  state.chatVoiceFallbackLabel = null;
   render();
 
   if (state.chatVoice === 'browser-web-speech') {
@@ -780,11 +774,22 @@ async function handlePlayChatVoice(messageId: string) {
     }
 
     if (res?.audioUrl && !res.useClientFallback) {
+      if (res.fallbackUsed) {
+        state.chatVoiceFallbackMessageId = messageId;
+        const fallbackVoiceName = getVoiceDisplayName(res.voiceId) || res.voiceId || 'Fallback Voice';
+        state.chatVoiceFallbackLabel = `${fallbackVoiceName} (Fallback)…`;
+        render();
+        toast(`Voice service unavailable; speaking with ${fallbackVoiceName}.`);
+      } else {
+        state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
+      }
       const audio = new Audio(res.audioUrl);
       audio.onended = () => {
         if (state.chatPlayingMessageId === messageId && attempt === chatPlayAttempt) {
           state.chatPlayingMessageId = null;
           state.chatVoiceFallbackMessageId = null;
+          state.chatVoiceFallbackLabel = null;
           render();
         }
       };
@@ -1245,8 +1250,22 @@ window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch
 // Refresh the Field after returning from Classic or an Android background pause.
 let resumeSync: Promise<void> | null = null;
 function syncOnReturn() {
-  if (document.visibilityState !== 'visible' || captureActive || resumeSync) return;
-  resumeSync = Promise.resolve(services.sync?.()).then(() => render()).catch(() => {}).finally(() => { resumeSync = null; });
+  if (
+    document.visibilityState !== 'visible' ||
+    captureActive ||
+    state.chatVoiceRecording ||
+    state.chatTranscribing ||
+    state.chatPlayingMessageId !== null ||
+    resumeSync
+  ) return;
+  resumeSync = Promise.resolve(services.sync?.()).then(() => {
+    if (
+      !captureActive &&
+      !state.chatVoiceRecording &&
+      !state.chatTranscribing &&
+      state.chatPlayingMessageId === null
+    ) render();
+  }).catch(() => {}).finally(() => { resumeSync = null; });
 }
 document.addEventListener('visibilitychange', syncOnReturn);
 window.addEventListener('focus', syncOnReturn);

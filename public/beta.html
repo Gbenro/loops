@@ -1639,6 +1639,7 @@ function createMockServices(audioAssets                      ={})              {
 
 
 
+
 const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 const LOOPS_KEY = 'cosmic_loops_v1';
@@ -2091,6 +2092,32 @@ function mapClassicLoopToBeta(raw     )       {
     user_id: raw.user_id || raw.userId || undefined,
     syncStatus: raw.syncStatus || 'synced'
   };
+}
+
+function composeTimeoutSignal(callerSignal                         , timeoutMs        )                                               {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    timeoutController.abort(new DOMException(`Operation timed out after ${timeoutMs}ms.`, 'TimeoutError'));
+  }, timeoutMs);
+
+  let onCallerAbort                          ;
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      timeoutController.abort(callerSignal.reason);
+    } else {
+      onCallerAbort = () => timeoutController.abort(callerSignal.reason);
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timeoutId);
+    if (callerSignal && onCallerAbort) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
+  };
+
+  return { signal: timeoutController.signal, cleanup };
 }
 
 function createLiveLunaServices(audioAssets                         = {})               {
@@ -3367,7 +3394,7 @@ function createLiveLunaServices(audioAssets                         = {})       
         }
       },
 
-      async synthesizeSpeech(text        , options                                                                                 )                                                                                                          {
+      async synthesizeSpeech(text        , options                                                                                 )                                 {
         const auth = getAuthSession();
         const voiceId = options?.voiceId || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole';
         const model = options?.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5';
@@ -3376,16 +3403,7 @@ function createLiveLunaServices(audioAssets                         = {})       
           return { useClientFallback: true };
         }
 
-        const timeoutController = new AbortController();
-        const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
-        let activeSignal = timeoutController.signal;
-        if (options?.signal) {
-          if (typeof (AbortSignal       ).any === 'function') {
-            activeSignal = (AbortSignal       ).any([options.signal, timeoutController.signal]);
-          } else {
-            activeSignal = options.signal;
-          }
-        }
+        const { signal, cleanup } = composeTimeoutSignal(options?.signal, 15000);
 
         try {
           const res = await fetch(`${apiBaseUrl}/api/chat/synthesize-speech`, {
@@ -3400,25 +3418,42 @@ function createLiveLunaServices(audioAssets                         = {})       
               model,
               messageId: options?.messageId
             }),
-            signal: activeSignal
+            signal
           });
-          clearTimeout(timeoutId);
           if (!res.ok) {
-            return { useClientFallback: true };
+            return { useClientFallback: true, error: `HTTP ${res.status}` };
           }
           const data = await res.json();
           if (data.useClientFallback || (!data.audioBase64 && !data.audioUrl)) {
-            return { useClientFallback: true };
+            return {
+              useClientFallback: true,
+              fallbackUsed: Boolean(data.fallbackUsed),
+              provider: data.provider,
+              model: data.model,
+              voiceId: data.voiceId,
+              error: data.error
+            };
           }
           const mime = data.contentType || (data.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
           const audioUrl = data.audioUrl || `data:${mime};base64,${data.audioBase64}`;
-          return { audioUrl, audioBase64: data.audioBase64, contentType: mime, useClientFallback: false };
+          return {
+            audioUrl,
+            audioBase64: data.audioBase64,
+            contentType: mime,
+            useClientFallback: false,
+            fallbackUsed: Boolean(data.fallbackUsed),
+            provider: data.provider,
+            model: data.model,
+            voiceId: data.voiceId,
+            error: data.error
+          };
         } catch (err     ) {
-          clearTimeout(timeoutId);
           if (options?.signal?.aborted) {
-            return { useClientFallback: false };
+            return { useClientFallback: false, error: 'aborted' };
           }
-          return { useClientFallback: true };
+          return { useClientFallback: true, error: err.message };
+        } finally {
+          cleanup();
         }
       }
     },
@@ -3518,7 +3553,7 @@ const initialState=()        =>{
   const model=(typeof localStorage!=='undefined'?localStorage.getItem('luna_model_key'):null)||'anthropic-fable-5';
   const voice=(typeof localStorage!=='undefined'?localStorage.getItem('luna_voice_key'):null)||'eleven-nicole';
   const voiceModel=(typeof localStorage!=='undefined'?localStorage.getItem('luna_voice_model_key'):null)||'eleven_flash_v2_5';
-  return {route:parseRoute(globalThis.location?.hash||''),echoKind:'all',search:'',loopFilter:'unfolding',phase,cycleId,time:'night',scenario:'ready',chat:[],chatContext:[],chatBusy:false,chatError:null,chatSessionId:null,chatInitialized:false,forceMicDenied:false,deepSheetOpen:false,deepSheetTab:'phase',chatModel:model,chatVoice:voice,chatVoiceModel:voiceModel,chatControlsOpen:false,chatPlayingMessageId:null,chatVoiceFallbackMessageId:null,chatVoiceRecording:false,chatVoiceDuration:0,chatTranscribing:false};
+  return {route:parseRoute(globalThis.location?.hash||''),echoKind:'all',search:'',loopFilter:'unfolding',phase,cycleId,time:'night',scenario:'ready',chat:[],chatContext:[],chatBusy:false,chatError:null,chatSessionId:null,chatInitialized:false,forceMicDenied:false,deepSheetOpen:false,deepSheetTab:'phase',chatModel:model,chatVoice:voice,chatVoiceModel:voiceModel,chatControlsOpen:false,chatPlayingMessageId:null,chatVoiceFallbackMessageId:null,chatVoiceFallbackLabel:null,chatVoiceRecording:false,chatVoiceDuration:0,chatTranscribing:false};
 };
 
 
@@ -4283,7 +4318,7 @@ function chatView(db               , state         ) {
               ${m.servingModel ? `<span class="chat-model-badge ${m.fallbackUsed ? 'fallback' : ''}" title="${m.fallbackNotice ? escapeHtml(m.fallbackNotice) : escapeHtml(m.servingModel)}">${escapeHtml(m.fallbackUsed ? `Served via ${m.servingModel}` : getModelDisplayName(m.servingModel))}</span>` : ''}
               <button type="button" class="chat-voice-play-btn ${state.chatPlayingMessageId === m.id ? 'is-playing' : ''} ${state.chatPlayingMessageId === m.id && state.chatVoiceFallbackMessageId === m.id ? 'is-fallback' : ''}" data-action="play-chat-voice" data-id="${m.id}" aria-label="${state.chatPlayingMessageId === m.id ? 'Pause voice' : 'Listen to Luna speak'}">
                 ${icon(state.chatPlayingMessageId === m.id ? 'pause' : 'play', 12)}
-                <span>${state.chatPlayingMessageId === m.id ? (state.chatVoiceFallbackMessageId === m.id ? 'Device Voice…' : 'Listening…') : 'Listen'}</span>
+                <span>${state.chatPlayingMessageId === m.id ? (state.chatVoiceFallbackMessageId === m.id ? (state.chatVoiceFallbackLabel || 'Device Voice…') : 'Listening…') : 'Listen'}</span>
               </button>
             </div>` : ''}
           </div>
@@ -5399,24 +5434,13 @@ async function transcribeVoice(blob      , options                              
   const ext = mime.includes('mp4') || mime.includes('m4a') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : 'webm';
 
   const timeoutMs = options?.timeoutMs || 20000;
-  const timeoutController = new AbortController();
-  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
-
-  let activeSignal = timeoutController.signal;
-  if (options?.signal) {
-    if (typeof (AbortSignal       ).any === 'function') {
-      activeSignal = (AbortSignal       ).any([options.signal, timeoutController.signal]);
-    } else {
-      activeSignal = options.signal;
-    }
-  }
+  const { signal: activeSignal, cleanup } = composeTimeoutSignal(options?.signal, timeoutMs);
 
   let lastError = '';
 
   try {
     const arrayBuffer = await blob.arrayBuffer();
     if (activeSignal.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     const res = await fetch(`${apiBase}/api/voice/transcribe`, {
@@ -5429,7 +5453,6 @@ async function transcribeVoice(blob      , options                              
       signal: activeSignal
     });
     if (res.ok) {
-      clearTimeout(timeoutId);
       const data = await res.json();
       const text = (data?.text || '').trim();
       return text ? { text, status: 'ok' } : { text: '', status: 'no-speech' };
@@ -5438,7 +5461,6 @@ async function transcribeVoice(blob      , options                              
     }
   } catch (e     ) {
     if (options?.signal?.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     lastError = e?.message || 'Network error';
@@ -5447,7 +5469,6 @@ async function transcribeVoice(blob      , options                              
 
   try {
     if (activeSignal.aborted) {
-      clearTimeout(timeoutId);
       return { text: '', status: 'aborted' };
     }
     const formData = new FormData();
@@ -5461,7 +5482,6 @@ async function transcribeVoice(blob      , options                              
       body: formData,
       signal: activeSignal
     });
-    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       const text = (data?.text || '').trim();
@@ -5470,12 +5490,13 @@ async function transcribeVoice(blob      , options                              
       lastError = `Edge HTTP ${res.status}`;
     }
   } catch (e     ) {
-    clearTimeout(timeoutId);
     if (options?.signal?.aborted) {
       return { text: '', status: 'aborted' };
     }
     lastError = e?.message || 'Network error';
     console.warn('[Transcription] Edge fallback failed:', e);
+  } finally {
+    cleanup();
   }
 
   return { text: '', status: 'error', error: lastError };
@@ -5497,9 +5518,10 @@ function stopChatVoicePlayback() {
     try { window.speechSynthesis.cancel(); } catch {}
   }
   chatSpeechUtterance = null;
-  if (state.chatPlayingMessageId !== null || state.chatVoiceFallbackMessageId !== null) {
+  if (state.chatPlayingMessageId !== null || state.chatVoiceFallbackMessageId !== null || state.chatVoiceFallbackLabel !== null) {
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
   }
 }
@@ -5509,6 +5531,7 @@ function playBrowserSpeech(text        , messageId        , isFallback = false) 
     toast(isFallback ? 'Voice service unavailable and browser speech not supported.' : 'Speech playback is not supported in this browser.');
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
     return;
   }
@@ -5521,6 +5544,7 @@ function playBrowserSpeech(text        , messageId        , isFallback = false) 
       if (state.chatPlayingMessageId === messageId) {
         state.chatPlayingMessageId = null;
         state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
         render();
       }
     };
@@ -5528,18 +5552,22 @@ function playBrowserSpeech(text        , messageId        , isFallback = false) 
       if (state.chatPlayingMessageId === messageId) {
         state.chatPlayingMessageId = null;
         state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
         render();
       }
     };
     chatSpeechUtterance = utter;
     state.chatVoiceFallbackMessageId = isFallback ? messageId : null;
+    state.chatVoiceFallbackLabel = isFallback ? 'Device Voice…' : null;
     window.speechSynthesis.speak(utter);
     if (isFallback) {
       toast('Selected voice unavailable; speaking with device voice.');
     }
+    render();
   } catch {
     state.chatPlayingMessageId = null;
     state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
     render();
   }
 }
@@ -5567,6 +5595,7 @@ async function handlePlayChatVoice(messageId        ) {
 
   state.chatPlayingMessageId = messageId;
   state.chatVoiceFallbackMessageId = null;
+  state.chatVoiceFallbackLabel = null;
   render();
 
   if (state.chatVoice === 'browser-web-speech') {
@@ -5589,11 +5618,22 @@ async function handlePlayChatVoice(messageId        ) {
     }
 
     if (res?.audioUrl && !res.useClientFallback) {
+      if (res.fallbackUsed) {
+        state.chatVoiceFallbackMessageId = messageId;
+        const fallbackVoiceName = getVoiceDisplayName(res.voiceId) || res.voiceId || 'Fallback Voice';
+        state.chatVoiceFallbackLabel = `${fallbackVoiceName} (Fallback)…`;
+        render();
+        toast(`Voice service unavailable; speaking with ${fallbackVoiceName}.`);
+      } else {
+        state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
+      }
       const audio = new Audio(res.audioUrl);
       audio.onended = () => {
         if (state.chatPlayingMessageId === messageId && attempt === chatPlayAttempt) {
           state.chatPlayingMessageId = null;
           state.chatVoiceFallbackMessageId = null;
+          state.chatVoiceFallbackLabel = null;
           render();
         }
       };
@@ -6054,8 +6094,22 @@ window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch
 // Refresh the Field after returning from Classic or an Android background pause.
 let resumeSync                       = null;
 function syncOnReturn() {
-  if (document.visibilityState !== 'visible' || captureActive || resumeSync) return;
-  resumeSync = Promise.resolve(services.sync?.()).then(() => render()).catch(() => {}).finally(() => { resumeSync = null; });
+  if (
+    document.visibilityState !== 'visible' ||
+    captureActive ||
+    state.chatVoiceRecording ||
+    state.chatTranscribing ||
+    state.chatPlayingMessageId !== null ||
+    resumeSync
+  ) return;
+  resumeSync = Promise.resolve(services.sync?.()).then(() => {
+    if (
+      !captureActive &&
+      !state.chatVoiceRecording &&
+      !state.chatTranscribing &&
+      state.chatPlayingMessageId === null
+    ) render();
+  }).catch(() => {}).finally(() => { resumeSync = null; });
 }
 document.addEventListener('visibilitychange', syncOnReturn);
 window.addEventListener('focus', syncOnReturn);

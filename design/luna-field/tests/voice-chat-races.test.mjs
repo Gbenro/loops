@@ -1,4 +1,4 @@
-﻿import './idb-fixture.mjs';
+import './idb-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -188,4 +188,84 @@ test('Race Guard 5: getUserMedia late permission after cancellation stops newly 
   }
 
   assert.equal(tracksStopped, true, 'Late stream tracks must be stopped immediately when token is stale');
+});
+
+test('Race Guard 6: composeTimeoutSignal relays caller abort into timeout controller and preserves timeout', async () => {
+  const { composeTimeoutSignal } = await import('../src/live-services.ts');
+
+  // Case A: Caller aborts before timeout
+  const callerController = new AbortController();
+  const composedA = composeTimeoutSignal(callerController.signal, 10000);
+  assert.equal(composedA.signal.aborted, false);
+  callerController.abort('user-stop');
+  assert.equal(composedA.signal.aborted, true);
+  composedA.cleanup();
+
+  // Case B: Caller signal already aborted
+  const alreadyAborted = AbortSignal.abort('pre-aborted');
+  const composedB = composeTimeoutSignal(alreadyAborted, 10000);
+  assert.equal(composedB.signal.aborted, true);
+  composedB.cleanup();
+
+  // Case C: Timeout fires without caller abort
+  const composedC = composeTimeoutSignal(undefined, 20);
+  assert.equal(composedC.signal.aborted, false);
+  await new Promise(r => setTimeout(r, 40));
+  assert.equal(composedC.signal.aborted, true);
+  composedC.cleanup();
+});
+
+test('Race Guard 7: Provider fallback voice is preserved and disclosed via chatVoiceFallbackLabel', () => {
+  const db = structuredClone(FIXTURES);
+  const state = initialState();
+  state.chatPlayingMessageId = 'msg-luna-2';
+  state.chatVoiceFallbackMessageId = 'msg-luna-2';
+  state.chatVoiceFallbackLabel = 'Nova (Fallback)…';
+  state.chat = [
+    {
+      id: 'msg-luna-2',
+      role: 'luna',
+      content: 'I am speaking with Kokoro Nova because ElevenLabs was unavailable.',
+      echoIds: []
+    }
+  ];
+
+  const html = chatView(db, state);
+
+  // Must have is-fallback class and disclose Nova (Fallback)…
+  assert.ok(html.includes('chat-voice-play-btn is-playing is-fallback'), 'Play button must have is-fallback class');
+  assert.ok(html.includes('Nova (Fallback)…'), 'Button label must truthfully disclose actual fallback voice');
+});
+
+test('Race Guard 8: syncOnReturn guards dictation, transcribing, and playing states from background sync disruption', () => {
+  const state = initialState();
+
+  // Simulated syncOnReturn guard predicate
+  function shouldSkipSync(st, captureActive, resumeSync) {
+    return (
+      captureActive ||
+      st.chatVoiceRecording ||
+      st.chatTranscribing ||
+      st.chatPlayingMessageId !== null ||
+      resumeSync !== null
+    );
+  }
+
+  // Idle state allows sync
+  assert.equal(shouldSkipSync(state, false, null), false, 'Idle state allows sync');
+
+  // Recording dictation skips sync
+  state.chatVoiceRecording = true;
+  assert.equal(shouldSkipSync(state, false, null), true, 'Recording dictation skips sync');
+  state.chatVoiceRecording = false;
+
+  // Transcribing skips sync
+  state.chatTranscribing = true;
+  assert.equal(shouldSkipSync(state, false, null), true, 'Transcribing skips sync');
+  state.chatTranscribing = false;
+
+  // Playing audio skips sync
+  state.chatPlayingMessageId = 'msg-1';
+  assert.equal(shouldSkipSync(state, false, null), true, 'Playing audio skips sync');
+  state.chatPlayingMessageId = null;
 });

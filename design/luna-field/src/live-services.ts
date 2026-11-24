@@ -15,7 +15,8 @@ import type {
   LunarContext,
   ChatMessage,
   AuthUser,
-  SyncStatus
+  SyncStatus,
+  SpeechSynthesisResult
 } from './contracts.ts';
 import { FIXTURES } from './fixtures.ts';
 import { cleanText, makeId, filterEchoes, LOOP_STATUSES } from './mock-services.ts';
@@ -473,6 +474,32 @@ function mapClassicLoopToBeta(raw: any): Loop {
     user_id: raw.user_id || raw.userId || undefined,
     syncStatus: raw.syncStatus || 'synced'
   };
+}
+
+export function composeTimeoutSignal(callerSignal: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    timeoutController.abort(new DOMException(`Operation timed out after ${timeoutMs}ms.`, 'TimeoutError'));
+  }, timeoutMs);
+
+  let onCallerAbort: (() => void) | undefined;
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      timeoutController.abort(callerSignal.reason);
+    } else {
+      onCallerAbort = () => timeoutController.abort(callerSignal.reason);
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timeoutId);
+    if (callerSignal && onCallerAbort) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
+  };
+
+  return { signal: timeoutController.signal, cleanup };
 }
 
 export function createLiveLunaServices(audioAssets: Record<string, string> = {}): LunaServices {
@@ -1749,7 +1776,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
       },
 
-      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string; signal?: AbortSignal }): Promise<{ audioUrl?: string; audioBase64?: string; contentType?: string; useClientFallback?: boolean }> {
+      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string; signal?: AbortSignal }): Promise<SpeechSynthesisResult> {
         const auth = getAuthSession();
         const voiceId = options?.voiceId || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole';
         const model = options?.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5';
@@ -1758,16 +1785,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           return { useClientFallback: true };
         }
 
-        const timeoutController = new AbortController();
-        const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
-        let activeSignal = timeoutController.signal;
-        if (options?.signal) {
-          if (typeof (AbortSignal as any).any === 'function') {
-            activeSignal = (AbortSignal as any).any([options.signal, timeoutController.signal]);
-          } else {
-            activeSignal = options.signal;
-          }
-        }
+        const { signal, cleanup } = composeTimeoutSignal(options?.signal, 15000);
 
         try {
           const res = await fetch(`${apiBaseUrl}/api/chat/synthesize-speech`, {
@@ -1782,25 +1800,42 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               model,
               messageId: options?.messageId
             }),
-            signal: activeSignal
+            signal
           });
-          clearTimeout(timeoutId);
           if (!res.ok) {
-            return { useClientFallback: true };
+            return { useClientFallback: true, error: `HTTP ${res.status}` };
           }
           const data = await res.json();
           if (data.useClientFallback || (!data.audioBase64 && !data.audioUrl)) {
-            return { useClientFallback: true };
+            return {
+              useClientFallback: true,
+              fallbackUsed: Boolean(data.fallbackUsed),
+              provider: data.provider,
+              model: data.model,
+              voiceId: data.voiceId,
+              error: data.error
+            };
           }
           const mime = data.contentType || (data.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
           const audioUrl = data.audioUrl || `data:${mime};base64,${data.audioBase64}`;
-          return { audioUrl, audioBase64: data.audioBase64, contentType: mime, useClientFallback: false };
+          return {
+            audioUrl,
+            audioBase64: data.audioBase64,
+            contentType: mime,
+            useClientFallback: false,
+            fallbackUsed: Boolean(data.fallbackUsed),
+            provider: data.provider,
+            model: data.model,
+            voiceId: data.voiceId,
+            error: data.error
+          };
         } catch (err: any) {
-          clearTimeout(timeoutId);
           if (options?.signal?.aborted) {
-            return { useClientFallback: false };
+            return { useClientFallback: false, error: 'aborted' };
           }
-          return { useClientFallback: true };
+          return { useClientFallback: true, error: err.message };
+        } finally {
+          cleanup();
         }
       }
     },
