@@ -143,9 +143,15 @@ function showModal(title:string,content:string){
 function closeModal(){if(modal.open)modal.close();}
 modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({preventScroll:true});});
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
+let captureTranscribing = false;
+let captureTranscript = '';
+let captureSttAbortController: AbortController | null = null;
+
 function cleanupCapture(){
   if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
   clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
+  if(captureSttAbortController){captureSttAbortController.abort();captureSttAbortController=null;}
+  captureTranscribing=false;captureTranscript='';
   if(recordingSession&&recorder?.state!=='inactive')void recordingSession.stop(true).then(()=>refreshRecovery());
   // RecordingSession owns tracks and final events until stop has persisted them.
   stream=null;recorder=null;recordingSession=null;
@@ -157,14 +163,15 @@ function cleanupCapture(){
   recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;storageError='';
 }
 function keepCaptureInputs(){const title=modal.querySelector<HTMLInputElement>('#capture-title');const body=modal.querySelector<HTMLTextAreaElement>('#capture-body');if(title)captureTitle=title.value;if(body)captureText=body.value;}
-function openCapture(mode:'voice'|'text'){journeyView?.pause();stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureActive=true;recordingOwner=getAuthSession().userId;recordingStartedAt=new Date().toISOString();renderCapture();}
+function openCapture(mode:'voice'|'text'){journeyView?.pause();stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureTranscript='';captureTranscribing=false;captureActive=true;recordingOwner=getAuthSession().userId;recordingStartedAt=new Date().toISOString();renderCapture();}
 function renderCapture(error=''){
+  keepCaptureInputs();
   const running=recorder?.state==='recording';
   const ready=!!recordingUrl&&!recordingFinalizing;
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label><div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>${services.privacy?.unlocked()?'Echo text will be encrypted. Original audio is unchanged.':'Saved to your personal living field.'}<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label>${captureTranscribing?`<p class="capture-transcription-status small" style="color:var(--color-focus, #ddc697);margin:4px 0" role="status"><span class="thinking-dot"></span> ✦ Transcribing your recording…</p>`:''}${captureTranscript&&captureText.trim()!==captureTranscript.trim()?`<div style="margin:4px 0 8px"><button type="button" class="text-link" data-action="insert-capture-transcript" style="font-size:12px;color:var(--color-focus, #ddc697)">${icon('write',12)} Spoken transcript ready · Tap to insert</button></div>`:''}<div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>${services.privacy?.unlocked()?'Echo text will be encrypted. Original audio is unchanged.':'Saved to your personal living field.'}<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
@@ -227,6 +234,36 @@ async function startRecording(){
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
       recordingAnalysis=analysis;recordingDuration=analysis.duration;recordingFinalizing=false;renderCapture();
+      if(blob.size>=500){
+        keepCaptureInputs();
+        captureTranscribing=true;
+        renderCapture();
+        const sttController=new AbortController();
+        captureSttAbortController=sttController;
+        void(async()=>{
+          try{
+            const result=await transcribeVoice(blob,{signal:sttController.signal});
+            if(token!==captureToken||!captureActive||sttController.signal.aborted)return;
+            keepCaptureInputs();
+            captureTranscribing=false;
+            if(result.status==='ok'&&result.text){
+              captureTranscript=result.text;
+              if(!captureText.trim()){
+                captureText=result.text;
+                drafts['capture-body']=result.text;
+                const ta=modal.querySelector<HTMLTextAreaElement>('#capture-body');
+                if(ta)ta.value=result.text;
+              }
+            }
+            renderCapture();
+          }catch{
+            if(token===captureToken&&captureActive){
+              captureTranscribing=false;
+              renderCapture();
+            }
+          }
+        })();
+      }
     };
     activeRecorder.start(250);recordStarted=performance.now();renderCapture();
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit')!);
@@ -405,6 +442,7 @@ async function primeEchoAudio(){
 }
 
 async function playEcho(id:string){
+  stopChatVoicePlayback();
   if(audioEchoId===id&&audio.src){if(audio.paused){try{await audio.play();}catch{toast('Playback could not start. Try again in a supported browser.');}}else audio.pause();syncAudioUI();return;}
   const attempt=++audioAttempt;audio.pause();
   try{const echo=await services.echoes.get(id);const source=await services.audio.resolve(echo);if(attempt!==audioAttempt)return;if(!source){toast('No playable audio is available for this Echo.');return;}audioEchoId=id;activeWaveform=echo.waveform||[];activeDuration=echo.duration||0;audio.src=source;audio.currentTime=0;await audio.play();syncAudioUI();void deriveEchoWaveformIfNeeded(echo);}catch{toast('Audio could not be played. Your original words remain available.');}
@@ -526,6 +564,433 @@ async function downloadEchoAudio(id:string):Promise<void>{
   await downloadAudioBlob(blob,echo.title||'Echo');
 }
 
+// --- CHAT VOICE, TTS & TRANSCRIPTION CONTROLS ---
+
+let chatPlayAttempt = 0;
+let chatTtsAbortController: AbortController | null = null;
+let chatAudio: HTMLAudioElement | null = null;
+let chatSpeechUtterance: SpeechSynthesisUtterance | null = null;
+let chatDictationToken = 0;
+let chatDictationRecorder: MediaRecorder | null = null;
+let chatDictationStream: MediaStream | null = null;
+let chatDictationChunks: BlobPart[] = [];
+let chatDictationTimer: any = null;
+let chatDictationStartedAt = 0;
+let chatSttAbortController: AbortController | null = null;
+let chatDictationOwner = '';
+
+interface TranscriptionResult {
+  text: string;
+  status: 'ok' | 'no-speech' | 'error' | 'aborted';
+  error?: string;
+}
+
+async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<TranscriptionResult> {
+  if (!blob || blob.size < 500) return { text: '', status: 'no-speech' };
+  const apiBase = 'https://loops-production-e1d5.up.railway.app';
+  const edgeUrl = 'https://eyxvsbqyzeodsjajfqsj.supabase.co/functions/v1/transcribe-audio';
+  const anonKey = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
+  const mime = blob.type || 'audio/webm';
+  const ext = mime.includes('mp4') || mime.includes('m4a') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : 'webm';
+
+  const timeoutMs = options?.timeoutMs || 20000;
+  const { signal: activeSignal, cleanup } = composeTimeoutSignal(options?.signal, timeoutMs);
+
+  let lastError = '';
+
+  try {
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      if (options?.signal?.aborted) return { text: '', status: 'aborted' };
+      if (activeSignal.aborted) {
+        return { text: '', status: 'error', error: 'Transcription timed out. Please try again.' };
+      }
+      const res = await fetch(`${apiBase}/api/voice/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': mime,
+          'x-audio-filename': `recording.${ext}`
+        },
+        body: arrayBuffer,
+        signal: activeSignal
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = (data?.text || '').trim();
+        return text ? { text, status: 'ok' } : { text: '', status: 'no-speech' };
+      } else {
+        lastError = `Backend HTTP ${res.status}`;
+      }
+    } catch (e: any) {
+      if (options?.signal?.aborted) return { text: '', status: 'aborted' };
+      if (activeSignal.aborted || e?.name === 'TimeoutError') {
+        return { text: '', status: 'error', error: 'Transcription timed out. Please try again.' };
+      }
+      lastError = e?.message || 'Network error';
+      console.warn('[Transcription] Primary backend failed, trying edge fallback:', e);
+    }
+
+    try {
+      if (options?.signal?.aborted) return { text: '', status: 'aborted' };
+      if (activeSignal.aborted) {
+        return { text: '', status: 'error', error: 'Transcription timed out. Please try again.' };
+      }
+      const formData = new FormData();
+      formData.append('file', blob, `audio.${ext}`);
+      const res = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: formData,
+        signal: activeSignal
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = (data?.text || '').trim();
+        return text ? { text, status: 'ok' } : { text: '', status: 'no-speech' };
+      } else {
+        lastError = `Edge HTTP ${res.status}`;
+      }
+    } catch (e: any) {
+      if (options?.signal?.aborted) return { text: '', status: 'aborted' };
+      if (activeSignal.aborted || e?.name === 'TimeoutError') {
+        return { text: '', status: 'error', error: 'Transcription timed out. Please try again.' };
+      }
+      lastError = e?.message || 'Network error';
+      console.warn('[Transcription] Edge fallback failed:', e);
+    }
+
+    return { text: '', status: 'error', error: lastError || 'Transcription failed' };
+  } finally {
+    cleanup();
+  }
+}
+
+function stopChatVoicePlayback() {
+  chatPlayAttempt++;
+  if (chatTtsAbortController) {
+    chatTtsAbortController.abort();
+    chatTtsAbortController = null;
+  }
+  if (chatAudio) {
+    chatAudio.pause();
+    chatAudio.onended = null;
+    chatAudio.onerror = null;
+    chatAudio = null;
+  }
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); } catch {}
+  }
+  chatSpeechUtterance = null;
+  if (state.chatPlayingMessageId !== null || state.chatVoiceFallbackMessageId !== null || state.chatVoiceFallbackLabel !== null) {
+    state.chatPlayingMessageId = null;
+    state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
+    render();
+  }
+}
+
+function playBrowserSpeech(text: string, messageId: string, isFallback = false) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    toast(isFallback ? 'Voice service unavailable and browser speech not supported.' : 'Speech playback is not supported in this browser.');
+    state.chatPlayingMessageId = null;
+    state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
+    render();
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    utter.pitch = 1.0;
+    utter.onend = () => {
+      if (state.chatPlayingMessageId === messageId) {
+        state.chatPlayingMessageId = null;
+        state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
+        render();
+      }
+    };
+    utter.onerror = () => {
+      if (state.chatPlayingMessageId === messageId) {
+        state.chatPlayingMessageId = null;
+        state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
+        render();
+      }
+    };
+    chatSpeechUtterance = utter;
+    state.chatVoiceFallbackMessageId = isFallback ? messageId : null;
+    state.chatVoiceFallbackLabel = isFallback ? 'Device Voice…' : null;
+    window.speechSynthesis.speak(utter);
+    if (isFallback) {
+      toast('Selected voice unavailable; speaking with device voice.');
+    }
+    render();
+  } catch {
+    state.chatPlayingMessageId = null;
+    state.chatVoiceFallbackMessageId = null;
+    state.chatVoiceFallbackLabel = null;
+    render();
+  }
+}
+
+async function handlePlayChatVoice(messageId: string) {
+  if (state.chatPlayingMessageId === messageId) {
+    stopChatVoicePlayback();
+    return;
+  }
+
+  stopPlayback();
+  stopChatVoicePlayback();
+  const msg = state.chat.find(m => m.id === messageId);
+  if (!msg || !msg.content) return;
+
+  const textToSpeak = msg.content
+    .replace(/<[^>]+>/g, '')
+    .replace(/\*\(Note: Served via[^\)]+\)\*/g, '')
+    .trim();
+  if (!textToSpeak) return;
+
+  const attempt = ++chatPlayAttempt;
+  const ttsController = new AbortController();
+  chatTtsAbortController = ttsController;
+
+  state.chatPlayingMessageId = messageId;
+  state.chatVoiceFallbackMessageId = null;
+  state.chatVoiceFallbackLabel = null;
+  render();
+
+  if (state.chatVoice === 'browser-web-speech') {
+    playBrowserSpeech(textToSpeak, messageId, false);
+    return;
+  }
+
+  try {
+    const voiceId = state.chatVoice;
+    const model = state.chatVoiceModel;
+    const res = await services.chat.synthesizeSpeech?.(textToSpeak, {
+      voiceId,
+      model,
+      messageId,
+      signal: ttsController.signal
+    });
+
+    if (attempt !== chatPlayAttempt || state.chatPlayingMessageId !== messageId || ttsController.signal.aborted) {
+      return;
+    }
+
+    if (res?.audioUrl && !res.useClientFallback) {
+      if (res.fallbackUsed) {
+        state.chatVoiceFallbackMessageId = messageId;
+        const fallbackVoiceName = getVoiceDisplayName(res.voiceId) || res.voiceId || 'Fallback Voice';
+        state.chatVoiceFallbackLabel = `${fallbackVoiceName} (Fallback)…`;
+        render();
+        toast(`Voice service unavailable; speaking with ${fallbackVoiceName}.`);
+      } else {
+        state.chatVoiceFallbackMessageId = null;
+        state.chatVoiceFallbackLabel = null;
+      }
+      const audio = new Audio(res.audioUrl);
+      audio.onended = () => {
+        if (state.chatPlayingMessageId === messageId && attempt === chatPlayAttempt) {
+          state.chatPlayingMessageId = null;
+          state.chatVoiceFallbackMessageId = null;
+          state.chatVoiceFallbackLabel = null;
+          render();
+        }
+      };
+      audio.onerror = () => {
+        if (attempt === chatPlayAttempt && state.chatPlayingMessageId === messageId) {
+          playBrowserSpeech(textToSpeak, messageId, true);
+        }
+      };
+
+      if (attempt !== chatPlayAttempt || ttsController.signal.aborted) return;
+      chatAudio = audio;
+      await audio.play();
+      return;
+    }
+  } catch (err: any) {
+    if (attempt !== chatPlayAttempt || ttsController.signal.aborted) return;
+    console.warn('[Chat Voice] Synthesis failed, falling back to browser speech:', err);
+  }
+
+  if (attempt === chatPlayAttempt && state.chatPlayingMessageId === messageId && !ttsController.signal.aborted) {
+    playBrowserSpeech(textToSpeak, messageId, true);
+  }
+}
+
+function cancelChatDictation() {
+  chatDictationToken++;
+  if (chatSttAbortController) {
+    chatSttAbortController.abort();
+    chatSttAbortController = null;
+  }
+  if (chatDictationStream) {
+    chatDictationStream.getTracks().forEach(t => t.stop());
+    chatDictationStream = null;
+  }
+  if (chatDictationTimer) {
+    clearInterval(chatDictationTimer);
+    chatDictationTimer = null;
+  }
+  chatDictationChunks = [];
+  if (chatDictationRecorder) {
+    chatDictationRecorder.ondataavailable = null;
+    chatDictationRecorder.onstop = null;
+    try {
+      if (chatDictationRecorder.state !== 'inactive') chatDictationRecorder.stop();
+    } catch {}
+    chatDictationRecorder = null;
+  }
+  state.chatVoiceRecording = false;
+  state.chatVoiceDuration = 0;
+  state.chatTranscribing = false;
+  chatDictationOwner = '';
+}
+
+async function startChatDictation() {
+  if (state.chatVoiceRecording) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast('Microphone access is not supported in this browser.');
+    return;
+  }
+
+  cancelChatDictation();
+  const token = ++chatDictationToken;
+  const currentOwner = getAuthSession().userId;
+  chatDictationOwner = currentOwner;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true }
+    });
+
+    if (token !== chatDictationToken || state.route.name !== 'chat' || currentOwner !== getAuthSession().userId) {
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    chatDictationStream = stream;
+    chatDictationChunks = [];
+
+    let mimeType = 'audio/webm';
+    if (typeof MediaRecorder !== 'undefined') {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+    }
+
+    const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    mr.ondataavailable = (e) => {
+      if (token === chatDictationToken && e.data && e.data.size > 0) {
+        chatDictationChunks.push(e.data);
+      }
+    };
+
+    mr.onstop = async () => {
+      if (token !== chatDictationToken) return;
+
+      if (chatDictationStream) {
+        chatDictationStream.getTracks().forEach(t => t.stop());
+        chatDictationStream = null;
+      }
+      if (chatDictationTimer) {
+        clearInterval(chatDictationTimer);
+        chatDictationTimer = null;
+      }
+      state.chatVoiceRecording = false;
+      state.chatVoiceDuration = 0;
+
+      const blob = new Blob(chatDictationChunks, { type: mimeType });
+      chatDictationChunks = [];
+      if (!blob || blob.size < 500) {
+        render();
+        return;
+      }
+
+      state.chatTranscribing = true;
+      render();
+
+      const sttController = new AbortController();
+      chatSttAbortController = sttController;
+
+      try {
+        const result = await transcribeVoice(blob, { signal: sttController.signal });
+
+        if (token !== chatDictationToken || currentOwner !== getAuthSession().userId || sttController.signal.aborted) {
+          return;
+        }
+
+        state.chatTranscribing = false;
+
+        if (result.status === 'ok' && result.text) {
+          const input = document.getElementById('chat-input') as HTMLTextAreaElement | null;
+          const current = (input?.value || drafts['chat-input'] || '').trim();
+          const combined = current ? `${current} ${result.text}` : result.text;
+          if (input) {
+            input.value = combined;
+            input.focus();
+          }
+          drafts['chat-input'] = combined;
+          toast('Voice transcribed into message.');
+        } else if (result.status === 'no-speech') {
+          toast('No speech detected in recording.');
+        } else if (result.status === 'error') {
+          toast('Transcription service is currently unavailable. Your recording was kept.');
+        }
+      } catch {
+        if (token === chatDictationToken) {
+          state.chatTranscribing = false;
+          toast('Transcription could not finish.');
+        }
+      }
+      if (token === chatDictationToken) {
+        render();
+      }
+    };
+
+    chatDictationRecorder = mr;
+    mr.start(250);
+    chatDictationStartedAt = Date.now();
+    state.chatVoiceRecording = true;
+    state.chatVoiceDuration = 0;
+    render();
+
+    chatDictationTimer = setInterval(() => {
+      if (token !== chatDictationToken) return;
+      state.chatVoiceDuration = Math.floor((Date.now() - chatDictationStartedAt) / 1000);
+      const pill = document.querySelector('.chat-voice-btn .recording-pill');
+      if (pill) pill.textContent = `${state.chatVoiceDuration}s`;
+    }, 1000);
+  } catch (err: any) {
+    if (token !== chatDictationToken) return;
+    console.error('Dictation error:', err);
+    toast(err.name === 'NotAllowedError' ? 'Microphone permission denied.' : 'Could not start microphone.');
+    state.chatVoiceRecording = false;
+    state.chatVoiceDuration = 0;
+    render();
+  }
+}
+
+async function stopChatDictation() {
+  if (chatDictationRecorder && chatDictationRecorder.state === 'recording') {
+    chatDictationRecorder.stop();
+  }
+}
+
+async function handleToggleChatDictation() {
+  if (state.chatVoiceRecording) {
+    await stopChatDictation();
+  } else {
+    await startChatDictation();
+  }
+}
+
 document.addEventListener('click',async(event)=>{
   const target=(event.target as HTMLElement).closest<HTMLElement>('[data-action]');if(!target)return;event.preventDefault();const action=target.dataset.action!;const value=target.dataset.value||'';const id=target.dataset.id||'';
   try{
@@ -544,7 +1009,22 @@ document.addEventListener('click',async(event)=>{
       }
       case 'review':openReview();break;
       case 'open-auth':{const u=services.auth?.getUser?.();if(u)openAccountModal(u);else openSignInModal();break;}
-      case 'auth-signout':{stopPlayback();cleanupCapture();await services.auth?.signOut?.();state.chat=[];state.chatSessionId=null;state.chatInitialized=false;state.chatError=null;state.chatContext=[];closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'auth-signout':{stopPlayback();stopChatVoicePlayback();cancelChatDictation();cleanupCapture();await services.auth?.signOut?.();state.chat=[];state.chatSessionId=null;state.chatInitialized=false;state.chatError=null;state.chatContext=[];closeModal();render(true);toast('Signed out of your Luna Field.');break;}
+      case 'toggle-chat-controls':state.chatControlsOpen=!state.chatControlsOpen;render();break;
+      case 'play-chat-voice':await handlePlayChatVoice(id);break;
+      case 'chat-voice-record':await handleToggleChatDictation();break;
+      case 'insert-capture-transcript':{
+        keepCaptureInputs();
+        if(captureTranscript){
+          const combined=captureText.trim()?`${captureText.trim()}\n\n${captureTranscript}`:captureTranscript;
+          captureText=combined;
+          drafts['capture-body']=combined;
+          const ta=modal.querySelector<HTMLTextAreaElement>('#capture-body');
+          if(ta)ta.value=combined;
+          renderCapture();
+        }
+        break;
+      }
       case 'toggle-transcript':{
         const targetId=target.dataset.target;
         const container=targetId?document.getElementById(targetId):target.previousElementSibling;
@@ -573,7 +1053,7 @@ document.addEventListener('click',async(event)=>{
         render();
         try{
           const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
           if(token!==generation)return;
           state.chat.push(response);
           state.chatBusy=false;
@@ -622,7 +1102,7 @@ document.addEventListener('click',async(event)=>{
       case 'close-deep-sheet':state.deepSheetOpen=false;render();break;
       case 'deep-sheet-tab':state.deepSheetTab=value as any;render();break;
       case 'reset-open':showModal('Clear local session cache?',`<p class="dialog-description">This resets local draft caches held in memory.</p><div class="form-foot"><button class="btn" data-action="close-modal">Keep exploring</button><button class="btn primary" data-action="reset-confirm">Reset cache</button></div>`);break;
-      case 'reset-confirm':generation++;stopPlayback();closeModal();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));localAudioUrls.clear();services.reset();Object.keys(drafts).forEach(key=>delete drafts[key]);state.chat=[];state.chatContext=[];state.chatBusy=false;state.scenario='ready';state.search='';state.echoKind='all';state.loopFilter='unfolding';go('field');render(true);toast('Local session cache cleared.');break;
+      case 'reset-confirm':generation++;stopPlayback();stopChatVoicePlayback();cancelChatDictation();closeModal();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));localAudioUrls.clear();services.reset();Object.keys(drafts).forEach(key=>delete drafts[key]);state.chat=[];state.chatContext=[];state.chatBusy=false;state.scenario='ready';state.search='';state.echoKind='all';state.loopFilter='unfolding';go('field');render(true);toast('Local session cache cleared.');break;
     }
   }catch(error){toast((error as Error).message||'That action could not finish. Please try again.');}
 });
@@ -641,6 +1121,21 @@ document.addEventListener('change',async(event)=>{
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value as LoopStatus);render();toast('Your intention has room to change.');}
     if(el.id==='cycle-select'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
     if(el.id==='mic-denial')state.forceMicDenied=(el as HTMLInputElement).checked;
+    if(el.id==='chat-model-select'||el.dataset.action==='select-chat-model'){
+      state.chatModel=el.value;
+      try{localStorage.setItem('luna_model_key',el.value);}catch{}
+      render();
+    }
+    if(el.id==='chat-voice-select'||el.dataset.action==='select-chat-voice'){
+      state.chatVoice=el.value;
+      try{localStorage.setItem('luna_voice_key',el.value);}catch{}
+      render();
+    }
+    if(el.id==='chat-voice-tier-select'||el.dataset.action==='select-chat-voice-tier'){
+      state.chatVoiceModel=el.value;
+      try{localStorage.setItem('luna_voice_model_key',el.value);}catch{}
+      render();
+    }
   }catch(error){toast((error as Error).message);}
 });
 document.addEventListener('keydown',event=>{
@@ -715,7 +1210,7 @@ document.addEventListener('submit',async(event)=>{
         render();
         try{
           const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId});
+          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
           if(token!==generation)return;
           state.chat.push(response);
           state.chatBusy=false;
@@ -740,6 +1235,8 @@ document.addEventListener('submit',async(event)=>{
 window.addEventListener('luna-account-changed',()=>{
   generation++;
   stopPlayback();
+  stopChatVoicePlayback();
+  cancelChatDictation();
   cleanupCapture();
   closeModal();
   state.chat=[];
@@ -752,9 +1249,9 @@ window.addEventListener('luna-account-changed',()=>{
   Object.keys(drafts).forEach(key=>delete drafts[key]);
   render();
 });
-window.addEventListener('hashchange',()=>{stopPlayback();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
+window.addEventListener('hashchange',()=>{stopPlayback();stopChatVoicePlayback();cancelChatDictation();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
-window.addEventListener('pagehide',()=>{cleanupCapture();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('pagehide',()=>{cleanupCapture();stopChatVoicePlayback();cancelChatDictation();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&captureActive&&recorder?.state==='recording'&&!wakeLock){
     const reacquireToken=captureToken;
@@ -782,8 +1279,27 @@ window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch
 let resumeSync: Promise<void> | null = null;
 function syncOnReturn() {
   if (document.visibilityState === 'visible') fieldRealtime.start();
-  if (document.visibilityState !== 'visible' || captureActive || modal.open || state.chatBusy || resumeSync || document.activeElement?.matches('input,textarea,select,[contenteditable=true]')) return;
-  resumeSync = Promise.resolve(services.sync?.()).then(() => { if(!captureActive&&!modal.open&&!document.activeElement?.matches('input,textarea,select,[contenteditable=true]'))render(); }).catch(() => {}).finally(() => { resumeSync = null; });
+  if (
+    document.visibilityState !== 'visible' ||
+    captureActive ||
+    state.chatVoiceRecording ||
+    state.chatTranscribing ||
+    state.chatPlayingMessageId !== null ||
+    modal.open ||
+    state.chatBusy ||
+    resumeSync ||
+    document.activeElement?.matches('input,textarea,select,[contenteditable=true]')
+  ) return;
+  resumeSync = Promise.resolve(services.sync?.()).then(() => {
+    if (
+      !captureActive &&
+      !state.chatVoiceRecording &&
+      !state.chatTranscribing &&
+      state.chatPlayingMessageId === null &&
+      !modal.open &&
+      !document.activeElement?.matches('input,textarea,select,[contenteditable=true]')
+    ) render();
+  }).catch(() => {}).finally(() => { resumeSync = null; });
 }
 const fieldRealtime=createFieldRealtime({
   url:'https://eyxvsbqyzeodsjajfqsj.supabase.co',

@@ -61,3 +61,35 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .loop-checklist{margin-top:18px;border-top:1px solid var(--color-border,#354151);padding-top:12px}.checklist-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0}.checklist-row>button{text-align:left;overflow-wrap:anywhere}.checklist-row>span{display:flex;gap:12px}.checklist-row [aria-pressed="true"]{text-decoration:line-through;opacity:.7}.checklist-add{display:flex;gap:8px;margin-top:10px}.checklist-add input{min-width:0;flex:1}
 
 .checklist-row>span>button{min-width:32px;min-height:44px;justify-content:center}.checklist-row>span{gap:2px;flex-shrink:0}.checklist-row>button{min-height:44px}
+
+/* Chat Engine & Voice Controls */
+.chat-controls-bar { margin: 0 0 16px 0; display: flex; flex-direction: column; gap: 8px; }
+.chat-controls-toggle { display: flex; justify-content: center; }
+.chat-controls-toggle button { font-size: 11px; padding: 6px 14px; border-radius: 20px; background: rgba(221, 198, 151, 0.08); border: 1px solid rgba(221, 198, 151, 0.25); color: var(--color-focus, #ddc697); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chat-controls-toggle button:hover { background: rgba(221, 198, 151, 0.15); border-color: rgba(221, 198, 151, 0.4); }
+.chat-controls-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; padding: 12px 14px; background: rgba(13, 21, 39, 0.65); border: 1px solid rgba(221, 198, 151, 0.2); border-radius: 10px; margin-top: 4px; }
+.chat-control-group { display: flex; flex-direction: column; gap: 4px; }
+.chat-control-group label { font-size: 10px; font-family: monospace; text-transform: uppercase; color: var(--color-focus, #ddc697); letter-spacing: 0.05em; font-weight: 600; }
+.chat-control-group select { background: #0d1527; color: #f5e6c8; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; padding: 6px 8px; font-size: 11.5px; outline: none; cursor: pointer; font-family: sans-serif; }
+.chat-control-group select optgroup { background: #0d1527; color: #f5e6c8; font-weight: bold; }
+.chat-control-group select option { background: #0d1527; color: #f5e6c8; }
+
+/* Assistant Voice Button & Model Badges */
+.chat-author-line { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 8px; }
+.chat-author-tag { display: flex; align-items: center; gap: 8px; }
+.chat-message-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.chat-model-badge { font-size: 9.5px; font-family: monospace; padding: 2px 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.1); }
+.chat-model-badge.fallback { background: rgba(234, 179, 8, 0.12); color: #fde047; border-color: rgba(234, 179, 8, 0.3); }
+.chat-voice-play-btn { display: inline-flex; align-items: center; gap: 5px; background: rgba(221, 198, 151, 0.08); border: 1px solid rgba(221, 198, 151, 0.25); border-radius: 14px; padding: 3px 8px; font-size: 10.5px; color: var(--color-focus, #ddc697); cursor: pointer; transition: all 0.15s ease; }
+.chat-voice-play-btn:hover { background: rgba(221, 198, 151, 0.18); border-color: rgba(221, 198, 151, 0.45); }
+.chat-voice-play-btn.is-playing { background: rgba(221, 198, 151, 0.25); border-color: #ddc697; color: #fff; box-shadow: 0 0 10px rgba(221, 198, 151, 0.3); }
+.chat-voice-play-btn.is-fallback { background: rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.6); color: #fde047; }
+
+/* Composer Dictation Button */
+.composer-action-group { display: flex; align-items: center; gap: 8px; }
+.chat-voice-btn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 7px; width: 42px; height: 42px; display: grid; place-items: center; color: var(--muted); cursor: pointer; transition: all 0.2s; position: relative; }
+.chat-voice-btn:hover { border-color: var(--color-focus, #ddc697); color: var(--color-focus, #ddc697); }
+.chat-voice-btn.is-recording { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444; animation: recording-pulse 1.5s infinite; }
+.recording-pill { position: absolute; top: -8px; right: -8px; background: #ef4444; color: #fff; font-size: 8px; font-family: monospace; padding: 1px 4px; border-radius: 6px; font-weight: bold; }
+@keyframes recording-pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+.chat-transcribing-notice { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-focus, #ddc697); padding: 4px 0; }

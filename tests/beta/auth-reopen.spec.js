@@ -1,10 +1,12 @@
 import { test, expect, chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 test('login survives browser restart, IDB recovery and explicit signout', async ({}, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Persistent Chromium profile test');
-  const profile = testInfo.outputPath('auth-browser-profile');
+  const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'luna-auth-'));
   const options = {headless:true, ...(existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? {channel:'chrome'} : {})};
   const source = (await fs.readFile(new URL('../../src/lib/authStorage.js',import.meta.url),'utf8')).replace(/^export /gm,'');
   const AUTH='sb-eyxvsbqyzeodsjajfqsj-auth-token';
@@ -43,5 +45,10 @@ test('login survives browser restart, IDB recovery and explicit signout', async 
     page=await reopen();
     await expect(page.locator('[data-action="open-auth"]:visible').first()).toBeVisible();
     expect(await page.evaluate(key=>localStorage.getItem(key),AUTH)).toBeNull();
-  } finally {await context?.close();}
+  } finally {
+    await context?.close();
+    if (profile) {
+      await fs.rm(profile, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 });

@@ -16,7 +16,8 @@ import type {
   LunarContext,
   ChatMessage,
   AuthUser,
-  SyncStatus
+  SyncStatus,
+  SpeechSynthesisResult
 } from './contracts.ts';
 import { FIXTURES } from './fixtures.ts';
 import { cleanText, makeId, filterEchoes, LOOP_STATUSES } from './mock-services.ts';
@@ -478,6 +479,32 @@ function mapClassicLoopToBeta(raw: any): Loop {
     user_id: raw.user_id || raw.userId || undefined,
     syncStatus: raw.syncStatus || 'synced'
   };
+}
+
+export function composeTimeoutSignal(callerSignal: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    timeoutController.abort(new DOMException(`Operation timed out after ${timeoutMs}ms.`, 'TimeoutError'));
+  }, timeoutMs);
+
+  let onCallerAbort: (() => void) | undefined;
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      timeoutController.abort(callerSignal.reason);
+    } else {
+      onCallerAbort = () => timeoutController.abort(callerSignal.reason);
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timeoutId);
+    if (callerSignal && onCallerAbort) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
+  };
+
+  return { signal: timeoutController.signal, cleanup };
 }
 
 export function createLiveLunaServices(audioAssets: Record<string, string> = {}): LunaServices {
@@ -1800,6 +1827,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
         const sessionId = options?.sessionId || (await this.getActiveSession());
         const clientTurnId = options?.clientTurnId || makeId('turn');
+        const modelKey = options?.modelKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_model_key') : null) || 'anthropic-fable-5';
         const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
 
         const controller = new AbortController();
@@ -1816,6 +1844,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               message: clean,
               sessionId,
               clientTurnId,
+              modelKey,
               metadata: {
                 selectedEchoIds: echoIds || []
               }
@@ -1839,7 +1868,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
 
           const data = await response.json();
-          const reply = data.message?.content || data.reply || '';
+          const reply = typeof data.message === 'string' ? data.message : (data.message?.content || data.reply || '');
           if (!reply && data.error) {
             throw new Error(data.error);
           }
@@ -1848,7 +1877,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             id: data.message?.id || data.assistantMessageId || makeId('chat'),
             role: 'luna',
             content: reply,
-            echoIds: echoIds || []
+            echoIds: echoIds || [],
+            servingModel: data.servingModel || data.message?.servingModel,
+            fallbackUsed: Boolean(data.fallbackUsed || data.message?.fallbackUsed),
+            fallbackNotice: data.fallbackNotice || data.message?.fallbackNotice
           };
         } catch (fetchErr: any) {
           clearTimeout(timeoutId);
@@ -1856,6 +1888,69 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             throw new Error('Luna took longer than expected to respond. Please retry.');
           }
           throw fetchErr;
+        }
+      },
+
+      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string; signal?: AbortSignal }): Promise<SpeechSynthesisResult> {
+        const auth = getAuthSession();
+        const voiceId = options?.voiceId || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole';
+        const model = options?.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5';
+        const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
+        if (voiceId === 'browser-web-speech') {
+          return { useClientFallback: true };
+        }
+
+        const { signal, cleanup } = composeTimeoutSignal(options?.signal, 15000);
+
+        try {
+          const res = await fetch(`${apiBaseUrl}/api/chat/synthesize-speech`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              text,
+              voiceId,
+              model,
+              messageId: options?.messageId
+            }),
+            signal
+          });
+          if (!res.ok) {
+            return { useClientFallback: true, error: `HTTP ${res.status}` };
+          }
+          const data = await res.json();
+          if (data.useClientFallback || (!data.audioBase64 && !data.audioUrl)) {
+            return {
+              useClientFallback: true,
+              fallbackUsed: Boolean(data.fallbackUsed),
+              provider: data.provider,
+              model: data.model,
+              voiceId: data.voiceId,
+              error: data.error
+            };
+          }
+          const mime = data.contentType || (data.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
+          const audioUrl = data.audioUrl || `data:${mime};base64,${data.audioBase64}`;
+          return {
+            audioUrl,
+            audioBase64: data.audioBase64,
+            contentType: mime,
+            useClientFallback: false,
+            fallbackUsed: Boolean(data.fallbackUsed),
+            provider: data.provider,
+            model: data.model,
+            voiceId: data.voiceId,
+            error: data.error
+          };
+        } catch (err: any) {
+          if (options?.signal?.aborted) {
+            return { useClientFallback: false, error: 'aborted' };
+          }
+          return { useClientFallback: true, error: err.message };
+        } finally {
+          cleanup();
         }
       }
     },
