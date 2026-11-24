@@ -1,3 +1,4 @@
+import { build as bundleDependency } from 'esbuild';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,7 @@ const sources = [
   'lunar-engine',
   'mock-services',
   'live-services',
+  'realtime-sync',
   'state',
   'visuals',
   'components',
@@ -27,7 +29,13 @@ const sources = [
 ];
 
 const sharedAuth = (await readFile(path.resolve(project, '../../src/lib/authStorage.js'), 'utf8')).replace(/^export /gm, '');
-const parts = [sharedAuth];
+const sharedEncryption = (await readFile(path.resolve(project, '../../src/lib/encryption.js'), 'utf8')).replace(/^export /gm, '');
+const parts = [sharedAuth, 'const { unlockWithPassphrase, encryptText, decryptText } = (() => {\n' + sharedEncryption + '\nreturn { unlockWithPassphrase, encryptText, decryptText }; })();'];
+const realtimeBundle = await bundleDependency({
+  stdin: {contents: "export { RealtimeClient } from '@supabase/supabase-js';", resolveDir: path.resolve(project,'../..')},
+  bundle: true, write: false, format: 'iife', globalName: 'LunaRealtimeSDK', platform: 'browser', minify: true
+});
+parts.push(realtimeBundle.outputFiles[0].text);
 for (const name of sources) {
   const raw = await readFile(path.join(project, 'src', `${name}.ts`), 'utf8');
   const js = stripTypeScriptTypes(raw, { mode: 'strip' })

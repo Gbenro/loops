@@ -1,3 +1,4 @@
+import { unlockWithPassphrase, encryptText, decryptText } from '../../../src/lib/encryption.js';
 import { idbStorage } from '../../../src/lib/authStorage.js';
 import type {
   LunaServices,
@@ -412,7 +413,8 @@ function mapBetaStatusToClassic(status: LoopStatus): string {
 
 function mapClassicEchoToBeta(raw: any, lunar: LiveLunarBundle): Echo {
   const id = String(raw.id || makeId('echo'));
-  const text = String(raw.text || '').trim();
+  const encrypted = Boolean(raw.is_encrypted || raw.isEncrypted);
+  const text = encrypted ? 'Unlock your private Echo to read it.' : String(raw.text || '').trim();
   const title = String(raw.title || (text ? text.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment'));
   const audio_path = raw.audio_path || raw.audioPath || undefined;
   const isVoice = Boolean(audio_path) || raw.source === 'voice' || raw.kind === 'voice';
@@ -432,7 +434,8 @@ function mapClassicEchoToBeta(raw: any, lunar: LiveLunarBundle): Echo {
 
   return {
     id,
-    title,
+    title: encrypted ? 'Private Echo' : title,
+    isEncrypted: encrypted, locked: encrypted,
     body: text,
     occurredAt: raw.created_at || raw.createdAt || raw.occurredAt || new Date().toISOString(),
     kind: isVoice ? 'voice' : 'text',
@@ -464,7 +467,9 @@ function mapClassicLoopToBeta(raw: any): Loop {
 
   return {
     id,
-    title,
+    title: (raw.is_encrypted || raw.isEncrypted) ? 'Private intention' : title,
+    isEncrypted: Boolean(raw.is_encrypted || raw.isEncrypted), locked: Boolean(raw.is_encrypted || raw.isEncrypted),
+    subtasks: Array.isArray(raw.subtasks) ? raw.subtasks.map((item:any) => ({...item, id:String(item.id),text:String(item.text || item.title || ''),done:Boolean(item.done ?? item.completed)})) : [],
     note,
     status,
     echoId,
@@ -481,10 +486,29 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
   const objectUrls = new Set<string>();
+  let privacyKey: CryptoKey | null = null;
+  let privacyEpoch = 0;
+  const decrypted = new Map<string,string>();
+  function lockPrivate() { privacyKey = null; privacyEpoch++; decrypted.clear(); memorySnapshot = null; }
+  async function decryptPrivateRecords() {
+    const key = privacyKey, epoch = privacyEpoch, owner = getAuthSession().userId;
+    if (!key || !owner) return;
+    const values = [
+      ...getStoredJson<any[]>(ECHOES_KEY, []).filter(r => (r.user_id || r.userId) === owner && (r.is_encrypted || r.isEncrypted)).map(r => r.text),
+      ...getStoredJson<any[]>(LOOPS_KEY, []).filter(r => (r.user_id || r.userId) === owner && (r.is_encrypted || r.isEncrypted)).map(r => r.title)
+    ];
+    for (const cipher of values) {
+      if (typeof cipher !== 'string' || decrypted.has(cipher)) continue;
+      const plain = await decryptText(cipher, key);
+      if (privacyEpoch !== epoch || privacyKey !== key || getAuthSession().userId !== owner) return;
+      if (plain !== '[encrypted]') decrypted.set(cipher, plain);
+    }
+  }
   let observedUser = getAuthSession().userId;
   const accountChanged = () => {
     const next = getAuthSession().userId;
     if (next === observedUser) return;
+    lockPrivate();
     observedUser = next; authGeneration++; inFlightRefresh = null;
     signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
     memorySnapshot = null;
@@ -528,7 +552,14 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
         return !e.user_id && !e.userId;
       })
-      .map(e => mapClassicEchoToBeta(e, lunar));
+      .map(e => {
+        const mapped = mapClassicEchoToBeta(e, lunar);
+        const plain = mapped.isEncrypted && privacyKey && decrypted.get(e.text);
+        if (typeof plain === 'string') {
+          mapped.body = plain; mapped.title = plain.split(/[.\n!?]/)[0].slice(0,50) || 'Private Echo'; mapped.locked = false;
+        }
+        return mapped;
+      });
   }
 
   function getLocalLoops(): Loop[] {
@@ -542,7 +573,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
         return !l.user_id && !l.userId;
       })
-      .map(mapClassicLoopToBeta);
+      .map(l => {
+        const mapped = mapClassicLoopToBeta(l);
+        const plain = mapped.isEncrypted && privacyKey && decrypted.get(l.title);
+        if (typeof plain === 'string') { mapped.title = plain; mapped.locked = false; }
+        return mapped;
+      });
   }
 
   function getLocalReflections(): Reflection[] {
@@ -736,6 +772,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   body: JSON.stringify({
                     status: localItem.status,
                     metadata: { ...sl.metadata, ...localItem.metadata },
+                    subtasks: localItem.subtasks || [],
+                    is_encrypted: Boolean(localItem.is_encrypted || localItem.isEncrypted),
                     closed_at: localItem.closed_at,
                     released_at: localItem.released_at,
                     phase_closed: localItem.phase_closed,
@@ -783,6 +821,8 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                     note: localItem.note,
                     status: localItem.status || 'active',
                     metadata: localItem.metadata || {},
+                    subtasks: localItem.subtasks || [],
+                    is_encrypted: Boolean(localItem.is_encrypted || localItem.isEncrypted),
                     created_at: localItem.created_at || localItem.createdAt || new Date().toISOString(),
                     updated_at: localItem.updated_at || localItem.updatedAt || new Date().toISOString()
                   })
@@ -957,6 +997,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                   body: JSON.stringify({
                     id: localItem.id,
                     user_id: userId,
+                    is_encrypted: Boolean(localItem.is_encrypted || localItem.isEncrypted),
                     text: localItem.text || localItem.body || '',
                     title: localItem.title || 'A spoken moment',
                     source: localItem.source || localItem.kind || 'voice',
@@ -1041,6 +1082,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         checkOwner(); setStoredJson(REFLECTIONS_KEY, merged);
       }
 
+      await decryptPrivateRecords();
       checkOwner(); memorySnapshot = assembleSnapshot();
     } catch (err) {
       console.warn('Sync incomplete; local data retained.');
@@ -1059,6 +1101,25 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       memorySnapshot = assembleSnapshot();
     },
     sync: syncServer,
+    privacy: {
+      unlocked: () => { accountChanged(); return Boolean(privacyKey); },
+      lock: lockPrivate,
+      async unlock(passphrase: string) {
+        accountChanged();
+        const owner = getAuthSession().userId, generation = authGeneration;
+        const epoch = ++privacyEpoch;
+        if (!owner) throw new Error('Sign in before unlocking private Echoes.');
+        const rows = await supabaseFetch('/rest/v1/profiles?select=encryption_verify_token&id=eq.' + encodeURIComponent(owner));
+        const verify = rows?.[0]?.encryption_verify_token;
+        if (!verify) throw new Error('Set up your encryption passphrase in Classic Luna first.');
+        const key = await unlockWithPassphrase(passphrase, owner, verify);
+        if (getAuthSession().userId !== owner || authGeneration !== generation || epoch !== privacyEpoch) throw new Error('Account or lock state changed. Please try again.');
+        if (!key) throw new Error('That passphrase did not unlock your private Echoes.');
+        privacyKey = key;
+        await decryptPrivateRecords();
+        memorySnapshot = assembleSnapshot();
+      }
+    },
 
     auth: {
       async getSession() {
@@ -1127,6 +1188,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       },
 
       async signOut(): Promise<void> {
+        lockPrivate();
         authGeneration++;
         inFlightRefresh = null;
         signedUrlCache.clear();
@@ -1194,13 +1256,17 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         let syncStatus: SyncStatus = 'local-only';
         let audioSyncStatus: SyncStatus = (input.kind === 'voice') ? 'local-only' : 'synced';
 
+        const encryptionKey = privacyKey;
+        const storedBody = encryptionKey ? await encryptText(body, encryptionKey) : body;
+        assertOwner();
         const title = cleanText(input.title, 120) || (body ? body.split(/[.\n!?]/)[0].slice(0, 50) : 'A spoken moment');
 
         // Canonical Classic Luna Echo schema with explicit SyncStatus typing
         const classicRecord: Record<string, any> & { syncStatus: SyncStatus; audioSyncStatus?: SyncStatus } = {
           id: echoId,
-          text: body,
-          title,
+          text: storedBody,
+          title: encryptionKey ? 'Private Echo' : title,
+          isEncrypted: Boolean(encryptionKey), is_encrypted: Boolean(encryptionKey),
           source: input.kind,
           phase: lunar.phaseId,
           phaseName: lunar.phaseName,
@@ -1281,8 +1347,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               body: JSON.stringify({
                 id: echoId,
                 user_id: userId,
-                text: body,
-                title,
+                text: storedBody,
+                title: encryptionKey ? 'Private Echo' : title,
+                is_encrypted: Boolean(encryptionKey),
                 source: input.kind,
                 phase: lunar.phaseId,
                 phase_name: lunar.phaseName,
@@ -1322,8 +1389,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
         }
 
+        await decryptPrivateRecords();
         memorySnapshot = assembleSnapshot();
-        const mapped = mapClassicEchoToBeta(classicRecord, lunar);
+        const mapped = memorySnapshot.echoes.find(e => e.id === echoId) || mapClassicEchoToBeta(classicRecord, lunar);
         if (input.audioUrl) mapped.audioUrl = input.audioUrl;
         return mapped;
       }
@@ -1436,6 +1504,49 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
         memorySnapshot = assembleSnapshot();
         return mapClassicLoopToBeta(classicLoop);
+      },
+
+      async checklist(id: string, action: 'add'|'toggle'|'remove'|'up'|'down', itemId = '', text = '') {
+        accountChanged();
+        const owner = getAuthSession().userId, generation = authGeneration;
+        const local = getStoredJson<any[]>(LOOPS_KEY, []);
+        const loop = local.find(l => l.id === id && (l.user_id || l.userId || null) === owner);
+        if (!loop) throw new Error('This intention is not available in your account.');
+        const items = Array.isArray(loop.subtasks) ? loop.subtasks.map((item:any) => ({...item})) : [];
+        const index = items.findIndex((item:any) => String(item.id) === itemId);
+        if (action === 'add') {
+          const value = cleanText(text, 300);
+          if (!value) throw new Error('Add a few words for this step.');
+          items.push({id:makeId('step'),text:value,done:false});
+        } else {
+          if (index < 0) throw new Error('This step is no longer available.');
+          if (action === 'toggle') items[index].done = !Boolean(items[index].done ?? items[index].completed);
+          else if (action === 'remove') items.splice(index,1);
+          else {
+            const destination = index + (action === 'up' ? -1 : 1);
+            if (destination >= 0 && destination < items.length) [items[index],items[destination]] = [items[destination],items[index]];
+          }
+        }
+        const changedAt = new Date(Math.max(Date.now(), Date.parse(loop.updated_at || loop.updatedAt || '') + 1 || 0)).toISOString();
+        loop.subtasks = items; loop.updated_at = loop.updatedAt = changedAt;
+        if (loop.metadata?.luna_beta_lifecycle) loop.metadata.luna_beta_lifecycle.updatedAt = changedAt;
+        loop.syncStatus = 'local-only';
+        setStoredJson(LOOPS_KEY, local);
+        if (owner) {
+          let outcome: SyncStatus = 'synced';
+          try {
+            const confirmed = await supabaseFetch('/rest/v1/loops?id=eq.' + encodeURIComponent(id) + '&user_id=eq.' + encodeURIComponent(owner) + '&deleted_at=is.null', {
+              method:'PATCH', headers:{'Content-Type':'application/json',Prefer:'return=representation'},
+              body:JSON.stringify({subtasks:items, metadata:loop.metadata, updated_at:changedAt})
+            });
+            if (!Array.isArray(confirmed) || !confirmed.some(row => row.id === id)) throw new Error('Step changes are awaiting server confirmation.');
+          } catch { outcome = 'failed'; }
+          if (getAuthSession().userId !== owner || generation !== authGeneration) throw new Error('Account changed; step changes remain with the original account.');
+          const latest = getStoredJson<any[]>(LOOPS_KEY, []);
+          const current = latest.find(l => l.id === id && (l.user_id || l.userId) === owner);
+          if (current?.updated_at === changedAt) { current.syncStatus = outcome; setStoredJson(LOOPS_KEY, latest); }
+        }
+        return assembleSnapshot().loops.find(l => l.id === id)!;
       },
 
       async transition(id: string, status: LoopStatus) {

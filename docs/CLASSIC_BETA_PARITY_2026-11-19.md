@@ -79,3 +79,15 @@ Gemini's final backend report:
 - This is Gemini's live verification report, not a Codex independent production probe.
 
 The next feature phase should explicitly divide encryption/subtasks/realtime work and model/voice/transcription work between agents before edits, using separate worktrees. The current reliability candidate is prepared for frontend release review; full Classic replacement remains pending the feature and Android acceptance checks above.
+
+## November 24 data parity implementation
+
+- Classic auth is now on main as 0b29224. Codex independently fetched https://lunaloops.app and verified bundle /assets/index-DW_LR_iR.js contains durable auth storage and the signout tombstone. Ben has not yet confirmed physical Android reopen.
+- Added Classic-compatible encrypted Echo unlock/lock/read/create. Passphrase and derived key remain in memory; decrypted text is never persisted by the Beta adapter. Encryption follows Classic: text only, original audio unchanged. Existing encryption setup remains in Classic.
+- Added Loop checklist add/toggle/remove/reorder with Classic text/done fields, preserved phase checkpoint metadata, offline retry, account isolation, and protection from late acknowledgements.
+- Added account-scoped Supabase Realtime notifications for Echoes/Loops/reflections. Hidden pages disconnect. Thirty-second visible idle synchronization backs up missed notifications; typing, recording and open dialogs defer redraw.
+- No database schema or security policy changes. Uses the installed Supabase SDK via the existing build toolchain.
+- Verified 123/123 Node tests, 3/3 Chrome browser tests (persistent process restart, mobile private Echo/checklist flow, startup), build:beta, local isolated Capacitor Android sync.
+- Full Vitest: 941 pass, 4 failures in the same three suites independently reproduced on baseline Nov 19: chatAttentionIntegration (2), dshHarnessBridge Windows/WSL path (1), ChatTimeoutRecovery (1).
+- Synthetic screenshots reviewed at test-results/private-echo-mobile.png and checklist-mobile.png. Local test reports/profiles and generated Gradle changes are excluded from commits.
+- Gemini voice/chat 089876c is under review; cancellation/late-result handling and fallback disclosure corrections requested before integration. Final release must update both production main and the separate beta branch/project. Do not call physical-device login accepted or full release finished from these local tests.

@@ -102,10 +102,10 @@ test('audio URL cache expires and requests a fresh signature', async () => {
 });
 
 test('local-only session is mirrored to durable storage on read', async () => {
-  const records=setup(); storage.set(AUTH,session());
+  const records=setup(); const expected=session(); storage.set(AUTH,expected);
   await createAuthStorage().getItem(AUTH);
-  await new Promise(resolve=>setTimeout(resolve,10));
-  assert.equal(records.get(AUTH),session());
+  for(let i=0;i<100 && records.get(AUTH)!==expected;i++) await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(records.get(AUTH),expected);
 });
 test('offline Loop reopen retries metadata and clears old closure fields', async () => {
   setup(); storage.set(AUTH,session());
