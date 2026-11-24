@@ -79,6 +79,7 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .chat-voice-play-btn { display: inline-flex; align-items: center; gap: 5px; background: rgba(221, 198, 151, 0.08); border: 1px solid rgba(221, 198, 151, 0.25); border-radius: 14px; padding: 3px 8px; font-size: 10.5px; color: var(--color-focus, #ddc697); cursor: pointer; transition: all 0.15s ease; }
 .chat-voice-play-btn:hover { background: rgba(221, 198, 151, 0.18); border-color: rgba(221, 198, 151, 0.45); }
 .chat-voice-play-btn.is-playing { background: rgba(221, 198, 151, 0.25); border-color: #ddc697; color: #fff; box-shadow: 0 0 10px rgba(221, 198, 151, 0.3); }
+.chat-voice-play-btn.is-fallback { background: rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.6); color: #fde047; }
 
 /* Composer Dictation Button */
 .composer-action-group { display: flex; align-items: center; gap: 8px; }

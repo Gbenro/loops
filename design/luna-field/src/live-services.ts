@@ -1749,7 +1749,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
       },
 
-      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string }): Promise<{ audioUrl?: string; audioBase64?: string; contentType?: string; useClientFallback?: boolean }> {
+      async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string; signal?: AbortSignal }): Promise<{ audioUrl?: string; audioBase64?: string; contentType?: string; useClientFallback?: boolean }> {
         const auth = getAuthSession();
         const voiceId = options?.voiceId || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_key') : null) || 'eleven-nicole';
         const model = options?.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_voice_model_key') : null) || 'eleven_flash_v2_5';
@@ -1757,6 +1757,18 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         if (voiceId === 'browser-web-speech') {
           return { useClientFallback: true };
         }
+
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
+        let activeSignal = timeoutController.signal;
+        if (options?.signal) {
+          if (typeof (AbortSignal as any).any === 'function') {
+            activeSignal = (AbortSignal as any).any([options.signal, timeoutController.signal]);
+          } else {
+            activeSignal = options.signal;
+          }
+        }
+
         try {
           const res = await fetch(`${apiBaseUrl}/api/chat/synthesize-speech`, {
             method: 'POST',
@@ -1769,8 +1781,10 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               voiceId,
               model,
               messageId: options?.messageId
-            })
+            }),
+            signal: activeSignal
           });
+          clearTimeout(timeoutId);
           if (!res.ok) {
             return { useClientFallback: true };
           }
@@ -1781,7 +1795,11 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           const mime = data.contentType || (data.provider === 'elevenlabs' ? 'audio/mpeg' : 'audio/wav');
           const audioUrl = data.audioUrl || `data:${mime};base64,${data.audioBase64}`;
           return { audioUrl, audioBase64: data.audioBase64, contentType: mime, useClientFallback: false };
-        } catch {
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          if (options?.signal?.aborted) {
+            return { useClientFallback: false };
+          }
           return { useClientFallback: true };
         }
       }

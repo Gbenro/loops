@@ -521,9 +521,9 @@ export function chatView(db: FieldSnapshot, state: UIState) {
             ${m.role === 'luna' ? `
             <div class="chat-message-actions">
               ${m.servingModel ? `<span class="chat-model-badge ${m.fallbackUsed ? 'fallback' : ''}" title="${m.fallbackNotice ? escapeHtml(m.fallbackNotice) : escapeHtml(m.servingModel)}">${escapeHtml(m.fallbackUsed ? `Served via ${m.servingModel}` : getModelDisplayName(m.servingModel))}</span>` : ''}
-              <button type="button" class="chat-voice-play-btn ${state.chatPlayingMessageId === m.id ? 'is-playing' : ''}" data-action="play-chat-voice" data-id="${m.id}" aria-label="${state.chatPlayingMessageId === m.id ? 'Pause voice' : 'Listen to Luna speak'}">
+              <button type="button" class="chat-voice-play-btn ${state.chatPlayingMessageId === m.id ? 'is-playing' : ''} ${state.chatPlayingMessageId === m.id && state.chatVoiceFallbackMessageId === m.id ? 'is-fallback' : ''}" data-action="play-chat-voice" data-id="${m.id}" aria-label="${state.chatPlayingMessageId === m.id ? 'Pause voice' : 'Listen to Luna speak'}">
                 ${icon(state.chatPlayingMessageId === m.id ? 'pause' : 'play', 12)}
-                <span>${state.chatPlayingMessageId === m.id ? 'Listening…' : 'Listen'}</span>
+                <span>${state.chatPlayingMessageId === m.id ? (state.chatVoiceFallbackMessageId === m.id ? 'Device Voice…' : 'Listening…') : 'Listen'}</span>
               </button>
             </div>` : ''}
           </div>
