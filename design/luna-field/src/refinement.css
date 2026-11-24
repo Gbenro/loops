@@ -59,3 +59,5 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .chat-error-banner .btn { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #fff; }
 
 .loop-checklist{margin-top:18px;border-top:1px solid var(--color-border,#354151);padding-top:12px}.checklist-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0}.checklist-row>button{text-align:left;overflow-wrap:anywhere}.checklist-row>span{display:flex;gap:12px}.checklist-row [aria-pressed="true"]{text-decoration:line-through;opacity:.7}.checklist-add{display:flex;gap:8px;margin-top:10px}.checklist-add input{min-width:0;flex:1}
+
+.checklist-row>span>button{min-width:32px;min-height:44px;justify-content:center}.checklist-row>span{gap:2px;flex-shrink:0}.checklist-row>button{min-height:44px}

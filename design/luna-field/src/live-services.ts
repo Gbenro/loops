@@ -1528,8 +1528,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
           }
         }
         const changedAt = new Date(Math.max(Date.now(), Date.parse(loop.updated_at || loop.updatedAt || '') + 1 || 0)).toISOString();
+        const marker = loop.metadata?.luna_beta_lifecycle;
+        const markerCurrent = marker && marker.classicStatus === loop.status &&
+          Date.parse(marker.updatedAt) === Date.parse(loop.updated_at || loop.updatedAt);
         loop.subtasks = items; loop.updated_at = loop.updatedAt = changedAt;
-        if (loop.metadata?.luna_beta_lifecycle) loop.metadata.luna_beta_lifecycle.updatedAt = changedAt;
+        if (markerCurrent) marker.updatedAt = changedAt;
+        else if (marker) delete loop.metadata.luna_beta_lifecycle;
         loop.syncStatus = 'local-only';
         setStoredJson(LOOPS_KEY, local);
         if (owner) {

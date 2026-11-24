@@ -105,3 +105,12 @@ test('late checklist acknowledgement cannot erase a newer local checklist edit',
  await api.loops.checklist('loop','toggle','step');release();await first;
  const steps=api.snapshot().loops[0].subtasks;assert.ok(steps.every(s=>s.done));
 });
+
+test('checklist changes do not revive a Beta lifecycle marker superseded in Classic',async()=>{
+ setup();const row=loop();
+ row.metadata.luna_beta_lifecycle={status:'carried-forward',classicStatus:'active',updatedAt:'2026-10-01T00:00:00Z'};
+ stored.set(LOOPS,JSON.stringify([row]));
+ const api=createLiveLunaServices();assert.equal(api.snapshot().loops[0].status,'open');
+ await api.loops.checklist('loop','toggle','step');
+ assert.equal(api.snapshot().loops[0].status,'open');
+});
