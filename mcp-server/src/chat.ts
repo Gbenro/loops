@@ -39,6 +39,24 @@ const getAnthropicTools = () => {
   }));
 };
 
+// Recursive sanitizer to ensure Gemini OpenAPI compliance (e.g. string enums)
+function sanitizeSchemaForGemini(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(sanitizeSchemaForGemini);
+
+  const copy: any = {};
+  for (const [key, val] of Object.entries(schema)) {
+    if (key === 'enum' && Array.isArray(val)) {
+      copy[key] = val.map(v => String(v));
+    } else if (typeof val === 'object' && val !== null) {
+      copy[key] = sanitizeSchemaForGemini(val);
+    } else {
+      copy[key] = val;
+    }
+  }
+  return copy;
+}
+
 // Map standard MCP schemas to Gemini tool format
 const getGeminiTools = () => {
   return [
@@ -46,7 +64,7 @@ const getGeminiTools = () => {
       functionDeclarations: TOOL_DEFINITIONS_COMPAT.map(t => ({
         name: t.name,
         description: t.description,
-        parameters: t.inputSchema
+        parameters: sanitizeSchemaForGemini(t.inputSchema)
       }))
     }
   ];
@@ -752,9 +770,17 @@ async function callGpt(modelId: string, messages: any[], systemPrompt: string, t
 }
 
 // 3. OpenRouter Adapter
-async function callOpenRouter(modelId: string, messages: any[], systemPrompt: string, tools: any[]): Promise<any> {
+async function callOpenRouter(
+  modelId: string,
+  messages: any[],
+  systemPrompt: string,
+  tools: any[],
+  maxTokens: number = 4096
+): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured on server');
+
+  const configuredMaxTokens = process.env.OPENROUTER_MAX_TOKENS ? parseInt(process.env.OPENROUTER_MAX_TOKENS, 10) : maxTokens;
 
   const formattedMessages = [
     { role: 'system', content: systemPrompt },
@@ -782,7 +808,8 @@ async function callOpenRouter(modelId: string, messages: any[], systemPrompt: st
       body: JSON.stringify({
         model: modelId,
         messages: formattedMessages,
-        tools: tools.length > 0 ? tools : undefined
+        tools: tools.length > 0 ? tools : undefined,
+        max_tokens: configuredMaxTokens
       }),
       signal: controller.signal
     });
@@ -1525,6 +1552,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       }
       let loopCount = 0;
       let finalResponseText = '';
+      let isFailover = false;
+      let failoverServingModel = '';
+      let failoverNotice = '';
       const agentMessages: any[] = [...conversationMessages];
 
       // Helper function to execute tools and track metadata/mutations
@@ -1683,10 +1713,68 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         } else if (targetProvider === 'openrouter') {
           // OpenRouter Adapter
           const openAiTools = getOpenAiTools();
-          const responseMsg = await callOpenRouter(modelId, agentMessages, systemPrompt, openAiTools);
+          let responseMsg: any;
+          try {
+            responseMsg = await callOpenRouter(modelId, agentMessages, systemPrompt, openAiTools);
+          } catch (openRouterErr: any) {
+            const errStr = openRouterErr?.message || String(openRouterErr);
+            const isCreditOrAuthFailure =
+              errStr.includes('402') ||
+              errStr.includes('401') ||
+              errStr.includes('credits') ||
+              errStr.includes('budget') ||
+              errStr.includes('User not found');
+
+            if (isCreditOrAuthFailure && process.env.GEMINI_API_KEY) {
+              console.warn('[OpenRouter failover]: Credit or provider rejection on OpenRouter. Falling back to Gemini 2.5 Flash:', errStr);
+              isFailover = true;
+              failoverServingModel = 'gemini-2.5-flash';
+              attentionTelemetryData.fallbackUsed = true;
+              failoverNotice = `*(Note: Served via Gemini 2.5 Flash — ${modelConfig?.displayName || modelId} exceeded available OpenRouter credits. Add credits at openrouter.ai/settings/credits to restore full access)*`;
+
+              const geminiTools = getGeminiTools();
+              const geminiResp = await callGemini('gemini-2.5-flash', agentMessages, systemPrompt, geminiTools);
+
+              if (geminiResp.usageMetadata) {
+                tokenUsageReport = {
+                  inputTokens: geminiResp.usageMetadata.promptTokenCount || 0,
+                  outputTokens: geminiResp.usageMetadata.candidatesTokenCount || 0,
+                  totalTokens: geminiResp.usageMetadata.totalTokenCount || 0,
+                  source: 'provider_reported'
+                };
+              }
+
+              const candidate = geminiResp.candidates?.[0];
+              const parts = candidate?.content?.parts || [];
+              const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text).join('\n');
+              const functionCalls = parts
+                .filter((p: any) => p.functionCall)
+                .map((p: any, idx: number) => ({
+                  id: `call_failover_${Date.now()}_${idx}`,
+                  type: 'function',
+                  function: {
+                    name: p.functionCall.name,
+                    arguments: JSON.stringify(p.functionCall.args || {})
+                  }
+                }));
+
+              responseMsg = {
+                choices: [
+                  {
+                    message: {
+                      content: textParts || null,
+                      tool_calls: functionCalls.length > 0 ? functionCalls : undefined
+                    }
+                  }
+                ]
+              };
+            } else {
+              throw openRouterErr;
+            }
+          }
 
           // Extract token usage
-          if (responseMsg.usage) {
+          if (responseMsg.usage && !isFailover) {
             tokenUsageReport = {
               inputTokens: responseMsg.usage.prompt_tokens || 0,
               outputTokens: responseMsg.usage.completion_tokens || 0,
@@ -1813,8 +1901,15 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
             const textParts = parts.filter((p: any) => p.text);
             if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
           } else if (targetProvider === 'openrouter') {
-            const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
-            finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
+            if (isFailover) {
+              const finalResp = await callGemini('gemini-2.5-flash', agentMessages, systemPrompt, []);
+              const parts = finalResp.candidates?.[0]?.content?.parts || [];
+              const textParts = parts.filter((p: any) => p.text);
+              if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
+            } else {
+              const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
+              finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
+            }
           } else {
             const finalResp = await callGpt(modelId, agentMessages, systemPrompt, []);
             finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
@@ -1832,9 +1927,14 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         finalResponseText = formatFallbackActionReport(toolCallsTracked);
       }
 
-      // STRICT VALIDATION: Never persist an empty assistant response and never mark empty inference as successful
+      // STRICT VALIDATION: Reject empty model response BEFORE appending any fallback notice
       if (!finalResponseText || !finalResponseText.trim()) {
         throw new Error('Model produced an empty response. Inference aborted without persisting an empty turn.');
+      }
+
+      // Append honest, transparent failover notice if model fallback occurred and genuine prose exists
+      if (isFailover && failoverNotice) {
+        finalResponseText = `${finalResponseText.trim()}\n\n${failoverNotice}`;
       }
 
       // Save assistant message to database
@@ -1844,7 +1944,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         session_id: sessionId,
         user_id: user.id,
         role: 'assistant',
-        content: finalResponseText.trim()
+        content: finalResponseText.trim(),
+        metadata: isFailover ? {
+          requested_model: resolvedKey,
+          serving_model: failoverServingModel,
+          failover: true
+        } : {}
       });
 
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
@@ -1926,7 +2031,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         message_id: assistantMessageId,
         session_id: sessionId,
         user_id: user.id,
-        model: `${provider}:${modelId} (${resolvedKey})`,
+        model: isFailover
+          ? `google:gemini-2.5-flash (failover from ${resolvedKey})`
+          : `${provider}:${modelId} (${resolvedKey})`,
         prompt_version: '1.4-observability',
         operation_class: operationClass,
         retrieved_context_ids: retrievedContextIds,
@@ -1973,6 +2080,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
       res.json({
         sessionId,
         modelKey: resolvedKey,
+        servingModel: isFailover ? failoverServingModel : resolvedKey,
+        fallbackUsed: isFailover || attentionTelemetryData.fallbackUsed,
+        fallbackNotice: isFailover ? failoverNotice : null,
         reply: finalResponseText.trim(),
         userMessageId,
         assistantMessageId,
@@ -1980,7 +2090,9 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
           id: assistantMessageId,
           role: 'assistant',
           content: finalResponseText.trim(),
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          servingModel: isFailover ? failoverServingModel : resolvedKey,
+          fallbackNotice: isFailover ? failoverNotice : null
         },
         telemetryId,
         traceId: telemetryId
