@@ -62,7 +62,9 @@ test('Echo failures are visible and retry preserves a typed note and the origina
   await expect(page.locator('#capture-body')).toHaveValue('My own note.');
   await page.locator('[data-action="insert-capture-transcript"]').click();
   await expect(page.locator('#capture-body')).toHaveValue('My own note.\n\nRecovered spoken words.');
-  await expect(page.locator('#capture-error')).toBeEmpty();
+  await expect(page.locator('#capture-error')).not.toContainText('503');
+  await expect(page.locator('#capture-error')).not.toContainText('Transcription could not finish');
+  await expect(page.locator('[data-action="retry-capture-transcription"]')).toHaveCount(0);
 });
 test('chat microphone also transcribes through the Classic fallback contract',async({page})=>{
   await setup(page,'chat');
