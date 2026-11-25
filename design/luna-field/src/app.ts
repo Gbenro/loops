@@ -145,13 +145,14 @@ modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 let captureTranscribing = false;
 let captureTranscript = '';
+let captureTranscriptionError = '';
 let captureSttAbortController: AbortController | null = null;
 
 function cleanupCapture(){
   if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
   clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
   if(captureSttAbortController){captureSttAbortController.abort();captureSttAbortController=null;}
-  captureTranscribing=false;captureTranscript='';
+  captureTranscribing=false;captureTranscript='';captureTranscriptionError='';
   if(recordingSession&&recorder?.state!=='inactive')void recordingSession.stop(true).then(()=>refreshRecovery());
   // RecordingSession owns tracks and final events until stop has persisted them.
   stream=null;recorder=null;recordingSession=null;
@@ -171,11 +172,45 @@ function renderCapture(error=''){
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
   const label=running?'Finish recording':ready?'Play your recording':'Begin recording';
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
-  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label>${captureTranscribing?`<p class="capture-transcription-status small" style="color:var(--color-focus, #ddc697);margin:4px 0" role="status"><span class="thinking-dot"></span> ✦ Transcribing your recording…</p>`:''}${captureTranscript&&captureText.trim()!==captureTranscript.trim()?`<div style="margin:4px 0 8px"><button type="button" class="text-link" data-action="insert-capture-transcript" style="font-size:12px;color:var(--color-focus, #ddc697)">${icon('write',12)} Spoken transcript ready · Tap to insert</button></div>`:''}<div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError)}</div>${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>${services.privacy?.unlocked()?'Echo text will be encrypted. Original audio is unchanged.':'Saved to your personal living field.'}<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
+  showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label>${captureTranscribing?`<p class="capture-transcription-status small" style="color:var(--color-focus, #ddc697);margin:4px 0" role="status"><span class="thinking-dot"></span> ✦ Transcribing your recording…</p>`:''}${captureTranscript&&captureText.trim()!==captureTranscript.trim()?`<div style="margin:4px 0 8px"><button type="button" class="text-link" data-action="insert-capture-transcript" style="font-size:12px;color:var(--color-focus, #ddc697)">${icon('write',12)} Spoken transcript ready · Tap to insert</button></div>`:''}<div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError||captureTranscriptionError)}</div>${captureTranscriptionError&&ready&&!captureTranscribing?'<button type="button" class="text-link" data-action="retry-capture-transcription">Retry transcription</button>':''}${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>${services.privacy?.unlocked()?'Echo text will be encrypted. Original audio is unchanged.':'Saved to your personal living field.'}<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running||captureTranscribing)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
 }
+async function transcribeCapturedAudio(blob:Blob,token=captureToken){
+  if(token!==captureToken||!captureActive||captureTranscribing)return;
+  keepCaptureInputs();
+  captureTranscribing=true;captureTranscriptionError='';
+  const controller=new AbortController();
+  captureSttAbortController=controller;
+  renderCapture();
+  try{
+    const result=await transcribeVoice(blob,{signal:controller.signal});
+    if(token!==captureToken||!captureActive||controller.signal.aborted)return;
+    keepCaptureInputs();
+    if(result.status==='ok'&&result.text){
+      captureTranscript=result.text;
+      if(!captureText.trim()){
+        captureText=result.text;drafts['capture-body']=result.text;
+        const input=modal.querySelector<HTMLTextAreaElement>('#capture-body');
+        if(input)input.value=result.text;
+      }
+    }else if(result.status!=='aborted'){
+      captureTranscriptionError=result.status==='no-speech'
+        ?'No speech was detected. You can retry transcription or keep the original audio.'
+        :(result.error||'Transcription could not finish.')+' You can retry or keep the original audio.';
+    }
+  }catch{
+    if(token===captureToken&&!controller.signal.aborted)captureTranscriptionError='Transcription could not finish. You can retry or keep the original audio.';
+  }finally{
+    if(token===captureToken&&captureActive){
+      captureTranscribing=false;
+      if(captureSttAbortController===controller)captureSttAbortController=null;
+      renderCapture();
+    }
+  }
+}
+
 function bindRecordingPreview(){
   const preview=modal.querySelector<HTMLAudioElement>('#recording-preview');if(!preview)return;
   const update=()=>{const root=modal.querySelector<HTMLElement>('#capture-orbit');if(!root)return;const duration=Number.isFinite(preview.duration)&&preview.duration>0?preview.duration:recordingDuration;const progress=duration?preview.currentTime/duration:0;updateWaveProgress(root,progress);const active=!preview.paused;root.style.setProperty('--voice-energy',String(active&&!matchMedia('(prefers-reduced-motion: reduce)').matches?sampleEnvelope(recordingAnalysis.waveform,progress):0));const glyph=root.querySelector('.record-orb-icon');if(glyph)glyph.innerHTML=icon(active?'pause':'play',21);const btn=root.querySelector('button');btn?.setAttribute('aria-label',active?'Pause your recording':'Play your recording');const timer=document.getElementById('record-timer');if(timer)timer.textContent=timecode(preview.currentTime||0);};
@@ -234,36 +269,7 @@ async function startRecording(){
       const analysis=await voiceEngine.analyse(blob,recordingDuration);
       if(token!==captureToken||!captureActive)return;
       recordingAnalysis=analysis;recordingDuration=analysis.duration;recordingFinalizing=false;renderCapture();
-      if(blob.size>=500){
-        keepCaptureInputs();
-        captureTranscribing=true;
-        renderCapture();
-        const sttController=new AbortController();
-        captureSttAbortController=sttController;
-        void(async()=>{
-          try{
-            const result=await transcribeVoice(blob,{signal:sttController.signal});
-            if(token!==captureToken||!captureActive||sttController.signal.aborted)return;
-            keepCaptureInputs();
-            captureTranscribing=false;
-            if(result.status==='ok'&&result.text){
-              captureTranscript=result.text;
-              if(!captureText.trim()){
-                captureText=result.text;
-                drafts['capture-body']=result.text;
-                const ta=modal.querySelector<HTMLTextAreaElement>('#capture-body');
-                if(ta)ta.value=result.text;
-              }
-            }
-            renderCapture();
-          }catch{
-            if(token===captureToken&&captureActive){
-              captureTranscribing=false;
-              renderCapture();
-            }
-          }
-        })();
-      }
+      void transcribeCapturedAudio(blob,token);
     };
     activeRecorder.start(250);recordStarted=performance.now();renderCapture();
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit')!);
@@ -636,11 +642,10 @@ async function transcribeVoice(blob: Blob, options?: { signal?: AbortSignal; tim
         return { text: '', status: 'error', error: 'Transcription timed out. Please try again.' };
       }
       const formData = new FormData();
-      formData.append('file', blob, `audio.${ext}`);
+      formData.append('audio', blob, `audio.${ext}`);
       const res = await fetch(edgeUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${anonKey}`,
           'apikey': anonKey
         },
         body: formData,
@@ -941,7 +946,7 @@ async function startChatDictation() {
         } else if (result.status === 'no-speech') {
           toast('No speech detected in recording.');
         } else if (result.status === 'error') {
-          toast('Transcription service is currently unavailable. Your recording was kept.');
+          toast(result.error||'Transcription could not finish. Please try recording again.');
         }
       } catch {
         if (token === chatDictationToken) {
@@ -1013,6 +1018,7 @@ document.addEventListener('click',async(event)=>{
       case 'toggle-chat-controls':state.chatControlsOpen=!state.chatControlsOpen;render();break;
       case 'play-chat-voice':await handlePlayChatVoice(id);break;
       case 'chat-voice-record':await handleToggleChatDictation();break;
+      case 'retry-capture-transcription':{if(recordingBlob)await transcribeCapturedAudio(recordingBlob);break;}
       case 'insert-capture-transcript':{
         keepCaptureInputs();
         if(captureTranscript){
@@ -1165,6 +1171,7 @@ document.addEventListener('submit',async(event)=>{
         break;
       }
       case 'capture':{
+        if(captureTranscribing)throw new Error('Please wait for transcription to finish before keeping this Echo.');
         keepCaptureInputs();
         if(recordingOwner!==getAuthSession().userId)throw new Error('Account changed. Recover this recording in its original account.');
         const echo=await services.echoes.create({occurredAt:recordingStartedAt,title:captureTitle,body:captureText,kind:captureMode,audioUrl:recordingUrl||undefined,audioBlob:recordingBlob||undefined,duration:recordingDuration||undefined,waveform:recordingAnalysis.waveform,waveformSource:recordingAnalysis.source,context:services.snapshot().current});
