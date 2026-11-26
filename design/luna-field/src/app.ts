@@ -69,7 +69,7 @@ let recoveryItems:Awaited<ReturnType<typeof listDraftRecordings>>=[];
 async function refreshRecovery(){
   recoveryItems=(await listDraftRecordings()).filter(d=>d.id.startsWith('draft_')&&['draft','recording','captured','interrupted'].includes(d.status||''));
   document.getElementById('draft-recovery')?.remove();
-  if(recoveryItems.length){const button=document.createElement('button');button.id='draft-recovery';button.className='btn';button.dataset.action='recover-list';button.textContent='Recover recording ('+recoveryItems.length+')';root.querySelector('main')?.prepend(button);}
+  if(recoveryItems.length){const button=document.createElement('button');button.id='draft-recovery';button.className='nav-item';button.dataset.action='recover-list';button.textContent='Recover recording ('+recoveryItems.length+')';root.querySelector('#menu-recovery')?.append(button);}
 }
 async function openRecovery(){
   await refreshRecovery();
@@ -121,7 +121,9 @@ function render(focusMain=false){
   const sample=isSampleMode();
   const user=services.auth?.getUser?.()||null;
   const isAuthenticated=Boolean(user);
-  root.innerHTML=shell(state.route.name,state.route.name==='listen'?(isAuthenticated&&!sample?journeyMarkup:emptyState('Return to your Original Voice.','Sign in to listen to your authentic Echoes.','open-auth','Sign in')):routeView(currentDb(),state,sample,isAuthenticated),sample,user);
+  const expandedDetails=Array.from(root.querySelectorAll<HTMLDetailsElement>('details[id][open]')).map(el=>el.id);
+  root.innerHTML=shell(state.route.name,state.route.name==='listen'?(isAuthenticated&&!sample?journeyMarkup:emptyState('Return to your Original Voice.','Sign in to listen to your authentic Echoes.','open-auth','Sign in')):routeView(currentDb(),state,sample,isAuthenticated),sample,user,currentDb().threads.length);
+  for(const id of expandedDetails){const el=document.getElementById(id);if(el instanceof HTMLDetailsElement)el.open=true;}
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
   if(state.route.name==='listen'&&isAuthenticated&&!sample)journeyView=mountJourney(root.querySelector('.echo-journey'),services);
@@ -1003,6 +1005,7 @@ document.addEventListener('click',async(event)=>{
       case 'download-voice':await downloadEchoAudio(id);break;
       case 'download-capture':if(recordingBlob){keepCaptureInputs();await downloadAudioBlob(recordingBlob,captureTitle||captureText||'luna-recording');}break;
       case 'skip':document.getElementById('main')?.focus();document.getElementById('main')?.scrollIntoView({block:'start'});break;
+      case 'close-menu':{document.getElementById('sidebar')?.classList.remove('mobile-open');const trigger=document.querySelector<HTMLButtonElement>('[data-action="menu"]');trigger?.setAttribute('aria-expanded','false');trigger?.focus();break;}
       case 'menu':{const open=document.getElementById('sidebar')?.classList.toggle('mobile-open');target.setAttribute('aria-expanded',String(open));break;}
       case 'theme':{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('luna-exploration-theme',theme);}catch{}render();break;}
       case 'privacy-unlock':openPrivacyUnlock();break;
@@ -1145,7 +1148,7 @@ document.addEventListener('change',async(event)=>{
   }catch(error){toast((error as Error).message);}
 });
 document.addEventListener('keydown',event=>{
-  if(event.key==='Escape')document.getElementById('sidebar')?.classList.remove('mobile-open');
+  if(event.key==='Escape'&&document.getElementById('sidebar')?.classList.contains('mobile-open')){document.getElementById('sidebar')?.classList.remove('mobile-open');const trigger=document.querySelector<HTMLButtonElement>('[data-action="menu"]');trigger?.setAttribute('aria-expanded','false');trigger?.focus();}
   const target=event.target as HTMLElement;if(target.dataset.action==='phase'&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const i=PHASES.findIndex(p=>p.id===state.phase);const next=event.key==='Home'?0:event.key==='End'?7:(i+(event.key==='ArrowRight'?1:7))%8;document.querySelector<HTMLButtonElement>(`[data-action="phase"][data-value="${PHASES[next].id}"]`)?.click();}
 });
 document.addEventListener('submit',async(event)=>{

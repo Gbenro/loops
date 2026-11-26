@@ -93,3 +93,22 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .recording-pill { position: absolute; top: -8px; right: -8px; background: #ef4444; color: #fff; font-size: 8px; font-family: monospace; padding: 1px 4px; border-radius: 6px; font-weight: bold; }
 @keyframes recording-pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
 .chat-transcribing-notice { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-focus, #ddc697); padding: 4px 0; }
+
+/* Keep the first view quiet; optional context stays within reach. */
+.sidebar{overflow-y:auto}
+.sidebar-footer{flex-shrink:0}
+.account-menu{width:100%;text-align:left}
+.account-menu span{min-width:0}
+.account-menu small{display:block;overflow-wrap:anywhere;font-size:10px;color:var(--muted);margin-top:4px}
+.menu-version{margin-top:16px}
+.menu-more summary,.echo-more summary{cursor:pointer;color:var(--gold);font-size:13px;padding:14px 0;min-height:44px}
+.menu-more summary:focus-visible,.echo-more summary:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.menu-close{position:absolute;right:12px;top:12px}
+.echo-primary{margin-top:29px;max-width:850px}
+.echo-more{margin-top:28px;border-top:1px solid var(--line)}
+.echo-more .detail-reflections{margin-top:0}
+.echo-more .detail-columns{margin-top:12px}
+.echo-more .when-open{display:none}
+.echo-more[open] .when-open{display:inline}
+.echo-more[open] .when-closed{display:none}
+@media(max-width:760px){.sidebar.mobile-open{width:min(300px,85vw)}.echo-primary{margin-top:23px}}
