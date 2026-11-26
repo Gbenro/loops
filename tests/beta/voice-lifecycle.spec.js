@@ -63,3 +63,16 @@ test('late transcription after leaving chat does not populate the next draft',as
  await expect(page.locator('#chat-input')).toHaveValue('');
  expect(await page.evaluate(()=>window.__stoppedTracks)).toBeGreaterThan(0);
 });
+
+test('starting dictation prevents pending Luna playback from entering the microphone',async({page})=>{
+ await fixture(page);let pending;
+ await page.route('**/api/chat/synthesize-speech',route=>{pending=route;});
+ await page.locator('[data-action="play-chat-voice"]').click();
+ await expect.poll(()=>Boolean(pending)).toBe(true);
+ await page.locator('[data-action="chat-voice-record"]').click();
+ await expect.poll(()=>page.evaluate(()=>window.__recordStarts)).toBe(1);
+ await pending.fulfill({json:{audioBase64:'c3ludGhldGlj',contentType:'audio/wav'}}).catch(()=>{});
+ await page.locator('[data-action="play-chat-voice"]').click();
+ await page.waitForTimeout(150);
+ expect(await page.evaluate(()=>window.__played)).toBe(0);
+});

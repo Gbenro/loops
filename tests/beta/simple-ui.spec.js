@@ -20,7 +20,7 @@ for(const tags of [[],['A new connection']]){
   const more=page.locator('.echo-more');
   await expect(more).not.toHaveAttribute('open','');
   await expect(page.locator('.detail-reflections')).not.toBeVisible();
-  await more.locator('summary').focus();await page.keyboard.press('Enter');
+  await more.locator('summary').press('Enter');
   await expect(page.locator('.detail-reflections')).toBeVisible();
   await expect(page.locator('main')).not.toContainText('No Threads connected yet.');
   await expect(page.getByRole('heading',{name:'Nearby in your field'})).toHaveCount(0);

@@ -1,3 +1,4 @@
+import { voiceCaptureConstraints, createVoiceRecorder } from './audio-capture.ts';
 import { createFieldRealtime } from './realtime-sync.ts';
 import { mountJourney } from './journey-ui.mjs';
 import { journeyMarkup } from './journey-view.ts';
@@ -222,6 +223,7 @@ function bindRecordingPreview(){
   preview.addEventListener('error',()=>toast('This recording cannot be played by this browser. You can keep the local Echo or record again.'));
 }
 async function startRecording(){
+  stopChatVoicePlayback();
   keepCaptureInputs();
   if(state.forceMicDenied){renderCapture('Microphone permission denied — simulated review state. Choose Write, or turn this simulation off in review notes.');return;}
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){renderCapture('Recording is unavailable in this browser context. Writing still works. For microphone access, open the prototype from localhost or a supported secure browser context.');return;}
@@ -230,7 +232,7 @@ async function startRecording(){
   await voiceEngine.prepare();
   if(token!==captureToken||!captureActive){if(!captureActive)voiceEngine.stop();return;}
   try{
-    const requested=await navigator.mediaDevices.getUserMedia({audio:true});
+    const requested=await navigator.mediaDevices.getUserMedia(voiceCaptureConstraints());
     if(token!==captureToken||!captureActive||!modal.open){requested.getTracks().forEach(t=>t.stop());return;}
     stream=requested;chunks=[];recordingDuration=0;
     currentDraftId='draft_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
@@ -249,8 +251,7 @@ async function startRecording(){
         console.warn('Wake lock request failed, continuing recording without lock:', err);
       });
     }
-    const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
-    recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+    recorder=createVoiceRecorder(stream);
     const activeRecorder=recorder;
     const session=new RecordingSession(activeRecorder,currentDraftId,recordingOwner,saveDraftAudio,()=>{
       if(token!==captureToken)return;
@@ -746,6 +747,7 @@ function playBrowserSpeech(text: string, messageId: string, isFallback = false) 
 }
 
 async function handlePlayChatVoice(messageId: string) {
+  if(state.chatVoiceRecording||captureActive){toast('Finish recording before playing Luna’s voice.');return;}
   if (state.chatPlayingMessageId === messageId) {
     stopChatVoicePlayback();
     return;
@@ -867,15 +869,15 @@ async function startChatDictation() {
     return;
   }
 
+  stopChatVoicePlayback();
+  stopPlayback();
   cancelChatDictation();
   const token = ++chatDictationToken;
   const currentOwner = getAuthSession().userId;
   chatDictationOwner = currentOwner;
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true }
-    });
+    const stream = await navigator.mediaDevices.getUserMedia(voiceCaptureConstraints());
 
     if (token !== chatDictationToken || state.route.name !== 'chat' || currentOwner !== getAuthSession().userId) {
       stream.getTracks().forEach(t => t.stop());
@@ -885,14 +887,7 @@ async function startChatDictation() {
     chatDictationStream = stream;
     chatDictationChunks = [];
 
-    let mimeType = 'audio/webm';
-    if (typeof MediaRecorder !== 'undefined') {
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
-      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
-    }
-
-    const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    const mr = createVoiceRecorder(stream);
     mr.ondataavailable = (e) => {
       if (token === chatDictationToken && e.data && e.data.size > 0) {
         chatDictationChunks.push(e.data);
@@ -913,7 +908,7 @@ async function startChatDictation() {
       state.chatVoiceRecording = false;
       state.chatVoiceDuration = 0;
 
-      const blob = new Blob(chatDictationChunks, { type: mimeType });
+      const blob = new Blob(chatDictationChunks, { type: mr.mimeType || chatDictationChunks[0]?.type || 'audio/webm' });
       chatDictationChunks = [];
       if (!blob || blob.size < 500) {
         render();
@@ -976,6 +971,8 @@ async function startChatDictation() {
     }, 1000);
   } catch (err: any) {
     if (token !== chatDictationToken) return;
+    chatDictationStream?.getTracks().forEach(track=>track.stop());
+    chatDictationStream=null;
     console.error('Dictation error:', err);
     toast(err.name === 'NotAllowedError' ? 'Microphone permission denied.' : 'Could not start microphone.');
     state.chatVoiceRecording = false;
