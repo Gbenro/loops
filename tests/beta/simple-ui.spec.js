@@ -28,14 +28,14 @@ for(const tags of [[],['A new connection']]){
   await more.locator('summary').click();
   await page.screenshot({path:testInfo.outputPath('echo-simple.png'),fullPage:true});
 
-  // Seed two recoverable synthetic recordings, then check the menu after reload.
+  // Seed recovery metadata: this test checks menu discovery, not audio persistence.
   await page.evaluate(()=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('luna_draft_audio_db',1);
    req.onupgradeneeded=()=>req.result.createObjectStore('draft_recordings',{keyPath:'id'});
    req.onerror=()=>reject(req.error);
    req.onsuccess=()=>{
     const db=req.result,tx=db.transaction('draft_recordings','readwrite');
-    for(let i=0;i<2;i++)tx.objectStore('draft_recordings').put({id:'draft_ui_'+i,userId:'fixture-user',status:'captured',blob:new Blob(['synthetic']),duration:1,startedAt:new Date().toISOString()});
+    for(let i=0;i<2;i++)tx.objectStore('draft_recordings').put({id:'draft_ui_'+i,userId:'fixture-user',status:'captured',duration:1,startedAt:new Date().toISOString()});
     tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);
    };
   }));
