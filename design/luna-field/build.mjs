@@ -11,6 +11,7 @@ const publicDir = path.resolve(project, '../../public');
 const sources = [
   'audio-geometry',
   'audio-capture',
+  'speech-text',
   'audio-fixtures',
   'fixtures',
   'sky-data',

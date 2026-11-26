@@ -1,3 +1,4 @@
+import { prepareChatSpeech } from './speech-text.ts';
 import { voiceCaptureConstraints, createVoiceRecorder } from './audio-capture.ts';
 import { createFieldRealtime } from './realtime-sync.ts';
 import { mountJourney } from './journey-ui.mjs';
@@ -758,10 +759,7 @@ async function handlePlayChatVoice(messageId: string) {
   const msg = state.chat.find(m => m.id === messageId);
   if (!msg || !msg.content) return;
 
-  const textToSpeak = msg.content
-    .replace(/<[^>]+>/g, '')
-    .replace(/\*\(Note: Served via[^\)]+\)\*/g, '')
-    .trim();
+  const textToSpeak = prepareChatSpeech(msg.content,[...msg.echoIds,...currentDb().echoes.map(e=>e.id)]);
   if (!textToSpeak) return;
 
   const attempt = ++chatPlayAttempt;
