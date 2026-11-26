@@ -31,6 +31,7 @@ test('pending synthesized voice cannot play after signing out',async({page})=>{
  await page.route('**/api/chat/synthesize-speech',route=>{pending=route;});
  await page.locator('[data-action="play-chat-voice"]').click();
  await expect.poll(()=>Boolean(pending)).toBe(true);
+ if(await page.locator('[data-action="menu"]').isVisible())await page.locator('[data-action="menu"]').click();
  await page.locator('[data-action="open-auth"]:visible').first().click();
  await page.locator('[data-action="auth-signout"]').click();
  await pending.fulfill({json:{audioBase64:'c3ludGhldGlj',contentType:'audio/wav'}}).catch(()=>{});
