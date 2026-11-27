@@ -8,10 +8,10 @@ class Media extends EventTarget {
   async play(){ this.plays++; this.paused=false; this.dispatchEvent(new Event('play')); }
   pause(){this.paused=true;this.dispatchEvent(new Event('pause'));}
   load(){} removeAttribute(){}
-  event(type){this.dispatchEvent(new Event(type));}
+  event(type){if(type==='ended')this.currentTime=this.duration;this.dispatchEvent(new Event(type));}
 }
 const ready = async () => ({status:'ready',url:'fixture.mp3'});
-function setup(resolve=ready) { const media=[];const j=new Journey(items,resolve,()=>{const a=new Media();media.push(a);return a;});return {j,media}; }
+function setup(resolve=ready) { const media=[];const j=new Journey(items,resolve,()=>{const a=new Media();media.push(a);return a;},()=>{},{order:'oldest'});return {j,media}; }
 const flush = () => new Promise(resolve=>setImmediate(resolve));
 test('order is chronological, deterministic, deduplicated and voice-only',()=>{
   const source=[...items,items[0],{...items[0],id:'text',kind:'text'},echo('bad','invalid')];
@@ -38,7 +38,7 @@ test('next and previous restore visited positions while preserving paused intent
 });
 test('ended advances continuously, skips known unavailable and stops at end',async()=>{
   const {j,media}=setup();await j.select('a',true);media[0].event('ended');await flush();assert.equal(j.id,'b');assert.equal(j.status,'playing');
-  media[1].event('ended');await flush();assert.equal(j.id,'c');media[2].event('ended');
+  media[1].event('ended');await flush();assert.equal(j.id,'c');media[2].event('ended');await flush();
   assert.equal(j.status,'complete');assert.equal(j.desired,false);await j.play();assert.equal(j.time,0);
 });
 test('changing order does not reset audio; next follows the new direction',async()=>{
@@ -101,4 +101,70 @@ test('durationless WebM is measured without saving the end-probe as a listening 
 });
 test('filtering away the playing Echo cancels its media and pending resolver',async()=>{
  const {j,media}=setup();await j.select('a',true);j.setItems([items[3]]);assert.equal(media[0].paused,true);assert.equal(j.id,'c');assert.equal(j.status,'idle');
+});
+
+test('new journeys select the latest recording first',()=>{
+ const j=new Journey(items,ready,()=>new Media());
+ assert.equal(j.order,'newest');assert.equal(j.id,'c');
+});
+test('metadata end probing cannot advance even after durationchange',async()=>{
+ const media=new Media();media.duration=Infinity;
+ const j=new Journey(items.map(e=>({...e,duration:undefined})),ready,()=>media);
+ await j.select('a',true,2);media.event('loadedmetadata');
+ media.duration=150;media.event('durationchange');media.event('ended');await flush();
+ assert.equal(j.id,'a');assert.equal(j.time,2);
+ media.currentTime=2;media.event('seeked');await flush();
+ assert.equal(j.status,'playing');assert.equal(j.id,'a');
+});
+test('pause cancels a pending transition and a late page cannot autoplay',async()=>{
+ let finish;const media=[];
+ const j=new Journey(items,ready,()=>{const a=new Media();media.push(a);return a;},()=>{},
+ {between:()=>new Promise(r=>finish=r)});
+ await j.play();media[0].event('ended');await flush();assert.equal(j.status,'transition');
+ j.pause();finish();await flush();assert.equal(j.id,'c');assert.equal(j.desired,false);
+});
+test('continuous playback loads the next page once and respects cancellation',async()=>{
+ let finish,calls=0;const media=[];
+ const j=new Journey([items[3]],ready,()=>{const a=new Media();media.push(a);return a;},()=>{},
+ {loadMore:async()=>{calls++;await new Promise(r=>finish=r);j.setItems([items[3],items[1]]);}});
+ await j.play();media[0].event('ended');media[0].event('ended');await flush();
+ assert.equal(calls,1);finish();await flush();assert.equal(j.id,'b');assert.equal(j.status,'playing');
+});
+test('page failure retains current Echo and can be retried with Next',async()=>{
+ let fail=true;const media=[];
+ const j=new Journey([items[3]],ready,()=>{const a=new Media();media.push(a);return a;},()=>{},
+ {loadMore:async()=>{if(fail)throw Error('offline');j.setItems([items[3],items[1]]);}});
+ await j.play();media[0].event('ended');await flush();assert.match(j.message,/Next to retry/);assert.equal(j.id,'c');
+ fail=false;await j.step(1);assert.equal(j.id,'b');
+});
+test('routine refreshed metadata preserves media and current playback position',async()=>{
+ const {j,media}=setup();await j.select('b',true);j.seek(6);j.setItems(items.map(e=>({...e})));
+ assert.equal(media.length,1);assert.equal(j.time,6);assert.equal(j.status,'playing');
+});
+
+test('duration probing may abort the initial play promise without cancelling user intent',async()=>{
+ const media=new Media();media.duration=Infinity;let rejectPlay;
+ media.play=()=>new Promise((resolve,reject)=>{rejectPlay=reject;});
+ media.pause=()=>{media.paused=true;rejectPlay?.(new DOMException('Internal pause','AbortError'));media.event('pause');};
+ const j=new Journey([{...items[0],duration:undefined}],ready,()=>media);
+ const starting=j.select('a',true);await flush();media.event('loadedmetadata');await starting;
+ assert.equal(j.desired,true);media.duration=150;media.event('durationchange');
+ media.play=async()=>{media.paused=false;media.event('play');};
+ media.event('seeked');await flush();assert.equal(j.status,'playing');assert.equal(j.id,'a');
+});
+test('resuming after a paused transition continues to the next Echo',async()=>{
+ let finish;const media=[];
+ const j=new Journey(items,ready,()=>{const a=new Media();media.push(a);return a;},()=>{},
+ {between:()=>new Promise(r=>finish=r)});
+ await j.play();media[0].event('ended');await flush();j.pause();finish();await flush();
+ const next=j.play();await flush();finish();await next;assert.equal(j.id,'b');assert.equal(j.status,'playing');
+});
+
+test('pause during page loading remains resumable when the page arrives',async()=>{
+ let finish;const media=[];
+ const j=new Journey([items[3]],ready,()=>{const a=new Media();media.push(a);return a;},()=>{},
+ {loadMore:async()=>{await new Promise(r=>finish=r);j.setItems([items[3],items[1]]);}});
+ await j.play();media[0].event('ended');await flush();j.pause();finish();await flush();
+ assert.equal(j.desired,false);assert.equal(j.status,'paused');assert.equal(j.id,'c');
+ await j.play();assert.equal(j.id,'b');assert.equal(j.status,'playing');
 });

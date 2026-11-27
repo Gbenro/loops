@@ -99,3 +99,14 @@ test('a late archive page cannot revive an Echo already deleted during the reque
  finish(Response.json([{id:'deleted',user_id:'owner',text:'old',source:'text',created_at:'2020-01-01T00:00:00Z'}]));
  const page=await request;assert.equal(page.items.length,0);assert.ok(!JSON.parse(data.get(KEY)||'[]').some(e=>e.id==='deleted'));
 });
+
+test('earliest-first pages use ascending timestamps and ascending tie breakers',async()=>{
+ const s=setup(),rows=Array.from({length:65},(_,i)=>({id:'e'+String(i).padStart(3,'0'),text:'voice',source:'voice',audio_path:'owner/'+i,user_id:'owner',created_at:'2020-01-01T12:00:00Z'}));
+ globalThis.fetch=async url=>{
+  const u=new URL(url),and=u.searchParams.get('and')||'',id=and.match(/id.gt."([^"]+)"/)?.[1];
+  assert.equal(u.searchParams.get('order'),'created_at.asc,id.asc');
+  return Response.json(rows.filter(r=>!id||r.id>id).slice(0,Number(u.searchParams.get('limit'))));
+ };
+ let cursor,ids=[];do{const page=await s.echoes.list({kind:'voice',order:'oldest',cursor});ids.push(...page.items.map(e=>e.id));cursor=page.nextCursor;}while(cursor);
+ assert.deepEqual(ids,rows.map(e=>e.id));assert.equal(new Set(ids).size,65);
+});

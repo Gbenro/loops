@@ -188,7 +188,17 @@ html[data-theme=light] .echo-journey{color-scheme:light;--bg:#f4f3ee;--sidebar:#
 .echo-journey .empty-cycle h3{font:400 22px var(--serif);color:var(--text);margin-bottom:8px}
 .echo-journey .empty-cycle p{font-size:12px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.6}
 
-</style>
+
+/* Readable, thumb-sized transport controls on phones. */
+.echo-journey .transport-button{flex:1;min-height:48px;padding:10px 8px;border:1px solid var(--gold-dim);border-radius:24px;color:var(--gold);font-size:13px;font-weight:600;white-space:nowrap}
+.echo-journey .transport-button.primary{background:var(--gold);color:var(--bg)}
+.echo-journey .playback-status{text-align:center;font-size:12px;color:var(--muted);min-height:36px;line-height:1.5;margin:12px 0 0}
+.echo-journey .transition-option{display:flex;align-items:center;justify-content:center;gap:9px;min-height:44px;font-size:12px;color:var(--muted)}
+.echo-journey .transition-option input{width:18px;height:18px;accent-color:var(--gold)}
+.echo-journey .journey-subfilters input{width:100%;min-width:0;min-height:46px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);font:inherit;padding:7px}
+@media(max-width:380px){.echo-journey .transport{gap:5px}.echo-journey .transport-button{font-size:12px;padding:10px 5px}.echo-journey .filters{gap:8px}}
+
+@media(max-width:680px){.echo-journey .voice-orbit{display:none}.echo-journey .voice-heading{min-height:0;margin:18px 0 24px}}</style>
 </head><body>
 <div id="app"></div>
 <dialog id="modal"></dialog>
@@ -218,9 +228,9 @@ function groups(items, by, timeZone) {
 }
 
 class Journey {
-  constructor(items, resolve, createAudio, onChange = () => {}) {
+  constructor(items, resolve, createAudio, onChange = () => {}, options = {}) {
     this.items = ordered(items); this.resolve = resolve; this.createAudio = createAudio; this.onChange = onChange;
-    this.order = 'oldest'; this.status = 'idle';
+    this.order = options.order === 'oldest' ? 'oldest' : 'newest'; this.options = options; this.status = 'idle';
     this.time = 0; this.duration = 0; this.positions = new Map(); this.skipped = new Set(); this.version = 0;
     this.message = ''; this.desired = false; this.cleanups = []; this.id = this.queue[0]?.id ?? null;
   }
@@ -228,17 +238,17 @@ class Journey {
   get current() { return this.items.find(e => e.id === this.id); }
   emit() { this.onChange(this); }
   release() {
-    this.abort?.abort(); this.cleanups.forEach(fn => fn()); this.cleanups = [];
+    this.probingDuration=false; this.transition?.abort(); this.abort?.abort(); this.cleanups.forEach(fn => fn()); this.cleanups = [];
     if (this.audio) { this.audio.pause(); this.audio.removeAttribute('src'); this.audio.load(); }
     this.audio = null;
     if (this.objectUrl) { URL.revokeObjectURL(this.objectUrl); this.objectUrl = null; }
   }
   remember() { if (this.id) this.positions.set(this.id, this.time); }
-  setOrder(order) { this.order = order === 'newest' ? 'newest' : 'oldest'; this.emit(); }
+  setOrder(order) { this.transition?.abort(); this.order = order === 'oldest' ? 'oldest' : 'newest'; if (this.status === 'idle') this.id = this.queue[0]?.id ?? null; this.emit(); }
   async select(id, autoplay = false, position = this.positions.get(id) || 0, refresh = false) {
     if (!this.queue.some(e => e.id === id)) return;
     this.remember(); this.release(); const version = ++this.version;
-    this.id = id; this.time = Math.max(0, Number.isFinite(position) ? position : 0);
+    this.finished=false; this.id = id; this.time = Math.max(0, Number.isFinite(position) ? position : 0);
     this.duration = this.current?.duration || 0; this.status = 'loading'; this.desired = autoplay; this.message = ''; this.emit();
     this.abort = new AbortController();
     try {
@@ -258,13 +268,13 @@ class Journey {
       if (result.url.startsWith('blob:')) this.objectUrl = result.url;
       const audio = this.createAudio(); this.audio = audio; audio.preload = 'metadata';
       const listen = (type, fn) => { const safe = () => { if (version === this.version && this.audio === audio) fn(); }; audio.addEventListener(type, safe); this.cleanups.push(() => audio.removeEventListener(type, safe)); };
-      let measuringDuration = false;
+      let measuringDuration = false; let restoringPosition = false;
       const resumeTime = this.time;
       listen('loadedmetadata', () => {
         // MediaRecorder WebM can omit a duration header. Ask the media decoder to
         // find the end before exposing seeking; this changes no recorded bytes.
         if (!Number.isFinite(audio.duration) && !this.duration) {
-          measuringDuration = true; audio.pause(); audio.currentTime = 1e10; return;
+          measuringDuration = true; this.probingDuration=true; audio.pause(); audio.currentTime = 1e10; return;
         }
         this.duration = Number.isFinite(audio.duration) ? audio.duration : this.duration;
         this.time = Math.min(this.time, Math.max(0, this.duration - .05)); audio.currentTime = this.time; this.emit();
@@ -272,20 +282,22 @@ class Journey {
       listen('durationchange', () => {
         if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
         this.duration = audio.duration;
-        if (measuringDuration) { measuringDuration=false; this.time=Math.min(resumeTime,Math.max(0,this.duration-.05));audio.currentTime=this.time;if(this.desired)void this.play(); }
+        if (measuringDuration) { measuringDuration=false; restoringPosition=true; this.time=Math.min(resumeTime,Math.max(0,this.duration-.05));audio.currentTime=this.time; }
         this.emit();
       });
-      listen('timeupdate', () => { if(measuringDuration)return;this.time = audio.currentTime; this.remember(); this.emit(); });
+      listen('seeked', () => { if (restoringPosition && Math.abs(audio.currentTime-this.time)<.5) { restoringPosition=false; this.probingDuration=false; if(this.desired)void this.play(); } });
+      listen('timeupdate', () => { if(measuringDuration||restoringPosition)return;this.time = audio.currentTime; this.remember(); this.emit(); });
       listen('play', () => { this.status = 'playing'; this.emit(); });
       listen('pause', () => { if (this.status !== 'complete') this.status = 'paused'; this.emit(); });
       listen('waiting', () => { if (this.desired) { this.status = 'buffering'; this.emit(); } });
       listen('playing', () => { this.status = 'playing'; this.emit(); });
       listen('ended', () => {
-        if(measuringDuration)return;
-        this.time = 0; this.positions.set(id, 0);
-        const next = this.queue[this.queue.findIndex(e => e.id === id) + 1];
-        if (next) void this.select(next.id, true, 0);
-        else { this.desired = false; this.status = 'complete'; this.message = 'You have reached the end of this listening journey.'; this.emit(); }
+        // Seeking durationless WebM to its end can queue an ended event after
+        // durationchange. It is metadata probing, not completion of the Echo.
+        if(measuringDuration || restoringPosition || audio.seeking || !this.desired) return;
+        if (Number.isFinite(audio.duration) && audio.currentTime < audio.duration - .25) return;
+        this.finished=true; this.time = 0; this.positions.set(id, 0);
+        void this.advance(true);
       });
       listen('error', () => { if (!refresh && result.url.startsWith('http')) { void this.select(id, this.desired, this.time, true); return; } this.desired = false; this.status = 'blocked'; this.message = 'Audio could not be played. Press play to retry this moment.'; this.emit(); });
       audio.src = result.url;
@@ -297,20 +309,57 @@ class Journey {
     }
   }
   async play() {
+    if (this.probingDuration) { this.desired = true; return; }
     if (this.status === 'loading') { this.desired = true; return; }
     if (!this.audio || this.status === 'blocked') return this.select(this.queue.find(e => e.id === this.id)?.id || this.queue[0]?.id, true, this.time, this.status === 'blocked');
     if (this.status === 'complete') this.seek(0);
+    if (this.finished) { this.desired=true; return this.advance(true); }
     this.desired = true; this.message = ''; const audio = this.audio; const version = this.version;
     try { await audio.play(); if (version === this.version && !this.desired) audio.pause(); }
-    catch { if (version !== this.version) return; this.desired = false; this.status = 'paused'; this.message = 'Playback paused by the browser. Press play to continue.'; this.emit(); }
+    catch { if (version !== this.version || this.probingDuration) return; this.desired = false; this.status = 'paused'; this.message = 'Playback paused by the browser. Press play to continue.'; this.emit(); }
   }
-  pause() { this.desired = false; this.audio?.pause(); this.status = this.status === 'loading' ? 'loading' : 'paused'; this.remember(); this.emit(); }
+  pause() { const advancing=this.transition&&!this.transition.signal.aborted; this.transition?.abort(); this.desired = false; this.audio?.pause(); this.status = this.status === 'loading'&&!advancing ? 'loading' : 'paused'; this.remember(); this.emit(); }
   toggle() { return this.desired ? this.pause() : this.play(); }
+  async advance(automatic = false) {
+    if (this.transition && !this.transition.signal.aborted) return;
+    const transition = new AbortController(); this.transition = transition;
+    const version = this.version, id = this.id;
+    const valid = () => !transition.signal.aborted && version === this.version && id === this.id;
+    const nextItem = () => this.queue[this.queue.findIndex(e => e.id === id) + 1];
+    const autoplay = this.desired;
+    try {
+      let next = nextItem();
+      if (!next && this.options.loadMore) {
+        this.status = 'loading'; this.emit();
+        await this.options.loadMore(transition.signal);
+        if (!valid()) return;
+        next = nextItem();
+      }
+      if (next) {
+        if (automatic && this.options.between) {
+          this.status = 'transition'; this.emit();
+          await this.options.between(transition.signal);
+          if (!valid()) return;
+        }
+        transition.abort();
+        return this.select(next.id, autoplay, automatic ? 0 : undefined);
+      }
+      this.desired = false; this.status = 'complete';
+      this.message = 'You have reached the end of this listening journey.'; this.emit();
+    } catch (error) {
+      if (!valid() || error?.name === 'AbortError') return;
+      this.desired = false; this.status = 'paused';
+      this.message = 'Could not load the next recording. Press Next to retry.'; this.emit();
+    } finally { transition.abort(); }
+  }
   step(delta) {
+    this.transition?.abort();
+    if (delta > 0) return this.advance();
     const index = this.queue.findIndex(e => e.id === this.id); const next = this.queue[index + delta];
     if (next) return this.select(next.id, this.desired);
   }
   seek(seconds) {
+    this.transition?.abort(); this.finished=false;
     this.time = Math.max(0, Math.min(Number.isFinite(seconds) ? seconds : 0, this.duration || this.current?.duration || 0));
     if (this.audio?.readyState >= 1) this.audio.currentTime = this.time;
     this.remember(); this.emit();
@@ -340,7 +389,6 @@ function mountJourney(host, services) {
   const time = value => `${Math.floor((value || 0) / 60)}:${String(Math.floor((value || 0) % 60)).padStart(2, '0')}`;
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const stamp = date => new Date(date).toLocaleString('en-US', { timeZone: zone, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: 'long', day: 'numeric' });
 
   // 1. Cycle Discovery & Initial State
   let cycles = adapter.getCycles();
@@ -362,11 +410,63 @@ function mountJourney(host, services) {
   let shownId = '';
   let skippedCount = 0;
 
-  let saved = adapter.loadPlace();
+  let saved = adapter.loadPlace() || adapter.loadPlace(true);
   let saveEnabled = true;
-  const resume = adapter.loadPlace(true) || saved;
 
-  const journey = new Journey([], resolveAudio, () => new Audio(), update);
+
+  let chimeEnabled = true, chimeContext;
+  const chimeKey = 'luna.echo-journey.chime.' + adapter.owner;
+  try { chimeEnabled = localStorage.getItem(chimeKey) !== 'off'; } catch {}
+  function prepareChime() {
+    if (!chimeEnabled) return;
+    try {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (Context && !chimeContext) chimeContext = new Context();
+      void chimeContext?.resume().catch(() => {});
+    } catch {}
+  }
+  function betweenRecordings(signal) {
+    return new Promise(resolve => {
+      if (signal.aborted) return resolve();
+      let oscillator, gain;
+      const finish = () => {
+        clearTimeout(timer); signal.removeEventListener('abort', finish);
+        try { oscillator?.stop(); oscillator?.disconnect(); gain?.disconnect(); } catch {}
+        resolve();
+      };
+      const timer = setTimeout(finish, 700);
+      signal.addEventListener('abort', finish, {once:true});
+      if (chimeEnabled && chimeContext?.state === 'running') {
+        try {
+          const now = chimeContext.currentTime;
+          oscillator = chimeContext.createOscillator(); gain = chimeContext.createGain();
+          oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(660, now);
+          gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(.055, now + .025);
+          gain.gain.exponentialRampToValueAtTime(.0001, now + .42);
+          oscillator.connect(gain); gain.connect(chimeContext.destination);
+          oscillator.start(now); oscillator.stop(now + .45);
+        } catch {}
+      }
+    });
+  }
+  const journey = new Journey([], resolveAudio, () => new Audio(), update, {
+    between: betweenRecordings,
+    loadMore: async signal => {
+      if (pageRequest) await pageRequest;
+      while (pageCursor && !signal.aborted) {
+        const before = journey.queue.length;
+        if (!await loadJourneyPage(true)) throw new Error('Page unavailable');
+        if (journey.queue.length > before) return;
+      }
+      if (pageError) throw new Error('Page unavailable');
+    }
+  });
+  $('transition-sound').checked = chimeEnabled;
+  on($('transition-sound'), 'change', e => {
+    chimeEnabled = e.target.checked;
+    try { localStorage.setItem(chimeKey, chimeEnabled ? 'on' : 'off'); } catch {}
+    prepareChime();
+  });
   $('timezone').textContent = zone;
 
   function getCurrentCycleObj() {
@@ -375,30 +475,35 @@ function mountJourney(host, services) {
 
 
   let pageCursor;
-  let pageLoading=false,pageError='',pageToken=0;
+  let pageLoading=false,pageError='',pageToken=0,pageRequest,pageFailedMore=false;
+  function loadJourneyPage(more=false) {
+    if(more && pageLoading) return pageRequest;
+    pageRequest = fetchJourneyPage(more);
+    return pageRequest;
+  }
   const pageStatus=document.createElement('div');
   pageStatus.className='echo-page-status';
   $('groups').after(pageStatus);
   function renderPageStatus(){
     pageStatus.innerHTML=pageLoading?'<p role="status">Loading recordings…</p>':pageError?'<p>Could not load this cycle. Your recordings are safe.</p><button class="btn" id="journey-retry">Try again</button>':pageCursor?'<button class="btn" id="journey-more">Load more recordings</button>':'';
     pageStatus.querySelector('#journey-more')?.addEventListener('click',()=>void loadJourneyPage(true));
-    pageStatus.querySelector('#journey-retry')?.addEventListener('click',()=>void loadJourneyPage());
+    pageStatus.querySelector('#journey-retry')?.addEventListener('click',()=>void loadJourneyPage(pageFailedMore));
   }
-  async function loadJourneyPage(more=false){
+  async function fetchJourneyPage(more=false){
     if(!adapter.valid()||(more&&pageLoading))return;
     const token=++pageToken,cycle=getCurrentCycleObj(),phase=selectedPhase,day=selectedDay;
-    pageLoading=true;pageError='';renderPageStatus();
-    const query={since:cycle.cycleStart,until:cycle.cycleEnd,kind:'voice',limit:30,phaseId:phase||undefined,cursor:more?pageCursor:undefined};
-    if(day){const start=new Date(day);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);query.since=start.toISOString();query.until=end.toISOString();}
+    pageLoading=true;pageError='';pageFailedMore=more;renderPageStatus();
+    const query={since:cycle.cycleStart,until:cycle.cycleEnd,kind:'voice',limit:30,phaseId:phase||undefined,cursor:more?pageCursor:undefined,order:journey.order};
+    if(day){const start=new Date(day+'T00:00:00');start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);query.since=start.toISOString();query.until=end.toISOString();}
     try{
       const result=await services.echoes.list(query);
       if(abort.signal.aborted||!adapter.valid()||token!==pageToken)return;
       const items=result.items.map(journeyEcho);
       cycleEchoes=more?[...new Map([...cycleEchoes,...items].map(e=>[e.id,e])).values()]:items;
       pageCursor=result.nextCursor;
-      updateFilterOptions();applyFilter();
-    }catch{if(token===pageToken&&!abort.signal.aborted)pageError='failed';}
-    finally{if(token===pageToken&&!abort.signal.aborted){pageLoading=false;renderPageStatus();}}
+      updateFilterOptions();applyFilter();return true;
+    }catch{if(token===pageToken&&!abort.signal.aborted)pageError='failed';return false;}
+    finally{if(token===pageToken&&!abort.signal.aborted){pageLoading=false;renderPageStatus();update();}}
   }
 
   function drawWave(values) {
@@ -414,7 +519,7 @@ function mountJourney(host, services) {
       list = list.filter(e => e.context.phaseId === selectedPhase);
     }
     if (selectedDay) {
-      list = list.filter(e => dayFmt.format(new Date(e.occurredAt)) === selectedDay);
+      list = list.filter(e => localDay(e.occurredAt) === selectedDay);
     }
     return list;
   }
@@ -454,17 +559,15 @@ function mountJourney(host, services) {
     updateDayFilterOptions();
   }
 
+  function localDay(value) {
+    const d=new Date(value);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
   function updateDayFilterOptions() {
-    const subset = selectedPhase ? cycleEchoes.filter(e => e.context.phaseId === selectedPhase) : cycleEchoes;
-    const dayCounts = new Map();
-    for (const e of subset) {
-      const dayStr = dayFmt.format(new Date(e.occurredAt));
-      dayCounts.set(dayStr, (dayCounts.get(dayStr) || 0) + 1);
-    }
-
-    $('day-filter').innerHTML = `<option value="">All days (${subset.length})</option>` +
-      [...dayCounts.entries()].map(([dayStr, cnt]) => `<option value="${esc(dayStr)}">${esc(dayStr)} (${cnt})</option>`).join('');
-    $('day-filter').value = selectedDay;
+    const cycle=getCurrentCycleObj();
+    $('day-filter').min=localDay(cycle.cycleStart);
+    $('day-filter').max=localDay(new Date(Date.parse(cycle.cycleEnd)-1));
+    $('day-filter').value=selectedDay;
   }
 
   function renderPath() {
@@ -504,8 +607,10 @@ function mountJourney(host, services) {
   function update() {
     const cycle = getCurrentCycleObj();
     const e = journey.current;
+    $('order').value = journey.order;
 
     if (!e) {
+      shownId='';
       if (cycleEchoes.length === 0) {
         $('voice-title').textContent = `No voice Echoes in ${cycle.name}`;
         $('player-status').textContent = `No recordings found for the ${cycle.name} cycle.`;
@@ -520,12 +625,12 @@ function mountJourney(host, services) {
       $('queue-progress').value = 0;
       $('queue-progress').max = 1;
       $('up-next').textContent = cycleEchoes.length === 0 ? 'Choose another cycle to begin listening.' : 'Clear filters to play all recordings.';
-      for (const id of ['play', 'previous', 'next', 'dock-play', 'dock-previous', 'dock-next', 'save', 'seek']) $(id).disabled = true;
+      for (const id of ['play', 'transport-play', 'previous', 'next', 'dock-play', 'dock-previous', 'dock-next', 'save', 'seek']) $(id).disabled = true;
       $('return').disabled = !saved;
       return;
     }
 
-    for (const id of ['play', 'save', 'seek', 'dock-play']) $(id).disabled = false;
+    for (const id of ['play', 'transport-play', 'save', 'seek', 'dock-play']) $(id).disabled = false;
     if (skippedCount !== journey.skipped.size) {
       skippedCount = journey.skipped.size;
       renderPath();
@@ -548,6 +653,8 @@ function mountJourney(host, services) {
     $('heard-width')?.setAttribute('width', String(600 * Math.min(1, journey.time / (duration || 1))));
     $('play-glyph').textContent = journey.desired ? 'Ⅱ' : '▶';
     $('play').setAttribute('aria-label', journey.desired ? 'Pause recording' : 'Play recording');
+    $('transport-play').textContent = journey.desired ? 'Ⅱ Pause' : '▶ Play';
+    $('transport-play').setAttribute('aria-label', journey.desired ? 'Pause recordings' : 'Play recordings');
     $('dock-title').textContent = e.title;
     $('dock-play').textContent = journey.desired ? 'Ⅱ' : '▶';
     $('dock-play').setAttribute('aria-label', journey.desired ? 'Pause journey' : 'Play journey');
@@ -556,6 +663,7 @@ function mountJourney(host, services) {
     const status = journey.message || ({
       idle: 'Ready when you are',
       loading: 'Finding the recording…',
+      transition: 'Next recording…',
       playing: 'Listening · continues automatically',
       paused: 'Paused · your place is held',
       buffering: 'Waiting for audio…',
@@ -565,17 +673,17 @@ function mountJourney(host, services) {
 
     if ($('player-status').textContent !== status) $('player-status').textContent = status;
     $('previous').disabled = index <= 0;
-    $('next').disabled = index >= journey.queue.length - 1;
+    $('next').disabled = index >= journey.queue.length - 1 && !pageCursor;
     $('dock-previous').disabled = $('previous').disabled;
     $('dock-next').disabled = $('next').disabled;
 
-    $('queue-count').textContent = `${Math.max(0, index + 1)} of ${journey.queue.length} in this cycle`;
+    $('queue-count').textContent = `${Math.max(0, index + 1)} of ${journey.queue.length}${pageCursor ? '+' : ''} in this selection`;
     $('queue-progress').max = journey.queue.length;
     $('queue-progress').value = journey.status === 'complete' ? journey.queue.length : Math.max(0, index) + Math.min(1, journey.time / (duration || 1));
     $('queue-progress').setAttribute('aria-valuetext', `Recording ${index + 1} of ${journey.queue.length}`);
-    $('up-next').textContent = journey.queue[index + 1] ? `Next · ${journey.queue[index + 1].title}` : 'The last moment in this cycle.';
+    $('up-next').textContent = journey.queue[index + 1] ? `Next · ${journey.queue[index + 1].title}` : pageCursor ? 'More recordings continue automatically.' : 'The last moment in this selection.';
     host.querySelectorAll('[data-echo]').forEach(b => b.setAttribute('aria-current', String(b.dataset.echo === e.id)));
-    $('return').disabled = !saved || !adapter.items().some(f => f.id === saved.echoId && f.availability !== 'unavailable');
+    $('return').disabled = !saved;
     $('order').value = journey.order;
   }
 
@@ -589,6 +697,7 @@ function mountJourney(host, services) {
 
   function selectCycle(cycleId) {
     if (cycleId === selectedCycleId && cycleEchoes.length > 0) return;
+    pageCursor=undefined; journey.pause();
     selectedCycleId = cycleId;
     cycleEchoes = adapter.items(selectedCycleId);
     selectedPhase = '';
@@ -599,10 +708,12 @@ function mountJourney(host, services) {
   }
 
   // Event Listeners
-  $('play').addEventListener('click', () => void journey.toggle());
+  const togglePlayback = () => { prepareChime(); void journey.toggle(); };
+  $('play').addEventListener('click', togglePlayback);
+  $('transport-play').addEventListener('click', togglePlayback);
   $('previous').addEventListener('click', () => void journey.step(-1));
   $('next').addEventListener('click', () => void journey.step(1));
-  $('dock-play').addEventListener('click', () => void journey.toggle());
+  $('dock-play').addEventListener('click', togglePlayback);
   $('dock-previous').addEventListener('click', () => void journey.step(-1));
   $('dock-next').addEventListener('click', () => void journey.step(1));
   $('dock-return').addEventListener('click', () => { host.querySelector('.listening').scrollIntoView({ block: 'start' }); $('play').focus({ preventScroll: true }); });
@@ -612,8 +723,8 @@ function mountJourney(host, services) {
 
   $('seek').addEventListener('input', e => journey.seek(Number(e.target.value)));
   $('order').addEventListener('change', e => {
-    journey.setOrder(e.target.value);
-    renderPath();
+    const order=e.target.value;saveAutomatically(); journey.pause(); journey.setOrder(order);
+    cycleEchoes=[]; pageCursor=undefined; applyFilter(); void loadJourneyPage();
   });
 
   host.querySelectorAll('[data-group]').forEach(b => b.addEventListener('click', () => {
@@ -623,7 +734,7 @@ function mountJourney(host, services) {
 
   $('groups').addEventListener('click', e => {
     const b = e.target.closest('[data-echo]');
-    if (b && !b.disabled) void journey.select(b.dataset.echo, true);
+    if (b && !b.disabled) { prepareChime(); void journey.select(b.dataset.echo, true); }
   });
 
   // Cycle navigation events
@@ -656,23 +767,23 @@ function mountJourney(host, services) {
 
   // Sub-filter events
   on($('phase-filter'), 'change', e => {
-    selectedPhase = e.target.value;selectedDay='';
+    selectedPhase = e.target.value;selectedDay='';pageCursor=undefined;journey.pause();
     updateDayFilterOptions();
     applyFilter();void loadJourneyPage();
   });
 
   on($('day-filter'), 'change', e => {
-    selectedDay = e.target.value;
+    selectedDay = e.target.value;pageCursor=undefined;journey.pause();
     applyFilter();void loadJourneyPage();
   });
 
   // Context button filters by the playing Echo's phase
   $('context').addEventListener('click', () => {
     if (!journey.current) return;
-    selectedPhase = journey.current.context.phaseId;
+    selectedPhase = journey.current.context.phaseId;selectedDay='';pageCursor=undefined;journey.pause();
     $('phase-filter').value = selectedPhase;
     updateDayFilterOptions();
-    applyFilter();
+    applyFilter();void loadJourneyPage();
     const active = host.querySelector('[data-echo][aria-current=true]');
     active?.scrollIntoView({ block: 'center' });
     active?.focus({ preventScroll: true });
@@ -692,12 +803,20 @@ function mountJourney(host, services) {
     await services.echoes.get(saved.echoId).catch(()=>null);
     const all = adapter.items();
     const targetEcho = all.find(f => f.id === saved.echoId);
+    if(!targetEcho){$('save-note').textContent='This recording could not be loaded. Try returning again.';return;}
+    journey.pause();
     if (targetEcho && targetEcho.context.cycleId !== selectedCycleId) {
       await selectCycle(targetEcho.context.cycleId);
     }
     cycleEchoes=[...new Map([...cycleEchoes,targetEcho].filter(Boolean).map(e=>[e.id,e])).values()];applyFilter();
-    await journey.restore(saved);
+    selectedPhase='';selectedDay='';journey.setOrder(saved.order);
+    await loadJourneyPage();
+    if(targetEcho&&!cycleEchoes.some(e=>e.id===targetEcho.id)){
+      cycleEchoes=[targetEcho];pageCursor=echoPageCursor(targetEcho);applyFilter();await loadJourneyPage(true);
+    }
+    const restored=await journey.restore(saved);
     renderPath();
+    if(!restored){$('save-note').textContent='This recording could not be loaded. Try returning again.';return;}
     $('save-note').textContent = 'Returned to your kept place. Press play when ready.';
   });
 
@@ -731,16 +850,6 @@ function mountJourney(host, services) {
     $('save-note').textContent = `A place is kept at ${time(saved.seconds)}. Use “Return to saved place”.`;
   }
 
-  if (resume) {
-    const all = adapter.items();
-    const target = all.find(f => f.id === resume.echoId);
-    if (target) {
-      if (target.context.cycleId !== selectedCycleId) {
-        selectCycle(target.context.cycleId);
-      }
-      void journey.restore(resume).then(() => renderPath());
-    }
-  }
 
   return {
     owner: adapter.owner,
@@ -757,6 +866,7 @@ function mountJourney(host, services) {
       pageToken++;abort.abort();
       observer.disconnect();
       journey.dispose();
+      void chimeContext?.close().catch(() => {});
     }
   };
 }
@@ -1112,7 +1222,8 @@ function echoTimeQuery(period='cycle',cycleId='',phaseId='',day='',now=new Date(
 const pgLiteral=(value       )=>'"'+value.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"';
 function echoPageEndpoint(userId       ,query          ={}){
  const limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
- const p=new URLSearchParams({select:'*',user_id:'eq.'+userId,deleted_at:'is.null',order:'created_at.desc,id.desc',limit:String(limit+1)});
+ const direction=query.order==='oldest'?'asc':'desc',comparison=query.order==='oldest'?'gt':'lt';
+ const p=new URLSearchParams({select:'*',user_id:'eq.'+userId,deleted_at:'is.null',order:'created_at.'+direction+',id.'+direction,limit:String(limit+1)});
  const conditions         =[];
  if(query.since)conditions.push('created_at.gte.'+query.since);
  if(query.until)conditions.push('created_at.lt.'+query.until);
@@ -1128,7 +1239,7 @@ function echoPageEndpoint(userId       ,query          ={}){
  if(query.cursor){
   let cursor    ;try{cursor=JSON.parse(decodeURIComponent(query.cursor));}catch{throw new Error('This Echo page has expired. Refresh the list.');}
   if(!Array.isArray(cursor)||cursor.length!==2||!Number.isFinite(Date.parse(cursor[0]))||typeof cursor[1]!=='string')throw new Error('Invalid Echo page.');
-  conditions.push('or(created_at.lt.'+cursor[0]+',and(created_at.eq.'+cursor[0]+',id.lt.'+pgLiteral(cursor[1])+'))');
+  conditions.push('or(created_at.'+comparison+'.'+cursor[0]+',and(created_at.eq.'+cursor[0]+',id.'+comparison+'.'+pgLiteral(cursor[1])+'))');
  }
  if(conditions.length)p.set('and','('+conditions.join(',')+')');
  return '/rest/v1/echoes?'+p.toString();
@@ -3197,7 +3308,7 @@ function createLiveLunaServices(audioAssets                         = {})       
         accountChanged();
         const owner=getAuthSession().userId,epoch=authGeneration,limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
         if(sampleMode||!owner||!getAuthSession().token){
-          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query));
+          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query)).sort((a,b)=>(Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||b.id.localeCompare(a.id))*(query.order==='oldest'?-1:1));
           const offset=Math.max(0,Number(query.cursor)||0);
           return {items:all.slice(offset,offset+limit),nextCursor:offset+limit<all.length?String(offset+limit):undefined};
         }
@@ -3222,7 +3333,7 @@ function createLiveLunaServices(audioAssets                         = {})       
         await decryptPrivateRecords();
         if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
         const db=assembleSnapshot(),ids=new Set(page.map(r=>r.id));
-        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)||b.id.localeCompare(a.id));
+        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>(Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||b.id.localeCompare(a.id))*(query.order==='oldest'?-1:1));
         return {items,nextCursor:rows.length>limit&&page.length?echoPageCursor(page.at(-1)):undefined};
       },
 
@@ -5316,7 +5427,7 @@ const journeyMarkup = `<div class="echo-journey">
     <section class="listening" aria-labelledby="voice-label">
       <div class="listening-top">
         <span class="eyebrow" id="voice-label">ORIGINAL VOICE</span>
-        <span class="test-label">Original recording</span>
+
       </div>
       <div class="atmosphere" aria-hidden="true">
         <svg viewBox="0 0 600 160" preserveAspectRatio="none"><path d="M0 75Q150 30 310 92T600 60M0 104Q170 65 330 113T600 90M0 133Q170 98 330 139T600 120"/></svg>
@@ -5339,10 +5450,12 @@ const journeyMarkup = `<div class="echo-journey">
         <span id="duration">0:00</span>
       </div>
       <div class="transport">
-        <button id="previous" class="icon-button" aria-label="Previous Echo">|‹</button>
-        <span id="player-status" role="status" aria-live="polite">Ready when you are</span>
-        <button id="next" class="icon-button" aria-label="Next Echo">›|</button>
+        <button id="previous" class="transport-button" aria-label="Previous Echo">‹ Previous</button>
+        <button id="transport-play" class="transport-button primary" aria-label="Play recordings">▶ Play</button>
+        <button id="next" class="transport-button" aria-label="Next Echo">Next ›</button>
       </div>
+      <p id="player-status" class="playback-status" role="status" aria-live="polite">Ready when you are</p>
+      <label class="transition-option"><input id="transition-sound" type="checkbox" checked> Transition sound</label>
       <div class="place-actions">
         <button id="save" class="quiet-button">＋ Keep this place</button>
         <button id="return" class="quiet-button" disabled>↶ Return to saved place</button>
@@ -5377,8 +5490,8 @@ const journeyMarkup = `<div class="echo-journey">
         <label class="order-label">
           Listening order
           <select id="order">
-            <option value="oldest">Oldest → newest</option>
-            <option value="newest">Newest → oldest</option>
+            <option value="newest">Latest first</option>
+            <option value="oldest">Earliest first</option>
           </select>
         </label>
       </div>
@@ -5391,12 +5504,10 @@ const journeyMarkup = `<div class="echo-journey">
         </label>
         <label class="order-label">
           Day
-          <select id="day-filter">
-            <option value="">All days</option>
-          </select>
+          <input id="day-filter" type="date" aria-label="Day (leave empty for all days)">
         </label>
       </div>
-      <p class="path-note">Continues across recordings in this cycle. Unavailable audio is left out.</p>
+      <p class="path-note">Plays your selection in order, with a short space between recordings.</p>
       <div id="groups"></div>
       <p class="zone-note">Days shown in <span id="timezone"></span>. Phase and cycle context follows each original moment.</p>
     </section>

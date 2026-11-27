@@ -28,7 +28,8 @@ export function echoTimeQuery(period='cycle',cycleId='',phaseId='',day='',now=ne
 const pgLiteral=(value:string)=>'"'+value.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"';
 export function echoPageEndpoint(userId:string,query:EchoQuery={}){
  const limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
- const p=new URLSearchParams({select:'*',user_id:'eq.'+userId,deleted_at:'is.null',order:'created_at.desc,id.desc',limit:String(limit+1)});
+ const direction=query.order==='oldest'?'asc':'desc',comparison=query.order==='oldest'?'gt':'lt';
+ const p=new URLSearchParams({select:'*',user_id:'eq.'+userId,deleted_at:'is.null',order:'created_at.'+direction+',id.'+direction,limit:String(limit+1)});
  const conditions:string[]=[];
  if(query.since)conditions.push('created_at.gte.'+query.since);
  if(query.until)conditions.push('created_at.lt.'+query.until);
@@ -44,7 +45,7 @@ export function echoPageEndpoint(userId:string,query:EchoQuery={}){
  if(query.cursor){
   let cursor:any;try{cursor=JSON.parse(decodeURIComponent(query.cursor));}catch{throw new Error('This Echo page has expired. Refresh the list.');}
   if(!Array.isArray(cursor)||cursor.length!==2||!Number.isFinite(Date.parse(cursor[0]))||typeof cursor[1]!=='string')throw new Error('Invalid Echo page.');
-  conditions.push('or(created_at.lt.'+cursor[0]+',and(created_at.eq.'+cursor[0]+',id.lt.'+pgLiteral(cursor[1])+'))');
+  conditions.push('or(created_at.'+comparison+'.'+cursor[0]+',and(created_at.eq.'+cursor[0]+',id.'+comparison+'.'+pgLiteral(cursor[1])+'))');
  }
  if(conditions.length)p.set('and','('+conditions.join(',')+')');
  return '/rest/v1/echoes?'+p.toString();

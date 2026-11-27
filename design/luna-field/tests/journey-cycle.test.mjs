@@ -61,6 +61,7 @@ class MockMedia extends EventTarget {
   load() {}
   removeAttribute() {}
   event(type) {
+    if(type==='ended')this.currentTime=this.duration;
     this.dispatchEvent(new Event(type));
   }
 }
@@ -146,7 +147,7 @@ test('cycle switching replaces echoes and bounds playback queue', async () => {
     const m = new MockMedia();
     mediaList.push(m);
     return m;
-  });
+  }, () => {}, {order:'oldest'});
 
   assert.equal(j.queue.length, 2);
   assert.equal(j.queue[0].id, 'h-1');
@@ -220,7 +221,7 @@ test('reverse playback order within selected cycle', async () => {
     const m = new MockMedia();
     mediaList.push(m);
     return m;
-  });
+  }, () => {}, {order:'oldest'});
 
   j.setOrder('newest');
   assert.equal(j.order, 'newest');

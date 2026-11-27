@@ -1252,7 +1252,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         accountChanged();
         const owner=getAuthSession().userId,epoch=authGeneration,limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
         if(sampleMode||!owner||!getAuthSession().token){
-          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query));
+          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query)).sort((a,b)=>(Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||b.id.localeCompare(a.id))*(query.order==='oldest'?-1:1));
           const offset=Math.max(0,Number(query.cursor)||0);
           return {items:all.slice(offset,offset+limit),nextCursor:offset+limit<all.length?String(offset+limit):undefined};
         }
@@ -1277,7 +1277,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         await decryptPrivateRecords();
         if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
         const db=assembleSnapshot(),ids=new Set(page.map(r=>r.id));
-        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)||b.id.localeCompare(a.id));
+        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>(Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||b.id.localeCompare(a.id))*(query.order==='oldest'?-1:1));
         return {items,nextCursor:rows.length>limit&&page.length?echoPageCursor(page.at(-1)):undefined};
       },
 

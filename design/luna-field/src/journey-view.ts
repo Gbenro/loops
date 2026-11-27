@@ -26,7 +26,7 @@ export const journeyMarkup = `<div class="echo-journey">
     <section class="listening" aria-labelledby="voice-label">
       <div class="listening-top">
         <span class="eyebrow" id="voice-label">ORIGINAL VOICE</span>
-        <span class="test-label">Original recording</span>
+
       </div>
       <div class="atmosphere" aria-hidden="true">
         <svg viewBox="0 0 600 160" preserveAspectRatio="none"><path d="M0 75Q150 30 310 92T600 60M0 104Q170 65 330 113T600 90M0 133Q170 98 330 139T600 120"/></svg>
@@ -49,10 +49,12 @@ export const journeyMarkup = `<div class="echo-journey">
         <span id="duration">0:00</span>
       </div>
       <div class="transport">
-        <button id="previous" class="icon-button" aria-label="Previous Echo">|‹</button>
-        <span id="player-status" role="status" aria-live="polite">Ready when you are</span>
-        <button id="next" class="icon-button" aria-label="Next Echo">›|</button>
+        <button id="previous" class="transport-button" aria-label="Previous Echo">‹ Previous</button>
+        <button id="transport-play" class="transport-button primary" aria-label="Play recordings">▶ Play</button>
+        <button id="next" class="transport-button" aria-label="Next Echo">Next ›</button>
       </div>
+      <p id="player-status" class="playback-status" role="status" aria-live="polite">Ready when you are</p>
+      <label class="transition-option"><input id="transition-sound" type="checkbox" checked> Transition sound</label>
       <div class="place-actions">
         <button id="save" class="quiet-button">＋ Keep this place</button>
         <button id="return" class="quiet-button" disabled>↶ Return to saved place</button>
@@ -87,8 +89,8 @@ export const journeyMarkup = `<div class="echo-journey">
         <label class="order-label">
           Listening order
           <select id="order">
-            <option value="oldest">Oldest → newest</option>
-            <option value="newest">Newest → oldest</option>
+            <option value="newest">Latest first</option>
+            <option value="oldest">Earliest first</option>
           </select>
         </label>
       </div>
@@ -101,12 +103,10 @@ export const journeyMarkup = `<div class="echo-journey">
         </label>
         <label class="order-label">
           Day
-          <select id="day-filter">
-            <option value="">All days</option>
-          </select>
+          <input id="day-filter" type="date" aria-label="Day (leave empty for all days)">
         </label>
       </div>
-      <p class="path-note">Continues across recordings in this cycle. Unavailable audio is left out.</p>
+      <p class="path-note">Plays your selection in order, with a short space between recordings.</p>
       <div id="groups"></div>
       <p class="zone-note">Days shown in <span id="timezone"></span>. Phase and cycle context follows each original moment.</p>
     </section>
