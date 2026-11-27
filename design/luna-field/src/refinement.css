@@ -112,3 +112,8 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .echo-more[open] .when-open{display:inline}
 .echo-more[open] .when-closed{display:none}
 @media(max-width:760px){.sidebar.mobile-open{width:min(300px,85vw)}.echo-primary{margin-top:23px}}
+
+.voice-player-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.voice-download{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:8px 12px;border:1px solid var(--gold);border-radius:8px;color:var(--gold);background:var(--gold-surface);font-size:13px;font-weight:700;white-space:nowrap}
+.voice-download:hover{background:var(--surface-raised,var(--surface))}
+.voice-download:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
