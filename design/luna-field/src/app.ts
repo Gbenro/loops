@@ -170,6 +170,7 @@ async function initChatSessionIfNeeded(){
             const last=msgs.at(-1);
             if(last?.role==='person'){
               lastUserMessage=last.content;lastChatContext=last.echoIds;
+              state.chatError='Your last message has no reply yet. Checking for a saved reply…';
               pendingChatTurn={id:last.id,message:last.content,echoIds:last.echoIds,modelKey:state.chatModel,sessionId:state.chatSessionId!,owner:user.id,startedAt:Date.now()};
               scheduleChatRecovery();
             }

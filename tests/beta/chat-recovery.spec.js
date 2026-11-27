@@ -77,3 +77,17 @@ test('late reply after sign-out cannot restore the previous account conversation
  await expect(page.locator('#chat-messages')).not.toContainText('Private delayed reply');
  await expect(page.locator('#chat-messages')).not.toContainText('A synthetic reflection');
 });
+
+test('reopening an unanswered chat can retry the original saved turn',async({page})=>{
+ const data=await fixture(page,(route,data)=>data.posts.length===1?route.fulfill({status:500,json:{error:'Model produced an empty response'}}):route.fulfill({json:{reply:'Recovered after reopening.',assistantMessageId:'reopened-reply'}}));
+ await send(page);
+ await expect(page.locator('[data-action="retry-chat"]')).toBeVisible();
+ const originalId=data.posts[0].clientTurnId;
+ await page.reload();
+ await expect(page.locator('[data-action="retry-chat"]')).toBeVisible();
+ await page.locator('[data-action="retry-chat"]').click();
+ await expect(page.locator('#chat-messages')).toContainText('Recovered after reopening.');
+ expect(data.posts).toHaveLength(2);
+ expect(data.posts[1].clientTurnId).toBe(originalId);
+ await expect(page.locator('#chat-messages .chat-message.person')).toHaveCount(1);
+});
