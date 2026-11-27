@@ -146,6 +146,21 @@ html[data-theme="light"] .honest-progress-track { background: rgba(0, 0, 0, 0.12
 .voice-download:hover{background:var(--surface-raised,var(--surface))}
 .voice-download:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
+.echo-recency{display:flex;width:100%;margin-bottom:16px}
+.echo-recency button{flex:1;min-height:44px}
+.echo-search-field{display:flex;width:100%;max-width:none;margin-bottom:10px}
+.echo-filters{margin:10px 0 24px;border-bottom:1px solid var(--line)}
+.echo-filters summary{min-height:44px;padding:12px 0;color:var(--gold);cursor:pointer}
+.echo-filter-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:8px 0 16px}
+.echo-filter-grid label{display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--muted);min-width:0}
+.echo-filter-grid select,.echo-filter-grid input{min-height:44px;width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:16px}
+.echo-filters>.text-link{min-height:44px;margin-bottom:8px}
+.echo-day-heading{font-size:12px;color:var(--muted);margin:24px 0 2px;font-weight:500}
+.echo-page-status{padding:20px 0}.echo-page-status .btn{width:100%;min-height:44px}
+@media(min-width:640px){.echo-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.echo-recency{max-width:440px}.echo-page-status .btn{width:auto}}
+
+.echo-browse-intro{display:flex;flex-direction:row;align-items:center;gap:16px;margin:8px 0 22px}.echo-browse-intro h1{font-size:34px;margin:0}.echo-browse-intro .btn{font-size:12px;padding:10px 14px;white-space:nowrap}
+
 .echo-journey{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;--bg:#0b1019;--sidebar:#0e141f;--surface:#121b28;--surface2:#182332;--text:#ebece9;--muted:#a2adbb;--faint:#8997a7;--line:#2a3544;--gold:#dbc18c;--gold-dim:#72684f;--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;background:var(--bg);color:var(--text);font-size:14px}
 .echo-journey *{box-sizing:border-box}.echo-journey body{margin:0}.echo-journey button,.echo-journey select,.echo-journey input{font:inherit}.echo-journey button,.echo-journey a,.echo-journey select,.echo-journey input{touch-action:manipulation}.echo-journey button,.echo-journey select{color:inherit}.echo-journey button{cursor:pointer}.echo-journey button:disabled{cursor:default;opacity:.45}.echo-journey button:focus-visible,.echo-journey a:focus-visible,.echo-journey summary:focus-visible,.echo-journey select:focus-visible,.echo-journey input:focus-visible{outline:2px solid var(--gold);outline-offset:5px}.echo-journey a{color:inherit;text-decoration:none}.echo-journey button{border:0;background:transparent}.echo-journey p{line-height:1.65}.echo-journey h1,.echo-journey h2,.echo-journey h3,.echo-journey p{margin-top:0}.echo-journey .skip{position:fixed;top:-100px;left:20px;padding:15px;background:var(--surface2);z-index:10}.echo-journey .skip:focus{top:10px}.echo-journey .sidebar{position:fixed;width:218px;inset:0 auto 0 0;background:var(--sidebar);border-right:1px solid var(--line);padding:36px 25px;display:flex;flex-direction:column}.echo-journey .brand{display:flex;align-items:center;gap:13px;font-size:22px;letter-spacing:.2em}.echo-journey .brand svg{width:37px;color:var(--gold)}.echo-journey .brand-caption{font-size:11px;color:var(--muted);margin:15px 0 60px}.echo-journey .sidebar nav{display:grid;gap:10px}.echo-journey .sidebar nav a{padding:13px 12px;font-size:13px;color:var(--muted);border-radius:5px;display:flex;gap:13px;align-items:center}.echo-journey .sidebar nav a[aria-current]{color:var(--gold);background:var(--surface2)}.echo-journey .sidebar nav span{font-size:22px}.echo-journey .aside-foot{margin-top:auto;font-family:var(--serif);font-style:italic;color:var(--muted);line-height:1.8;font-size:15px}.echo-journey .aside-foot span{font:9px/1.8 sans-serif;letter-spacing:.13em;display:block;margin-top:29px}.echo-journey .workspace{margin-left:218px}.echo-journey .topbar{height:77px;border-bottom:1px solid var(--line);padding:0 42px;display:flex;align-items:center;gap:20px}.echo-journey .crumb{font-size:12px;color:var(--muted);margin-right:auto}.echo-journey .crumb span{margin:0 12px;color:var(--faint)}.echo-journey .preview-tag{font-size:9px;letter-spacing:.12em;color:var(--gold)}.echo-journey .icon-button{min-width:44px;min-height:44px;font-size:22px;border-radius:50%;display:inline-grid;place-items:center}.echo-journey .icon-button:hover{background:var(--surface2)}.echo-journey main{max-width:1420px;margin:auto;padding:24px 42px 0}.echo-journey .notice{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:17px;color:var(--muted)}.echo-journey .notice p{font-size:11px;margin:0}.echo-journey .notice strong{color:var(--gold);font-weight:500}.echo-journey .notice-dot{background:var(--gold);width:5px;height:5px;border-radius:50%;flex-shrink:0}.echo-journey .intro{padding:39px 0 32px;display:flex;align-items:center;justify-content:space-between;gap:20px}.echo-journey .eyebrow{font-size:10px;letter-spacing:.15em;font-weight:500;color:var(--gold);margin-bottom:15px}.echo-journey h1{font-family:var(--serif);font-weight:400;font-size:clamp(29px,2.8vw,42px);letter-spacing:-.025em;line-height:1.18;margin-bottom:15px}.echo-journey .lead{font-size:13px;color:var(--muted);margin:0}.echo-journey .intro-orbit{width:110px;flex-shrink:0;color:var(--gold-dim)}.echo-journey .intro-orbit svg{stroke:currentColor;stroke-width:.7;fill:none}.echo-journey .intro-orbit .orbit-dot{fill:var(--gold);stroke:none}.echo-journey .journey-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.95fr);gap:42px;align-items:start}.echo-journey .listening{position:sticky;top:24px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(160deg,var(--surface2),var(--surface) 47%);border-radius:12px;padding:23px 28px 0}.echo-journey .listening-top{display:flex;align-items:center;gap:10px;justify-content:space-between;position:relative;z-index:1}.echo-journey .listening-top .eyebrow{margin:0}.echo-journey .test-label{color:var(--muted);font-size:10px}.echo-journey .atmosphere{pointer-events:none;position:absolute;left:0;right:0;top:45px;height:170px;opacity:.15}.echo-journey .atmosphere svg{width:100%;height:100%;fill:none;stroke:var(--gold);stroke-width:.6}.echo-journey .voice-heading{position:relative;text-align:center;margin:37px 0 11px;min-height:111px}.echo-journey .moment-date{font-size:11px;color:var(--muted);letter-spacing:.035em;margin-bottom:11px}.echo-journey .voice-heading h2{font:400 clamp(24px,2.2vw,33px)/1.2 var(--serif);letter-spacing:-.02em;margin-bottom:12px}.echo-journey .context-button{font-size:11px;color:var(--muted);padding:10px;min-height:44px}.echo-journey .context-button:hover{color:var(--gold)}.echo-journey .voice-orbit{position:relative;width:166px;height:166px;margin:0 auto 19px;display:grid;place-items:center}.echo-journey .orbit{position:absolute;width:100%;height:100%;fill:none;stroke:var(--gold-dim);stroke-width:.6;pointer-events:none}.echo-journey .play{width:94px;height:94px;border-radius:50%;background:var(--gold);color:#17202a;font-size:27px;display:grid;place-items:center;box-shadow:0 0 0 10px #dbc18c05;transition:transform .15s}.echo-journey .play:hover{transform:scale(1.035)}.echo-journey .play span{line-height:1}.echo-journey .wave-wrap{height:64px;position:relative}.echo-journey .wave-wrap svg{width:100%;height:100%;color:var(--gold)}.echo-journey .wave-wrap input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}.echo-journey .wave-wrap:focus-within{outline:2px solid var(--gold);outline-offset:4px;border-radius:4px}.echo-journey .times{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;margin:7px 0 16px}.echo-journey .transport{display:flex;align-items:center;justify-content:space-between;gap:10px}.echo-journey .transport #player-status{text-align:center;font-size:11px;color:var(--muted);max-width:270px;line-height:1.5}.echo-journey .place-actions{display:flex;justify-content:center;gap:15px;margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.echo-journey .quiet-button{font-size:11px;color:var(--gold);min-height:44px;padding:7px 3px}.echo-journey .quiet-button:hover{text-decoration:underline}.echo-journey .save-note{font-size:10px;color:var(--muted);text-align:center;margin:0 0 20px;min-height:17px}.echo-journey .continuation{margin:0 -28px;background:var(--bg);padding:20px 28px}.echo-journey .continuation>div{display:flex;justify-content:space-between;align-items:center;gap:10px}.echo-journey .continuation .eyebrow{margin:0;font-size:9px;color:var(--muted)}.echo-journey .continuation strong{font-weight:400;font-size:11px;color:var(--gold)}.echo-journey progress{width:100%;height:3px;border:0;appearance:none;display:block;margin:15px 0 12px;border-radius:5px;background:var(--line)}.echo-journey progress::-webkit-progress-bar{background:var(--line)}.echo-journey progress::-webkit-progress-value{background:var(--gold)}.echo-journey progress::-moz-progress-bar{background:var(--gold)}.echo-journey .continuation p{font-size:11px;color:var(--muted);margin:0}.echo-journey .path-heading{display:flex;align-items:center;justify-content:space-between;margin:2px 0 25px}.echo-journey .path-heading .eyebrow{margin-bottom:8px;color:var(--muted);font-size:9px}.echo-journey .path h2{font:400 27px var(--serif);margin:0}.echo-journey .count{font-size:11px;color:var(--muted)}.echo-journey .filters{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.echo-journey .filters fieldset{border:0;padding:0;margin:0;min-width:0}.echo-journey .filters legend,.echo-journey .order-label{font-size:10px;color:var(--muted)}.echo-journey .filters legend{margin-bottom:8px;padding:0}.echo-journey .segments{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px}.echo-journey .segments button{font-size:11px;min-height:38px;min-width:51px;padding:8px}.echo-journey .segments button[aria-pressed=true]{color:var(--gold);background:var(--surface2);border-radius:4px}.echo-journey .order-label{display:grid;gap:8px}.echo-journey select{background:var(--bg);border:1px solid var(--line);min-height:46px;border-radius:7px;padding:7px;font-size:11px}.echo-journey .path-note{font-size:10px;color:var(--muted);margin:17px 0 24px}.echo-journey .group{position:relative;padding-left:20px;border-left:1px solid var(--line);margin-left:5px}.echo-journey .group:before{content:"";position:absolute;left:-3px;top:7px;width:5px;height:5px;border-radius:50%;background:var(--gold-dim)}.echo-journey .group h3{font-size:11px;font-weight:500;letter-spacing:.02em;color:var(--muted);margin:0;padding:0 0 8px}.echo-journey .group h3 small{font-weight:400;font-size:10px;display:block;margin-top:6px}.echo-journey .echo{width:100%;text-align:left;display:flex;align-items:center;gap:14px;padding:17px 13px;margin:0 0 4px;border-bottom:1px solid var(--line);min-height:82px;border-radius:6px 6px 0 0}.echo-journey .echo:hover:not(:disabled){background:var(--surface)}.echo-journey .echo[aria-current=true]{background:var(--surface2);border-bottom-color:var(--gold-dim)}.echo-journey .echo:disabled{opacity:1;color:var(--faint)}.echo-journey .echo:disabled .echo-name{color:var(--muted)}.echo-journey .echo-index{color:var(--faint);font-size:10px;width:15px;flex-shrink:0}.echo-journey .echo[aria-current=true] .echo-index{color:var(--gold)}.echo-journey .echo-body{min-width:0;flex:1}.echo-journey .echo-name{font:400 17px/1.25 var(--serif);display:block;margin-bottom:8px}.echo-journey .echo-meta{font-size:10px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;line-height:1.5}.echo-journey .echo-length{color:var(--faint);font-size:10px;white-space:nowrap}.echo-journey .group+.group{padding-top:24px}.echo-journey .group+.group:before{top:31px}.echo-journey .zone-note{font-size:10px;color:var(--muted);margin:24px 0}.echo-journey .zone-note span{color:var(--text)}.echo-journey details{margin:36px 0 25px;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.7}.echo-journey summary{cursor:pointer;min-height:32px;padding:5px 0;color:var(--text)}.echo-journey details p{max-width:780px;margin:14px 0 0}.echo-journey footer{display:flex;justify-content:space-between;gap:20px;color:var(--faint);font-size:10px;padding-bottom:27px}.echo-journey footer span{font-size:9px}
 html[data-theme=light] .echo-journey{color-scheme:light;--bg:#f4f3ee;--sidebar:#eeeee8;--surface:#fbfbf7;--surface2:#e9e9e0;--text:#26313b;--muted:#566473;--faint:#5c6874;--line:#d4d7ce;--gold:#795b22;--gold-dim:#9d8b66}html[data-theme=light] .echo-journey .play{background:#dbc18c;color:#17202a}
@@ -358,6 +373,34 @@ function mountJourney(host, services) {
     return cycles.find(c => c.id === selectedCycleId) || getCycleInfoForLunation(Number(selectedCycleId.replace('lunation-', '')) || adapter.currentLunation(), adapter.currentLunation());
   }
 
+
+  let pageCursor;
+  let pageLoading=false,pageError='',pageToken=0;
+  const pageStatus=document.createElement('div');
+  pageStatus.className='echo-page-status';
+  $('groups').after(pageStatus);
+  function renderPageStatus(){
+    pageStatus.innerHTML=pageLoading?'<p role="status">Loading recordings…</p>':pageError?'<p>Could not load this cycle. Your recordings are safe.</p><button class="btn" id="journey-retry">Try again</button>':pageCursor?'<button class="btn" id="journey-more">Load more recordings</button>':'';
+    pageStatus.querySelector('#journey-more')?.addEventListener('click',()=>void loadJourneyPage(true));
+    pageStatus.querySelector('#journey-retry')?.addEventListener('click',()=>void loadJourneyPage());
+  }
+  async function loadJourneyPage(more=false){
+    if(!adapter.valid()||(more&&pageLoading))return;
+    const token=++pageToken,cycle=getCurrentCycleObj(),phase=selectedPhase,day=selectedDay;
+    pageLoading=true;pageError='';renderPageStatus();
+    const query={since:cycle.cycleStart,until:cycle.cycleEnd,kind:'voice',limit:30,phaseId:phase||undefined,cursor:more?pageCursor:undefined};
+    if(day){const start=new Date(day);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);query.since=start.toISOString();query.until=end.toISOString();}
+    try{
+      const result=await services.echoes.list(query);
+      if(abort.signal.aborted||!adapter.valid()||token!==pageToken)return;
+      const items=result.items.map(journeyEcho);
+      cycleEchoes=more?[...new Map([...cycleEchoes,...items].map(e=>[e.id,e])).values()]:items;
+      pageCursor=result.nextCursor;
+      updateFilterOptions();applyFilter();
+    }catch{if(token===pageToken&&!abort.signal.aborted)pageError='failed';}
+    finally{if(token===pageToken&&!abort.signal.aborted){pageLoading=false;renderPageStatus();}}
+  }
+
   function drawWave(values) {
     if (!values || values.length < 2) return '<line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>';
     const upper = values.map((v, i) => `${i * 600 / (values.length - 1)},${36 - v * 31}`).join(' ');
@@ -381,7 +424,7 @@ function mountJourney(host, services) {
     const currIdx = cycles.findIndex(c => c.id === selectedCycleId);
 
     $('cycle-select').innerHTML = cycles.map(c =>
-      `<option value="${esc(c.id)}" ${c.id === selectedCycleId ? 'selected' : ''}>${esc(c.label)}${c.isCurrent ? ' (Current)' : ''} · ${c.count} ${c.count === 1 ? 'recording' : 'recordings'}</option>`
+      `<option value="${esc(c.id)}" ${c.id === selectedCycleId ? 'selected' : ''}>${esc(c.label)}${c.isCurrent ? ' (Current)' : ''}</option>`
     ).join('');
 
     $('cycle-range-label').textContent = `${cycle.range}${cycle.isCurrent ? ' · Current lunar cycle' : ''}`;
@@ -404,7 +447,7 @@ function mountJourney(host, services) {
     }
 
     $('phase-filter').innerHTML = `<option value="">All phases (${cycleEchoes.length})</option>` +
-      [...phaseCounts.entries()].map(([pid, p]) => `<option value="${esc(pid)}">${esc(p.label)} (${p.count})</option>`).join('');
+      PHASES.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
     $('phase-filter').value = selectedPhase;
 
     // Populate Day filter within this cycle (and current phase if selected)
@@ -434,8 +477,8 @@ function mountJourney(host, services) {
         $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings in this cycle</h3><p>${esc(cycle.name)} spans ${esc(cycle.range)}. Step back to earlier cycles to listen to past moments, or return to the Field to speak.</p></div>`;
         $('available-count').textContent = '0 recordings in this cycle';
       } else {
-        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings match this filter</h3><p>No moments in ${esc(cycle.name)} match the selected phase or day. Clear the filter to show all ${cycleEchoes.length} recordings in this cycle.</p></div>`;
-        $('available-count').textContent = `0 of ${cycleEchoes.length} recordings in this cycle`;
+        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings match this filter</h3><p>No moments in ${esc(cycle.name)} match the selected phase or day. Clear the filter to explore other recordings in this cycle.</p></div>`;
+        $('available-count').textContent = `0 of ${cycleEchoes.length} recordings loaded`;
       }
       host.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === groupBy)));
       return;
@@ -452,9 +495,9 @@ function mountJourney(host, services) {
 
     // Accurate count display
     if (filtered.length === cycleEchoes.length) {
-      $('available-count').textContent = `${cycleEchoes.length} ${cycleEchoes.length === 1 ? 'recording' : 'recordings'} in this cycle`;
+      $('available-count').textContent = `${cycleEchoes.length} ${cycleEchoes.length === 1 ? 'recording' : 'recordings'} loaded`;
     } else {
-      $('available-count').textContent = `${filtered.length} of ${cycleEchoes.length} recordings in this cycle`;
+      $('available-count').textContent = `${filtered.length} of ${cycleEchoes.length} recordings loaded`;
     }
   }
 
@@ -478,7 +521,7 @@ function mountJourney(host, services) {
       $('queue-progress').max = 1;
       $('up-next').textContent = cycleEchoes.length === 0 ? 'Choose another cycle to begin listening.' : 'Clear filters to play all recordings.';
       for (const id of ['play', 'previous', 'next', 'dock-play', 'dock-previous', 'dock-next', 'save', 'seek']) $(id).disabled = true;
-      $('return').disabled = !saved || !adapter.items().some(f => f.id === saved.echoId && f.availability !== 'unavailable');
+      $('return').disabled = !saved;
       return;
     }
 
@@ -552,6 +595,7 @@ function mountJourney(host, services) {
     selectedDay = '';
     updateFilterOptions();
     applyFilter();
+    return loadJourneyPage();
   }
 
   // Event Listeners
@@ -612,14 +656,14 @@ function mountJourney(host, services) {
 
   // Sub-filter events
   on($('phase-filter'), 'change', e => {
-    selectedPhase = e.target.value;
+    selectedPhase = e.target.value;selectedDay='';
     updateDayFilterOptions();
-    applyFilter();
+    applyFilter();void loadJourneyPage();
   });
 
   on($('day-filter'), 'change', e => {
     selectedDay = e.target.value;
-    applyFilter();
+    applyFilter();void loadJourneyPage();
   });
 
   // Context button filters by the playing Echo's phase
@@ -645,11 +689,13 @@ function mountJourney(host, services) {
 
   $('return').addEventListener('click', async () => {
     if (!saved) return;
+    await services.echoes.get(saved.echoId).catch(()=>null);
     const all = adapter.items();
     const targetEcho = all.find(f => f.id === saved.echoId);
     if (targetEcho && targetEcho.context.cycleId !== selectedCycleId) {
-      selectCycle(targetEcho.context.cycleId);
+      await selectCycle(targetEcho.context.cycleId);
     }
+    cycleEchoes=[...new Map([...cycleEchoes,targetEcho].filter(Boolean).map(e=>[e.id,e])).values()];applyFilter();
     await journey.restore(saved);
     renderPath();
     $('save-note').textContent = 'Returned to your kept place. Press play when ready.';
@@ -676,9 +722,10 @@ function mountJourney(host, services) {
 
   const saveTimer = setInterval(saveAutomatically, 2000);
 
-  // Initialize view
+  // Initialize only the selected cycle. Earlier cycles load on navigation.
   updateFilterOptions();
   applyFilter();
+  void loadJourneyPage();
 
   if (saved && adapter.items().some(f => f.id === saved.echoId)) {
     $('save-note').textContent = `A place is kept at ${time(saved.seconds)}. Use “Return to saved place”.`;
@@ -699,15 +746,15 @@ function mountJourney(host, services) {
     owner: adapter.owner,
     pause() { journey.pause(); },
     refresh() {
-      cycles = adapter.getCycles();
-      cycleEchoes = adapter.items(selectedCycleId);
+      const discovered=adapter.getCycles();cycles=[...new Map([...cycles,...discovered].map(c=>[c.id,c])).values()].sort((a,b)=>b.lunation-a.lunation);
+      const currentItems=adapter.items(selectedCycleId);cycleEchoes=cycleEchoes.map(e=>currentItems.find(item=>item.id===e.id)||e);
       updateFilterOptions();
       applyFilter();
     },
     dispose() {
       saveAutomatically();
       clearInterval(saveTimer);
-      abort.abort();
+      pageToken++;abort.abort();
       observer.disconnect();
       journey.dispose();
     }
@@ -1031,6 +1078,64 @@ function replyForTurn(messages              ,turnId       )                     
  if(index<0)return;
  const next=messages[index+1];
  if(next?.role==='luna'&&!next.replyTo&&next.content.trim())return next;
+}
+
+
+// echo-browse.ts
+
+
+
+
+
+const ECHO_PAGE_SIZE=30;
+function echoCycleOptions(){
+ const current=getCurrentLunation();
+ return Array.from({length:24},(_,i)=>getCycleInfoForLunation(current-i,current));
+}
+function echoTimeQuery(period='cycle',cycleId='',phaseId='',day='',now=new Date())          {
+ const current=getCurrentLunation();
+ const cycles=echoCycleOptions();
+ const legacy=cycles.find(c=>'cycle-'+c.monthName.toLowerCase().replace(/[^a-z0-9]/g,'-')===cycleId);
+ const lunation=cycleId.startsWith('lunation-')?Number(cycleId.slice(9)):legacy?.lunation??current;
+ const cycle=getCycleInfoForLunation(Number.isFinite(lunation)?lunation:current,current);
+ const query          ={limit:ECHO_PAGE_SIZE};
+ if(period!=='all'||cycleId){query.since=cycle.cycleStart;query.until=cycle.cycleEnd;}
+ if(period==='phase')query.phaseId=getLiveLunarData(now).phaseId;
+ if(phaseId)query.phaseId=phaseId       ;
+ if(period==='today'||day){
+  const start=day?new Date(day+'T00:00:00'):new Date(now);
+  start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);
+  if(Number.isFinite(start.getTime())){query.since=start.toISOString();query.until=end.toISOString();}
+ }
+ return query;
+}
+const pgLiteral=(value       )=>'"'+value.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"';
+function echoPageEndpoint(userId       ,query          ={}){
+ const limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
+ const p=new URLSearchParams({select:'*',user_id:'eq.'+userId,deleted_at:'is.null',order:'created_at.desc,id.desc',limit:String(limit+1)});
+ const conditions         =[];
+ if(query.since)conditions.push('created_at.gte.'+query.since);
+ if(query.until)conditions.push('created_at.lt.'+query.until);
+ if(query.phaseId)p.set('phase','eq.'+query.phaseId);
+ if(query.kind==='voice')conditions.push('or(source.eq.voice,audio_path.not.is.null)');
+ if(query.kind==='text')conditions.push('and(or(source.neq.voice,source.is.null),audio_path.is.null)');
+ if(query.threadId)p.set('tags','cs.'+JSON.stringify([query.threadId]));
+ if(query.search?.trim()){
+  // Quote PostgREST grammar characters and escape LIKE wildcards for literal search.
+  const term=query.search.trim().slice(0,200).replace(/[\\%_*]/g,'\\$&');
+  conditions.push('text.ilike.'+pgLiteral('%'+term+'%'));
+ }
+ if(query.cursor){
+  let cursor    ;try{cursor=JSON.parse(decodeURIComponent(query.cursor));}catch{throw new Error('This Echo page has expired. Refresh the list.');}
+  if(!Array.isArray(cursor)||cursor.length!==2||!Number.isFinite(Date.parse(cursor[0]))||typeof cursor[1]!=='string')throw new Error('Invalid Echo page.');
+  conditions.push('or(created_at.lt.'+cursor[0]+',and(created_at.eq.'+cursor[0]+',id.lt.'+pgLiteral(cursor[1])+'))');
+ }
+ if(conditions.length)p.set('and','('+conditions.join(',')+')');
+ return '/rest/v1/echoes?'+p.toString();
+}
+function echoPageCursor(row    ){return encodeURIComponent(JSON.stringify([row.created_at||row.occurredAt,row.id]));}
+function matchesEchoQuery(e     ,q          ){
+ return (!q.since||Date.parse(e.occurredAt)>=Date.parse(q.since))&&(!q.until||Date.parse(e.occurredAt)<Date.parse(q.until))&&(!q.phaseId||e.context.phaseId===q.phaseId)&&(!q.kind||e.kind===q.kind)&&(!q.threadId||e.threadIds.includes(q.threadId))&&(!q.search||(e.title+' '+e.body).toLowerCase().includes(q.search.trim().toLowerCase()));
 }
 
 
@@ -1863,6 +1968,7 @@ function createMockServices(audioAssets                      ={})              {
 
 
 
+
 const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 const LOOPS_KEY = 'cosmic_loops_v1';
@@ -2350,6 +2456,8 @@ function composeTimeoutSignal(callerSignal                         , timeoutMs  
 function createLiveLunaServices(audioAssets                         = {})               {
   let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
   let memorySnapshot                       = null;
+  const loadedEchoIds=new Set        ();
+  let echoMapCache                               =null;
   const signedUrlCache = new Map                                          ();
 
   const objectUrls = new Set        ();
@@ -2375,7 +2483,7 @@ function createLiveLunaServices(audioAssets                         = {})       
   const accountChanged = () => {
     const next = getAuthSession().userId;
     if (next === observedUser) return;
-    lockPrivate();
+    lockPrivate();loadedEchoIds.clear();echoMapCache=null;
     observedUser = next; authGeneration++; inFlightRefresh = null;
     signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
     memorySnapshot = null;
@@ -2404,13 +2512,17 @@ function createLiveLunaServices(audioAssets                         = {})       
       phases: lunar.phases
     };
 
-    return [currentCycle];
+    return [currentCycle,...echoCycleOptions().slice(1).map(c=>({id:c.id,name:c.label,world:'ocean'         ,range:c.range,phases:lunar.phases}))];
   }
 
   function getLocalEchoes(lunar                 )         {
+    const rawText=localStorage.getItem(ECHOES_KEY)||'[]';
+    const key=rawText+'|'+getAuthSession().userId+'|'+privacyEpoch+'|'+decrypted.size+'|'+[...loadedEchoIds].join(',');
+    if(echoMapCache?.key===key)return structuredClone(echoMapCache.items);
     const raw = getStoredJson       (ECHOES_KEY, []);
     const { userId } = getAuthSession();
-    return raw
+    const recentIds=new Set([...raw].filter(e=>e&&(!(e.user_id||e.userId)||(e.user_id||e.userId)===getAuthSession().userId)).sort((a,b)=>String(b.created_at||b.createdAt||b.occurredAt||'').localeCompare(String(a.created_at||a.createdAt||a.occurredAt||''))).slice(0,ECHO_PAGE_SIZE).map(e=>e.id));
+    const items=raw
       .filter(e => {
         if (!e || typeof e !== 'object' || e.provenance === 'synthetic' || String(e.id || '').startsWith('echo-demo') || e.id === 'echo-return' || e.id === 'echo-water') return false;
         // Account isolation: when authenticated, show records for this user or unassigned local offline drafts
@@ -2419,6 +2531,7 @@ function createLiveLunaServices(audioAssets                         = {})       
         }
         return !e.user_id && !e.userId;
       })
+      .filter(e=>recentIds.has(e.id)||loadedEchoIds.has(e.id)||['local-only','failed'].includes(e.syncStatus))
       .map(e => {
         const mapped = mapClassicEchoToBeta(e, lunar);
         const plain = mapped.isEncrypted && privacyKey && decrypted.get(e.text);
@@ -2427,6 +2540,7 @@ function createLiveLunaServices(audioAssets                         = {})       
         }
         return mapped;
       });
+    echoMapCache={key,items};return structuredClone(items);
   }
 
   function getLocalLoops()         {
@@ -2742,7 +2856,17 @@ function createLiveLunaServices(audioAssets                         = {})       
       }
 
       // 3. Fetch server echoes (active)
-      const serverEchoes = await readAllRows('echoes', userId, request);
+      const recentPage = await request(echoPageEndpoint(userId,echoTimeQuery()));
+      if(!Array.isArray(recentPage))throw new Error('Invalid Echo page.');
+      const serverEchoes = recentPage.slice(0,ECHO_PAGE_SIZE);
+      // Older pending uploads still reconcile by ID, without downloading history.
+      const pendingIds=getStoredJson       (ECHOES_KEY,[]).filter(e=>(e.user_id||e.userId)===userId&&e.syncStatus!=='synced'&&!deletedEchoIds.has(e.id)&&!serverEchoes.some(r=>r.id===e.id)).map(e=>e.id);
+      for(let offset=0;offset<pendingIds.length;offset+=50){
+        const ids=pendingIds.slice(offset,offset+50).map(id=>JSON.stringify(String(id))).join(',');
+        const rows=await request('/rest/v1/echoes?select=*&user_id=eq.'+encodeURIComponent(userId)+'&deleted_at=is.null&id=in.('+encodeURIComponent(ids)+')');
+        if(!Array.isArray(rows))throw new Error('Pending Echo reconciliation failed.');
+        serverEchoes.push(...rows);
+      }
 
       if (Array.isArray(serverEchoes)) {
         // Tombstones win over server responses
@@ -3069,20 +3193,53 @@ function createLiveLunaServices(audioAssets                         = {})       
     },
 
     echoes: {
-      async list(query = {}) {
-        const db = assembleSnapshot();
-        const all = filterEchoes(db.echoes, query);
-        const offset = Math.max(0, Number(query.cursor) || 0);
-        const limit = Math.min(100, Math.max(1, query.limit || 30));
-        return {
-          items: structuredClone(all.slice(offset, offset + limit)),
-          nextCursor: offset + limit < all.length ? String(offset + limit) : undefined
-        };
+      async list(query           = {}) {
+        accountChanged();
+        const owner=getAuthSession().userId,epoch=authGeneration,limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
+        if(sampleMode||!owner||!getAuthSession().token){
+          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query));
+          const offset=Math.max(0,Number(query.cursor)||0);
+          return {items:all.slice(offset,offset+limit),nextCursor:offset+limit<all.length?String(offset+limit):undefined};
+        }
+        const rows=await supabaseFetch(echoPageEndpoint(owner,query));
+        if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+        if(!Array.isArray(rows))throw new Error('Echoes could not be loaded.');
+        const page=rows.slice(0,limit);
+        const deleted=new Set(getStoredJson          ('luna_deleted_echo_ids_'+owner,[]));
+        const raw=getStoredJson       (ECHOES_KEY,[]),map=new Map(raw.map(e=>[e.id,e]));
+        for(const row of page){
+          if(deleted.has(row.id))continue;
+          const old=map.get(row.id);
+          // Browsing is read-only: it must never acknowledge pending local writes.
+          if(!old||old.syncStatus==='synced'){
+            const audioPending=(row.source==='voice'||old?.kind==='voice')&&!row.audio_path;
+            map.set(row.id,{...old,...row,user_id:owner,audio_path:row.audio_path||old?.audio_path,
+              syncStatus:audioPending?'failed':'synced',audioSyncStatus:audioPending?'failed':'synced'});
+          }
+          loadedEchoIds.add(row.id);
+        }
+        setStoredJson(ECHOES_KEY,[...map.values()]);
+        await decryptPrivateRecords();
+        if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+        const db=assembleSnapshot(),ids=new Set(page.map(r=>r.id));
+        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)||b.id.localeCompare(a.id));
+        return {items,nextCursor:rows.length>limit&&page.length?echoPageCursor(page.at(-1)):undefined};
       },
 
       async get(id        ) {
-        const db = assembleSnapshot();
-        const found = db.echoes.find(e => e.id === id);
+        accountChanged();loadedEchoIds.add(id);
+        let found=assembleSnapshot().echoes.find(e=>e.id===id);
+        const owner=getAuthSession().userId,epoch=authGeneration;
+        if(!found&&owner&&!sampleMode){
+          const rows=await supabaseFetch('/rest/v1/echoes?select=*&user_id=eq.'+encodeURIComponent(owner)+'&id=eq.'+encodeURIComponent(id)+'&deleted_at=is.null&limit=1');
+          if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+          if(Array.isArray(rows)&&rows[0]){
+            const raw=getStoredJson       (ECHOES_KEY,[]);setStoredJson(ECHOES_KEY,[...raw.filter(e=>e.id!==id),{...rows[0],syncStatus:rows[0].source==='voice'&&!rows[0].audio_path?'failed':'synced',user_id:owner}]);
+            await decryptPrivateRecords();
+            if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+            found=assembleSnapshot().echoes.find(e=>e.id===id);
+          }
+        }
         if (!found) throw new Error('This Echo is no longer available.');
         return structuredClone(found);
       },
@@ -4186,6 +4343,7 @@ function shell(active       ,body       ,isSample=false,user                    
 
 
 
+
 function findReturnPair(echoes        )         {
   if (!echoes || echoes.length < 2) return [];
   const phaseMap = new Map                ();
@@ -4484,26 +4642,48 @@ function deepCosmicSheet(lunar                 , activeTab = 'phase')         {
 }
 
 function fieldView(db               , isSample = false, isAuthenticated = false) {
-  const recent = db.echoes.slice(0, 3);
+  const recent = db.echoes.filter(e=>matchesEchoQuery(e,echoTimeQuery())).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)).slice(0,3);
   const open = db.loops.filter(l => !['completed', 'closed'].includes(l.status)).slice(0, 3);
   const pIndex = Math.max(0, phaseIndex(db.current.phaseId));
   const currentCycle = db.cycles.find(c => c.id === db.current.cycleId) || db.cycles[0];
   const dateLabel = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }).toUpperCase();
   const returnPair = findReturnPair(db.echoes);
 
-  return `<section class="hero">${oceanScene(pIndex, 'night', 'hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/sky" class="hero-context">${moonDisc(pIndex, 23)}<span>${escapeHtml(db.current.label)}</span><span>·</span><span>${escapeHtml(currentCycle?.name || 'Current cycle')}</span>${icon('arrow', 13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>${dateLabel} · LIVE EPHEMERIS</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p => `<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.id === db.current.phaseId ? 'active' : ''}">${moonDisc(p.index, 15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>Recent Echoes <span>${db.echoes.length}</span></h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow', 14)}</a></div>${recent.length ? recent.map(e => echoRow(e, true)).join('') : emptyState('Your field is open and waiting', 'Speak a few words or write what’s on your mind. There is nothing to catch up on.', 'capture-voice', 'Speak an Echo', false, isAuthenticated)}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow', 15)}</a></div>${open.length ? open.map(miniLoop).join('') : '<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus', 14)}Leave an intention</button></section>${returnPair.length >= 2 ? `<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral', 58)}</div><div class="eyebrow">A return across cycles</div><h3>The same path.<br>Another evening.</h3><p>Two moments held in lunar time. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow', 14)}</span></a>` : ''}</div></div>`;
+  return `<section class="hero">${oceanScene(pIndex, 'night', 'hero')}<div class="world-caption">Cycle world 01<br><span style="letter-spacing:1px;font-size:8px">Ocean & horizon</span></div><div class="hero-content"><a href="#/sky" class="hero-context">${moonDisc(pIndex, 23)}<span>${escapeHtml(db.current.label)}</span><span>·</span><span>${escapeHtml(currentCycle?.name || 'Current cycle')}</span>${icon('arrow', 13)}</a><h1>There is room<br>for what’s here.</h1><p>A thought, a moment, something unfinished.<br>Add your voice to the flow.</p><div class="hero-actions">${speakEntrance()}</div></div><div class="hero-bottom"><span>${dateLabel} · LIVE EPHEMERIS</span><nav class="phase-dots" aria-label="Explore lunar phases">${PHASES.map(p => `<a href="#/cycles?phase=${p.id}" title="${p.name}" aria-label="Explore ${p.name}" class="${p.id === db.current.phaseId ? 'active' : ''}">${moonDisc(p.index, 15)}</a>`).join('')}</nav></div></section><div class="field-grid"><section><div class="section-head"><h2>This cycle</h2><a href="#/echoes" class="text-link">All Echoes ${icon('arrow', 14)}</a></div>${recent.length ? recent.map(e => echoRow(e, true)).join('') : emptyState('Your field is open and waiting', 'Speak a few words or write what’s on your mind. There is nothing to catch up on.', 'capture-voice', 'Speak an Echo', false, isAuthenticated)}</section><div class="field-secondary"><section><div class="section-head"><h2>Still unfolding</h2><a href="#/loops" class="text-link" aria-label="Explore all Loops">${icon('arrow', 15)}</a></div>${open.length ? open.map(miniLoop).join('') : '<p class="empty-inline">No open intentions. There is room for one whenever you choose.</p>'}<button class="text-link" data-action="new-loop">${icon('plus', 14)}Leave an intention</button></section>${returnPair.length >= 2 ? `<a class="return-card" href="#/returns"><div class="return-orbit-mark">${continuitySymbol('spiral', 58)}</div><div class="eyebrow">A return across cycles</div><h3>The same path.<br>Another evening.</h3><p>Two moments held in lunar time. Return to the words and notice what you see.</p><span class="text-link">Revisit together ${icon('arrow', 14)}</span></a>` : ''}</div></div>`;
 }
 
-function echoesView(db               , state         ) {
-  const query = state.route.query;
-  let list = filterEchoes(db.echoes, {
-    search: state.search,
-    cycleId: query.get('cycle') || undefined,
-    phaseId: (query.get('phase') || undefined)
-  });
-  if (state.echoKind !== 'all') list = list.filter(e => e.kind === state.echoKind);
 
-  return `<a class="btn" href="#/listen">Listen through your Echoes ↗</a><div class="page-intro"><div><div class="eyebrow">Your expressions, in their own words</div><h1>What you’ve expressed.</h1><p>Moments you can return to. Nothing here needs to become anything else.</p></div><button class="btn primary" data-action="capture-entrance">${icon('plus', 17)}New Echo</button></div><div class="filterbar"><div class="segmented" aria-label="Echo format">${[['all', 'All Echoes'], ['voice', 'Voice'], ['text', 'Written']].map(([v, label]) => `<button data-action="echo-kind" data-value="${v}" aria-pressed="${state.echoKind === v}">${label}</button>`).join('')}</div>${query.size ? '<a class="chip" href="#/echoes">Clear cycle / phase filter ×</a>' : ''}<label class="search-field">${icon('search', 16)}<span class="sr-only">Search Echoes</span><input id="echo-search" type="search" placeholder="Find a word or a moment" value="${escapeHtml(state.search)}" autocomplete="off"></label></div><div class="browse-layout"><section class="echo-list" id="echo-results" aria-label="Echoes">${list.length ? list.map(e => echoRow(e)).join('') : emptyState('Nothing here yet', state.search ? 'No Echoes match those words. Try another search.' : 'No Echoes in this view. A new expression can begin anywhere.', 'capture-text', 'Write an Echo')}</section><aside class="context-aside"><div class="eyebrow">Ways of seeing</div><div class="rule"></div>${db.threads.length>=THREADS_REVEAL_THRESHOLD?`<h3>Following a thread</h3>${db.threads.map(t=>`<a class="thread-link" href="#/thread/${t.id}">${icon('thread',15)}${escapeHtml(t.title)}</a>`).join('')}`:''}<div class="rule"></div><h3>Held in lunar time</h3><p>Every Echo belongs to a moment within a phase and a cycle.</p><a href="#/sky" class="text-link gold">View current Sky ${icon('arrow', 14)}</a></aside></div>`;
+function echoBrowseFooter(state        ){
+ return `<div class="echo-page-status" aria-live="polite">${state.echoLoading?'<p class="small muted">Loading Echoes…</p>':''}${state.echoLoadError?`<p class="small">${escapeHtml(state.echoLoadError)}</p><button class="btn" data-action="echo-retry">Try again</button>`:''}${state.echoNextCursor?`<button class="btn" data-action="echo-more" ${state.echoLoading?'disabled':''}>Load more</button>`:''}</div>`;
+}
+
+
+function echoesView(db              ,state        ){
+ const q=state.route.query,period=q.get('period')||(state.search&&!q.size?'all':'cycle');
+ const query=echoTimeQuery(period,q.get('cycle')||'',q.get('phase')||'',q.get('day')||'');
+ if(state.search)query.search=state.search;
+ if(state.echoKind!=='all')query.kind=state.echoKind;
+ const available=new Map(db.echoes.map(e=>[e.id,e]));
+ const list=(state.echoResults||db.echoes.filter(e=>matchesEchoQuery(e,query)).slice(0,ECHO_PAGE_SIZE)).map(e=>available.get(e.id)).filter((e)          =>Boolean(e));
+ const cycles=echoCycleOptions();
+ const heading=state.search?'Search results':q.get('day')?'On this day':q.get('cycle')?(cycles.find(c=>c.id===q.get('cycle'))?.label||'Selected cycle'):period==='today'?'Today':period==='phase'?'This phase':period==='all'?'All dates':'This cycle';
+ let lastDay='';
+ const rows=list.map(e=>{
+  const day=new Date(e.occurredAt).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  const divider=day!==lastDay?`<h2 class="echo-day-heading">${escapeHtml(day)}</h2>`:'';lastDay=day;
+  return divider+echoRow(e);
+ }).join('');
+ return `<div class="page-intro echo-browse-intro"><h1>Echoes</h1><button class="btn primary" data-action="capture-entrance">${icon('plus',17)}New Echo</button></div>
+ <nav class="echo-recency segmented" aria-label="Recent Echoes">${[['cycle','This cycle'],['phase','This phase'],['today','Today']].map(([value,label])=>`<button data-action="echo-period" data-value="${value}" aria-pressed="${period===value&&!q.get('cycle')&&!q.get('day')}">${label}</button>`).join('')}</nav>
+ <label class="search-field echo-search-field">${icon('search',16)}<span class="sr-only">Search Echoes</span><input id="echo-search" type="search" placeholder="Search your Echoes" value="${escapeHtml(state.search)}" autocomplete="off"></label>
+ <details class="echo-filters" id="echo-filters"><summary>Filter${q.get('cycle')||q.get('phase')||q.get('day')||state.echoKind!=='all'?' · Active':''}</summary><div class="echo-filter-grid">
+ <label>Cycle<select id="echo-cycle-select"><option value="">This cycle</option><option value="all" ${period==='all'?'selected':''}>All dates</option>${cycles.map(c=>`<option value="${c.id}" ${q.get('cycle')===c.id?'selected':''}>${escapeHtml(c.label)}</option>`).join('')}</select></label>
+ <label>Phase<select id="echo-phase-select"><option value="">All phases</option>${PHASES.map(p=>`<option value="${p.id}" ${q.get('phase')===p.id?'selected':''}>${p.name}</option>`).join('')}</select></label>
+ <label>Day<input type="date" id="echo-day-filter" value="${escapeHtml(q.get('day')||'')}"></label>
+ <label>Format<select id="echo-kind-select">${[['all','All formats'],['voice','Voice'],['text','Written']].map(([v,l])=>`<option value="${v}" ${state.echoKind===v?'selected':''}>${l}</option>`).join('')}</select></label>
+ </div><button class="text-link" data-action="echo-clear">Clear filters</button></details>
+ <div class="section-head echo-browse-heading"><h2>${escapeHtml(heading)}</h2><a class="text-link gold" href="#/listen">Listen ${icon('arrow',14)}</a></div>
+ <section class="echo-list" id="echo-results" aria-label="Echoes">${rows||(!state.echoLoading&&!state.echoLoadError?'<p class="empty-inline">No Echoes in this view. Search or choose another day, phase, or cycle.</p>':'')}${echoBrowseFooter(state)}</section>`;
 }
 
 function formatTranscriptHtml(text       )       {
@@ -4532,10 +4712,10 @@ function echoDetailView(db               , id        ) {
 function cyclesView(db               , state         ) {
   const p = PHASES.find(p => p.id === state.phase) || PHASES[2];
   const cycle = db.cycles.find(c => c.id === state.cycleId) || db.cycles[0];
-  const echoes = filterEchoes(db.echoes, { cycleId: cycle.id, phaseId: p.id });
+  const echoes=state.echoResults||filterEchoes(db.echoes,{cycleId:cycle.id,phaseId:p.id}).slice(0,ECHO_PAGE_SIZE);
   const previous = db.echoes.filter(e => e.context.cycleId !== cycle.id && e.context.phaseId === p.id);
 
-  return `<div class="page-intro"><div><div class="eyebrow">A recurring context for a continuing life</div><h1>Same world. Another light.</h1><p>Move through the phases. The landscape stays; its illumination changes.</p></div><label><span class="sr-only">Choose a cycle</span><select class="inline-select" id="cycle-select">${db.cycles.map(c => `<option value="${c.id}" ${c.id === cycle.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label></div><div class="cycle-stage"><section class="cycle-world" aria-label="Cycle environment">${oceanScene(p.index, state.time, 'cycle')}<div class="time-selector" aria-label="Time of day">${['dawn', 'day', 'dusk', 'night'].map(t => `<button data-action="time" data-value="${t}" aria-pressed="${t === state.time}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div><div class="world-caption">Ocean & horizon<br><span style="letter-spacing:1px;font-size:8px">One world through eight phases</span></div><div class="world-title"><div class="eyebrow" style="color:#b6c2ce">${cycle.name} · Phase ${p.index + 1} of 8</div><h2>${p.name}</h2><p>Phase ${p.index + 1} of 8 · ${state.time} atmosphere</p></div></section>${phaseOrbit(p.id)}</div><div class="phase-story"><section><div class="section-head"><h2>Within this phase <span>${echoes.length} ${echoes.length === 1 ? 'Echo' : 'Echoes'}</span></h2><a class="text-link" href="#/echoes?cycle=${cycle.id}">Whole cycle ${icon('arrow', 14)}</a></div>${echoes.length ? echoes.map(e => echoRow(e, true)).join('') : '<p class="empty-inline">No Echoes in this phase yet. The space remains open for you.</p>'}</section><aside class="phase-note"><h3>A context, not a direction.</h3><p>The phase marks when an experience happened. It does not tell you how to feel or what to do.</p><p style="margin-top:13px">This ocean belongs to the cycle. Its atmosphere changes only with the selected phase and time of day.</p>${previous.length ? `<a class="text-link" href="#/echo/${previous[0].id}">${icon('return', 15)}A return from another cycle ${icon('arrow', 14)}</a>` : ''}<p class="small" style="margin-top:17px;font-size:10px">${cycle.range}. Astronomical calculations via Jean Meeus ephemeris.</p></aside></div>`;
+  return `<div class="page-intro"><div><div class="eyebrow">A recurring context for a continuing life</div><h1>Same world. Another light.</h1><p>Move through the phases. The landscape stays; its illumination changes.</p></div><label><span class="sr-only">Choose a cycle</span><select class="inline-select" id="cycle-select">${db.cycles.map(c => `<option value="${c.id}" ${c.id === cycle.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label></div><div class="cycle-stage"><section class="cycle-world" aria-label="Cycle environment">${oceanScene(p.index, state.time, 'cycle')}<div class="time-selector" aria-label="Time of day">${['dawn', 'day', 'dusk', 'night'].map(t => `<button data-action="time" data-value="${t}" aria-pressed="${t === state.time}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div><div class="world-caption">Ocean & horizon<br><span style="letter-spacing:1px;font-size:8px">One world through eight phases</span></div><div class="world-title"><div class="eyebrow" style="color:#b6c2ce">${cycle.name} · Phase ${p.index + 1} of 8</div><h2>${p.name}</h2><p>Phase ${p.index + 1} of 8 · ${state.time} atmosphere</p></div></section>${phaseOrbit(p.id)}</div><div class="phase-story"><section><div class="section-head"><h2>Within this phase <span>${echoes.length} ${echoes.length === 1 ? 'Echo' : 'Echoes'}</span></h2><a class="text-link" href="#/echoes?cycle=${cycle.id}">Whole cycle ${icon('arrow', 14)}</a></div>${echoes.length ? echoes.map(e => echoRow(e, true)).join('') : '<p class="empty-inline">No Echoes in this phase yet. The space remains open for you.</p>'}${echoBrowseFooter(state)}</section><aside class="phase-note"><h3>A context, not a direction.</h3><p>The phase marks when an experience happened. It does not tell you how to feel or what to do.</p><p style="margin-top:13px">This ocean belongs to the cycle. Its atmosphere changes only with the selected phase and time of day.</p>${previous.length ? `<a class="text-link" href="#/echo/${previous[0].id}">${icon('return', 15)}A return from another cycle ${icon('arrow', 14)}</a>` : ''}<p class="small" style="margin-top:17px;font-size:10px">${cycle.range}. Astronomical calculations via Jean Meeus ephemeris.</p></aside></div>`;
 }
 
 
@@ -4554,12 +4734,12 @@ function loopsView(db               , state         ) {
   return `<div class="page-intro"><div><div class="eyebrow">Intentions with room to change</div><h1>Still unfolding.</h1><p>Something you want to follow, return to, or simply leave open.</p></div><button class="btn primary" data-action="new-loop">${icon('plus', 16)}Leave an intention</button></div><div class="filterbar"><div class="segmented" aria-label="Intention state">${[['unfolding', 'Unfolding'], ['settled', 'Settled'], ['all', 'All Loops']].map(([v, label]) => `<button data-action="loop-filter" data-value="${v}" aria-pressed="${state.loopFilter === v}">${label}</button>`).join('')}</div></div><div class="loops-layout"><section class="loops-list">${loops.length ? loops.map(l => `<article class="intent-row"><span class="loop-mark ${l.status}"></span><div class="loop-content"><h3>${escapeHtml(l.title)}</h3><p>${escapeHtml(l.note)}</p><div class="loop-actions"><label><span class="sr-only">State of ${escapeHtml(l.title)}</span><select class="inline-select" data-loop-id="${l.id}">${LOOP_STATUSES.map(s => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></label>${l.echoId ? `<a class="text-link" href="#/echo/${l.echoId}">${icon('echo', 13)}Return to its Echo</a>` : ''}</div>${loopChecklist(l)}${l.history.length ? `<p class="loop-history">${l.history.map(h => statusLabel(h.status)).join(' → ')} → ${statusLabel(l.status)}</p>` : ''}</div></article>`).join('') : emptyState('Room to leave something open', 'An intention can be a question, a small gesture, or a direction you want to explore.', 'new-loop', 'Leave an intention')}</section><aside class="loop-note"><div class="loop-symbol">◌</div><h2>An open loop<br>is an invitation.</h2><p>There is no overdue here. You can follow an intention, let it evolve, carry it forward, or consciously close it.</p><div class="rule"></div><p>Closing something is also a way of continuing.</p></aside></div>`;
 }
 
-function threadsView(db               , id         ) {
+function threadsView(db               , id         , state         ) {
   if (id) {
     const t = db.threads.find(t => t.id === id);
     if (!t) return emptyState('This Thread is not here', 'Return to your connected experiences.', 'go-threads', 'Explore Threads');
     const list = db.echoes.filter(e => t.echoIds.includes(e.id)).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-    return `<a class="text-link detail-back" href="#/threads">${icon('back', 15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${list.length} Echoes · ${new Set(list.map(e => e.context.cycleId)).size} cycles</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e => echoRow(e)).join('')}</div><div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l => t.loopIds.includes(l.id)).map(miniLoop).join('') || '<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r => t.echoIds.includes(r.echoId)).map(reflectionBlock).join('') || '<p class="small muted">No reflections added here.</p>'}`;
+    return `<a class="text-link detail-back" href="#/threads">${icon('back', 15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${list.length} Echoes · ${new Set(list.map(e => e.context.cycleId)).size} cycles</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e => echoRow(e)).join('')}</div>${state?echoBrowseFooter(state):''}<div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l => t.loopIds.includes(l.id)).map(miniLoop).join('') || '<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r => t.echoIds.includes(r.echoId)).map(reflectionBlock).join('') || '<p class="small muted">No reflections added here.</p>'}`;
   }
   return `<div class="page-intro"><div><div class="eyebrow">Continuity, without a conclusion</div><h1>What connects.</h1><p>Follow experiences across moments and cycles. You choose the connections.</p></div></div><div class="thread-grid">${db.threads.map(t => `<a class="thread-card" href="#/thread/${t.id}"><div class="thread-visual">${moonDisc(0, 25)}<span class="line"></span>${icon('echo', 30)}<span class="line"></span>${moonDisc(2, 29)}<span class="line"></span>${icon('loop', 25)}</div><h2>${escapeHtml(t.title)}</h2><p>${escapeHtml(t.description)}</p><span class="text-link">${t.echoIds.length} Echoes · ${t.loopIds.length} ${t.loopIds.length === 1 ? 'Loop' : 'Loops'} ${icon('arrow', 15)}</span></a>`).join('') || emptyState('Connections can wait', 'Begin with an Echo. You can connect experiences when a relationship feels relevant.')} </div><p class="small muted" style="margin-top:23px">Threads connect your moments across cycles without imposing external categories.</p>`;
 }
@@ -4778,7 +4958,7 @@ function routeView(db               , state         , isSample = false, isAuthen
       body = threadsView(db);
       break;
     case 'thread':
-      body = threadsView(db, state.route.id);
+      body = threadsView(db, state.route.id,state);
       break;
     case 'reflections':
       body = reflectionsView(db);
@@ -5035,10 +5215,8 @@ function createJourneyService(services              ) {
         }
       }
 
-      // Always include current cycle even if 0 recordings
-      if (!countMap.has(currentLun)) {
-        countMap.set(currentLun, 0);
-      }
+      // Cycle navigation must not depend on which history pages happen to be cached.
+      for(let offset=0;offset<24;offset++){if(!countMap.has(currentLun-offset))countMap.set(currentLun-offset,0);}
 
       // Sort descending (newest lunation first)
       const sortedLunations = Array.from(countMap.keys()).sort((a, b) => b - a);
@@ -5257,6 +5435,7 @@ const journeyMarkup = `<div class="echo-journey">
 
 
 
+
 const services=createLiveLunaServices(LUNA_AUDIO_ASSETS);
 const state=initialState();
 const root=document.getElementById('app') ;
@@ -5427,7 +5606,71 @@ async function initChatSessionIfNeeded(){
   return chatLoadingPromise;
 }
 
-function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();}
+
+let echoBrowseToken=0;
+let echoSearchTimer                                        ;
+function browseQuery()    {
+ const q=state.route.query;
+ const search=state.route.name==='echoes'?state.search:'';
+ const period=q.get('period')||(search&&!q.get('cycle')&&!q.get('phase')&&!q.get('day')?'all':'cycle');
+ const query=echoTimeQuery(period,q.get('cycle')||'',q.get('phase')||'',q.get('day')||'');
+ if(state.route.name==='cycles')Object.assign(query,echoTimeQuery('cycle',state.cycleId,state.phase));
+ if(state.route.name==='thread')return {threadId:state.route.id,limit:ECHO_PAGE_SIZE};
+ if(search)query.search=search;
+ if(state.echoKind!=='all'&&state.route.name==='echoes')query.kind=state.echoKind;
+ return query;
+}
+function renderEchoBrowse(resultsOnly=false){
+ if(!['echoes','cycles','thread'].includes(state.route.name))return;
+ if(resultsOnly&&state.route.name==='echoes'&&document.getElementById('echo-results')){
+  const template=document.createElement('template');template.innerHTML=echoesView(currentDb(),state);
+  const results=template.content.querySelector('#echo-results');
+  if(results)document.getElementById('echo-results') .replaceWith(results);
+  return;
+ }
+ const input=document.activeElement                         ,focused=input?.id==='echo-search';
+ render();
+ if(focused)document.getElementById('echo-search')?.focus({preventScroll:true});
+}
+async function loadEchoBrowse(more=false,force=false){
+ if(!['echoes','cycles','thread'].includes(state.route.name))return;
+ const query=browseQuery(),owner=services.auth.getUser()?.id;
+ const key=JSON.stringify([owner,state.route.name,query]);
+ if(!more&&!force&&state.echoBrowseKey===key)return;
+ if(more&&(!state.echoNextCursor||state.echoLoading))return;
+ const token=++echoBrowseToken,account=generation;
+ const same=state.echoBrowseKey===key;
+ state.echoBrowseKey=key;state.echoLoading=true;state.echoLoadError='';
+ if(!more){
+  state.echoResults=currentDb().echoes.filter(e=>matchesEchoQuery(e,query)).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)).slice(0,ECHO_PAGE_SIZE);
+  state.echoNextCursor=undefined;
+ }
+ renderEchoBrowse();
+ try{
+  const result=await services.echoes.list({...query,cursor:more&&same?state.echoNextCursor:undefined});
+  if(token!==echoBrowseToken||account!==generation||owner!==services.auth.getUser()?.id)return;
+  state.echoResults=more?[...new Map([...(state.echoResults||[]),...result.items].map(e=>[e.id,e])).values()]:result.items;
+  state.echoNextCursor=result.nextCursor;
+ }catch{
+  if(token!==echoBrowseToken||account!==generation)return;
+  state.echoLoadError='Could not load this view. Your saved Echoes are safe. Try again when connected.';
+ }finally{
+  if(token===echoBrowseToken&&account===generation){state.echoLoading=false;renderEchoBrowse(true);}
+ }
+}
+function changeEchoFilter(key       ,value       ){
+ const q=new URLSearchParams(state.route.query);if(value)q.set(key,value);else q.delete(key);
+ if(key==='period'){q.delete('cycle');q.delete('phase');q.delete('day');state.search='';}
+ if(key==='cycle'){q.set('period',value==='all'?'all':'cycle');if(value==='all')q.delete('cycle');}
+ go('echoes'+(q.size?'?'+q:''));
+}
+async function loadEchoDetail(id       ){
+ const token=generation;
+ try{await services.echoes.get(id);if(token===generation&&state.route.name==='echo'&&state.route.id===id)render();}
+ catch{/* The detail view retains its honest unavailable state. */}
+}
+
+function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
 function isSampleMode()        {return Boolean(services.isSampleMode&&services.isSampleMode());}
 let journeyView                                     =null;
 function render(focusMain=false){
@@ -6383,6 +6626,10 @@ document.addEventListener('click',async(event)=>{
       case 'preview-toggle':{const preview=modal.querySelector                  ('#recording-preview');if(preview){if(preview.paused)await preview.play();else preview.pause();}break;}
       case 'record-again':keepCaptureInputs();cleanupCapture();captureActive=true;renderCapture();break;
       case 'new-loop':openNewLoop();break;
+      case 'echo-period':changeEchoFilter('period',value);break;
+      case 'echo-more':await loadEchoBrowse(true);break;
+      case 'echo-retry':await loadEchoBrowse(false,true);break;
+      case 'echo-clear':state.echoKind='all';state.search='';state.echoBrowseKey=undefined;go('echoes');break;
       case 'echo-kind':state.echoKind=value       ;render();document.querySelector             (`[data-action="echo-kind"][data-value="${value}"]`)?.focus();break;
       case 'loop-filter':state.loopFilter=value       ;render();document.querySelector             (`[data-action="loop-filter"][data-value="${value}"]`)?.focus();break;
       case 'phase':state.phase=value       ;history.replaceState(null,'',`#/cycles?cycle=${state.cycleId}&phase=${state.phase}`);applyRoute();render();document.querySelector             (`[data-action="phase"][data-value="${value}"]`)?.focus();break;
@@ -6412,7 +6659,8 @@ document.addEventListener('input',event=>{
   const el=event.target                                        ;
   if(el instanceof HTMLTextAreaElement&&el.id&&!modal.contains(el))drafts[el.id]=el.value;
   if(el.id==='echo-search'){
-    state.search=el.value;const db=currentDb();const query=state.route.query;let list=filterEchoes(db.echoes,{search:state.search,cycleId:query.get('cycle')||undefined,phaseId:(query.get('phase')||undefined)       });if(state.echoKind!=='all')list=list.filter(e=>e.kind===state.echoKind);const results=document.getElementById('echo-results');if(results)results.innerHTML=list.length?list.map(e=>echoRow(e)).join(''):emptyState('No Echoes match those words.','Try another word, or clear your search.','','');
+    state.search=el.value;clearTimeout(echoSearchTimer);echoBrowseToken++;state.echoBrowseKey=undefined;
+    echoSearchTimer=setTimeout(()=>void loadEchoBrowse(false,true),300);
   }
   if(el.id==='audio-seek'&&audioEchoId){const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;const target=Math.min(duration,Number(el.value));try{audio.currentTime=target;}catch{pendingSeek=target;}syncAudioUI();}
 });
@@ -6420,7 +6668,11 @@ document.addEventListener('change',async(event)=>{
   const el=event.target                                      ;
   try{
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value              );render();toast('Your intention has room to change.');}
-    if(el.id==='cycle-select'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
+    if(el.id==='echo-cycle-select'){changeEchoFilter('cycle',el.value);return;}
+    if(el.id==='echo-phase-select'){changeEchoFilter('phase',el.value);return;}
+    if(el.id==='echo-day-filter'){changeEchoFilter('day',el.value);return;}
+    if(el.id==='echo-kind-select'){state.echoKind=el.value       ;void loadEchoBrowse(false,true);return;}
+    if(el.id==='cycle-select'&&state.route.name!=='listen'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
     if(el.id==='mic-denial')state.forceMicDenied=(el                    ).checked;
     if(el.id==='chat-model-select'||el.dataset.action==='select-chat-model'){
       state.chatModel=el.value;
@@ -6519,6 +6771,7 @@ document.addEventListener('submit',async(event)=>{
 });
 window.addEventListener('luna-account-changed',()=>{
   generation++;
+  echoBrowseToken++;clearTimeout(echoSearchTimer);state.echoResults=undefined;state.echoBrowseKey=undefined;state.echoNextCursor=undefined;state.echoLoading=false;state.echoLoadError='';
   stopChatRecovery();state.chatBusy=false;chatLoadingPromise=null;
   stopPlayback();
   stopChatVoicePlayback();
@@ -6558,7 +6811,7 @@ document.addEventListener('visibilitychange',()=>{
 try{const theme=localStorage.getItem('luna-exploration-theme');if(theme==='light')document.documentElement.dataset.theme='light';}catch{}
 applyRoute();render();
 
-if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
+if(services.sync){services.sync().then(()=>{if(state.route.name==='echoes')renderEchoBrowse(true);else render();}).catch(()=>{});}
 window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
 
 // Refresh the Field after returning from Classic or an Android background pause.

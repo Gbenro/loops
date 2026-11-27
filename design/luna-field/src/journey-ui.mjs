@@ -1,5 +1,6 @@
+import { PHASES } from './fixtures.ts';
 import { Journey, ordered, groups } from '../../echo-journey/journey.mjs';
-import { createJourneyService, getCycleInfoForLunation } from './journey-service.ts';
+import { createJourneyService, getCycleInfoForLunation, journeyEcho } from './journey-service.ts';
 
 export function mountJourney(host, services) {
   const adapter = createJourneyService(services);
@@ -44,6 +45,34 @@ export function mountJourney(host, services) {
     return cycles.find(c => c.id === selectedCycleId) || getCycleInfoForLunation(Number(selectedCycleId.replace('lunation-', '')) || adapter.currentLunation(), adapter.currentLunation());
   }
 
+
+  let pageCursor;
+  let pageLoading=false,pageError='',pageToken=0;
+  const pageStatus=document.createElement('div');
+  pageStatus.className='echo-page-status';
+  $('groups').after(pageStatus);
+  function renderPageStatus(){
+    pageStatus.innerHTML=pageLoading?'<p role="status">Loading recordings…</p>':pageError?'<p>Could not load this cycle. Your recordings are safe.</p><button class="btn" id="journey-retry">Try again</button>':pageCursor?'<button class="btn" id="journey-more">Load more recordings</button>':'';
+    pageStatus.querySelector('#journey-more')?.addEventListener('click',()=>void loadJourneyPage(true));
+    pageStatus.querySelector('#journey-retry')?.addEventListener('click',()=>void loadJourneyPage());
+  }
+  async function loadJourneyPage(more=false){
+    if(!adapter.valid()||(more&&pageLoading))return;
+    const token=++pageToken,cycle=getCurrentCycleObj(),phase=selectedPhase,day=selectedDay;
+    pageLoading=true;pageError='';renderPageStatus();
+    const query={since:cycle.cycleStart,until:cycle.cycleEnd,kind:'voice',limit:30,phaseId:phase||undefined,cursor:more?pageCursor:undefined};
+    if(day){const start=new Date(day);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);query.since=start.toISOString();query.until=end.toISOString();}
+    try{
+      const result=await services.echoes.list(query);
+      if(abort.signal.aborted||!adapter.valid()||token!==pageToken)return;
+      const items=result.items.map(journeyEcho);
+      cycleEchoes=more?[...new Map([...cycleEchoes,...items].map(e=>[e.id,e])).values()]:items;
+      pageCursor=result.nextCursor;
+      updateFilterOptions();applyFilter();
+    }catch{if(token===pageToken&&!abort.signal.aborted)pageError='failed';}
+    finally{if(token===pageToken&&!abort.signal.aborted){pageLoading=false;renderPageStatus();}}
+  }
+
   function drawWave(values) {
     if (!values || values.length < 2) return '<line x1="0" y1="36" x2="600" y2="36" stroke="currentColor" opacity=".3"/>';
     const upper = values.map((v, i) => `${i * 600 / (values.length - 1)},${36 - v * 31}`).join(' ');
@@ -67,7 +96,7 @@ export function mountJourney(host, services) {
     const currIdx = cycles.findIndex(c => c.id === selectedCycleId);
 
     $('cycle-select').innerHTML = cycles.map(c =>
-      `<option value="${esc(c.id)}" ${c.id === selectedCycleId ? 'selected' : ''}>${esc(c.label)}${c.isCurrent ? ' (Current)' : ''} · ${c.count} ${c.count === 1 ? 'recording' : 'recordings'}</option>`
+      `<option value="${esc(c.id)}" ${c.id === selectedCycleId ? 'selected' : ''}>${esc(c.label)}${c.isCurrent ? ' (Current)' : ''}</option>`
     ).join('');
 
     $('cycle-range-label').textContent = `${cycle.range}${cycle.isCurrent ? ' · Current lunar cycle' : ''}`;
@@ -90,7 +119,7 @@ export function mountJourney(host, services) {
     }
 
     $('phase-filter').innerHTML = `<option value="">All phases (${cycleEchoes.length})</option>` +
-      [...phaseCounts.entries()].map(([pid, p]) => `<option value="${esc(pid)}">${esc(p.label)} (${p.count})</option>`).join('');
+      PHASES.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
     $('phase-filter').value = selectedPhase;
 
     // Populate Day filter within this cycle (and current phase if selected)
@@ -120,8 +149,8 @@ export function mountJourney(host, services) {
         $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings in this cycle</h3><p>${esc(cycle.name)} spans ${esc(cycle.range)}. Step back to earlier cycles to listen to past moments, or return to the Field to speak.</p></div>`;
         $('available-count').textContent = '0 recordings in this cycle';
       } else {
-        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings match this filter</h3><p>No moments in ${esc(cycle.name)} match the selected phase or day. Clear the filter to show all ${cycleEchoes.length} recordings in this cycle.</p></div>`;
-        $('available-count').textContent = `0 of ${cycleEchoes.length} recordings in this cycle`;
+        $('groups').innerHTML = `<div class="empty-cycle" id="empty-cycle-state"><div class="empty-icon">◐</div><h3>No recordings match this filter</h3><p>No moments in ${esc(cycle.name)} match the selected phase or day. Clear the filter to explore other recordings in this cycle.</p></div>`;
+        $('available-count').textContent = `0 of ${cycleEchoes.length} recordings loaded`;
       }
       host.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === groupBy)));
       return;
@@ -138,9 +167,9 @@ export function mountJourney(host, services) {
 
     // Accurate count display
     if (filtered.length === cycleEchoes.length) {
-      $('available-count').textContent = `${cycleEchoes.length} ${cycleEchoes.length === 1 ? 'recording' : 'recordings'} in this cycle`;
+      $('available-count').textContent = `${cycleEchoes.length} ${cycleEchoes.length === 1 ? 'recording' : 'recordings'} loaded`;
     } else {
-      $('available-count').textContent = `${filtered.length} of ${cycleEchoes.length} recordings in this cycle`;
+      $('available-count').textContent = `${filtered.length} of ${cycleEchoes.length} recordings loaded`;
     }
   }
 
@@ -164,7 +193,7 @@ export function mountJourney(host, services) {
       $('queue-progress').max = 1;
       $('up-next').textContent = cycleEchoes.length === 0 ? 'Choose another cycle to begin listening.' : 'Clear filters to play all recordings.';
       for (const id of ['play', 'previous', 'next', 'dock-play', 'dock-previous', 'dock-next', 'save', 'seek']) $(id).disabled = true;
-      $('return').disabled = !saved || !adapter.items().some(f => f.id === saved.echoId && f.availability !== 'unavailable');
+      $('return').disabled = !saved;
       return;
     }
 
@@ -238,6 +267,7 @@ export function mountJourney(host, services) {
     selectedDay = '';
     updateFilterOptions();
     applyFilter();
+    return loadJourneyPage();
   }
 
   // Event Listeners
@@ -298,14 +328,14 @@ export function mountJourney(host, services) {
 
   // Sub-filter events
   on($('phase-filter'), 'change', e => {
-    selectedPhase = e.target.value;
+    selectedPhase = e.target.value;selectedDay='';
     updateDayFilterOptions();
-    applyFilter();
+    applyFilter();void loadJourneyPage();
   });
 
   on($('day-filter'), 'change', e => {
     selectedDay = e.target.value;
-    applyFilter();
+    applyFilter();void loadJourneyPage();
   });
 
   // Context button filters by the playing Echo's phase
@@ -331,11 +361,13 @@ export function mountJourney(host, services) {
 
   $('return').addEventListener('click', async () => {
     if (!saved) return;
+    await services.echoes.get(saved.echoId).catch(()=>null);
     const all = adapter.items();
     const targetEcho = all.find(f => f.id === saved.echoId);
     if (targetEcho && targetEcho.context.cycleId !== selectedCycleId) {
-      selectCycle(targetEcho.context.cycleId);
+      await selectCycle(targetEcho.context.cycleId);
     }
+    cycleEchoes=[...new Map([...cycleEchoes,targetEcho].filter(Boolean).map(e=>[e.id,e])).values()];applyFilter();
     await journey.restore(saved);
     renderPath();
     $('save-note').textContent = 'Returned to your kept place. Press play when ready.';
@@ -362,9 +394,10 @@ export function mountJourney(host, services) {
 
   const saveTimer = setInterval(saveAutomatically, 2000);
 
-  // Initialize view
+  // Initialize only the selected cycle. Earlier cycles load on navigation.
   updateFilterOptions();
   applyFilter();
+  void loadJourneyPage();
 
   if (saved && adapter.items().some(f => f.id === saved.echoId)) {
     $('save-note').textContent = `A place is kept at ${time(saved.seconds)}. Use “Return to saved place”.`;
@@ -385,15 +418,15 @@ export function mountJourney(host, services) {
     owner: adapter.owner,
     pause() { journey.pause(); },
     refresh() {
-      cycles = adapter.getCycles();
-      cycleEchoes = adapter.items(selectedCycleId);
+      const discovered=adapter.getCycles();cycles=[...new Map([...cycles,...discovered].map(c=>[c.id,c])).values()].sort((a,b)=>b.lunation-a.lunation);
+      const currentItems=adapter.items(selectedCycleId);cycleEchoes=cycleEchoes.map(e=>currentItems.find(item=>item.id===e.id)||e);
       updateFilterOptions();
       applyFilter();
     },
     dispose() {
       saveAutomatically();
       clearInterval(saveTimer);
-      abort.abort();
+      pageToken++;abort.abort();
       observer.disconnect();
       journey.dispose();
     }

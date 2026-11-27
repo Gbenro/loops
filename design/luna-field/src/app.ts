@@ -1,3 +1,4 @@
+import { ECHO_PAGE_SIZE, echoTimeQuery, matchesEchoQuery } from './echo-browse.ts';
 import { mergeChatHistory, replyForTurn } from './chat-recovery.ts';
 import { prepareChatSpeech } from './speech-text.ts';
 import { voiceCaptureConstraints, createVoiceRecorder } from './audio-capture.ts';
@@ -12,7 +13,7 @@ import { initialState, parseRoute } from './state.ts';
 import { PHASES, DEMO_CONTEXT } from './fixtures.ts';
 import { escapeHtml, icon, waveform, liveWave, playbackWave, orbitRings, timecode, formatMoment } from './visuals.ts';
 import { shell, echoRow, emptyState } from './components.ts';
-import { routeView } from './views.ts';
+import { routeView, echoesView } from './views.ts';
 import { RecordingSession } from './recording-session.ts';
 import { VoiceEngine } from './voice-engine.ts';
 import { sampleEnvelope, clamp01 } from './audio-geometry.ts';
@@ -189,7 +190,71 @@ async function initChatSessionIfNeeded(){
   return chatLoadingPromise;
 }
 
-function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();}
+
+let echoBrowseToken=0;
+let echoSearchTimer:ReturnType<typeof setTimeout>|undefined;
+function browseQuery():any{
+ const q=state.route.query;
+ const search=state.route.name==='echoes'?state.search:'';
+ const period=q.get('period')||(search&&!q.get('cycle')&&!q.get('phase')&&!q.get('day')?'all':'cycle');
+ const query=echoTimeQuery(period,q.get('cycle')||'',q.get('phase')||'',q.get('day')||'');
+ if(state.route.name==='cycles')Object.assign(query,echoTimeQuery('cycle',state.cycleId,state.phase));
+ if(state.route.name==='thread')return {threadId:state.route.id,limit:ECHO_PAGE_SIZE};
+ if(search)query.search=search;
+ if(state.echoKind!=='all'&&state.route.name==='echoes')query.kind=state.echoKind;
+ return query;
+}
+function renderEchoBrowse(resultsOnly=false){
+ if(!['echoes','cycles','thread'].includes(state.route.name))return;
+ if(resultsOnly&&state.route.name==='echoes'&&document.getElementById('echo-results')){
+  const template=document.createElement('template');template.innerHTML=echoesView(currentDb(),state);
+  const results=template.content.querySelector('#echo-results');
+  if(results)document.getElementById('echo-results')!.replaceWith(results);
+  return;
+ }
+ const input=document.activeElement as HTMLInputElement|null,focused=input?.id==='echo-search';
+ render();
+ if(focused)document.getElementById('echo-search')?.focus({preventScroll:true});
+}
+async function loadEchoBrowse(more=false,force=false){
+ if(!['echoes','cycles','thread'].includes(state.route.name))return;
+ const query=browseQuery(),owner=services.auth.getUser()?.id;
+ const key=JSON.stringify([owner,state.route.name,query]);
+ if(!more&&!force&&state.echoBrowseKey===key)return;
+ if(more&&(!state.echoNextCursor||state.echoLoading))return;
+ const token=++echoBrowseToken,account=generation;
+ const same=state.echoBrowseKey===key;
+ state.echoBrowseKey=key;state.echoLoading=true;state.echoLoadError='';
+ if(!more){
+  state.echoResults=currentDb().echoes.filter(e=>matchesEchoQuery(e,query)).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)).slice(0,ECHO_PAGE_SIZE);
+  state.echoNextCursor=undefined;
+ }
+ renderEchoBrowse();
+ try{
+  const result=await services.echoes.list({...query,cursor:more&&same?state.echoNextCursor:undefined});
+  if(token!==echoBrowseToken||account!==generation||owner!==services.auth.getUser()?.id)return;
+  state.echoResults=more?[...new Map([...(state.echoResults||[]),...result.items].map(e=>[e.id,e])).values()]:result.items;
+  state.echoNextCursor=result.nextCursor;
+ }catch{
+  if(token!==echoBrowseToken||account!==generation)return;
+  state.echoLoadError='Could not load this view. Your saved Echoes are safe. Try again when connected.';
+ }finally{
+  if(token===echoBrowseToken&&account===generation){state.echoLoading=false;renderEchoBrowse(true);}
+ }
+}
+function changeEchoFilter(key:string,value:string){
+ const q=new URLSearchParams(state.route.query);if(value)q.set(key,value);else q.delete(key);
+ if(key==='period'){q.delete('cycle');q.delete('phase');q.delete('day');state.search='';}
+ if(key==='cycle'){q.set('period',value==='all'?'all':'cycle');if(value==='all')q.delete('cycle');}
+ go('echoes'+(q.size?'?'+q:''));
+}
+async function loadEchoDetail(id:string){
+ const token=generation;
+ try{await services.echoes.get(id);if(token===generation&&state.route.name==='echo'&&state.route.id===id)render();}
+ catch{/* The detail view retains its honest unavailable state. */}
+}
+
+function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
 function isSampleMode():boolean{return Boolean(services.isSampleMode&&services.isSampleMode());}
 let journeyView:ReturnType<typeof mountJourney>|null=null;
 function render(focusMain=false){
@@ -1145,6 +1210,10 @@ document.addEventListener('click',async(event)=>{
       case 'preview-toggle':{const preview=modal.querySelector<HTMLAudioElement>('#recording-preview');if(preview){if(preview.paused)await preview.play();else preview.pause();}break;}
       case 'record-again':keepCaptureInputs();cleanupCapture();captureActive=true;renderCapture();break;
       case 'new-loop':openNewLoop();break;
+      case 'echo-period':changeEchoFilter('period',value);break;
+      case 'echo-more':await loadEchoBrowse(true);break;
+      case 'echo-retry':await loadEchoBrowse(false,true);break;
+      case 'echo-clear':state.echoKind='all';state.search='';state.echoBrowseKey=undefined;go('echoes');break;
       case 'echo-kind':state.echoKind=value as any;render();document.querySelector<HTMLElement>(`[data-action="echo-kind"][data-value="${value}"]`)?.focus();break;
       case 'loop-filter':state.loopFilter=value as any;render();document.querySelector<HTMLElement>(`[data-action="loop-filter"][data-value="${value}"]`)?.focus();break;
       case 'phase':state.phase=value as any;history.replaceState(null,'',`#/cycles?cycle=${state.cycleId}&phase=${state.phase}`);applyRoute();render();document.querySelector<HTMLElement>(`[data-action="phase"][data-value="${value}"]`)?.focus();break;
@@ -1174,7 +1243,8 @@ document.addEventListener('input',event=>{
   const el=event.target as HTMLInputElement|HTMLTextAreaElement;
   if(el instanceof HTMLTextAreaElement&&el.id&&!modal.contains(el))drafts[el.id]=el.value;
   if(el.id==='echo-search'){
-    state.search=el.value;const db=currentDb();const query=state.route.query;let list=filterEchoes(db.echoes,{search:state.search,cycleId:query.get('cycle')||undefined,phaseId:(query.get('phase')||undefined) as any});if(state.echoKind!=='all')list=list.filter(e=>e.kind===state.echoKind);const results=document.getElementById('echo-results');if(results)results.innerHTML=list.length?list.map(e=>echoRow(e)).join(''):emptyState('No Echoes match those words.','Try another word, or clear your search.','','');
+    state.search=el.value;clearTimeout(echoSearchTimer);echoBrowseToken++;state.echoBrowseKey=undefined;
+    echoSearchTimer=setTimeout(()=>void loadEchoBrowse(false,true),300);
   }
   if(el.id==='audio-seek'&&audioEchoId){const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:activeDuration;const target=Math.min(duration,Number(el.value));try{audio.currentTime=target;}catch{pendingSeek=target;}syncAudioUI();}
 });
@@ -1182,7 +1252,11 @@ document.addEventListener('change',async(event)=>{
   const el=event.target as HTMLSelectElement|HTMLInputElement;
   try{
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value as LoopStatus);render();toast('Your intention has room to change.');}
-    if(el.id==='cycle-select'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
+    if(el.id==='echo-cycle-select'){changeEchoFilter('cycle',el.value);return;}
+    if(el.id==='echo-phase-select'){changeEchoFilter('phase',el.value);return;}
+    if(el.id==='echo-day-filter'){changeEchoFilter('day',el.value);return;}
+    if(el.id==='echo-kind-select'){state.echoKind=el.value as any;void loadEchoBrowse(false,true);return;}
+    if(el.id==='cycle-select'&&state.route.name!=='listen'){state.cycleId=el.value;go(`cycles?cycle=${state.cycleId}&phase=${state.phase}`);}
     if(el.id==='mic-denial')state.forceMicDenied=(el as HTMLInputElement).checked;
     if(el.id==='chat-model-select'||el.dataset.action==='select-chat-model'){
       state.chatModel=el.value;
@@ -1281,6 +1355,7 @@ document.addEventListener('submit',async(event)=>{
 });
 window.addEventListener('luna-account-changed',()=>{
   generation++;
+  echoBrowseToken++;clearTimeout(echoSearchTimer);state.echoResults=undefined;state.echoBrowseKey=undefined;state.echoNextCursor=undefined;state.echoLoading=false;state.echoLoadError='';
   stopChatRecovery();state.chatBusy=false;chatLoadingPromise=null;
   stopPlayback();
   stopChatVoicePlayback();
@@ -1320,7 +1395,7 @@ document.addEventListener('visibilitychange',()=>{
 try{const theme=localStorage.getItem('luna-exploration-theme');if(theme==='light')document.documentElement.dataset.theme='light';}catch{}
 applyRoute();render();
 
-if(services.sync){services.sync().then(()=>render()).catch(()=>{});}
+if(services.sync){services.sync().then(()=>{if(state.route.name==='echoes')renderEchoBrowse(true);else render();}).catch(()=>{});}
 window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch(()=>{});});
 
 // Refresh the Field after returning from Classic or an Android background pause.

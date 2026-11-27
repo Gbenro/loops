@@ -1,3 +1,4 @@
+import { ECHO_PAGE_SIZE, echoCycleOptions, echoTimeQuery, echoPageEndpoint, echoPageCursor, matchesEchoQuery } from './echo-browse.ts';
 import { unlockWithPassphrase, encryptText, decryptText } from '../../../src/lib/encryption.js';
 import { idbStorage } from '../../../src/lib/authStorage.js';
 import type {
@@ -510,6 +511,8 @@ export function composeTimeoutSignal(callerSignal: AbortSignal | undefined, time
 export function createLiveLunaServices(audioAssets: Record<string, string> = {}): LunaServices {
   let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
   let memorySnapshot: FieldSnapshot | null = null;
+  const loadedEchoIds=new Set<string>();
+  let echoMapCache:{key:string;items:Echo[]}|null=null;
   const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
   const objectUrls = new Set<string>();
@@ -535,7 +538,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   const accountChanged = () => {
     const next = getAuthSession().userId;
     if (next === observedUser) return;
-    lockPrivate();
+    lockPrivate();loadedEchoIds.clear();echoMapCache=null;
     observedUser = next; authGeneration++; inFlightRefresh = null;
     signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
     memorySnapshot = null;
@@ -564,13 +567,17 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       phases: lunar.phases
     };
 
-    return [currentCycle];
+    return [currentCycle,...echoCycleOptions().slice(1).map(c=>({id:c.id,name:c.label,world:'ocean' as const,range:c.range,phases:lunar.phases}))];
   }
 
   function getLocalEchoes(lunar: LiveLunarBundle): Echo[] {
+    const rawText=localStorage.getItem(ECHOES_KEY)||'[]';
+    const key=rawText+'|'+getAuthSession().userId+'|'+privacyEpoch+'|'+decrypted.size+'|'+[...loadedEchoIds].join(',');
+    if(echoMapCache?.key===key)return structuredClone(echoMapCache.items);
     const raw = getStoredJson<any[]>(ECHOES_KEY, []);
     const { userId } = getAuthSession();
-    return raw
+    const recentIds=new Set([...raw].filter(e=>e&&(!(e.user_id||e.userId)||(e.user_id||e.userId)===getAuthSession().userId)).sort((a,b)=>String(b.created_at||b.createdAt||b.occurredAt||'').localeCompare(String(a.created_at||a.createdAt||a.occurredAt||''))).slice(0,ECHO_PAGE_SIZE).map(e=>e.id));
+    const items=raw
       .filter(e => {
         if (!e || typeof e !== 'object' || e.provenance === 'synthetic' || String(e.id || '').startsWith('echo-demo') || e.id === 'echo-return' || e.id === 'echo-water') return false;
         // Account isolation: when authenticated, show records for this user or unassigned local offline drafts
@@ -579,6 +586,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
         return !e.user_id && !e.userId;
       })
+      .filter(e=>recentIds.has(e.id)||loadedEchoIds.has(e.id)||['local-only','failed'].includes(e.syncStatus))
       .map(e => {
         const mapped = mapClassicEchoToBeta(e, lunar);
         const plain = mapped.isEncrypted && privacyKey && decrypted.get(e.text);
@@ -587,6 +595,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
         return mapped;
       });
+    echoMapCache={key,items};return structuredClone(items);
   }
 
   function getLocalLoops(): Loop[] {
@@ -902,7 +911,17 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
       }
 
       // 3. Fetch server echoes (active)
-      const serverEchoes = await readAllRows('echoes', userId, request);
+      const recentPage = await request(echoPageEndpoint(userId,echoTimeQuery()));
+      if(!Array.isArray(recentPage))throw new Error('Invalid Echo page.');
+      const serverEchoes = recentPage.slice(0,ECHO_PAGE_SIZE);
+      // Older pending uploads still reconcile by ID, without downloading history.
+      const pendingIds=getStoredJson<any[]>(ECHOES_KEY,[]).filter(e=>(e.user_id||e.userId)===userId&&e.syncStatus!=='synced'&&!deletedEchoIds.has(e.id)&&!serverEchoes.some(r=>r.id===e.id)).map(e=>e.id);
+      for(let offset=0;offset<pendingIds.length;offset+=50){
+        const ids=pendingIds.slice(offset,offset+50).map(id=>JSON.stringify(String(id))).join(',');
+        const rows=await request('/rest/v1/echoes?select=*&user_id=eq.'+encodeURIComponent(userId)+'&deleted_at=is.null&id=in.('+encodeURIComponent(ids)+')');
+        if(!Array.isArray(rows))throw new Error('Pending Echo reconciliation failed.');
+        serverEchoes.push(...rows);
+      }
 
       if (Array.isArray(serverEchoes)) {
         // Tombstones win over server responses
@@ -1229,20 +1248,53 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     },
 
     echoes: {
-      async list(query = {}) {
-        const db = assembleSnapshot();
-        const all = filterEchoes(db.echoes, query);
-        const offset = Math.max(0, Number(query.cursor) || 0);
-        const limit = Math.min(100, Math.max(1, query.limit || 30));
-        return {
-          items: structuredClone(all.slice(offset, offset + limit)),
-          nextCursor: offset + limit < all.length ? String(offset + limit) : undefined
-        };
+      async list(query:EchoQuery = {}) {
+        accountChanged();
+        const owner=getAuthSession().userId,epoch=authGeneration,limit=Math.min(100,Math.max(1,query.limit||ECHO_PAGE_SIZE));
+        if(sampleMode||!owner||!getAuthSession().token){
+          const all=assembleSnapshot().echoes.filter(e=>matchesEchoQuery(e,query));
+          const offset=Math.max(0,Number(query.cursor)||0);
+          return {items:all.slice(offset,offset+limit),nextCursor:offset+limit<all.length?String(offset+limit):undefined};
+        }
+        const rows=await supabaseFetch(echoPageEndpoint(owner,query));
+        if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+        if(!Array.isArray(rows))throw new Error('Echoes could not be loaded.');
+        const page=rows.slice(0,limit);
+        const deleted=new Set(getStoredJson<string[]>('luna_deleted_echo_ids_'+owner,[]));
+        const raw=getStoredJson<any[]>(ECHOES_KEY,[]),map=new Map(raw.map(e=>[e.id,e]));
+        for(const row of page){
+          if(deleted.has(row.id))continue;
+          const old=map.get(row.id);
+          // Browsing is read-only: it must never acknowledge pending local writes.
+          if(!old||old.syncStatus==='synced'){
+            const audioPending=(row.source==='voice'||old?.kind==='voice')&&!row.audio_path;
+            map.set(row.id,{...old,...row,user_id:owner,audio_path:row.audio_path||old?.audio_path,
+              syncStatus:audioPending?'failed':'synced',audioSyncStatus:audioPending?'failed':'synced'});
+          }
+          loadedEchoIds.add(row.id);
+        }
+        setStoredJson(ECHOES_KEY,[...map.values()]);
+        await decryptPrivateRecords();
+        if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+        const db=assembleSnapshot(),ids=new Set(page.map(r=>r.id));
+        const items=db.echoes.filter(e=>ids.has(e.id)||((e.syncStatus!=='synced'||(query.search&&e.isEncrypted&&!e.locked))&&matchesEchoQuery(e,query))).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)||b.id.localeCompare(a.id));
+        return {items,nextCursor:rows.length>limit&&page.length?echoPageCursor(page.at(-1)):undefined};
       },
 
       async get(id: string) {
-        const db = assembleSnapshot();
-        const found = db.echoes.find(e => e.id === id);
+        accountChanged();loadedEchoIds.add(id);
+        let found=assembleSnapshot().echoes.find(e=>e.id===id);
+        const owner=getAuthSession().userId,epoch=authGeneration;
+        if(!found&&owner&&!sampleMode){
+          const rows=await supabaseFetch('/rest/v1/echoes?select=*&user_id=eq.'+encodeURIComponent(owner)+'&id=eq.'+encodeURIComponent(id)+'&deleted_at=is.null&limit=1');
+          if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+          if(Array.isArray(rows)&&rows[0]){
+            const raw=getStoredJson<any[]>(ECHOES_KEY,[]);setStoredJson(ECHOES_KEY,[...raw.filter(e=>e.id!==id),{...rows[0],syncStatus:rows[0].source==='voice'&&!rows[0].audio_path?'failed':'synced',user_id:owner}]);
+            await decryptPrivateRecords();
+            if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+            found=assembleSnapshot().echoes.find(e=>e.id===id);
+          }
+        }
         if (!found) throw new Error('This Echo is no longer available.');
         return structuredClone(found);
       },

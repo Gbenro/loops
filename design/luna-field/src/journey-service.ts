@@ -108,10 +108,8 @@ export function createJourneyService(services: LunaServices) {
         }
       }
 
-      // Always include current cycle even if 0 recordings
-      if (!countMap.has(currentLun)) {
-        countMap.set(currentLun, 0);
-      }
+      // Cycle navigation must not depend on which history pages happen to be cached.
+      for(let offset=0;offset<24;offset++){if(!countMap.has(currentLun-offset))countMap.set(currentLun-offset,0);}
 
       // Sort descending (newest lunation first)
       const sortedLunations = Array.from(countMap.keys()).sort((a, b) => b - a);

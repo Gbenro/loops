@@ -13,6 +13,7 @@ const sources = [
   'audio-capture',
   'speech-text',
   'chat-recovery',
+  'echo-browse',
   'audio-fixtures',
   'fixtures',
   'sky-data',

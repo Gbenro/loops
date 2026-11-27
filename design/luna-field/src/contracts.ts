@@ -14,7 +14,7 @@ export interface Cycle { id: string; name: string; world: 'ocean'; range: string
 export interface ChatMessage { id: string; replyTo?: string; role: 'person' | 'luna'; content: string; echoIds: string[]; servingModel?: string; fallbackUsed?: boolean; fallbackNotice?: string; }
 export interface FieldSnapshot { echoes: Echo[]; loops: Loop[]; threads: Thread[]; reflections: Reflection[]; cycles: Cycle[]; current: LunarContext; }
 export interface Page<T> { items: T[]; nextCursor?: string; }
-export interface EchoQuery { cursor?: string; limit?: number; cycleId?: string; phaseId?: PhaseId; threadId?: string; search?: string; }
+export interface EchoQuery { since?: string; until?: string; kind?: 'voice'|'text'; cursor?: string; limit?: number; cycleId?: string; phaseId?: PhaseId; threadId?: string; search?: string; }
 export interface CaptureInput { occurredAt?: string; title?: string; body?: string; kind: 'voice' | 'text'; audioUrl?: string; audioBlob?: Blob; duration?: number; waveform?: number[]; waveformSource?: 'decoded-audio'|'capture-levels'|'unavailable'; context: LunarContext; }
 export interface AuthUser { id: string; email?: string; }
 export interface AuthAdapter { getSession(): Promise<{mode:'demo'|'authenticated'; subject?:string}>; getUser(): AuthUser | null; signIn(email: string, password: string): Promise<AuthUser>; signOut(): Promise<void>; }

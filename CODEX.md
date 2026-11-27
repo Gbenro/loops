@@ -27,6 +27,9 @@ Welcome, Codex. This document outlines everything you need to navigate, develop,
 
 ## 2. Standing Engineering Principles
 
+Luna is mobile-first: design and verify phone layouts before adapting them for tablet and desktop. Keep controls minimal, readable, and comfortable to tap. Echo browsing defaults to this lunar cycle; older history is loaded on demand through search, filters, or explicit pagination.
+
+
 All AI agents (Codex, Gemini, Claude) adhere to these non-negotiable rules:
 1. **Preserve Verified Working Behavior**: Never replace or broadly refactor a working system merely because a cleaner architecture is imaginable.
 2. **Smallest Additive/Corrective Change**: Prefer targeted, minimal, evidence-backed patches that solve the demonstrated defect.
