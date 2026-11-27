@@ -1,9 +1,10 @@
 import { echoPageCursor } from './echo-browse.ts';
+import { moonDisc } from './visuals.ts';
 import { PHASES } from './fixtures.ts';
 import { Journey, ordered, groups } from '../../echo-journey/journey.mjs';
 import { createJourneyService, getCycleInfoForLunation, journeyEcho } from './journey-service.ts';
 
-export function mountJourney(host, services) {
+export function mountJourney(host, services, canPlay = () => true) {
   const adapter = createJourneyService(services);
   const resolveAudio = (id, signal, options) => adapter.resolve(id, signal, options);
   const abort = new AbortController();
@@ -264,7 +265,7 @@ export function mountJourney(host, services) {
       shownId = e.id;
       $('voice-title').textContent = e.title;
       $('moment-date').textContent = stamp(e.occurredAt);
-      $('context').textContent = `◐ ${e.context.phaseLabel} · ${cycle.name} ↗`;
+      $('context').innerHTML = moonDisc(Math.max(0,PHASES.findIndex(p=>p.id===e.context.phaseId)),24)+`<span>${esc(e.context.phaseLabel)} · ${esc(cycle.name)} ↗</span>`;
       $('wave').innerHTML = drawWave(e.waveform);
     }
 
@@ -332,7 +333,7 @@ export function mountJourney(host, services) {
   }
 
   // Event Listeners
-  const togglePlayback = () => { prepareChime(); void journey.toggle(); };
+  const togglePlayback = () => { if(!journey.desired&&!canPlay())return;prepareChime(); void journey.toggle(); };
   $('play').addEventListener('click', togglePlayback);
   $('transport-play').addEventListener('click', togglePlayback);
   $('previous').addEventListener('click', () => void journey.step(-1));
@@ -358,7 +359,7 @@ export function mountJourney(host, services) {
 
   $('groups').addEventListener('click', e => {
     const b = e.target.closest('[data-echo]');
-    if (b && !b.disabled) { prepareChime(); void journey.select(b.dataset.echo, true); }
+    if (b && !b.disabled && canPlay()) { prepareChime(); void journey.select(b.dataset.echo, true); }
   });
 
   // Cycle navigation events

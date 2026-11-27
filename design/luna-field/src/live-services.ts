@@ -20,7 +20,7 @@ import type {
   SyncStatus,
   SpeechSynthesisResult
 } from './contracts.ts';
-import { FIXTURES } from './fixtures.ts';
+import { FIXTURES, PHASES } from './fixtures.ts';
 import { cleanText, makeId, filterEchoes, LOOP_STATUSES } from './mock-services.ts';
 import { getLiveLunarData, type LiveLunarBundle } from './lunar-engine.ts';
 
@@ -423,7 +423,7 @@ function mapClassicEchoToBeta(raw: any, lunar: LiveLunarBundle): Echo {
 
   const historical = getLiveLunarData(new Date(raw.created_at || raw.createdAt || raw.occurredAt || new Date()));
   const phaseId = (raw.phase || historical.phaseId) as PhaseId;
-  const phaseName = raw.phaseName || raw.phase_name || historical.phaseName;
+  const phaseName = raw.phaseName || raw.phase_name || PHASES.find(p=>p.id===phaseId)?.name || historical.phaseName;
   const cycleId = 'cycle-' + (raw.lunarMonth || raw.lunar_month || historical.lunarMonth).toLowerCase().replace(/[^a-z0-9]/g, '-');
 
   const context: LunarContext = {

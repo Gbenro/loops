@@ -59,6 +59,12 @@ let recordStarted=0;
 let recordInterval:ReturnType<typeof setInterval>|undefined;
 let captureToken=0;
 let captureActive=false;
+let captureCompact=false;
+let recordingStarting=false;
+let captureTapTimer:ReturnType<typeof setTimeout>|null=null;
+function cancelCaptureTap(){if(captureTapTimer)clearTimeout(captureTapTimer);captureTapTimer=null;}
+function captureIsRecording(){return captureActive&&(recordingStarting||recorder?.state==='recording');}
+function allowPlayback(){if(!captureIsRecording())return true;toast('Finish your recording before playing audio.');return false;}
 let recordedSaved=false;
 let focusBeforeModal:HTMLElement|null=null;
 let submitting=false;
@@ -268,7 +274,7 @@ function render(focusMain=false){
   for(const id of expandedDetails){const el=document.getElementById(id);if(el instanceof HTMLDetailsElement)el.open=true;}
   for(const [id,value] of Object.entries(drafts)){const el=document.getElementById(id);if(el instanceof HTMLTextAreaElement)el.value=value;}
   if(focusMain)document.getElementById('main')?.focus({preventScroll:true});
-  if(state.route.name==='listen'&&isAuthenticated&&!sample)journeyView=mountJourney(root.querySelector('.echo-journey'),services);
+  if(state.route.name==='listen'&&isAuthenticated&&!sample)journeyView=mountJourney(root.querySelector('.echo-journey'),services,allowPlayback);
   bindSeekSurfaceEvents();
   syncAudioUI();
   void primeEchoAudio();
@@ -277,15 +283,18 @@ function render(focusMain=false){
 }
 function toast(message:string){clearTimeout(toastTimer);toastEl.textContent=message;toastEl.classList.add('show');toastTimer=setTimeout(()=>toastEl.classList.remove('show'),4800);}
 function go(path:string){if(location.hash===`#/${path}`){applyRoute();render(true);}else location.hash=`/${path}`;}
-function showModal(title:string,content:string){
+function showModal(title:string,content:string,nonModal=false){
+  cancelCaptureTap();
+  if(captureCompact&&captureActive&&!nonModal&&title!=='Enter through your voice.') {cleanupCapture();toast('Your recording is available under Recover recording.');}
   if(!modal.open)focusBeforeModal=document.activeElement as HTMLElement;
   modal.innerHTML=`<div class="dialog-inner"><header class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></header>${content}</div>`;
-  modal.classList.remove('capture-dialog');
+  modal.classList.remove('capture-dialog','capture-compact');
   modal.setAttribute('aria-labelledby','dialog-title');
-  if(!modal.open)modal.showModal();
+  if(modal.open&&modal.matches(':modal')===nonModal)modal.close();
+  if(!modal.open){if(nonModal)modal.show();else modal.showModal();}
 }
 function closeModal(){if(modal.open)modal.close();}
-modal.addEventListener('close',()=>{cleanupCapture();focusBeforeModal?.focus?.({preventScroll:true});});
+modal.addEventListener('close',()=>{if(modal.open)return;cleanupCapture();focusBeforeModal?.focus?.({preventScroll:true});});
 modal.addEventListener('click',event=>{if(event.target===modal){const r=modal.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
 let captureTranscribing = false;
 let captureTranscript = '';
@@ -293,6 +302,7 @@ let captureTranscriptionError = '';
 let captureSttAbortController: AbortController | null = null;
 
 function cleanupCapture(){
+  cancelCaptureTap();captureCompact=false;recordingStarting=false;modal.classList.remove('capture-compact');
   if(wakeLock){wakeLock.release?.().catch?.(()=>{});wakeLock=null;}
   clearInterval(recordInterval);voiceEngine.stop();cancelAnimationFrame(previewFrame);
   if(captureSttAbortController){captureSttAbortController.abort();captureSttAbortController=null;}
@@ -308,9 +318,34 @@ function cleanupCapture(){
   recordingUrl='';recordingBlob=null;recordingDuration=0;recordedSaved=false;storageError='';
 }
 function keepCaptureInputs(){const title=modal.querySelector<HTMLInputElement>('#capture-title');const body=modal.querySelector<HTMLTextAreaElement>('#capture-body');if(title)captureTitle=title.value;if(body)captureText=body.value;}
-function openCapture(mode:'voice'|'text'){journeyView?.pause();stopPlayback();cleanupCapture();captureMode=mode;captureTitle='';captureText='';captureTranscript='';captureTranscribing=false;captureActive=true;recordingOwner=getAuthSession().userId;recordingStartedAt=new Date().toISOString();renderCapture();}
+function openCapture(mode:'voice'|'text',compact=false){journeyView?.pause();stopPlayback();stopChatVoicePlayback();cancelChatDictation();cleanupCapture();captureCompact=compact;captureMode=mode;captureTitle='';captureText='';captureTranscript='';captureTranscribing=false;captureActive=true;recordingOwner=getAuthSession().userId;recordingStartedAt=new Date().toISOString();renderCapture();}
+function captureNavTap(event:MouseEvent){
+  if(captureActive){renderCapture();modal.querySelector<HTMLButtonElement>('[data-action="record-stop"]')?.focus();return;}
+  if(event.detail===0){openCapture('voice');void startRecording();return;}
+  if(captureTapTimer){cancelCaptureTap();openCapture('voice',true);void startRecording();return;}
+  const owner=getAuthSession().userId,route=location.hash;
+  captureTapTimer=setTimeout(()=>{
+    captureTapTimer=null;
+    if(owner!==getAuthSession().userId||route!==location.hash||modal.open)return;
+    openCapture('voice');void startRecording();
+  },320);
+}
+function changeCaptureSize(compact:boolean){
+  if(!captureActive)return;
+  keepCaptureInputs();modal.querySelector<HTMLAudioElement>('#recording-preview')?.pause();captureCompact=compact;renderCapture();
+  voiceEngine.attach(modal.querySelector<HTMLElement>('#capture-orbit'));
+}
+function renderCompactCapture(error=''){
+  const running=recorder?.state==='recording',ready=!!recordingUrl&&!recordingFinalizing;
+  const busy=recordingStarting||recordingFinalizing||captureTranscribing;
+  const status=recordingStarting?'Connecting microphone…':recordingFinalizing?'Preparing recording…':captureTranscribing?'Transcribing…':running?'Recording':ready?'Ready to keep':'Ready to record';
+  showModal('Quick Echo',`<div class="quick-capture-row" id="capture-orbit"><div class="quick-capture-status"><span class="quick-record-dot ${running?'active':''}" aria-hidden="true"></span><span id="recording-source" role="status">${status}</span><strong id="record-timer">${timecode(recordingDuration)}</strong></div>${running?'<button class="btn primary" data-action="record-stop">Stop</button>':!ready?`<button class="btn primary" data-action="record-start" ${busy?'disabled':''}>Record</button>`:''}</div>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview your recording"></audio>`:''}${captureText?`<p class="quick-transcript">${escapeHtml(captureText)}</p>`:''}<p id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError||captureTranscriptionError)}</p>${captureTranscriptionError&&ready&&!captureTranscribing?'<button class="text-link" data-action="retry-capture-transcription">Retry transcription</button>':''}<div class="quick-capture-actions"><button class="text-link" data-action="capture-expand">Expand</button>${ready?`<form data-form="capture"><button type="submit" class="btn primary" ${busy?'disabled':''}>Keep Echo</button></form>`:''}</div>`,true);
+  modal.classList.add('capture-compact');
+  if(ready)bindRecordingPreview();
+}
 function renderCapture(error=''){
   keepCaptureInputs();
+  if(captureCompact){renderCompactCapture(error);return;}
   const running=recorder?.state==='recording';
   const ready=!!recordingUrl&&!recordingFinalizing;
   const action=running?'record-stop':ready?'preview-toggle':'record-start';
@@ -318,6 +353,7 @@ function renderCapture(error=''){
   const source=running?(inputVisualAvailable?'Live microphone waveform':'Recording · waveform unavailable'):recordingFinalizing?'Preparing your waveform…':ready?(recordingAnalysis.source==='decoded-audio'?'Waveform derived from your recording':recordingAnalysis.source==='capture-levels'?'Measured input envelope':'Playback ready'):'Your voice, in its own time.';
   showModal('Enter through your voice.',`<p class="dialog-description">A moment begins with you.</p><div class="capture-mode"><div class="segmented" aria-label="Echo format"><button type="button" data-action="capture-mode" data-value="voice" aria-pressed="${captureMode==='voice'}">${icon('mic',14)} Speak</button><button type="button" data-action="capture-mode" data-value="text" aria-pressed="${captureMode==='text'}">${icon('write',14)} Write</button></div></div><form data-form="capture">${captureMode==='voice'?`<section class="recording-stage circular-stage ${running?'active':''}"><div class="capture-orbit" id="capture-orbit"><button class="record-orb" type="button" data-action="${action}" aria-label="${label}" ${recordingFinalizing?'disabled':''}>${orbitRings(running?((recordingDuration%60)/60*100):0)}<span class="record-orb-icon">${icon(running?'stop':ready?'play':'mic',21)}</span><span class="orb-wave">${ready?playbackWave(recordingAnalysis.waveform,'capture-wave'):liveWave()}</span><span class="record-time" id="record-timer">${timecode(recordingDuration)}</span><span class="record-orb-label">${recordingFinalizing?'Preparing':running?'Tap to finish':ready?'Listen again':'Tap to begin'}</span></button><span class="recording-orbit-dot" aria-hidden="true"></span><div data-voice-level class="voice-level" aria-hidden="true">${running?'Listening to input':ready?'A moment, held in your voice':'Ready when you are'}</div></div><p class="record-source" id="recording-source" role="status">${source}</p>${ready?`<audio id="recording-preview" controls src="${recordingUrl}" aria-label="Preview and seek in your recording"></audio><button class="text-link" type="button" data-action="record-again">${icon('return',14)}Record again</button>`:''}<p class="audio-caption">Speak freely · saved to your field<br>${storageError?'Device storage failed. Keep this page open.':running?'Saving audio checkpoints on this device.':'Microphone access is requested when you begin.'}</p></section>`:''}<label class="form-field"><span>A few words to find this again <span class="muted">(optional)</span></span><input id="capture-title" name="title" class="text-input" maxlength="120" placeholder="A title, if one comes to mind" value="${escapeHtml(captureTitle)}"></label><label class="form-field"><span>${captureMode==='text'?'What is here?':'A note or your own transcript (optional)'}</span><textarea id="capture-body" name="body" maxlength="6000" placeholder="${captureMode==='text'?'Start anywhere…':'Add words alongside your recording…'}" ${captureMode==='text'?'required':''}>${escapeHtml(captureText)}</textarea></label>${captureTranscribing?`<p class="capture-transcription-status small" style="color:var(--color-focus, #ddc697);margin:4px 0" role="status"><span class="thinking-dot"></span> ✦ Transcribing your recording…</p>`:''}${captureTranscript&&captureText.trim()!==captureTranscript.trim()?`<div style="margin:4px 0 8px"><button type="button" class="text-link" data-action="insert-capture-transcript" style="font-size:12px;color:var(--color-focus, #ddc697)">${icon('write',12)} Spoken transcript ready · Tap to insert</button></div>`:''}<div id="capture-error" class="form-error" role="alert">${escapeHtml(error||storageError||captureTranscriptionError)}</div>${captureTranscriptionError&&ready&&!captureTranscribing?'<button type="button" class="text-link" data-action="retry-capture-transcription">Retry transcription</button>':''}${ready?`<button type="button" class="text-link" data-action="download-capture" style="display:inline-flex;align-items:center;gap:6px;margin:8px 0;background:none;border:none;cursor:pointer;color:var(--color-focus, #ddc697);font-size:12px">${icon('download',13)}Download original audio</button>`:''}<div class="form-foot"><small>${services.privacy?.unlocked()?'Echo text will be encrypted. Original audio is unchanged.':'Saved to your personal living field.'}<br>Held in real-time astronomical rhythm.</small><button class="btn primary" type="submit" ${captureMode==='voice'&&(!ready||running||captureTranscribing)?'disabled':''}>Keep this Echo ${icon('arrow',15)}</button></div></form>`);
   modal.classList.toggle('capture-dialog',captureMode==='voice');
+  if(captureMode==='voice')modal.querySelector('.dialog-head button')?.insertAdjacentHTML('beforebegin','<button class="text-link capture-minimize" type="button" data-action="capture-minimize">Minimize</button>');
   if(captureMode==='text')modal.querySelector<HTMLTextAreaElement>('#capture-body')?.focus();
   if(ready)bindRecordingPreview();
 }
@@ -364,12 +400,14 @@ function bindRecordingPreview(){
   preview.addEventListener('error',()=>toast('This recording cannot be played by this browser. You can keep the local Echo or record again.'));
 }
 async function startRecording(){
+  if(recordingStarting||recorder?.state==='recording')return;
   stopChatVoicePlayback();
   keepCaptureInputs();
   if(state.forceMicDenied){renderCapture('Microphone permission denied — simulated review state. Choose Write, or turn this simulation off in review notes.');return;}
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){renderCapture('Recording is unavailable in this browser context. Writing still works. For microphone access, open the prototype from localhost or a supported secure browser context.');return;}
   const button=modal.querySelector<HTMLButtonElement>('[data-action="record-start"]');if(button){button.disabled=true;button.setAttribute('aria-label','Requesting microphone access');const label=button.querySelector('.record-orb-label');if(label)label.textContent='Connecting…';}const pendingSource=document.getElementById('recording-source');if(pendingSource)pendingSource.textContent='Waiting for microphone access…';
-  const token=++captureToken;
+  const token=++captureToken;recordingStarting=true;
+  if(captureCompact)renderCapture();
   await voiceEngine.prepare();
   if(token!==captureToken||!captureActive){if(!captureActive)voiceEngine.stop();return;}
   try{
@@ -415,9 +453,9 @@ async function startRecording(){
       recordingAnalysis=analysis;recordingDuration=analysis.duration;recordingFinalizing=false;renderCapture();
       void transcribeCapturedAudio(blob,token);
     };
-    activeRecorder.start(250);recordStarted=performance.now();renderCapture();
+    recordingStarting=false;activeRecorder.start(250);recordStarted=performance.now();renderCapture();
     inputVisualAvailable=voiceEngine.start(requested,document.getElementById('capture-orbit')!);
-    const recordSource=document.getElementById('recording-source');if(recordSource)recordSource.textContent=inputVisualAvailable?(matchMedia('(prefers-reduced-motion: reduce)').matches?'Live microphone level · reduced motion':'Live microphone waveform'):'Recording · live visualization unavailable in this browser';
+    const recordSource=document.getElementById('recording-source');if(recordSource&&!captureCompact)recordSource.textContent=inputVisualAvailable?(matchMedia('(prefers-reduced-motion: reduce)').matches?'Live microphone level · reduced motion':'Live microphone waveform'):'Recording · live visualization unavailable in this browser';
     modal.querySelector<HTMLButtonElement>('[data-action="record-stop"]')?.focus();
     recordInterval=setInterval(()=>{
       recordingDuration=(performance.now()-recordStarted)/1000;
@@ -427,19 +465,19 @@ async function startRecording(){
       arc?.setAttribute('stroke-dasharray',`${((recordingDuration%60)/60)*100} 100`);
       if(recordingDuration>=300){
         const notice=document.getElementById('recording-source');
-        if(notice&&!notice.dataset.longNotice){
+        if(notice&&!captureCompact&&!notice.dataset.longNotice){
           notice.dataset.longNotice='true';
           notice.textContent=storageError||'Take your time — recording continues.';
         }
       }
     },200);
-  }catch(error){voiceEngine.stop();stream?.getTracks().forEach(t=>t.stop());stream=null;recorder=null;if(token!==captureToken)return;const name=(error as Error).name;renderCapture(name==='NotAllowedError'||name==='SecurityError'?'Microphone access was not granted. You can write instead, or allow microphone access in your browser and try again.':name==='NotFoundError'?'No microphone was found. You can write instead or connect a microphone.':'The microphone could not be started. Try again or write this Echo.');}
+  }catch(error){recordingStarting=false;voiceEngine.stop();stream?.getTracks().forEach(t=>t.stop());stream=null;recorder=null;if(token!==captureToken)return;const name=(error as Error).name;renderCapture(name==='NotAllowedError'||name==='SecurityError'?'Microphone access was not granted. You can write instead, or allow microphone access in your browser and try again.':name==='NotFoundError'?'No microphone was found. You can write instead or connect a microphone.':'The microphone could not be started. Try again or write this Echo.');}
 }
 function stopRecording(){keepCaptureInputs();if(recorder?.state==='recording'){recordingDuration=(performance.now()-recordStarted)/1000;recorder.stop();clearInterval(recordInterval);}}
 function openNewLoop(){showModal('Leave an intention.',`<p class="dialog-description">A small gesture, a question, a direction to follow.</p><form data-form="loop"><label class="form-field"><span>What would you like to leave open?</span><input class="text-input" name="title" maxlength="120" placeholder="Something I want to return to…" required autofocus></label><label class="form-field"><span>A little context (optional)</span><textarea name="note" maxlength="600" placeholder="There is no deadline here."></textarea></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit">Leave it open ${icon('loop',15)}</button></div></form>`);}
 function openContextPicker(){const db=currentDb();showModal('Bring a moment with you.',`<p class="dialog-description">Select the Echoes you want to explore with Luna.</p><form data-form="chat-context"><div class="checkbox-list">${db.echoes.map(e=>`<label class="checkbox-row"><input type="checkbox" name="echo" value="${e.id}" ${state.chatContext.includes(e.id)?'checked':''}><span><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(formatMoment(e.occurredAt))} · ${escapeHtml(e.context.label)}</small></span></label>`).join('')||'<p class="small muted">No Echoes available in this view.</p>'}</div><div class="form-foot"><small>Select Echoes to include in this reflection.</small><button class="btn primary" type="submit">Use selected context</button></div></form>`);}
 function openThreadPicker(id:string){const db=currentDb();showModal('Make a connection.',`<p class="dialog-description">Choose a Thread that feels relevant. The connection comes from you.</p><form data-form="thread-link" data-id="${id}"><label class="form-field"><span>Thread</span><select name="thread" class="inline-select" required>${db.threads.map(t=>`<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('')}</select></label><div class="form-foot"><small>Held in your personal field.</small><button class="btn primary" type="submit" ${db.threads.length?'':'disabled'}>Connect Echo ${icon('thread',15)}</button></div></form>`);}
-function openReview(){showModal('Luna Field Guide & Shortcuts',`<p class="dialog-description">One field. Many ways of seeing.</p><div class="notice"><strong>Luna Living Field</strong><br>Real-time Jean Meeus ephemeris, live recording, and personalized cycles. In live mode, your data synchronizes two-way with Classic Luna and Supabase.</div><h3 style="margin-top:20px">How to explore</h3><p class="small muted" style="margin-top:8px">Visit <strong>Sky</strong> for the realistic photographic moon, cosmic tide, and wisdom sheet. Begin with <strong>Speak</strong> in the Field to capture an Echo with live waveforms. Follow your intentions in <strong>Loops</strong> or see how moments weave together across cycles in <strong>Returns</strong>.</p><div class="review-divider"><h3>Keyboard & Touch Shortcuts</h3><p class="small muted"><strong>1-4</strong> or <strong>Arrow keys</strong> in Cycles view change phases. <strong>Esc</strong> closes dialogs. <strong>Theme toggle</strong> switches between Dark and Light.</p></div><div class="review-divider"><p class="small muted">Desktop: use the left navigation. Mobile: Sky, Field, Voice, Echoes, and Luna are in the bottom bar.</p><button class="text-link" data-action="reset-open">${icon('return',15)}Reset session draft cache</button></div>`);}
+function openReview(){showModal('Luna Field Guide & Shortcuts',`<p class="dialog-description">One field. Many ways of seeing.</p><div class="notice"><strong>Luna Living Field</strong><br>Real-time Jean Meeus ephemeris, live recording, and personalized cycles. In live mode, your data synchronizes two-way with Classic Luna and Supabase.</div><h3 style="margin-top:20px">How to explore</h3><p class="small muted" style="margin-top:8px">Visit <strong>Sky</strong> for the realistic photographic moon, cosmic tide, and wisdom sheet. Begin with <strong>Speak</strong> in the Field to capture an Echo with live waveforms. Follow your intentions in <strong>Loops</strong> or see how moments weave together across cycles in <strong>Returns</strong>.</p><div class="review-divider"><h3>Keyboard & Touch Shortcuts</h3><p class="small muted"><strong>1-4</strong> or <strong>Arrow keys</strong> in Cycles view change phases. <strong>Double-tap the central microphone</strong> to record without leaving your page. Use <strong>Expand</strong> to review, or <strong>Minimize</strong> to return to the small recorder. <strong>Esc</strong> closes dialogs. <strong>Theme toggle</strong> switches between Dark and Light.</p></div><div class="review-divider"><p class="small muted">Desktop: use the left navigation. Mobile: Sky, Field, Voice, Echoes, and Luna are in the bottom bar.</p><button class="text-link" data-action="reset-open">${icon('return',15)}Reset session draft cache</button></div>`);}
 function openSignInModal(){showModal('Sign in to Luna',`<p class="dialog-description">Connect to your Luna account to access your personal Field, Echoes, and Loops.</p><form data-form="auth" style="display:flex;flex-direction:column;gap:14px;margin-top:12px"><label class="form-field"><span>Email</span><input class="text-input" name="email" type="email" autocomplete="email" required placeholder="you@domain.com" autofocus></label><label class="form-field"><span>Password</span><input class="text-input" name="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label><div id="auth-error" style="color:#ef4444;font-size:12px;min-height:16px"></div><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Sign in & Sync</button></div><p style="text-align:center;font-size:11px;color:var(--color-text-muted);margin-top:8px">Or visit <a href="/" class="gold" style="text-decoration:none">Classic Luna</a> (Sky tab) to create an account.</p></form>`);}
 function openPrivacyUnlock(){
   showModal('Unlock private Echoes',`<p class="dialog-description">Use the encryption passphrase you set in Classic Luna. It stays on this device and is forgotten when you lock or leave. While unlocked, new Echo text is encrypted; original audio is unchanged.</p><form data-form="privacy-unlock"><label class="form-field"><span>Encryption passphrase</span><input class="text-input" name="passphrase" type="password" autocomplete="off" required autofocus></label><div class="form-foot"><button class="btn primary" type="submit">Unlock this session</button></div></form>`);
@@ -592,6 +630,7 @@ async function primeEchoAudio(){
 }
 
 async function playEcho(id:string){
+  if(!allowPlayback())return;
   stopChatVoicePlayback();
   if(audioEchoId===id&&audio.src){if(audio.paused){try{await audio.play();}catch{toast('Playback could not start. Try again in a supported browser.');}}else audio.pause();syncAudioUI();return;}
   const attempt=++audioAttempt;audio.pause();
@@ -888,6 +927,7 @@ function playBrowserSpeech(text: string, messageId: string, isFallback = false) 
 }
 
 async function handlePlayChatVoice(messageId: string) {
+  if(!allowPlayback())return;
   if(state.chatVoiceRecording||captureActive){toast('Finish recording before playing Luna’s voice.');return;}
   if (state.chatPlayingMessageId === messageId) {
     stopChatVoicePlayback();
@@ -1001,6 +1041,7 @@ function cancelChatDictation() {
 }
 
 async function startChatDictation() {
+  if(captureIsRecording()){toast('Finish your Echo recording before dictating a message.');return;}
   if (state.chatVoiceRecording) return;
   if (!navigator.mediaDevices?.getUserMedia) {
     toast('Microphone access is not supported in this browser.');
@@ -1201,7 +1242,9 @@ document.addEventListener('click',async(event)=>{
       case 'recover-list':await openRecovery();break;
       case 'recover-draft':await recoverDraft(id);break;
       case 'discard-draft':{const owner=getAuthSession().userId;const draft=await getDraftAudio(id,owner);if(draft)await saveDraftAudio(id,draft.blob,{duration:draft.duration,status:'discarded'},owner);await openRecovery();break;}
-      case 'capture-voice':openCapture('voice');await startRecording();break;
+      case 'capture-voice':if(target.classList.contains('capture-nav'))captureNavTap(event);else{openCapture('voice');await startRecording();}break;
+      case 'capture-expand':changeCaptureSize(false);break;
+      case 'capture-minimize':changeCaptureSize(true);break;
       case 'capture-entrance':openCapture('voice');break;
       case 'capture-text':openCapture('text');break;
       case 'capture-mode':keepCaptureInputs();cleanupCapture();captureActive=true;captureMode=value as any;renderCapture();break;
@@ -1276,6 +1319,7 @@ document.addEventListener('change',async(event)=>{
   }catch(error){toast((error as Error).message);}
 });
 document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&captureCompact&&modal.open){event.preventDefault();closeModal();return;}
   if(event.key==='Escape'&&document.getElementById('sidebar')?.classList.contains('mobile-open')){document.getElementById('sidebar')?.classList.remove('mobile-open');const trigger=document.querySelector<HTMLButtonElement>('[data-action="menu"]');trigger?.setAttribute('aria-expanded','false');trigger?.focus();}
   const target=event.target as HTMLElement;if(target.dataset.action==='phase'&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const i=PHASES.findIndex(p=>p.id===state.phase);const next=event.key==='Home'?0:event.key==='End'?7:(i+(event.key==='ArrowRight'?1:7))%8;document.querySelector<HTMLButtonElement>(`[data-action="phase"][data-value="${PHASES[next].id}"]`)?.click();}
 });
@@ -1310,8 +1354,9 @@ document.addEventListener('submit',async(event)=>{
         if(currentDraftId&&recordingBlob){
           await saveDraftAudio(currentDraftId,recordingBlob,{echoId:echo.id,duration:recordingDuration,status:'saved',startedAt:recordingStartedAt},recordingOwner);
         }
+        const stayHere=captureCompact;
         closeModal();
-        go(`echo/${echo.id}`);
+        if(stayHere)render();else go(`echo/${echo.id}`);
         toast('Your Echo is here.');
         break;
       }
@@ -1372,7 +1417,7 @@ window.addEventListener('luna-account-changed',()=>{
   Object.keys(drafts).forEach(key=>delete drafts[key]);
   render();
 });
-window.addEventListener('hashchange',()=>{stopPlayback();stopChatVoicePlayback();cancelChatDictation();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
+window.addEventListener('hashchange',()=>{cancelCaptureTap();stopPlayback();stopChatVoicePlayback();cancelChatDictation();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
 window.addEventListener('pagehide',()=>{clearTimeout(chatPollTimer);cleanupCapture();stopChatVoicePlayback();cancelChatDictation();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 document.addEventListener('visibilitychange',()=>{

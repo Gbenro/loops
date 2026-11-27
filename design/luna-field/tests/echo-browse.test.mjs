@@ -110,3 +110,10 @@ test('earliest-first pages use ascending timestamps and ascending tie breakers',
  let cursor,ids=[];do{const page=await s.echoes.list({kind:'voice',order:'oldest',cursor});ids.push(...page.items.map(e=>e.id));cursor=page.nextCursor;}while(cursor);
  assert.deepEqual(ids,rows.map(e=>e.id));assert.equal(new Set(ids).size,65);
 });
+
+test('a legacy phase without a saved name keeps its label aligned with the moon shape',async()=>{
+ const s=setup();
+ data.set(KEY,JSON.stringify([{id:'crescent',user_id:'owner',created_at:new Date().toISOString(),text:'Moment',phase:'waxing-crescent',syncStatus:'synced'}]));
+ const echo=await s.echoes.get('crescent');
+ assert.equal(echo.context.phaseId,'waxing-crescent');assert.equal(echo.context.label,'Waxing Crescent');
+});

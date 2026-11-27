@@ -24,6 +24,11 @@ export class VoiceEngine {
     if(!Ctor)return false;
     try{if(!this.context||this.context.state==='closed')this.context=new Ctor();await this.context!.resume();return this.context!.state==='running';}catch{return false;}
   }
+  attach(target:HTMLElement|null){
+    this.target=target;
+    this.paths=Array.from(target?.querySelectorAll<SVGPathElement>('[data-live-curve]')||[]);
+    this.meter=target?.querySelector('[data-voice-level]')||null;
+  }
   start(stream:MediaStream,target:HTMLElement){
     this.stop(false);this.levels=[];this.previous=[];this.level=0;this.lastFrame=0;this.lastLevel=0;this.startedAt=performance.now();
     if(!this.context||this.context.state!=='running')return false;
