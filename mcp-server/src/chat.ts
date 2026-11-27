@@ -1,3 +1,4 @@
+import { reserveChatRequest, openRouterBudget, publicCompletionText, completionDiagnostic } from './chatRecovery.js';
 import { formatBoundedTelemetryTrace } from './telemetryFormatter.js';
 import { Express, Request, Response } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -14,9 +15,6 @@ import { executeSeamlessAttentionPipeline, inferAttentionV2Plan } from './attent
 
 // Simple ID generator for chat session, messages, telemetry
 const generateId = (prefix = 'chat') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-
-// Map to track in-flight requests and deduplicate duplicate prompt POSTs
-const inFlightChatRequests = new Map<string, Promise<any>>();
 
 // Map standard MCP schemas to OpenAI tool format
 const getOpenAiTools = () => {
@@ -775,12 +773,13 @@ async function callOpenRouter(
   messages: any[],
   systemPrompt: string,
   tools: any[],
-  maxTokens: number = 4096
+  maxTokens: number = 4096,
+  recovery = false
 ): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured on server');
 
-  const configuredMaxTokens = process.env.OPENROUTER_MAX_TOKENS ? parseInt(process.env.OPENROUTER_MAX_TOKENS, 10) : maxTokens;
+  const configuredMaxTokens = openRouterBudget(process.env.OPENROUTER_MAX_TOKENS, maxTokens, recovery);
 
   const formattedMessages = [
     { role: 'system', content: systemPrompt },
@@ -819,7 +818,11 @@ async function callOpenRouter(
       throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
     }
 
-    return response.json();
+    const result: any = await response.json();
+    if (!publicCompletionText(result).trim() && !result.choices?.[0]?.message?.tool_calls?.length) {
+      console.warn('[OpenRouter empty completion]', { modelId, maxTokens: configuredMaxTokens, recovery, ...completionDiagnostic(result) });
+    }
+    return result;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       throw new Error(`OpenRouter inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s for model ${modelId}`);
@@ -1326,59 +1329,61 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
     }
 
     const requestDedupeKey = clientTurnId ? `${user.id}:${sessionId}:${clientTurnId}` : null;
-    if (requestDedupeKey && inFlightChatRequests.has(requestDedupeKey)) {
-      console.log(`[API Chat] Deduplicating in-flight request for key: ${requestDedupeKey}`);
-      try {
-        const inFlightResult = await inFlightChatRequests.get(requestDedupeKey);
-        res.json(inFlightResult);
-        return;
-      } catch (inFlightErr: any) {
-        res.status(500).json({ error: inFlightErr.message });
-        return;
-      }
+    const reservation = requestDedupeKey ? reserveChatRequest(requestDedupeKey) : null;
+    if (reservation?.pending) {
+      const outcome = await reservation.pending;
+      res.status(outcome.statusCode).json(outcome.body);
+      return;
     }
+    const originalJson = res.json.bind(res);
+    res.json = ((body: any) => {
+      reservation?.complete?.({ statusCode: res.statusCode, body });
+      return originalJson(body);
+    }) as typeof res.json;
 
-    if (clientTurnId && sessionId) {
-      const { data: userMsgCheck } = await supabase
-        .from('chat_messages')
-        .select('created_at')
-        .eq('id', clientTurnId)
-        .maybeSingle();
-
-      if (userMsgCheck) {
-        const { data: existingAssistantMessage } = await supabase
+    try {
+      if (clientTurnId && sessionId) {
+        const { data: userMsgCheck } = await supabase
           .from('chat_messages')
-          .select('*')
+          .select('created_at')
+          .eq('user_id', user.id)
           .eq('session_id', sessionId)
-          .eq('role', 'assistant')
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .eq('id', clientTurnId)
+          .maybeSingle();
 
-        if (existingAssistantMessage && existingAssistantMessage.length > 0) {
-          const astMsg = existingAssistantMessage[0];
-          if (new Date(astMsg.created_at) >= new Date(userMsgCheck.created_at)) {
-            console.log(`[API Chat] Existing assistant message found for clientTurnId ${clientTurnId}, returning without re-inference`);
-            res.json({
-              success: true,
-              sessionId,
-              userMessageId: clientTurnId,
-              assistantMessageId: astMsg.id,
-              reply: astMsg.content,
-              message: {
-                id: astMsg.id,
-                content: astMsg.content,
-                createdAt: astMsg.created_at
-              },
-              telemetryId: generateId('trace'),
-              traceId: generateId('trace')
-            });
-            return;
+        if (userMsgCheck) {
+          const { data: linkedReply } = await supabase.from('chat_messages')
+            .select('*').eq('user_id', user.id).eq('session_id', sessionId).eq('role', 'assistant')
+            .contains('metadata', { reply_to_user_message_id: clientTurnId }).limit(1);
+          let astMsg = linkedReply?.[0];
+          if (!astMsg) {
+            // Legacy rows have no reply link. Only the immediately following turn qualifies.
+            const { data: following } = await supabase.from('chat_messages')
+              .select('*').eq('user_id', user.id).eq('session_id', sessionId)
+              .gt('created_at', userMsgCheck.created_at).order('created_at', { ascending: true }).limit(1);
+            const next = following?.[0];
+            if (next?.role === 'assistant' && !next.metadata?.reply_to_user_message_id) astMsg = next;
+          }
+          if (astMsg?.content?.trim()) {
+              console.log(`[API Chat] Existing assistant message found for clientTurnId ${clientTurnId}, returning without re-inference`);
+              res.json({
+                success: true,
+                sessionId,
+                userMessageId: clientTurnId,
+                assistantMessageId: astMsg.id,
+                reply: astMsg.content,
+                message: {
+                  id: astMsg.id,
+                  content: astMsg.content,
+                  createdAt: astMsg.created_at
+                },
+                telemetryId: generateId('trace'),
+                traceId: generateId('trace')
+              });
+              return;
           }
         }
       }
-    }
-
-    try {
 
       // 2. Resolve Session ID and Session Model
       let currentSessionModel: string | undefined = undefined;
@@ -1907,12 +1912,17 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
               const textParts = parts.filter((p: any) => p.text);
               if (textParts.length > 0) finalResponseText = textParts.map((p: any) => p.text).join('\n');
             } else {
-              const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, []);
-              finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
+              const finalResp = await callOpenRouter(modelId, agentMessages, systemPrompt, [], 4096, true);
+              finalResponseText = publicCompletionText(finalResp);
+              if (finalResp.usage) {
+                const input = finalResp.usage.prompt_tokens || 0, output = finalResp.usage.completion_tokens || 0;
+                tokenUsageReport = { inputTokens: tokenUsageReport.inputTokens + input, outputTokens: tokenUsageReport.outputTokens + output,
+                  totalTokens: tokenUsageReport.totalTokens + input + output, source: 'provider_reported' };
+              }
             }
           } else {
             const finalResp = await callGpt(modelId, agentMessages, systemPrompt, []);
-            finalResponseText = finalResp.choices?.[0]?.message?.content || finalResp.choices?.[0]?.message?.reasoning_content || finalResp.choices?.[0]?.text || '';
+            finalResponseText = publicCompletionText(finalResp);
           }
         } catch (postErr) {
           console.warn('[Post-tool completion fallback]:', postErr);
@@ -1945,11 +1955,12 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         user_id: user.id,
         role: 'assistant',
         content: finalResponseText.trim(),
-        metadata: isFailover ? {
+        metadata: {
+          reply_to_user_message_id: userMessageId,
           requested_model: resolvedKey,
-          serving_model: failoverServingModel,
-          failover: true
-        } : {}
+          serving_model: isFailover ? failoverServingModel : resolvedKey,
+          ...(isFailover ? { failover: true } : {})
+        }
       });
 
       retrievedContextIds = Array.from(new Set(retrievedContextIds));
@@ -2135,6 +2146,8 @@ export function registerChatRoutes(app: Express, authenticateRest: any, authenti
         telemetryId,
         status: 'failed'
       });
+    } finally {
+      reservation?.complete?.({ statusCode: 500, body: { error: 'Chat request interrupted. Please retry the same message.' } });
     }
   });
 
