@@ -1,3 +1,4 @@
+import { mergeChatHistory, replyForTurn } from './chat-recovery.ts';
 import { prepareChatSpeech } from './speech-text.ts';
 import { voiceCaptureConstraints, createVoiceRecorder } from './audio-capture.ts';
 import { createFieldRealtime } from './realtime-sync.ts';
@@ -88,30 +89,103 @@ async function recoverDraft(id:string){
   renderCapture();
 }
 
+
+type PendingChatTurn={id:string;message:string;echoIds:string[];modelKey:string;sessionId:string;owner:string;startedAt:number};
+let pendingChatTurn:PendingChatTurn|null=null;
+let chatRequest:AbortController|null=null;
+let chatHistoryLoading=false;
+let chatPollTimer:ReturnType<typeof setTimeout>|undefined;
+function renderChatUpdate(){
+ if(state.route.name!=='chat')return;
+ const input=document.activeElement as HTMLTextAreaElement|null,editing=input?.id==='chat-input';
+ const selection=editing?[input!.selectionStart,input!.selectionEnd]:null;
+ render();
+ if(editing){const next=document.getElementById('chat-input') as HTMLTextAreaElement|null;next?.focus({preventScroll:true});if(selection)next?.setSelectionRange(selection[0],selection[1]);}
+}
+function stopChatRecovery(){
+ clearTimeout(chatPollTimer);pendingChatTurn=null;chatRequest?.abort();chatRequest=null;state.chatStatus=null;
+}
+function scheduleChatRecovery(){
+ clearTimeout(chatPollTimer);
+ if(!pendingChatTurn)return;
+ chatPollTimer=setTimeout(()=>{void refreshChatHistory().finally(()=>{
+  if(pendingChatTurn&&Date.now()-pendingChatTurn.startedAt<360000)scheduleChatRecovery();
+ });},5000);
+}
+async function refreshChatHistory(){
+ const sessionId=state.chatSessionId,owner=services.auth.getUser()?.id,token=generation;
+ if(chatHistoryLoading||!sessionId||!owner||!services.chat.getMessages||document.visibilityState==='hidden')return;
+ chatHistoryLoading=true;
+ try{
+  const messages=await services.chat.getMessages(sessionId);
+  if(token!==generation||owner!==services.auth.getUser()?.id||sessionId!==state.chatSessionId)return;
+  const before=JSON.stringify(state.chat);
+  state.chat=mergeChatHistory(state.chat,messages);
+  const pending=pendingChatTurn;
+  if(pending&&pending.sessionId===sessionId&&replyForTurn(messages,pending.id)){
+   stopChatRecovery();state.chatBusy=false;state.chatError=null;renderChatUpdate();
+  }else if(before!==JSON.stringify(state.chat))renderChatUpdate();
+ }catch{/* Preserve locally displayed turns on a read failure. */}
+ finally{chatHistoryLoading=false;}
+}
+async function sendChatTurn(turn:PendingChatTurn){
+ if(state.chatBusy)return;
+ pendingChatTurn=turn;turn.startedAt=Date.now();state.chatBusy=true;state.chatError=null;state.chatStatus=null;
+ const token=generation,controller=new AbortController();chatRequest=controller;
+ renderChatUpdate();scheduleChatRecovery();
+ const notice=setTimeout(()=>{if(pendingChatTurn===turn&&state.chatBusy){state.chatStatus='Still waiting for Luna’s reply…';renderChatUpdate();}},20000);
+ try{
+  const response=await services.chat.respond(turn.message,turn.echoIds,{sessionId:turn.sessionId,clientTurnId:turn.id,modelKey:turn.modelKey,signal:controller.signal});
+  if(token!==generation||pendingChatTurn!==turn||turn.owner!==services.auth.getUser()?.id)return;
+  state.chat=state.chat.filter(m=>m.id!==response.id);state.chat.push(response);
+  stopChatRecovery();state.chatBusy=false;state.chatError=null;renderChatUpdate();
+ }catch(error:any){
+  if(token!==generation||pendingChatTurn!==turn||turn.owner!==services.auth.getUser()?.id)return;
+  state.chatBusy=false;state.chatStatus=null;
+  state.chatError=/empty response|no reply/i.test(error.message||'')
+   ?'Luna returned no reply. Retry will use your existing message.'
+   :error.message||'The connection was interrupted. Checking for a saved reply…';
+  renderChatUpdate();await refreshChatHistory();
+ }finally{clearTimeout(notice);if(chatRequest===controller)chatRequest=null;}
+}
+
 function currentDb(){const db=services.snapshot();if(state.scenario==='empty'){db.echoes=db.echoes.filter(e=>e.provenance==='local-session');db.loops=db.loops.filter(l=>l.provenance==='local-session');db.reflections=db.reflections.filter(r=>r.provenance==='local-session');db.threads=[];}return db;}
 async function initChatSessionIfNeeded(){
   const user=services.auth?.getUser?.();
   if(!user){state.chatInitialized=true;return;}
-  if(state.chatInitialized||chatLoadingPromise)return;
+  if(chatLoadingPromise)return chatLoadingPromise;
+  if(state.chatInitialized)return;
+  const initGeneration=generation;
   chatLoadingPromise=(async()=>{
     try{
       if(services.chat.getActiveSession){
-        state.chatSessionId=await services.chat.getActiveSession();
+        const sessionId=await services.chat.getActiveSession();
+        if(initGeneration!==generation||user.id!==services.auth.getUser()?.id)return;
+        state.chatSessionId=sessionId;
         if(state.chatSessionId&&services.chat.getMessages){
           const msgs=await services.chat.getMessages(state.chatSessionId);
+          if(initGeneration!==generation||user.id!==services.auth.getUser()?.id)return;
           if(Array.isArray(msgs)&&msgs.length){
             state.chat=msgs;
+            const last=msgs.at(-1);
+            if(last?.role==='person'){
+              lastUserMessage=last.content;lastChatContext=last.echoIds;
+              pendingChatTurn={id:last.id,message:last.content,echoIds:last.echoIds,modelKey:state.chatModel,sessionId:state.chatSessionId!,owner:user.id,startedAt:Date.now()};
+              scheduleChatRecovery();
+            }
           }
         }
       }
     }catch(err){
       console.warn('Failed to load initial chat history:',err);
     }finally{
+      if(initGeneration!==generation)return;
       state.chatInitialized=true;
       chatLoadingPromise=null;
       if(state.route.name==='chat')render();
     }
   })();
+  return chatLoadingPromise;
 }
 
 function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();}
@@ -1050,25 +1124,9 @@ document.addEventListener('click',async(event)=>{
         break;
       }
       case 'retry-chat':{
-        if(!lastUserMessage)return;
-        const token=generation;
-        state.chatBusy=true;
-        state.chatError=null;
-        render();
-        try{
-          const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(lastUserMessage,lastChatContext,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
-          if(token!==generation)return;
-          state.chat.push(response);
-          state.chatBusy=false;
-          state.chatError=null;
-          render();
-        }catch(err:any){
-          if(token!==generation)return;
-          state.chatBusy=false;
-          state.chatError=err.message||'Retry failed.';
-          render();
-        }
+        if(!lastUserMessage||state.chatBusy||!pendingChatTurn)return;
+        await refreshChatHistory();
+        if(pendingChatTurn)await sendChatTurn(pendingChatTurn);
         break;
       }
       case 'auth-sync':{closeModal();toast('Synchronizing with your Luna account...');await services.sync?.();render(true);toast(services.snapshot().echoes.some(e=>e.user_id===services.auth.getUser()?.id&&e.syncStatus!=='synced')?'Sync checked. Some Echoes still need synchronization.':'Your Field is synchronized.');break;}
@@ -1106,7 +1164,7 @@ document.addEventListener('click',async(event)=>{
       case 'close-deep-sheet':state.deepSheetOpen=false;render();break;
       case 'deep-sheet-tab':state.deepSheetTab=value as any;render();break;
       case 'reset-open':showModal('Clear local session cache?',`<p class="dialog-description">This resets local draft caches held in memory.</p><div class="form-foot"><button class="btn" data-action="close-modal">Keep exploring</button><button class="btn primary" data-action="reset-confirm">Reset cache</button></div>`);break;
-      case 'reset-confirm':generation++;stopPlayback();stopChatVoicePlayback();cancelChatDictation();closeModal();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));localAudioUrls.clear();services.reset();Object.keys(drafts).forEach(key=>delete drafts[key]);state.chat=[];state.chatContext=[];state.chatBusy=false;state.scenario='ready';state.search='';state.echoKind='all';state.loopFilter='unfolding';go('field');render(true);toast('Local session cache cleared.');break;
+      case 'reset-confirm':generation++;stopChatRecovery();stopPlayback();stopChatVoicePlayback();cancelChatDictation();closeModal();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));localAudioUrls.clear();services.reset();Object.keys(drafts).forEach(key=>delete drafts[key]);state.chat=[];state.chatContext=[];state.chatBusy=false;state.scenario='ready';state.search='';state.echoKind='all';state.loopFilter='unfolding';go('field');render(true);toast('Local session cache cleared.');break;
     }
   }catch(error){toast((error as Error).message||'That action could not finish. Please try again.');}
 });
@@ -1206,31 +1264,14 @@ document.addEventListener('submit',async(event)=>{
           openSignInModal();
           return;
         }
-        const token=generation;
-        const context=[...state.chatContext];
-        state.chat.push({id:makeId('message'),role:'person',content:message,echoIds:context});
+        if(state.chatBusy)return;
+        await initChatSessionIfNeeded();
+        if(!state.chatSessionId||user.id!==services.auth.getUser()?.id)return;
+        const context=[...state.chatContext],clientTurnId=makeId('turn');
+        stopChatRecovery();
+        state.chat.push({id:clientTurnId,role:'person',content:message,echoIds:context});
         delete drafts['chat-input'];
-        state.chatBusy=true;
-        state.chatError=null;
-        render();
-        try{
-          const clientTurnId=makeId('turn');
-          const response=await services.chat.respond(message,context,{sessionId:state.chatSessionId||undefined,clientTurnId,modelKey:state.chatModel});
-          if(token!==generation)return;
-          state.chat.push(response);
-          state.chatBusy=false;
-          state.chatError=null;
-          if(state.route.name==='chat'){
-            render();
-            document.getElementById('chat-input')?.focus({preventScroll:true});
-            document.getElementById('chat-input')?.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
-          }
-        }catch(err:any){
-          if(token!==generation)return;
-          state.chatBusy=false;
-          state.chatError=err.message||'Luna could not respond at this time.';
-          render();
-        }
+        await sendChatTurn({id:clientTurnId,message,echoIds:context,modelKey:state.chatModel,sessionId:state.chatSessionId,owner:user.id,startedAt:Date.now()});
         break;
       }
     }
@@ -1239,6 +1280,7 @@ document.addEventListener('submit',async(event)=>{
 });
 window.addEventListener('luna-account-changed',()=>{
   generation++;
+  stopChatRecovery();state.chatBusy=false;chatLoadingPromise=null;
   stopPlayback();
   stopChatVoicePlayback();
   cancelChatDictation();
@@ -1256,7 +1298,7 @@ window.addEventListener('luna-account-changed',()=>{
 });
 window.addEventListener('hashchange',()=>{stopPlayback();stopChatVoicePlayback();cancelChatDictation();applyRoute();render(true);window.scrollTo({top:0,behavior:'instant'});});
 window.addEventListener('offline',()=>render());window.addEventListener('online',()=>render());
-window.addEventListener('pagehide',()=>{cleanupCapture();stopChatVoicePlayback();cancelChatDictation();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('pagehide',()=>{clearTimeout(chatPollTimer);cleanupCapture();stopChatVoicePlayback();cancelChatDictation();voiceEngine.dispose();cancelAnimationFrame(playbackFrame);audio.pause();localAudioUrls.forEach(url=>URL.revokeObjectURL(url));});
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&captureActive&&recorder?.state==='recording'&&!wakeLock){
     const reacquireToken=captureToken;
@@ -1283,6 +1325,7 @@ window.addEventListener('online',()=>{services.sync?.().then(()=>render()).catch
 // Refresh the Field after returning from Classic or an Android background pause.
 let resumeSync: Promise<void> | null = null;
 function syncOnReturn() {
+  if(state.route.name==='chat'&&document.visibilityState==='visible')void refreshChatHistory();
   if (document.visibilityState === 'visible') fieldRealtime.start();
   if (
     document.visibilityState !== 'visible' ||

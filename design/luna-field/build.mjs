@@ -12,6 +12,7 @@ const sources = [
   'audio-geometry',
   'audio-capture',
   'speech-text',
+  'chat-recovery',
   'audio-fixtures',
   'fixtures',
   'sky-data',

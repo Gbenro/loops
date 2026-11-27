@@ -11,7 +11,7 @@ export interface Thread { id: string; title: string; description: string; echoId
 export interface Reflection { id: string; echoId: string; author: 'person' | 'ai-assisted'; body: string; createdAt: string; provenance: Provenance; user_id?: string; }
 export interface Phase { id: PhaseId; name: string; shortName: string; index: number; light: number; fixtureDate: string; }
 export interface Cycle { id: string; name: string; world: 'ocean'; range: string; phases: Phase[]; }
-export interface ChatMessage { id: string; role: 'person' | 'luna'; content: string; echoIds: string[]; servingModel?: string; fallbackUsed?: boolean; fallbackNotice?: string; }
+export interface ChatMessage { id: string; replyTo?: string; role: 'person' | 'luna'; content: string; echoIds: string[]; servingModel?: string; fallbackUsed?: boolean; fallbackNotice?: string; }
 export interface FieldSnapshot { echoes: Echo[]; loops: Loop[]; threads: Thread[]; reflections: Reflection[]; cycles: Cycle[]; current: LunarContext; }
 export interface Page<T> { items: T[]; nextCursor?: string; }
 export interface EchoQuery { cursor?: string; limit?: number; cycleId?: string; phaseId?: PhaseId; threadId?: string; search?: string; }

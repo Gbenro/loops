@@ -541,7 +541,7 @@ export function chatView(db: FieldSnapshot, state: UIState) {
           ${m.echoIds.length ? `<div class="chat-sources">${m.echoIds.map(id => `<a class="chip" href="#/echo/${id}">${icon('echo', 12)}${escapeHtml(db.echoes.find(e => e.id === id)?.title || 'Echo')}</a>`).join('')}</div>` : ''}
         </article>
       `).join('')}
-      ${state.chatBusy ? `<div class="chat-message luna is-thinking" role="status"><div class="author-tag">${brandMark()} Luna</div><div class="chat-thinking-pulse"><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-text">✦ Attuning to the cosmic context… Luna is contemplating…</span></div></div>` : ''}
+      ${state.chatBusy ? `<div class="chat-message luna is-thinking" role="status"><div class="author-tag">${brandMark()} Luna</div><div class="chat-thinking-pulse"><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-text">${escapeHtml(state.chatStatus||'✦ Attuning to the cosmic context… Luna is contemplating…')}</span></div></div>` : ''}
       ${state.chatError ? `<div class="chat-error-banner" role="alert"><div class="chat-error-text"><strong>Service notice:</strong> ${escapeHtml(state.chatError)}</div><button type="button" class="btn small" data-action="retry-chat">Retry message</button></div>` : ''}
     </div>
 

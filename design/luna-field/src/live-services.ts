@@ -1794,6 +1794,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
               id: m.id || makeId('msg'),
               role: m.role === 'assistant' ? 'luna' : 'person',
               content: m.content || '',
+              replyTo: m.metadata?.reply_to_user_message_id,
+              servingModel: m.metadata?.serving_model,
+              fallbackUsed: Boolean(m.metadata?.failover),
               echoIds: Array.isArray(m.metadata?.selectedEchoIds)
                 ? m.metadata.selectedEchoIds
                 : Array.isArray(m.metadata?.echoIds)
@@ -1806,7 +1809,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         }
       },
 
-      async respond(message: string, echoIds: string[], options?: { sessionId?: string; clientTurnId?: string }): Promise<ChatMessage> {
+      async respond(message: string, echoIds: string[], options?: { sessionId?: string; clientTurnId?: string; modelKey?: string; signal?: AbortSignal }): Promise<ChatMessage> {
         const clean = cleanText(message);
         if (!clean) throw new Error('Write a message first.');
 
@@ -1830,8 +1833,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
         const modelKey = options?.modelKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('luna_model_key') : null) || 'anthropic-fable-5';
         const apiBaseUrl = 'https://loops-production-e1d5.up.railway.app';
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        const {signal,cleanup}=composeTimeoutSignal(options?.signal,180000);
 
         try {
           const response = await fetch(`${apiBaseUrl}/api/chat`, {
@@ -1849,9 +1851,9 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
                 selectedEchoIds: echoIds || []
               }
             }),
-            signal: controller.signal
+            signal
           });
-          clearTimeout(timeoutId);
+
 
           if (!response.ok) {
             let errMsg = `Server error (${response.status})`;
@@ -1869,13 +1871,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
           const data = await response.json();
           const reply = typeof data.message === 'string' ? data.message : (data.message?.content || data.reply || '');
-          if (!reply && data.error) {
-            throw new Error(data.error);
-          }
+          if (!reply.trim()) throw new Error(data.error||'Luna returned no reply.');
 
           return {
             id: data.message?.id || data.assistantMessageId || makeId('chat'),
             role: 'luna',
+            replyTo: data.userMessageId||clientTurnId,
             content: reply,
             echoIds: echoIds || [],
             servingModel: data.servingModel || data.message?.servingModel,
@@ -1883,12 +1884,12 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
             fallbackNotice: data.fallbackNotice || data.message?.fallbackNotice
           };
         } catch (fetchErr: any) {
-          clearTimeout(timeoutId);
-          if (fetchErr.name === 'AbortError') {
-            throw new Error('Luna took longer than expected to respond. Please retry.');
+
+          if (!options?.signal?.aborted && signal.aborted) {
+            throw new Error('Luna is taking longer than expected. Checking for a saved reply…');
           }
           throw fetchErr;
-        }
+        }finally{cleanup();}
       },
 
       async synthesizeSpeech(text: string, options?: { voiceId?: string; model?: string; messageId?: string; signal?: AbortSignal }): Promise<SpeechSynthesisResult> {
