@@ -1,3 +1,4 @@
+import { makeThreadIndex } from './thread-browse.ts';
 import { ECHO_PAGE_SIZE, echoCycleOptions, echoTimeQuery, echoPageEndpoint, echoPageCursor, matchesEchoQuery } from './echo-browse.ts';
 import { unlockWithPassphrase, encryptText, decryptText } from '../../../src/lib/encryption.js';
 import { idbStorage } from '../../../src/lib/authStorage.js';
@@ -512,6 +513,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
   let memorySnapshot: FieldSnapshot | null = null;
   const loadedEchoIds=new Set<string>();
+  let threadMetadata:any[]|null=null;
   let echoMapCache:{key:string;items:Echo[]}|null=null;
   const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
@@ -538,7 +540,7 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
   const accountChanged = () => {
     const next = getAuthSession().userId;
     if (next === observedUser) return;
-    lockPrivate();loadedEchoIds.clear();echoMapCache=null;
+    lockPrivate();loadedEchoIds.clear();echoMapCache=null;threadMetadata=null;
     observedUser = next; authGeneration++; inFlightRefresh = null;
     signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
     memorySnapshot = null;
@@ -654,22 +656,14 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
     const loops = getLocalLoops();
     const reflections = getLocalReflections();
 
-    const threadMap = new Map<string, { id: string; title: string; echoIds: string[]; loopIds: string[] }>();
-    for (const e of echoes) {
-      for (const tag of e.threadIds) {
-        if (!threadMap.has(tag)) {
-          threadMap.set(tag, { id: tag, title: tag, echoIds: [], loopIds: [] });
-        }
-        threadMap.get(tag)!.echoIds.push(e.id);
-      }
+    // Discover older Threads using only owner-scoped tag metadata. Echo bodies
+    // and audio remain paged separately when the user opens a Thread.
+    const tagged=new Map((threadMetadata||[]).map(row=>[row.id,row]));
+    for(const e of echoes){
+      if(!threadMetadata||e.syncStatus!=='synced')tagged.set(e.id,{id:e.id,tags:e.threadIds,created_at:e.occurredAt});
     }
-    const threads: Thread[] = Array.from(threadMap.values()).map(t => ({
-      id: t.id,
-      title: t.title,
-      description: 'Connected in your personal field.',
-      echoIds: t.echoIds,
-      loopIds: t.loopIds
-    }));
+    const removed=new Set(getStoredJson<string[]>('luna_deleted_echo_ids_'+getAuthSession().userId,[]));
+    const threads=makeThreadIndex([...tagged.values()].filter(row=>!removed.has(row.id)));
 
     return {
       echoes,
@@ -1730,16 +1724,35 @@ export function createLiveLunaServices(audioAssets: Record<string, string> = {})
 
     threads: {
       async list() {
-        const db = assembleSnapshot();
-        return structuredClone(db.threads);
+        accountChanged();
+        const owner=getAuthSession().userId,epoch=authGeneration;
+        if(sampleMode||!owner||!getAuthSession().token)return structuredClone(assembleSnapshot().threads);
+        const rows:any[]=[];let cursor:string|undefined;
+        do{
+          const endpoint=echoPageEndpoint(owner,{cursor});
+          const params=new URLSearchParams(endpoint.split('?')[1]);
+          params.set('select','id,tags,created_at');params.set('tags','not.eq.[]');params.set('limit','501');
+          const page=await supabaseFetch('/rest/v1/echoes?'+params.toString());
+          if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+          if(!Array.isArray(page))throw new Error('Threads could not be loaded.');
+          const batch=page.slice(0,500);rows.push(...batch);
+          const next=page.length>500&&batch.length?echoPageCursor(batch.at(-1)):undefined;
+          if(next&&next===cursor)throw new Error('Threads could not finish loading. Try again.');
+          cursor=next;
+        }while(cursor);
+        threadMetadata=rows;
+        return structuredClone(assembleSnapshot().threads);
       },
       async linkEcho(threadId: string, echoId: string) {
+        accountChanged();
+        const owner=getAuthSession().userId;
         const local = getStoredJson<any[]>(ECHOES_KEY, []);
-        const echo = local.find(e => e.id === echoId);
+        const echo = local.find(e => e.id === echoId && ((!e.user_id&&!e.userId)||e.user_id===owner||e.userId===owner));
         if (!echo) throw new Error('Echo not found.');
         if (!Array.isArray(echo.tags)) echo.tags = [];
         if (!echo.tags.includes(threadId)) {
-          echo.tags.push(threadId);
+          echo.tags.push(threadId);echo.syncStatus='local-only';echo.updated_at=new Date().toISOString();
+          if(threadMetadata){threadMetadata=threadMetadata.filter(row=>row.id!==echoId);threadMetadata.push({id:echoId,tags:[...echo.tags],created_at:echo.created_at});}
           setStoredJson(ECHOES_KEY, local);
         }
         memorySnapshot = assembleSnapshot();

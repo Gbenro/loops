@@ -7,7 +7,7 @@ export type SyncStatus = 'local-only' | 'syncing' | 'synced' | 'failed';
 export interface LunarContext { cycleId: string; cycleLabel?: string; phaseId: PhaseId; label: string; source: 'fixture' | 'backend'; }
 export interface Echo { id: string; title: string; body: string; occurredAt: string; kind: 'voice' | 'text'; isEncrypted?: boolean; locked?: boolean; audioKey?: string; audioUrl?: string; audio_path?: string; duration?: number; waveform?: number[]; waveformSource?: 'decoded-audio'|'capture-levels'|'unavailable'; context: LunarContext; threadIds: string[]; provenance: Provenance; user_id?: string; syncStatus?: SyncStatus; audioSyncStatus?: SyncStatus; }
 export interface Loop { id: string; title: string; note: string; status: LoopStatus; isEncrypted?: boolean; locked?: boolean; subtasks?: {id:string;text:string;done:boolean;isPhaseCheckpoint?:boolean;[key:string]:unknown}[]; echoId?: string; history: {status: LoopStatus; at: string}[]; provenance: Provenance; user_id?: string; syncStatus?: SyncStatus; }
-export interface Thread { id: string; title: string; description: string; echoIds: string[]; loopIds: string[]; }
+export interface Thread { lastEchoAt?:string; id: string; title: string; description: string; echoIds: string[]; loopIds: string[]; }
 export interface Reflection { id: string; echoId: string; author: 'person' | 'ai-assisted'; body: string; createdAt: string; provenance: Provenance; user_id?: string; }
 export interface Phase { id: PhaseId; name: string; shortName: string; index: number; light: number; fixtureDate: string; }
 export interface Cycle { id: string; name: string; world: 'ocean'; range: string; phases: Phase[]; }

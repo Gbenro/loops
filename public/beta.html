@@ -191,6 +191,23 @@ dialog.capture-compact{position:fixed;inset:auto 12px calc(84px + env(safe-area-
 
 .echo-journey .context-button{display:inline-flex;align-items:center;justify-content:center;gap:8px}.echo-journey .context-button .moon-disc{flex-shrink:0;color:var(--gold)}
 
+.thread-browser-controls{display:flex;gap:16px;align-items:end;margin:0 0 20px}
+.thread-search{flex:1;min-width:0}
+.thread-search input{width:100%;min-height:48px}
+.thread-sort{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.thread-sort select{min-height:48px;max-width:100%}
+.thread-count{margin:0 0 12px}
+.thread-list{display:grid;gap:4px}
+.thread-row{display:flex;align-items:center;gap:14px;min-height:76px;padding:14px 10px;border-bottom:1px solid var(--line);border-radius:12px;text-decoration:none}
+.thread-row:hover,.thread-row:focus-visible{background:var(--surface)}
+.thread-row-icon{color:var(--gold);flex-shrink:0}
+.thread-row-copy{display:grid;gap:6px;min-width:0;flex:1}
+.thread-row-copy strong{font:400 20px/1.3 var(--serif);overflow-wrap:anywhere}
+.thread-row-copy>span{font-size:12px;color:var(--muted)}
+.thread-row>svg{flex-shrink:0;color:var(--muted)}
+.thread-show-more{display:block;min-height:48px;margin:24px auto}
+@media(max-width:480px){.thread-browser-controls{display:grid;gap:12px}.thread-sort{display:flex;align-items:center;justify-content:space-between}.thread-sort select{min-width:180px}.thread-row{padding:12px 4px;gap:10px}.thread-row-copy strong{font-size:19px}}
+
 .echo-journey{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;--bg:#0b1019;--sidebar:#0e141f;--surface:#121b28;--surface2:#182332;--text:#ebece9;--muted:#a2adbb;--faint:#8997a7;--line:#2a3544;--gold:#dbc18c;--gold-dim:#72684f;--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;background:var(--bg);color:var(--text);font-size:14px}
 .echo-journey *{box-sizing:border-box}.echo-journey body{margin:0}.echo-journey button,.echo-journey select,.echo-journey input{font:inherit}.echo-journey button,.echo-journey a,.echo-journey select,.echo-journey input{touch-action:manipulation}.echo-journey button,.echo-journey select{color:inherit}.echo-journey button{cursor:pointer}.echo-journey button:disabled{cursor:default;opacity:.45}.echo-journey button:focus-visible,.echo-journey a:focus-visible,.echo-journey summary:focus-visible,.echo-journey select:focus-visible,.echo-journey input:focus-visible{outline:2px solid var(--gold);outline-offset:5px}.echo-journey a{color:inherit;text-decoration:none}.echo-journey button{border:0;background:transparent}.echo-journey p{line-height:1.65}.echo-journey h1,.echo-journey h2,.echo-journey h3,.echo-journey p{margin-top:0}.echo-journey .skip{position:fixed;top:-100px;left:20px;padding:15px;background:var(--surface2);z-index:10}.echo-journey .skip:focus{top:10px}.echo-journey .sidebar{position:fixed;width:218px;inset:0 auto 0 0;background:var(--sidebar);border-right:1px solid var(--line);padding:36px 25px;display:flex;flex-direction:column}.echo-journey .brand{display:flex;align-items:center;gap:13px;font-size:22px;letter-spacing:.2em}.echo-journey .brand svg{width:37px;color:var(--gold)}.echo-journey .brand-caption{font-size:11px;color:var(--muted);margin:15px 0 60px}.echo-journey .sidebar nav{display:grid;gap:10px}.echo-journey .sidebar nav a{padding:13px 12px;font-size:13px;color:var(--muted);border-radius:5px;display:flex;gap:13px;align-items:center}.echo-journey .sidebar nav a[aria-current]{color:var(--gold);background:var(--surface2)}.echo-journey .sidebar nav span{font-size:22px}.echo-journey .aside-foot{margin-top:auto;font-family:var(--serif);font-style:italic;color:var(--muted);line-height:1.8;font-size:15px}.echo-journey .aside-foot span{font:9px/1.8 sans-serif;letter-spacing:.13em;display:block;margin-top:29px}.echo-journey .workspace{margin-left:218px}.echo-journey .topbar{height:77px;border-bottom:1px solid var(--line);padding:0 42px;display:flex;align-items:center;gap:20px}.echo-journey .crumb{font-size:12px;color:var(--muted);margin-right:auto}.echo-journey .crumb span{margin:0 12px;color:var(--faint)}.echo-journey .preview-tag{font-size:9px;letter-spacing:.12em;color:var(--gold)}.echo-journey .icon-button{min-width:44px;min-height:44px;font-size:22px;border-radius:50%;display:inline-grid;place-items:center}.echo-journey .icon-button:hover{background:var(--surface2)}.echo-journey main{max-width:1420px;margin:auto;padding:24px 42px 0}.echo-journey .notice{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:17px;color:var(--muted)}.echo-journey .notice p{font-size:11px;margin:0}.echo-journey .notice strong{color:var(--gold);font-weight:500}.echo-journey .notice-dot{background:var(--gold);width:5px;height:5px;border-radius:50%;flex-shrink:0}.echo-journey .intro{padding:39px 0 32px;display:flex;align-items:center;justify-content:space-between;gap:20px}.echo-journey .eyebrow{font-size:10px;letter-spacing:.15em;font-weight:500;color:var(--gold);margin-bottom:15px}.echo-journey h1{font-family:var(--serif);font-weight:400;font-size:clamp(29px,2.8vw,42px);letter-spacing:-.025em;line-height:1.18;margin-bottom:15px}.echo-journey .lead{font-size:13px;color:var(--muted);margin:0}.echo-journey .intro-orbit{width:110px;flex-shrink:0;color:var(--gold-dim)}.echo-journey .intro-orbit svg{stroke:currentColor;stroke-width:.7;fill:none}.echo-journey .intro-orbit .orbit-dot{fill:var(--gold);stroke:none}.echo-journey .journey-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.95fr);gap:42px;align-items:start}.echo-journey .listening{position:sticky;top:24px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(160deg,var(--surface2),var(--surface) 47%);border-radius:12px;padding:23px 28px 0}.echo-journey .listening-top{display:flex;align-items:center;gap:10px;justify-content:space-between;position:relative;z-index:1}.echo-journey .listening-top .eyebrow{margin:0}.echo-journey .test-label{color:var(--muted);font-size:10px}.echo-journey .atmosphere{pointer-events:none;position:absolute;left:0;right:0;top:45px;height:170px;opacity:.15}.echo-journey .atmosphere svg{width:100%;height:100%;fill:none;stroke:var(--gold);stroke-width:.6}.echo-journey .voice-heading{position:relative;text-align:center;margin:37px 0 11px;min-height:111px}.echo-journey .moment-date{font-size:11px;color:var(--muted);letter-spacing:.035em;margin-bottom:11px}.echo-journey .voice-heading h2{font:400 clamp(24px,2.2vw,33px)/1.2 var(--serif);letter-spacing:-.02em;margin-bottom:12px}.echo-journey .context-button{font-size:11px;color:var(--muted);padding:10px;min-height:44px}.echo-journey .context-button:hover{color:var(--gold)}.echo-journey .voice-orbit{position:relative;width:166px;height:166px;margin:0 auto 19px;display:grid;place-items:center}.echo-journey .orbit{position:absolute;width:100%;height:100%;fill:none;stroke:var(--gold-dim);stroke-width:.6;pointer-events:none}.echo-journey .play{width:94px;height:94px;border-radius:50%;background:var(--gold);color:#17202a;font-size:27px;display:grid;place-items:center;box-shadow:0 0 0 10px #dbc18c05;transition:transform .15s}.echo-journey .play:hover{transform:scale(1.035)}.echo-journey .play span{line-height:1}.echo-journey .wave-wrap{height:64px;position:relative}.echo-journey .wave-wrap svg{width:100%;height:100%;color:var(--gold)}.echo-journey .wave-wrap input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}.echo-journey .wave-wrap:focus-within{outline:2px solid var(--gold);outline-offset:4px;border-radius:4px}.echo-journey .times{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;margin:7px 0 16px}.echo-journey .transport{display:flex;align-items:center;justify-content:space-between;gap:10px}.echo-journey .transport #player-status{text-align:center;font-size:11px;color:var(--muted);max-width:270px;line-height:1.5}.echo-journey .place-actions{display:flex;justify-content:center;gap:15px;margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.echo-journey .quiet-button{font-size:11px;color:var(--gold);min-height:44px;padding:7px 3px}.echo-journey .quiet-button:hover{text-decoration:underline}.echo-journey .save-note{font-size:10px;color:var(--muted);text-align:center;margin:0 0 20px;min-height:17px}.echo-journey .continuation{margin:0 -28px;background:var(--bg);padding:20px 28px}.echo-journey .continuation>div{display:flex;justify-content:space-between;align-items:center;gap:10px}.echo-journey .continuation .eyebrow{margin:0;font-size:9px;color:var(--muted)}.echo-journey .continuation strong{font-weight:400;font-size:11px;color:var(--gold)}.echo-journey progress{width:100%;height:3px;border:0;appearance:none;display:block;margin:15px 0 12px;border-radius:5px;background:var(--line)}.echo-journey progress::-webkit-progress-bar{background:var(--line)}.echo-journey progress::-webkit-progress-value{background:var(--gold)}.echo-journey progress::-moz-progress-bar{background:var(--gold)}.echo-journey .continuation p{font-size:11px;color:var(--muted);margin:0}.echo-journey .path-heading{display:flex;align-items:center;justify-content:space-between;margin:2px 0 25px}.echo-journey .path-heading .eyebrow{margin-bottom:8px;color:var(--muted);font-size:9px}.echo-journey .path h2{font:400 27px var(--serif);margin:0}.echo-journey .count{font-size:11px;color:var(--muted)}.echo-journey .filters{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.echo-journey .filters fieldset{border:0;padding:0;margin:0;min-width:0}.echo-journey .filters legend,.echo-journey .order-label{font-size:10px;color:var(--muted)}.echo-journey .filters legend{margin-bottom:8px;padding:0}.echo-journey .segments{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px}.echo-journey .segments button{font-size:11px;min-height:38px;min-width:51px;padding:8px}.echo-journey .segments button[aria-pressed=true]{color:var(--gold);background:var(--surface2);border-radius:4px}.echo-journey .order-label{display:grid;gap:8px}.echo-journey select{background:var(--bg);border:1px solid var(--line);min-height:46px;border-radius:7px;padding:7px;font-size:11px}.echo-journey .path-note{font-size:10px;color:var(--muted);margin:17px 0 24px}.echo-journey .group{position:relative;padding-left:20px;border-left:1px solid var(--line);margin-left:5px}.echo-journey .group:before{content:"";position:absolute;left:-3px;top:7px;width:5px;height:5px;border-radius:50%;background:var(--gold-dim)}.echo-journey .group h3{font-size:11px;font-weight:500;letter-spacing:.02em;color:var(--muted);margin:0;padding:0 0 8px}.echo-journey .group h3 small{font-weight:400;font-size:10px;display:block;margin-top:6px}.echo-journey .echo{width:100%;text-align:left;display:flex;align-items:center;gap:14px;padding:17px 13px;margin:0 0 4px;border-bottom:1px solid var(--line);min-height:82px;border-radius:6px 6px 0 0}.echo-journey .echo:hover:not(:disabled){background:var(--surface)}.echo-journey .echo[aria-current=true]{background:var(--surface2);border-bottom-color:var(--gold-dim)}.echo-journey .echo:disabled{opacity:1;color:var(--faint)}.echo-journey .echo:disabled .echo-name{color:var(--muted)}.echo-journey .echo-index{color:var(--faint);font-size:10px;width:15px;flex-shrink:0}.echo-journey .echo[aria-current=true] .echo-index{color:var(--gold)}.echo-journey .echo-body{min-width:0;flex:1}.echo-journey .echo-name{font:400 17px/1.25 var(--serif);display:block;margin-bottom:8px}.echo-journey .echo-meta{font-size:10px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;line-height:1.5}.echo-journey .echo-length{color:var(--faint);font-size:10px;white-space:nowrap}.echo-journey .group+.group{padding-top:24px}.echo-journey .group+.group:before{top:31px}.echo-journey .zone-note{font-size:10px;color:var(--muted);margin:24px 0}.echo-journey .zone-note span{color:var(--text)}.echo-journey details{margin:36px 0 25px;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.7}.echo-journey summary{cursor:pointer;min-height:32px;padding:5px 0;color:var(--text)}.echo-journey details p{max-width:780px;margin:14px 0 0}.echo-journey footer{display:flex;justify-content:space-between;gap:20px;color:var(--faint);font-size:10px;padding-bottom:27px}.echo-journey footer span{font-size:9px}
 html[data-theme=light] .echo-journey{color-scheme:light;--bg:#f4f3ee;--sidebar:#eeeee8;--surface:#fbfbf7;--surface2:#e9e9e0;--text:#26313b;--muted:#566473;--faint:#5c6874;--line:#d4d7ce;--gold:#795b22;--gold-dim:#9d8b66}html[data-theme=light] .echo-journey .play{background:#dbc18c;color:#17202a}
@@ -1280,6 +1297,32 @@ function matchesEchoQuery(e     ,q          ){
 }
 
 
+// thread-browse.ts
+
+const THREAD_PAGE_SIZE=12;
+function makeThreadIndex(rows                                               )         {
+ const map=new Map               ();
+ for(const row of rows){
+  if(!Array.isArray(row.tags))continue;
+  for(const tag of new Set(row.tags.filter(t=>typeof t==='string'&&t.trim()))){
+   let thread=map.get(tag);
+   if(!thread){thread={id:tag,title:tag,description:'Connected in your personal field.',echoIds:[],loopIds:[]};map.set(tag,thread);}
+   if(!thread.echoIds.includes(row.id))thread.echoIds.push(row.id);
+   const time=Date.parse(row.created_at||'');
+   if(Number.isFinite(time)&&time>Date.parse(thread.lastEchoAt||'1970-01-01'))thread.lastEchoAt=row.created_at;
+  }
+ }
+ return [...map.values()];
+}
+function sortedThreads(threads         ,search='',order='recent')         {
+ const term=search.trim().toLocaleLowerCase();
+ return threads.filter(t=>!term||(t.title+' '+t.description).toLocaleLowerCase().includes(term)).sort((a,b)=>{
+  const recency=(Date.parse(b.lastEchoAt||'')||0)-(Date.parse(a.lastEchoAt||'')||0);
+  return (order==='count'?b.echoIds.length-a.echoIds.length:0)||recency||a.title.localeCompare(b.title)||a.id.localeCompare(b.id);
+ });
+}
+
+
 // audio-fixtures.ts
 // Derived from the included synthetic speech MP3 files, not decorative data.
 const AUDIO_FIXTURES={"water":{"waveform":[0.00233,0.00183,0.002,0.0022,0.40957,0.7003,0.54956,0.52764,0.62401,0.01578,0.01137,0.49258,0.76744,0.63982,0.63188,0.64895,1,0.86088,0.59282,0.63979,0.69386,0.72391,0.57583,0.63842,0.76082,0.82017,0.64071,0.69682,0.72847,0.85273,0.85451,0.49671,0.57486,0.1199,0.1116,0.44971,0.50777,0.54471,0.5911,0.30369,0.44038,0.58282,0.50501,0.55198,0.68693,0.47705,0.43684,0.47359,0.45447,0.37408,0.18429,0.00766,0.0018,0.00543,0.01393,0.38144,0.51934,0.46643,0.29971,0.02011,0.29705,0.5556,0.58246,0.727,0.62239,0.74824,0.62283,0.60866,0.3435,0.09517,0.14663,0.0526,0.00159,0.05305,0.17294,0.5389,0.64745,0.56813,0.53352,0.55693,0.01741,0.00974,0.02702,0.51019,0.66306,0.68494,0.54627,0.6231,0.58512,0.10146,0.01381,0.03439,0.54767,0.59364,0.62452,0.59761,0.70554,0.38793,0.51608,0.62337,0.59284,0.59761,0.54829,0.21001,0.0241,0.35909,0.53805,0.50445,0.16309,0.13501,0.49893,0.46103,0.05748,0.00423,0.0015,0.37106,0.58078,0.61008,0.58465,0.69961,0.47212,0.3438,0.62277,0.56186,0.55088,0.06509,0.40672,0.68297,0.74357,0.65569,0.47868,0.67095,0.39056,0.35656,0.52024,0.2397,0.09834,0.44316,0.03706,0.39412,0.63224,0.60914,0.62124,0.57998,0.46752,0.0751,0.26853,0.35593,0.02128,0.56534,0.49348,0.42685,0.5484,0.56361,0.42033,0.54739,0.49896,0.49645,0.45173,0.18922,0.00415,0.00314,0.00117,0.06542,0.44307,0.65296,0.80842,0.63517,0.66384,0.49275,0.58342,0.19574,0.08388,0.33685,0.62945,0.57515,0.50991,0.50548,0.47295,0.01774,0.44741,0.57674,0.44527,0.22022,0.34283,0.52164,0.12521,0.11719,0.40429,0.63115,0.61191,0.60958,0.53863,0.62122,0.46861,0.01623,0.01766,0.02578,0.45462,0.58023,0.52545,0.02076,0.24778,0.5275,0.67579,0.56099,0.53558,0.60836,0.65087,0.58711,0.70614,0.5233,0.69142,0.61665,0.5573,0.3387,0.02396,0.04911,0.28679,0.49678,0.52402,0.58662,0.79226,0.7456,0.07367,0.44215,0.36042,0.52692,0.53816,0.16474,0.04912,0.11954,0.35177,0.49736,0.65161,0.6577,0.62003,0.48728,0.52029,0.49885,0.46683,0.44323,0.34291,0.05369,0.00244,0.00146,0.00074,0,0,0,0,0,0,0,0,0],"duration":13.265,"source":"decoded-audio"},"question":{"waveform":[0.00121,0.00152,0.00156,0.00104,0.00229,0.0236,0.28231,0.57433,0.67608,0.84371,0.80992,0.96158,0.71031,0.59557,0.74691,0.94275,0.9315,0.63285,0.56637,0.04456,0.2263,0.60723,0.71918,0.72801,0.6668,0.75003,0.97459,1,0.24854,0.02,0.02462,0.49917,0.58706,0.49548,0.31546,0.5546,0.75824,0.5211,0.47619,0.586,0.52027,0.15641,0.45528,0.55319,0.52777,0.56171,0.35586,0.40446,0.2498,0.02023,0.33261,0.50628,0.49611,0.48798,0.43581,0.42268,0.48765,0.54768,0.59897,0.69396,0.55117,0.68735,0.59011,0.59676,0.55635,0.53589,0.53451,0.54198,0.365,0.40654,0.41147,0.31385,0.55128,0.3855,0.25752,0.18623,0.37345,0.52478,0.49567,0.45383,0.57534,0.66671,0.66997,0.56735,0.56118,0.51703,0.23848,0.00418,0.01582,0.26064,0.52739,0.42612,0.0413,0.50206,0.5778,0.25616,0.33106,0.56225,0.55259,0.59854,0.08724,0.54726,0.64081,0.1537,0.08061,0.41444,0.59336,0.64179,0.67245,0.65195,0.48852,0.41969,0.37486,0.51079,0.3035,0.07908,0.01855,0.07008,0.36231,0.50511,0.3025,0.05564,0.13303,0.07927,0.00641,0.02476,0.41563,0.529,0.57523,0.54461,0.40231,0.32247,0.09266,0.01141,0.04716,0.36818,0.54474,0.54769,0.39345,0.17393,0.12608,0.35648,0.45892,0.50579,0.63729,0.57708,0.19394,0.00175,0.00605,0.01349,0.31522,0.59541,0.56721,0.55111,0.50018,0.45357,0.31796,0.50253,0.54084,0.55821,0.49726,0.51852,0.48963,0.51849,0.33156,0.03797,0.07588,0.41941,0.497,0.44808,0.4571,0.48431,0.55633,0.50439,0.06673,0.09438,0.31295,0.60271,0.52533,0.47742,0.49682,0.46881,0.61465,0.59937,0.57929,0.5739,0.40024,0.03958,0.06197,0.35299,0.46755,0.3746,0.11388,0.15164,0.57994,0.48999,0.55258,0.5748,0.49012,0.54548,0.53408,0.50951,0.27976,0.04778,0.35015,0.51237,0.65658,0.67263,0.10604,0.12557,0.22641,0.6297,0.46081,0.45078,0.66269,0.22384,0.14726,0.12432,0.43142,0.48608,0.49386,0.55803,0.49441,0.21348,0.32992,0.47653,0.51262,0.48769,0.4788,0.52801,0.55321,0.37257,0.06635,0.32342,0.42577,0.41145,0.53903,0.75743,0.36466,0.31581,0.35658,0.07118,0.00514,0.00158,0.00095,0.00001,0,0,0,0,0,0,0,0,0,0],"duration":11.58,"source":"decoded-audio"}};
@@ -2110,6 +2153,7 @@ function createMockServices(audioAssets                      ={})              {
 
 
 
+
 const SUPABASE_URL = 'https://eyxvsbqyzeodsjajfqsj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uE5EcDAKSkkb9h0I2hEPEw_RGb7qbgr';
 const LOOPS_KEY = 'cosmic_loops_v1';
@@ -2598,6 +2642,7 @@ function createLiveLunaServices(audioAssets                         = {})       
   let sampleMode = localStorage.getItem(SAMPLE_MODE_KEY) === 'true';
   let memorySnapshot                       = null;
   const loadedEchoIds=new Set        ();
+  let threadMetadata           =null;
   let echoMapCache                               =null;
   const signedUrlCache = new Map                                          ();
 
@@ -2624,7 +2669,7 @@ function createLiveLunaServices(audioAssets                         = {})       
   const accountChanged = () => {
     const next = getAuthSession().userId;
     if (next === observedUser) return;
-    lockPrivate();loadedEchoIds.clear();echoMapCache=null;
+    lockPrivate();loadedEchoIds.clear();echoMapCache=null;threadMetadata=null;
     observedUser = next; authGeneration++; inFlightRefresh = null;
     signedUrlCache.clear(); objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
     memorySnapshot = null;
@@ -2740,22 +2785,14 @@ function createLiveLunaServices(audioAssets                         = {})       
     const loops = getLocalLoops();
     const reflections = getLocalReflections();
 
-    const threadMap = new Map                                                                             ();
-    for (const e of echoes) {
-      for (const tag of e.threadIds) {
-        if (!threadMap.has(tag)) {
-          threadMap.set(tag, { id: tag, title: tag, echoIds: [], loopIds: [] });
-        }
-        threadMap.get(tag) .echoIds.push(e.id);
-      }
+    // Discover older Threads using only owner-scoped tag metadata. Echo bodies
+    // and audio remain paged separately when the user opens a Thread.
+    const tagged=new Map((threadMetadata||[]).map(row=>[row.id,row]));
+    for(const e of echoes){
+      if(!threadMetadata||e.syncStatus!=='synced')tagged.set(e.id,{id:e.id,tags:e.threadIds,created_at:e.occurredAt});
     }
-    const threads           = Array.from(threadMap.values()).map(t => ({
-      id: t.id,
-      title: t.title,
-      description: 'Connected in your personal field.',
-      echoIds: t.echoIds,
-      loopIds: t.loopIds
-    }));
+    const removed=new Set(getStoredJson          ('luna_deleted_echo_ids_'+getAuthSession().userId,[]));
+    const threads=makeThreadIndex([...tagged.values()].filter(row=>!removed.has(row.id)));
 
     return {
       echoes,
@@ -3816,16 +3853,35 @@ function createLiveLunaServices(audioAssets                         = {})       
 
     threads: {
       async list() {
-        const db = assembleSnapshot();
-        return structuredClone(db.threads);
+        accountChanged();
+        const owner=getAuthSession().userId,epoch=authGeneration;
+        if(sampleMode||!owner||!getAuthSession().token)return structuredClone(assembleSnapshot().threads);
+        const rows      =[];let cursor                 ;
+        do{
+          const endpoint=echoPageEndpoint(owner,{cursor});
+          const params=new URLSearchParams(endpoint.split('?')[1]);
+          params.set('select','id,tags,created_at');params.set('tags','not.eq.[]');params.set('limit','501');
+          const page=await supabaseFetch('/rest/v1/echoes?'+params.toString());
+          if(owner!==getAuthSession().userId||epoch!==authGeneration)throw new Error('Account changed.');
+          if(!Array.isArray(page))throw new Error('Threads could not be loaded.');
+          const batch=page.slice(0,500);rows.push(...batch);
+          const next=page.length>500&&batch.length?echoPageCursor(batch.at(-1)):undefined;
+          if(next&&next===cursor)throw new Error('Threads could not finish loading. Try again.');
+          cursor=next;
+        }while(cursor);
+        threadMetadata=rows;
+        return structuredClone(assembleSnapshot().threads);
       },
       async linkEcho(threadId        , echoId        ) {
+        accountChanged();
+        const owner=getAuthSession().userId;
         const local = getStoredJson       (ECHOES_KEY, []);
-        const echo = local.find(e => e.id === echoId);
+        const echo = local.find(e => e.id === echoId && ((!e.user_id&&!e.userId)||e.user_id===owner||e.userId===owner));
         if (!echo) throw new Error('Echo not found.');
         if (!Array.isArray(echo.tags)) echo.tags = [];
         if (!echo.tags.includes(threadId)) {
-          echo.tags.push(threadId);
+          echo.tags.push(threadId);echo.syncStatus='local-only';echo.updated_at=new Date().toISOString();
+          if(threadMetadata){threadMetadata=threadMetadata.filter(row=>row.id!==echoId);threadMetadata.push({id:echoId,tags:[...echo.tags],created_at:echo.created_at});}
           setStoredJson(ECHOES_KEY, local);
         }
         memorySnapshot = assembleSnapshot();
@@ -4485,6 +4541,7 @@ function shell(active       ,body       ,isSample=false,user                    
 
 
 
+
 function findReturnPair(echoes        )         {
   if (!echoes || echoes.length < 2) return [];
   const phaseMap = new Map                ();
@@ -4875,14 +4932,27 @@ function loopsView(db               , state         ) {
   return `<div class="page-intro"><div><div class="eyebrow">Intentions with room to change</div><h1>Still unfolding.</h1><p>Something you want to follow, return to, or simply leave open.</p></div><button class="btn primary" data-action="new-loop">${icon('plus', 16)}Leave an intention</button></div><div class="filterbar"><div class="segmented" aria-label="Intention state">${[['unfolding', 'Unfolding'], ['settled', 'Settled'], ['all', 'All Loops']].map(([v, label]) => `<button data-action="loop-filter" data-value="${v}" aria-pressed="${state.loopFilter === v}">${label}</button>`).join('')}</div></div><div class="loops-layout"><section class="loops-list">${loops.length ? loops.map(l => `<article class="intent-row"><span class="loop-mark ${l.status}"></span><div class="loop-content"><h3>${escapeHtml(l.title)}</h3><p>${escapeHtml(l.note)}</p><div class="loop-actions"><label><span class="sr-only">State of ${escapeHtml(l.title)}</span><select class="inline-select" data-loop-id="${l.id}">${LOOP_STATUSES.map(s => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></label>${l.echoId ? `<a class="text-link" href="#/echo/${l.echoId}">${icon('echo', 13)}Return to its Echo</a>` : ''}</div>${loopChecklist(l)}${l.history.length ? `<p class="loop-history">${l.history.map(h => statusLabel(h.status)).join(' → ')} → ${statusLabel(l.status)}</p>` : ''}</div></article>`).join('') : emptyState('Room to leave something open', 'An intention can be a question, a small gesture, or a direction you want to explore.', 'new-loop', 'Leave an intention')}</section><aside class="loop-note"><div class="loop-symbol">◌</div><h2>An open loop<br>is an invitation.</h2><p>There is no overdue here. You can follow an intention, let it evolve, carry it forward, or consciously close it.</p><div class="rule"></div><p>Closing something is also a way of continuing.</p></aside></div>`;
 }
 
+function threadBrowserResults(db              ,state         ){
+ if(state?.threadLoading&&!state?.threadReady)return '<p class="empty-inline" role="status">Finding your Threads…</p>';
+ const echoes=new Map(db.echoes.map(e=>[e.id,e]));
+ const threads=db.threads.map(t=>({...t,lastEchoAt:t.lastEchoAt||t.echoIds.map(id=>echoes.get(id)?.occurredAt||'').sort().at(-1)}));
+ const matches=sortedThreads(threads,state?.threadSearch||'',state?.threadSort||'recent');
+ const shown=matches.slice(0,state?.threadLimit||THREAD_PAGE_SIZE);
+ const status=state?.threadError?'<p class="small" role="alert">Could not load all Threads. <button class="text-link" data-action="threads-retry">Try again</button></p>':'';
+ return `${status}<p class="thread-count small muted" role="status">${shown.length} of ${matches.length} Threads${state?.threadLoading?' · Refreshing…':''}</p><div class="thread-list">${shown.map(t=>`<a class="thread-row" href="#/thread/${encodeURIComponent(t.id)}"><span class="thread-row-icon" aria-hidden="true">${icon('thread',20)}</span><span class="thread-row-copy"><strong>${escapeHtml(t.title)}</strong><span>${t.echoIds.length} ${t.echoIds.length===1?'Echo':'Echoes'}${t.lastEchoAt?' · Last Echo '+escapeHtml(new Date(t.lastEchoAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})):''}</span></span>${icon('arrow',16)}</a>`).join('')||`<p class="empty-inline">${state?.threadSearch?'No Threads match your search.':'Your Threads will appear as Echoes become connected.'}</p>`}</div>${shown.length<matches.length?'<button class="btn thread-show-more" data-action="threads-more">Show more</button>':''}`;
+}
 function threadsView(db               , id         , state         ) {
   if (id) {
     const t = db.threads.find(t => t.id === id);
+    if (!t && state?.threadLoading) return '<p role="status">Finding this Thread…</p>';
+    if (!t && state?.threadError) return '<p role="alert">Could not load this Thread. <button class="text-link" data-action="threads-retry">Try again</button></p>';
     if (!t) return emptyState('This Thread is not here', 'Return to your connected experiences.', 'go-threads', 'Explore Threads');
-    const list = db.echoes.filter(e => t.echoIds.includes(e.id)).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-    return `<a class="text-link detail-back" href="#/threads">${icon('back', 15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${list.length} Echoes · ${new Set(list.map(e => e.context.cycleId)).size} cycles</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e => echoRow(e)).join('')}</div>${state?echoBrowseFooter(state):''}<div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l => t.loopIds.includes(l.id)).map(miniLoop).join('') || '<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r => t.echoIds.includes(r.echoId)).map(reflectionBlock).join('') || '<p class="small muted">No reflections added here.</p>'}`;
+    const pageIds=state?.echoResults?new Set(state.echoResults.map(e=>e.id)):null;
+    const list = db.echoes.filter(e => (!pageIds||pageIds.has(e.id))&&e.threadIds.includes(id)).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+    return `<a class="text-link detail-back" href="#/threads">${icon('back', 15)}All Threads</a><div class="page-intro"><div><div class="eyebrow">A connection across time</div><h1>${escapeHtml(t.title)}</h1><p>${escapeHtml(t.description)}</p></div><span class="chip">${t.echoIds.length} ${t.echoIds.length===1?'Echo':'Echoes'}</span></div><div class="thread-timeline"><svg class="thread-flow-line" viewBox="0 0 40 700" preserveAspectRatio="none" aria-hidden="true"><path d="M20 0C-4 70 44 120 20 180S-4 270 20 350S44 440 20 525S-4 630 20 700"/></svg>${list.map(e => echoRow(e)).join('')}</div>${state?echoBrowseFooter(state):''}<div class="rule"></div><div class="section-head"><h2>Intentions along this Thread</h2></div>${db.loops.filter(l => t.loopIds.includes(l.id)).map(miniLoop).join('') || '<p class="small muted">No connected intentions.</p>'}<div class="rule"></div><h2>Reflections along the way</h2>${db.reflections.filter(r => t.echoIds.includes(r.echoId)).map(reflectionBlock).join('') || '<p class="small muted">No reflections added here.</p>'}`;
   }
-  return `<div class="page-intro"><div><div class="eyebrow">Continuity, without a conclusion</div><h1>What connects.</h1><p>Follow experiences across moments and cycles. You choose the connections.</p></div></div><div class="thread-grid">${db.threads.map(t => `<a class="thread-card" href="#/thread/${t.id}"><div class="thread-visual">${moonDisc(0, 25)}<span class="line"></span>${icon('echo', 30)}<span class="line"></span>${moonDisc(2, 29)}<span class="line"></span>${icon('loop', 25)}</div><h2>${escapeHtml(t.title)}</h2><p>${escapeHtml(t.description)}</p><span class="text-link">${t.echoIds.length} Echoes · ${t.loopIds.length} ${t.loopIds.length === 1 ? 'Loop' : 'Loops'} ${icon('arrow', 15)}</span></a>`).join('') || emptyState('Connections can wait', 'Begin with an Echo. You can connect experiences when a relationship feels relevant.')} </div><p class="small muted" style="margin-top:23px">Threads connect your moments across cycles without imposing external categories.</p>`;
+  return `<div class="page-intro"><div><h1>Threads</h1><p>Connections across your Echoes.</p></div></div><div class="thread-browser-controls"><label class="thread-search"><span class="sr-only">Search Threads</span><input id="thread-search" type="search" class="text-input" placeholder="Search Threads" value="${escapeHtml(state?.threadSearch||'')}"></label><label class="thread-sort"><span>Show first</span><select id="thread-sort" class="inline-select"><option value="recent" ${state?.threadSort!=='count'?'selected':''}>Recent activity</option><option value="count" ${state?.threadSort==='count'?'selected':''}>Most Echoes</option></select></label></div><div id="thread-results">${threadBrowserResults(db,state)}</div>`;
+
 }
 
 function reflectionsView(db               ) {
@@ -5096,7 +5166,7 @@ function routeView(db               , state         , isSample = false, isAuthen
       body = loopsView(db, state);
       break;
     case 'threads':
-      body = threadsView(db);
+      body = threadsView(db,undefined,state);
       break;
     case 'thread':
       body = threadsView(db, state.route.id,state);
@@ -5582,6 +5652,8 @@ const journeyMarkup = `<div class="echo-journey">
 
 
 
+
+
 const services=createLiveLunaServices(LUNA_AUDIO_ASSETS);
 const state=initialState();
 const root=document.getElementById('app') ;
@@ -5759,6 +5831,20 @@ async function initChatSessionIfNeeded(){
 }
 
 
+let threadLoadToken=0;
+function renderThreadResults(){
+ const target=document.getElementById('thread-results');
+ if(state.route.name==='threads'&&target)target.innerHTML=threadBrowserResults(currentDb(),state);
+}
+async function loadThreads(){
+ const token=++threadLoadToken;
+ state.threadLoading=true;state.threadError='';renderThreadResults();
+ try{await services.threads.list();if(token!==threadLoadToken)return;state.threadReady=true;}
+ catch(error){if(token!==threadLoadToken)return;state.threadError='Threads could not be loaded.';}
+ finally{
+  if(token===threadLoadToken){state.threadLoading=false;if(state.route.name==='threads')renderThreadResults();else if(state.route.name==='thread')render();}
+ }
+}
 let echoBrowseToken=0;
 let echoSearchTimer                                        ;
 function browseQuery()    {
@@ -5822,7 +5908,7 @@ async function loadEchoDetail(id       ){
  catch{/* The detail view retains its honest unavailable state. */}
 }
 
-function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
+function applyRoute(){state.route=parseRoute(location.hash);if(['threads','thread'].includes(state.route.name))void loadThreads();const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p       ;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
 function isSampleMode()        {return Boolean(services.isSampleMode&&services.isSampleMode());}
 let journeyView                                     =null;
 function render(focusMain=false){
@@ -6820,6 +6906,8 @@ document.addEventListener('click',async(event)=>{
       case 'echo-retry':await loadEchoBrowse(false,true);break;
       case 'echo-clear':state.echoKind='all';state.search='';state.echoBrowseKey=undefined;go('echoes');break;
       case 'echo-kind':state.echoKind=value       ;render();document.querySelector             (`[data-action="echo-kind"][data-value="${value}"]`)?.focus();break;
+      case 'threads-more':state.threadLimit=(state.threadLimit||THREAD_PAGE_SIZE)+THREAD_PAGE_SIZE;renderThreadResults();break;
+      case 'threads-retry':void loadThreads();break;
       case 'loop-filter':state.loopFilter=value       ;render();document.querySelector             (`[data-action="loop-filter"][data-value="${value}"]`)?.focus();break;
       case 'phase':state.phase=value       ;history.replaceState(null,'',`#/cycles?cycle=${state.cycleId}&phase=${state.phase}`);applyRoute();render();document.querySelector             (`[data-action="phase"][data-value="${value}"]`)?.focus();break;
       case 'time':state.time=value;render();document.querySelector             (`[data-action="time"][data-value="${value}"]`)?.focus();break;
@@ -6845,6 +6933,8 @@ document.addEventListener('click',async(event)=>{
 });
 
 document.addEventListener('input',event=>{
+  const threadInput=event.target                    ;
+  if(threadInput.id==='thread-search'){state.threadSearch=threadInput.value;state.threadLimit=THREAD_PAGE_SIZE;renderThreadResults();return;}
   const el=event.target                                        ;
   if(el instanceof HTMLTextAreaElement&&el.id&&!modal.contains(el))drafts[el.id]=el.value;
   if(el.id==='echo-search'){
@@ -6856,6 +6946,7 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',async(event)=>{
   const el=event.target                                      ;
   try{
+    if(el.id==='thread-sort'){state.threadSort=el.value       ;state.threadLimit=THREAD_PAGE_SIZE;renderThreadResults();return;}
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value              );render();toast('Your intention has room to change.');}
     if(el.id==='echo-cycle-select'){changeEchoFilter('cycle',el.value);return;}
     if(el.id==='echo-phase-select'){changeEchoFilter('phase',el.value);return;}
@@ -6961,7 +7052,7 @@ document.addEventListener('submit',async(event)=>{
   finally{submitting=false;if(submit?.isConnected)submit.disabled=false;}
 });
 window.addEventListener('luna-account-changed',()=>{
-  generation++;
+  generation++;threadLoadToken++;state.threadSearch='';state.threadSort='recent';state.threadLimit=THREAD_PAGE_SIZE;state.threadLoading=false;state.threadReady=false;state.threadError='';
   echoBrowseToken++;clearTimeout(echoSearchTimer);state.echoResults=undefined;state.echoBrowseKey=undefined;state.echoNextCursor=undefined;state.echoLoading=false;state.echoLoadError='';
   stopChatRecovery();state.chatBusy=false;chatLoadingPromise=null;
   stopPlayback();

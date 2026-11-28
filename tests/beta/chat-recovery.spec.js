@@ -22,6 +22,9 @@ async function fixture(page,onPost){
  // its response and the next frame so initialization cannot erase the test draft.
  const historyReady=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/chat_messages'));
  await page.goto('/beta#/chat');
+ // These scenarios start after opening the app; let its queued startup syncs
+ // settle before filling a draft or requesting a separate focus refresh.
+ await page.waitForLoadState('networkidle');
  await (await historyReady).finished();
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>resolve())));
  await expect.poll(()=>data.reads).toBeGreaterThan(0);

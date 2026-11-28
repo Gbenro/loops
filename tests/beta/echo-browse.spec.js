@@ -35,6 +35,9 @@ async function fixture(page,{slowSearch=false}={}){
   return route.fulfill({json:[]});
  });
  await page.goto('/beta#/echoes');
+ // These scenarios start after opening the app; let its queued startup syncs
+ // settle before filling a draft or requesting a separate focus refresh.
+ await page.waitForLoadState('networkidle');
  await expect(page.locator('#echo-results .echo-row')).toHaveCount(30);
  await expect(page.locator('.echo-page-status')).not.toContainText('Loading');
  return data;

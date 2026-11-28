@@ -1,3 +1,5 @@
+import { threadBrowserResults } from './views.ts';
+import { THREAD_PAGE_SIZE } from './thread-browse.ts';
 import { ECHO_PAGE_SIZE, echoTimeQuery, matchesEchoQuery } from './echo-browse.ts';
 import { mergeChatHistory, replyForTurn } from './chat-recovery.ts';
 import { prepareChatSpeech } from './speech-text.ts';
@@ -197,6 +199,20 @@ async function initChatSessionIfNeeded(){
 }
 
 
+let threadLoadToken=0;
+function renderThreadResults(){
+ const target=document.getElementById('thread-results');
+ if(state.route.name==='threads'&&target)target.innerHTML=threadBrowserResults(currentDb(),state);
+}
+async function loadThreads(){
+ const token=++threadLoadToken;
+ state.threadLoading=true;state.threadError='';renderThreadResults();
+ try{await services.threads.list();if(token!==threadLoadToken)return;state.threadReady=true;}
+ catch(error){if(token!==threadLoadToken)return;state.threadError='Threads could not be loaded.';}
+ finally{
+  if(token===threadLoadToken){state.threadLoading=false;if(state.route.name==='threads')renderThreadResults();else if(state.route.name==='thread')render();}
+ }
+}
 let echoBrowseToken=0;
 let echoSearchTimer:ReturnType<typeof setTimeout>|undefined;
 function browseQuery():any{
@@ -260,7 +276,7 @@ async function loadEchoDetail(id:string){
  catch{/* The detail view retains its honest unavailable state. */}
 }
 
-function applyRoute(){state.route=parseRoute(location.hash);const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
+function applyRoute(){state.route=parseRoute(location.hash);if(['threads','thread'].includes(state.route.name))void loadThreads();const p=state.route.query.get('phase');const c=state.route.query.get('cycle');if(p&&PHASES.some(x=>x.id===p))state.phase=p as any;if(c&&services.snapshot().cycles.some(x=>x.id===c))state.cycleId=c;if(state.route.name==='chat')void initChatSessionIfNeeded();if(['echoes','cycles','thread'].includes(state.route.name))void loadEchoBrowse(false,true);if(state.route.name==='echo'&&state.route.id)void loadEchoDetail(state.route.id);}
 function isSampleMode():boolean{return Boolean(services.isSampleMode&&services.isSampleMode());}
 let journeyView:ReturnType<typeof mountJourney>|null=null;
 function render(focusMain=false){
@@ -1258,6 +1274,8 @@ document.addEventListener('click',async(event)=>{
       case 'echo-retry':await loadEchoBrowse(false,true);break;
       case 'echo-clear':state.echoKind='all';state.search='';state.echoBrowseKey=undefined;go('echoes');break;
       case 'echo-kind':state.echoKind=value as any;render();document.querySelector<HTMLElement>(`[data-action="echo-kind"][data-value="${value}"]`)?.focus();break;
+      case 'threads-more':state.threadLimit=(state.threadLimit||THREAD_PAGE_SIZE)+THREAD_PAGE_SIZE;renderThreadResults();break;
+      case 'threads-retry':void loadThreads();break;
       case 'loop-filter':state.loopFilter=value as any;render();document.querySelector<HTMLElement>(`[data-action="loop-filter"][data-value="${value}"]`)?.focus();break;
       case 'phase':state.phase=value as any;history.replaceState(null,'',`#/cycles?cycle=${state.cycleId}&phase=${state.phase}`);applyRoute();render();document.querySelector<HTMLElement>(`[data-action="phase"][data-value="${value}"]`)?.focus();break;
       case 'time':state.time=value;render();document.querySelector<HTMLElement>(`[data-action="time"][data-value="${value}"]`)?.focus();break;
@@ -1283,6 +1301,8 @@ document.addEventListener('click',async(event)=>{
 });
 
 document.addEventListener('input',event=>{
+  const threadInput=event.target as HTMLInputElement;
+  if(threadInput.id==='thread-search'){state.threadSearch=threadInput.value;state.threadLimit=THREAD_PAGE_SIZE;renderThreadResults();return;}
   const el=event.target as HTMLInputElement|HTMLTextAreaElement;
   if(el instanceof HTMLTextAreaElement&&el.id&&!modal.contains(el))drafts[el.id]=el.value;
   if(el.id==='echo-search'){
@@ -1294,6 +1314,7 @@ document.addEventListener('input',event=>{
 document.addEventListener('change',async(event)=>{
   const el=event.target as HTMLSelectElement|HTMLInputElement;
   try{
+    if(el.id==='thread-sort'){state.threadSort=el.value as any;state.threadLimit=THREAD_PAGE_SIZE;renderThreadResults();return;}
     if(el.dataset.loopId){await services.loops.transition(el.dataset.loopId,el.value as LoopStatus);render();toast('Your intention has room to change.');}
     if(el.id==='echo-cycle-select'){changeEchoFilter('cycle',el.value);return;}
     if(el.id==='echo-phase-select'){changeEchoFilter('phase',el.value);return;}
@@ -1399,7 +1420,7 @@ document.addEventListener('submit',async(event)=>{
   finally{submitting=false;if(submit?.isConnected)submit.disabled=false;}
 });
 window.addEventListener('luna-account-changed',()=>{
-  generation++;
+  generation++;threadLoadToken++;state.threadSearch='';state.threadSort='recent';state.threadLimit=THREAD_PAGE_SIZE;state.threadLoading=false;state.threadReady=false;state.threadError='';
   echoBrowseToken++;clearTimeout(echoSearchTimer);state.echoResults=undefined;state.echoBrowseKey=undefined;state.echoNextCursor=undefined;state.echoLoading=false;state.echoLoadError='';
   stopChatRecovery();state.chatBusy=false;chatLoadingPromise=null;
   stopPlayback();
