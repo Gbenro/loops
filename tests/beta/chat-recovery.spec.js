@@ -18,7 +18,12 @@ async function fixture(page,onPost){
   }
   return route.fulfill({json:[]});
  });
+ // A request being received is earlier than history being applied. Wait for
+ // its response and the next frame so initialization cannot erase the test draft.
+ const historyReady=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/chat_messages'));
  await page.goto('/beta#/chat');
+ await (await historyReady).finished();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>resolve())));
  await expect.poll(()=>data.reads).toBeGreaterThan(0);
  return data;
 }

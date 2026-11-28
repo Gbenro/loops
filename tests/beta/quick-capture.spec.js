@@ -120,8 +120,23 @@ test('navigating away before the single-tap delay never opens a microphone',asyn
 
 
 test('keeping a quick Echo saves both voice and transcript without leaving the page',async({page},info)=>{
- test.skip(process.platform==='win32'&&info.project.name==='mobile-webkit','Windows Playwright WebKit cannot store Blob/File data in IndexedDB; Chrome verifies durable saving.');
  await fixture(page);
+ // Some Playwright WebKit ports cannot persist Blob/File data. Probe that
+ // exact capability; any other storage error must still fail this test.
+ const storageError=await page.evaluate(()=>new Promise(resolve=>{
+  const request=indexedDB.open('quick-capture-blob-capability',1);
+  request.onupgradeneeded=()=>request.result.createObjectStore('probe');
+  request.onerror=()=>resolve(request.error?.message||'Database open failed');
+  request.onsuccess=()=>{
+   const db=request.result,tx=db.transaction('probe','readwrite');
+   tx.oncomplete=()=>{db.close();resolve('');};
+   tx.onerror=()=>{const error=tx.error?.message;db.close();resolve(error||'Transaction failed');};
+   try{const put=tx.objectStore('probe').put(new Blob(['fixture']), 'audio');put.onerror=()=>resolve(put.error?.message||'Blob write failed');}
+   catch(error){db.close();resolve(error.message);}
+  };
+ }));
+ test.skip(info.project.name==='mobile-webkit'&&String(storageError).includes('Error preparing Blob/File data'),'This Playwright WebKit runtime cannot persist Blob/File data. Durable saving runs in Chrome; storage failure/recovery still runs in both browsers.');
+ expect(storageError).toBe('');
  await doubleTap(page,info);await page.locator('[data-action="record-stop"]').click();
  await expect(page.locator('.quick-transcript')).toHaveText('A quick spoken moment.');
  await page.getByRole('button',{name:'Keep Echo',exact:true}).click();
