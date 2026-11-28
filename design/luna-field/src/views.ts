@@ -280,7 +280,7 @@ export function deepCosmicSheet(lunar: LiveLunarBundle, activeTab = 'phase'): st
 
   return `
     <div class="deep-sheet-backdrop" data-action="close-deep-sheet" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:90;display:flex;align-items:flex-end;justify-content:center;">
-      <div class="deep-sheet-dialog" onclick="event.stopPropagation()" style="position:relative;width:100%;max-width:540px;height:78vh;background:var(--color-surface,#14171d);border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -10px 40px rgba(0,0,0,0.5);">
+      <div class="deep-sheet-dialog" style="position:relative;width:100%;max-width:540px;height:78vh;background:var(--color-surface,#14171d);border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -10px 40px rgba(0,0,0,0.5);">
         <!-- Top drag handle and close -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">
           <div style="font-family:monospace;font-size:11px;letter-spacing:0.1em;color:var(--color-focus);">DEEP COSMIC WISDOM</div>
@@ -290,7 +290,7 @@ export function deepCosmicSheet(lunar: LiveLunarBundle, activeTab = 'phase'): st
         <!-- Section Tabs -->
         <div class="sheet-tabs" style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.2);">
           ${tabs.map(t => `
-            <button data-action="deep-sheet-tab" data-value="${t.id}" style="flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid ${activeTab === t.id ? 'var(--color-focus)' : 'transparent'};color:${activeTab === t.id ? 'var(--color-text)' : 'var(--color-text-muted)'};font-family:monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
+            <button type="button" data-action="deep-sheet-tab" data-value="${t.id}" aria-pressed="${activeTab === t.id}" style="flex:1;min-height:44px;padding:10px 4px;background:none;border:none;border-bottom:2px solid ${activeTab === t.id ? 'var(--color-focus)' : 'transparent'};color:${activeTab === t.id ? 'var(--color-text)' : 'var(--color-text-muted)'};font-family:monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
               <span>${t.icon}</span>
               <span>${t.label}</span>
             </button>
